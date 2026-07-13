@@ -1,0 +1,7 @@
+{
+  "name": "sodimac-app",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}
