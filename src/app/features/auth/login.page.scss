@@ -1,0 +1,124 @@
+.login-content {
+  --background: linear-gradient(180deg, #FAF5F0 0%, #FFFFFF 60%);
+
+  .login-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  .brand {
+    text-align: center;
+    margin-bottom: 2.5rem;
+
+    .brand-title {
+      color: #1C1917;
+      font-size: 1.625rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+
+    .brand-subtitle {
+      color: #FF6B00;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      margin: 0.375rem 0 0;
+      text-transform: uppercase;
+    }
+  }
+
+  .login-form {
+    background: #FFFFFF;
+    border-radius: 28px;
+    padding: 2.25rem 1.75rem;
+    box-shadow: 0 12px 40px -8px rgba(28, 25, 23, 0.08);
+  }
+
+  .form-header {
+    text-align: center;
+    margin-bottom: 1.75rem;
+
+    .form-title {
+      color: #1C1917;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+
+    .form-description {
+      color: #78716C;
+      font-size: 0.9375rem;
+      margin: 0.25rem 0 0;
+    }
+  }
+
+  .input-group {
+    margin-bottom: 1.5rem;
+
+    .premium-input {
+      --background: transparent;
+      --border-radius: 0;
+      --border-color: #E7E5E4;
+      --border-style: solid;
+      --border-width: 0 0 1px 0;
+      --highlight-color-focused: #FF6B00;
+      --highlight-color-valid: #FF6B00;
+      --placeholder-color: #A8A29E;
+      --color: #292524;
+      --padding-start: 0;
+      --padding-top: 10px;
+      --padding-bottom: 10px;
+      font-size: 1rem;
+    }
+
+    .field-error {
+      display: block;
+      color: #DC2626;
+      font-size: 0.8125rem;
+      margin-top: 0.375rem;
+    }
+  }
+
+  .error-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #DC2626;
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+
+    ion-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+  }
+
+  .login-button {
+    --background: linear-gradient(135deg, #FF6B00 0%, #FF8C42 100%);
+    --background-hover: linear-gradient(135deg, #E65C00 0%, #FF6B00 100%);
+    --background-activated: linear-gradient(135deg, #CC5200 0%, #E65C00 100%);
+    --border-radius: 14px;
+    --box-shadow: 0 8px 24px rgba(255, 107, 0, 0.28);
+    --color: #FFFFFF;
+    height: 52px;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin-top: 0.5rem;
+    text-transform: none;
+  }
+
+  .help-text {
+    text-align: center;
+    color: #A8A29E;
+    font-size: 0.8125rem;
+    margin: 1.75rem 0 0;
+  }
+}

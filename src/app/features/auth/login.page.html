@@ -1,0 +1,67 @@
+<ion-content class="login-content">
+  <div class="login-wrapper">
+    <div class="brand">
+      <h1 class="brand-title">Control de Inventario</h1>
+      <p class="brand-subtitle">Sodimac</p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="login-form">
+      <div class="form-header">
+        <h2 class="form-title">Bienvenido</h2>
+        <p class="form-description">Ingresa tus credenciales para continuar</p>
+      </div>
+
+      <div class="input-group">
+        <ion-input
+          formControlName="rut"
+          (ionInput)="onRutInput($event)"
+          label="RUT"
+          labelPlacement="floating"
+          placeholder="12345678-9"
+          inputmode="text"
+          autocomplete="username"
+          class="premium-input"
+        ></ion-input>
+        @if (rutControl?.touched && rutControl?.hasError('invalidRut')) {
+          <span class="field-error">RUT inválido</span>
+        }
+      </div>
+
+      <div class="input-group">
+        <ion-input
+          formControlName="password"
+          label="Contraseña"
+          labelPlacement="floating"
+          type="password"
+          placeholder="••••••"
+          autocomplete="current-password"
+          class="premium-input"
+        ></ion-input>
+        @if (passwordControl?.touched && passwordControl?.hasError('required')) {
+          <span class="field-error">La contraseña es obligatoria</span>
+        }
+      </div>
+
+      @if (error()) {
+        <div class="error-message">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      <ion-button
+        expand="block"
+        type="submit"
+        [disabled]="loading() || form.invalid"
+        class="login-button"
+      >
+        @if (loading()) {
+          <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+        }
+        Ingresar
+      </ion-button>
+    </form>
+
+    <p class="help-text">Contraseña: primeros 6 dígitos del RUT</p>
+  </div>
+</ion-content>
