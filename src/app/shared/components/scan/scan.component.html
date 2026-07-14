@@ -1,0 +1,34 @@
+<div class="scan-container">
+  <!-- Input always visible (pistola + manual) -->
+  <form [formGroup]="form" class="scan-form">
+    <ion-input
+      #scanInput
+      formControlName="code"
+      [placeholder]="placeholder()"
+      (keyup.enter)="onEnter(); $event.preventDefault()"
+      autofocus
+      class="input-base"
+    >
+      <ion-icon slot="start" name="barcode-outline"></ion-icon>
+    </ion-input>
+    <ion-button
+      expand="block"
+      (click)="confirm()"
+      [disabled]="form.invalid"
+      class="btn-primary"
+    >
+      {{ confirmLabel() }}
+    </ion-button>
+  </form>
+
+  <!-- Status banner -->
+  @if (tagConfirmed()) {
+    <div class="status-banner status-banner-success">
+      <span>✓ TAG: {{ tagValue() }}</span>
+    </div>
+  } @else {
+    <div class="status-banner status-banner-info">
+      <span>Escaneando tag para iniciar sesión de conteo</span>
+    </div>
+  }
+</div>

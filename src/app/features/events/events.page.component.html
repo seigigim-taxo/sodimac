@@ -1,0 +1,49 @@
+<ion-header>
+  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+    <ion-buttons slot="start">
+      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+    </ion-buttons>
+    <ion-title class="text-[var(--app-text)] font-bold text-lg">Eventos</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <div class="flex flex-col gap-2 mb-6">
+      <h2 class="page-title">Selecciona un evento</h2>
+      <p class="page-subtitle">Elige el evento de inventario para continuar</p>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      @for (event of events; track event.id) {
+        <div
+          class="event-card"
+          [class.card-selected]="selectedEvent()?.id === event.id"
+          (click)="selectEvent(event)"
+        >
+          <div class="event-name" [style.color]="selectedEvent()?.id === event.id ? 'var(--app-primary)' : 'var(--app-text)'">
+            {{ event.name }}
+          </div>
+          <div class="event-detail">
+            <span class="event-detail-label">Ubicación</span>
+            <span class="event-detail-value">{{ event.location }}</span>
+          </div>
+          <div class="event-detail">
+            <span class="event-detail-label">Fecha</span>
+            <span class="event-detail-value">{{ event.date }}</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <ion-button expand="block" class="btn-primary" [disabled]="!selectedEvent()" (click)="continue()">
+      Continuar
+    </ion-button>
+  </div>
+</ion-content>

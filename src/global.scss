@@ -1,37 +1,364 @@
 /*
  * App Global CSS
- * ----------------------------------------------------------------------------
- * Put style rules here that you want to apply globally. These styles are for
- * the entire app and not just one component. Additionally, this file can be
- * used as an entry point to import other CSS/Sass files to be included in the
- * output CSS.
- * For more information on global stylesheets, visit the documentation:
- * https://ionicframework.com/docs/layout/global-stylesheets
  */
 
-/* Core CSS required for Ionic components to work properly */
-@import "@ionic/angular/css/core.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Basic CSS for apps built with Ionic */
+/* Core CSS required for Ionic components */
+@import "@ionic/angular/css/core.css";
 @import "@ionic/angular/css/normalize.css";
 @import "@ionic/angular/css/structure.css";
 @import "@ionic/angular/css/typography.css";
 @import "@ionic/angular/css/display.css";
-
-/* Optional CSS utils that can be commented out */
 @import "@ionic/angular/css/padding.css";
 @import "@ionic/angular/css/float-elements.css";
 @import "@ionic/angular/css/text-alignment.css";
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
- */
+@import "@ionic/angular/css/palettes/dark.always.css";
 
-/* @import "@ionic/angular/css/palettes/dark.always.css"; */
-/* @import "@ionic/angular/css/palettes/dark.class.css"; */
-@import '@ionic/angular/css/palettes/dark.system.css';
+/* ===================================================================
+   Tailwind component classes — design system tokens
+   =================================================================== */
+@layer components {
+
+  /* ---------- LAYOUT ---------- */
+  .page-inner {
+    @apply flex flex-col;
+    @apply max-w-[420px] mx-auto px-6;
+    @apply gap-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold leading-tight;
+    color: var(--app-text);
+  }
+
+  .page-subtitle {
+    @apply text-base leading-relaxed;
+    color: var(--app-text-muted);
+  }
+
+  /* ---------- BUTTONS ---------- */
+  .btn-primary {
+    --background: var(--app-cta-gradient);
+    --background-hover: var(--app-cta-gradient-hover);
+    --background-activated: var(--app-cta-gradient-active);
+    --background-disabled: var(--app-surface);
+    --border-radius: 18px;
+    --box-shadow: 0 8px 24px rgba(249, 115, 22, 0.30);
+    --color: #ffffff;
+    --opacity-disabled: 1;
+    --padding-start: 1.5rem;
+    --padding-end: 1.5rem;
+
+    @apply w-full text-lg font-bold uppercase tracking-wide;
+    @apply transition-all duration-200;
+    min-height: 64px;
+
+    &:not([disabled]):hover {
+      --box-shadow: 0 12px 32px rgba(249, 115, 22, 0.40);
+      transform: translateY(-1px);
+    }
+
+    &:not([disabled]):active {
+      transform: translateY(0);
+    }
+
+    &[disabled] {
+      --box-shadow: none;
+      opacity: 0.45;
+    }
+  }
+
+  .btn-ghost {
+    --background: transparent;
+    --background-hover: var(--app-surface-hover);
+    --color: var(--app-text);
+    --border-radius: 16px;
+    --padding-start: 1rem;
+    --padding-end: 1rem;
+
+    @apply w-full min-h-[56px] text-base font-semibold;
+    @apply transition-all duration-200;
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  /* ---------- INPUTS ---------- */
+  .input-base {
+    color: var(--app-text) !important;
+    --background: var(--app-surface);
+    --border-radius: 16px;
+    --border-color: var(--app-border-strong);
+    --border-style: solid;
+    --border-width: 2px;
+    --highlight-color-focused: var(--app-secondary);
+    --highlight-color-valid: var(--app-secondary);
+    --placeholder-color: var(--app-placeholder);
+    --color: var(--app-text);
+    --padding-start: 1rem;
+    --padding-end: 1rem;
+    --padding-top: 20px;
+    --padding-bottom: 20px;
+
+    @apply w-full text-base transition-all duration-200;
+    min-height: 64px;
+
+    &:focus-within {
+      --background: var(--app-surface-hover);
+      --border-color: var(--app-border-focus);
+      box-shadow: 0 0 0 4px var(--app-focus-ring);
+    }
+  }
+
+  /* ---------- CARDS ---------- */
+  .card {
+    @apply rounded-2xl p-5 border transition-all duration-200;
+    background: var(--app-surface);
+    border-color: var(--app-border);
+  }
+
+  .card-interactive {
+    @apply cursor-pointer;
+    &:hover {
+      background: var(--app-surface-hover);
+    }
+  }
+
+  .card-selected {
+    border-color: var(--app-primary) !important;
+    background: rgba(249, 115, 22, 0.08) !important;
+  }
+
+  /* ---------- STORE ROWS ---------- */
+  .store-row {
+    @apply flex justify-between items-center;
+    padding: 0.875rem 0;
+    border-bottom: 1px solid var(--app-border);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .store-label {
+    @apply text-sm font-medium;
+    color: var(--app-text-muted);
+  }
+
+  .store-value {
+    @apply text-base font-semibold text-right;
+    color: var(--app-text);
+  }
+
+  /* ---------- EVENT CARDS ---------- */
+  .event-card {
+    @apply rounded-2xl p-5 border cursor-pointer transition-all duration-200;
+    background: var(--app-surface);
+    border-color: var(--app-border);
+
+    &:hover {
+      background: var(--app-surface-hover);
+    }
+  }
+
+  .event-name {
+    @apply text-base font-bold mb-3;
+    color: var(--app-text);
+  }
+
+  .event-detail {
+    @apply flex justify-between items-center mb-2;
+    &:last-child { margin-bottom: 0; }
+  }
+
+  .event-detail-label {
+    @apply text-sm;
+    color: var(--app-text-muted);
+  }
+
+  .event-detail-value {
+    @apply text-sm font-semibold;
+    color: var(--app-text);
+  }
+
+  /* ---------- TAG CONFIRMED ---------- */
+  .tag-confirmed {
+    @apply flex items-center gap-3 mt-4 px-4 py-3 rounded-xl text-sm font-semibold;
+    background: var(--app-success-bg);
+    border: 1px solid var(--app-success-border);
+    color: var(--app-success);
+  }
+
+  /* ---------- ERROR PILL ---------- */
+  .error-pill {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium;
+    background: var(--app-error-surface);
+    border: 1px solid var(--app-error-border);
+    color: var(--app-error-text);
+
+    ion-icon {
+      @apply text-xl shrink-0;
+      color: var(--app-error);
+    }
+  }
+
+  /* ---------- SUCCESS PILL ---------- */
+  .success-pill {
+    @apply flex items-center gap-2 px-4 py-3 rounded-xl text-base font-semibold;
+    background: var(--app-success-bg);
+    border: 1px solid var(--app-success-border);
+    color: var(--app-success);
+  }
+
+  /* ---------- HINT TEXT ---------- */
+  .hint-text {
+    @apply text-sm mt-3;
+    color: var(--app-text-muted);
+  }
+
+  /* ---------- THEME TOGGLE ---------- */
+  .theme-toggle-btn {
+    --background: var(--app-surface);
+    --background-hover: var(--app-surface-hover);
+    --color: var(--app-primary);
+    --border-radius: 16px;
+    --padding-start: 0;
+    --padding-end: 0;
+    --box-shadow: none;
+
+    @apply min-w-[48px] min-h-[48px];
+    border: 2px solid var(--app-border-strong);
+
+    &:hover {
+      border-color: var(--app-border-focus);
+    }
+  }
+
+  /* ---------- ZONE SELECT ---------- */
+  .zone-select {
+    --background: var(--app-surface);
+    --border-radius: 16px;
+    --border-color: var(--app-border-strong);
+    --border-width: 2px;
+    --border-style: solid;
+    --padding-start: 1rem;
+    --padding-end: 1rem;
+    --padding-top: 16px;
+    --padding-bottom: 16px;
+    --placeholder-color: var(--app-placeholder);
+    --color: var(--app-text);
+
+    @apply w-full min-h-[56px] text-base transition-all duration-200;
+    border: 2px solid var(--app-border-strong);
+    border-radius: 16px;
+
+    &:focus-within {
+      border-color: var(--app-border-focus);
+      box-shadow: 0 0 0 4px var(--app-focus-ring);
+    }
+  }
+
+  /* ---------- MENU ---------- */
+  .menu-user-info {
+    @apply text-center;
+    padding: 1.5rem 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  .menu-user-name {
+    @apply text-base font-bold mb-1;
+    color: var(--app-menu-text);
+    margin: 0;
+  }
+
+  .menu-user-rut {
+    @apply text-sm;
+    color: var(--app-menu-text-muted);
+    margin: 0;
+  }
+
+  .menu-list {
+    background: transparent;
+    padding: 0.5rem;
+  }
+
+  .menu-logout-item {
+    --background: transparent;
+    --color: var(--app-error);
+    --border-radius: 12px;
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+
+    ion-icon {
+      color: var(--app-error);
+    }
+  }
+
+  .menu-theme-item {
+    --background: transparent;
+    --color: var(--app-menu-text);
+    --border-radius: 12px;
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+
+    ion-icon {
+      color: var(--app-menu-text);
+      font-size: 1.4rem;
+    }
+  }
+
+  /* ---------- SCANNER ---------- */
+  .scan-container {
+    @apply flex flex-col gap-6;
+  }
+
+  .status-banner {
+    @apply rounded-2xl px-6 py-4 text-center text-base font-medium;
+  }
+
+  .status-banner-info {
+    background: rgba(249, 115, 22, 0.08);
+    color: var(--app-text);
+  }
+
+  .status-banner-success {
+    background: var(--app-success-bg);
+    border: 1px solid var(--app-success-border);
+    color: var(--app-success);
+  }
+
+  .btn-manual-input {
+    --background: var(--app-cta-gradient);
+    --background-hover: var(--app-cta-gradient-hover);
+    --background-activated: var(--app-cta-gradient-active);
+    --border-radius: 18px;
+    --color: #ffffff;
+
+    @apply w-full text-lg font-bold;
+    min-height: 64px;
+  }
+
+  .scan-form {
+    @apply flex flex-col gap-4;
+  }
+
+  /* ---------- SESSION BADGE ---------- */
+  .session-badge {
+    @apply flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium;
+    background: rgba(34, 197, 94, 0.10);
+    color: var(--app-success);
+  }
+
+  .session-badge-icon {
+    @apply w-4 h-4 rounded-sm;
+    border: 1.5px solid var(--app-success);
+  }
+}

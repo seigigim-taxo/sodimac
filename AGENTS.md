@@ -21,44 +21,71 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
 - Build output directory is `www` (used by Capacitor as `webDir`).
-- `angular.json` component style budgets were raised to `4kb` warning / `8kb` error (from `2kb`/`4kb`) to allow richer per-page styles without noisy warnings.
+- Component style budgets: `4kb` warning / `8kb` error (raised from defaults to avoid noisy warnings on richer per-page styles).
 
 ## Architecture
 
-- Entry point: `src/main.ts` bootstraps `AppComponent` using `bootstrapApplication`.
-- Routing: `src/app/app.routes.ts`. Uses `provideRouter` with `PreloadAllModules` and `IonicRouteStrategy`.
-- Pages are standalone components. New page schematics default to `styleext: scss`, `standalone: true`.
-- Current only route: `/home` → `src/app/home/home.page.ts`.
-- Ionic components must be imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
+- Entry point: `src/main.ts` bootstraps `AppComponent` via `bootstrapApplication` with `provideHttpClient`, `provideIonicAngular()`, and `PreloadAllModules` routing.
+- `APP_INITIALIZER` calls `AuthFacade.init()` on startup to restore session from `@capacitor/preferences`.
+- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`LoginPage`, `HomePage`), auth guard on `/home`.
+- Pages are standalone components generated with `styleext: scss`, `standalone: true`.
+- Ionic components imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
+- Clean Architecture scaffold (most layers are empty — see below):
+  - `domain/` — models (interfaces only) and planned repository interfaces (empty).
+  - `data/` — concrete implementations. Only `auth/` exists (mock `AuthService`).
+  - `application/` — use cases (empty).
+  - `state/` — Signals-based facades. Only `auth/` exists (`AuthFacade`).
+  - `features/` — standalone pages. Only `auth/login` and `home` exist.
+  - `core/` — cross-cutting infra. Only `auth/guards` has code; `soap/`, `sync/`, `database/` are empty.
+  - `shared/` — only `utils/` has files; `components/`, `directives/`, `pipes/` are empty.
+- **The app is early stage**: only the auth flow (login → home) is built. Branch, Event, SOAP client, SQLite repositories, and sync layer are scaffold directories with no code.
+
+## Auth flow
+
+- `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error` signals and `isAuthenticated` computed. Persists session to `@capacitor/preferences` under key `session`.
+- `AuthService` (`src/app/data/auth/`) is a **mock** — validates RUT via modulo-11 (`validateRut`), compares password to first 6 digits of cleaned RUT (`getFirstSixDigits`), returns fake token after 300ms delay.
+- `AuthGuard` (`src/app/core/auth/guards/`) checks `AuthFacade.isAuthenticated()`.
+- Login password rule: default password = first 6 digits of the RUT body (e.g., RUT `12345678-9` → password `123456`).
+
+## RUT utilities
+
+RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
+- `cleanRut(rut)` — strip dots, dashes, keep only `[0-9kK]`.
+- `formatRut(rut)` — format as `12345678-9`.
+- `validateRut(rut)` — modulo-11 algorithm.
+- `getFirstSixDigits(rut)` — first 6 digits of RUT body (used as default password).
+- `rut-formatter.ts` exists but is empty.
 
 ## Tests
 
 - Karma + Jasmine, browser `Chrome`, default `singleRun: false`.
 - Karma config: `karma.conf.js`; test bootstrap: `src/test.ts`.
-- Coverage is written to `coverage/app`.
+- Coverage written to `coverage/app`.
 - Run a single spec file: `npx ng test --include='src/app/home/home.page.spec.ts'`.
+- Mock `@capacitor/preferences` in tests (real Capacitor plugins unavailable in browser).
 
 ## Code style / lint
 
 - ESLint config in `.eslintrc.json`. Linted patterns: `src/**/*.ts`, `src/**/*.html`.
-- Angular selector prefix is `app`; component selectors must be kebab-case elements; directive selectors must be camelCase attributes.
+- Angular selector prefix `app`; component selectors kebab-case elements; directive selectors camelCase attributes.
 - Allowed component suffixes: `Page` and `Component`.
 - EditorConfig: 2-space indentation, UTF-8, final newline, single quotes for `*.ts`.
 
 ## Capacitor / native workflow
 
-- Capacitor config: `capacitor.config.ts`. `appId` is still the starter placeholder `io.ionic.starter`.
-- Always build before syncing native platforms: `npm run build && npx cap sync`.
-- No `android`/`ios` platforms are committed yet. Add with `npx cap add android` or `npx cap add ios`.
-- Open native IDEs: `npx cap open android` / `npx cap open ios`.
+- Capacitor config: `capacitor.config.ts`. `appId` is still placeholder `io.ionic.starter`.
+- Always build before syncing: `npm run build; npx cap sync`.
+- No `android`/`ios` platforms committed yet. Add with `npx cap add android` / `npx cap add ios`.
 - Native project dirs and `www` are gitignored.
 
 ## Environment / build
 
-- Environment files are in `src/environments/`.
-- Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
+- Environment files in `src/environments/`. Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
+- Only `production: boolean` is defined; no `useMockSoap` toggle exists yet.
 
-## Notes
+## Theming / UI
 
-- No `README`, CI workflows, `opencode.json`, or existing agent instruction files were found in the repo.
-- `@capacitor-community/sqlite` is installed; unit tests will likely need to mock it.
+- Design system documented in `docs/ui-theme.md` (dark glassmorphism, large 64px touch targets, indigo-violet-pink accents).
+- CSS custom properties and Ionic overrides in `src/theme/variables.scss`.
+- Reusable utility classes defined in `variables.scss`: `.glass-card`, `.app-button`, `.app-input`, `.error-pill`, `.page-title`, `.page-subtitle`.
+- `src/global.scss` imports `dark.always.css` — app is always dark, no theme toggle.

@@ -1,3 +1,44 @@
 <ion-app>
-  <ion-router-outlet></ion-router-outlet>
+  <ion-menu side="start" contentId="main-content" style="--background: var(--app-menu-bg);">
+    <ion-header>
+      <ion-toolbar style="--background: var(--app-surface); --border-color: var(--app-border);">
+        <ion-buttons slot="start">
+          <ion-button (click)="goBack()" class="text-[var(--app-text)]">
+            <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+        <ion-title class="text-[var(--app-text)] font-bold">Menú</ion-title>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content style="--background: var(--app-menu-bg); --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem;">
+      <div class="menu-user-info">
+        <p class="menu-user-name">{{ session()?.name }}</p>
+        <p class="menu-user-rut">{{ session()?.rut }}</p>
+      </div>
+
+      <ion-list lines="none" class="menu-list">
+        <!-- Theme toggle -->
+        <ion-menu-toggle>
+          <ion-item
+            button
+            (click)="toggleTheme()"
+            class="menu-theme-item"
+          >
+            <ion-icon slot="start" [name]="isDark() ? 'sunny-outline' : 'moon-outline'"></ion-icon>
+            <ion-label>{{ isDark() ? 'Modo claro' : 'Modo oscuro' }}</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
+        <!-- Logout -->
+        <ion-menu-toggle>
+          <ion-item button (click)="logout()" class="menu-logout-item">
+            <ion-icon slot="start" name="log-out-outline"></ion-icon>
+            <ion-label>Cerrar sesión</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+      </ion-list>
+    </ion-content>
+  </ion-menu>
+
+  <ion-router-outlet id="main-content"></ion-router-outlet>
 </ion-app>

@@ -17,13 +17,12 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
-import { AuthFacade } from '../../core/auth/services/auth.facade';
+import { AuthFacade } from '../../state/auth/auth.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
-  styleUrls: ['./login.page.scss'],
   standalone: true,
   imports: [
     ReactiveFormsModule,
@@ -65,7 +64,7 @@ export class LoginPage implements OnInit {
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/sucursales']);
+      this.router.navigate(['/home']);
     }
   }
 
@@ -89,7 +88,7 @@ export class LoginPage implements OnInit {
     await this.auth.login({ rut, password });
 
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/sucursales']);
+      this.router.navigate(['/home']);
     }
   }
 

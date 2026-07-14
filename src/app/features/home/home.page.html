@@ -1,0 +1,47 @@
+<ion-header>
+  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+    <ion-buttons slot="start">
+      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+    </ion-buttons>
+    <ion-title class="text-[var(--app-text)] font-bold text-lg">Tienda</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <!-- Content -->
+    <div class="flex flex-col gap-2">
+      <h2 class="page-title">Tienda asignada</h2>
+      <p class="page-subtitle">Revisa los datos de la tienda antes de continuar</p>
+    </div>
+
+    <div class="card">
+      <div class="store-row">
+        <span class="store-label">Nombre</span>
+        <span class="store-value">{{ store.name }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Código</span>
+        <span class="store-value">{{ store.code }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Dirección</span>
+        <span class="store-value">{{ store.address }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Ciudad</span>
+        <span class="store-value">{{ store.city }}</span>
+      </div>
+    </div>
+
+    <ion-button expand="block" class="btn-primary" (click)="continue()">
+      Continuar
+    </ion-button>
+  </div>
+</ion-content>

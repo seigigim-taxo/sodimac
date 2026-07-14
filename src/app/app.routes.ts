@@ -7,8 +7,18 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
   },
   {
-    path: 'sucursales',
-    loadComponent: () => import('./features/sucursales/sucursales.page').then((m) => m.SucursalesPage),
+    path: 'home',
+    loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'events',
+    loadComponent: () => import('./features/events/events.page.component').then((m) => m.EventsPageComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'zone-select',
+    loadComponent: () => import('./features/zone-select/zone-select.page.component').then((m) => m.ZoneSelectPageComponent),
     canActivate: [authGuard],
   },
   {

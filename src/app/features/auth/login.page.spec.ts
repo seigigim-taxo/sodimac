@@ -9,7 +9,7 @@ import {
   IonSpinner,
 } from '@ionic/angular/standalone';
 import { LoginPage } from './login.page';
-import { AuthFacade } from '../../core/auth/services/auth.facade';
+import { AuthFacade } from '../../state/auth/auth.facade';
 
 describe('LoginPage', () => {
   let component: LoginPage;
@@ -78,6 +78,6 @@ describe('LoginPage', () => {
     await component.onSubmit();
 
     expect(authFacade.login).toHaveBeenCalledWith({ rut: '123456785', password: '123456' });
-    expect(router.navigate).toHaveBeenCalledWith(['/sucursales']);
+    expect(router.navigate).toHaveBeenCalledWith(['/home']);
   });
 });
