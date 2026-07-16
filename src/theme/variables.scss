@@ -7,6 +7,7 @@
 /* ---------- LIGHT THEME (default) ---------- */
 :root,
 :root:not(.dark) {
+  color-scheme: light;
   /* Backgrounds */
   --app-bg-start: #f5f5f0;
   --app-bg-mid: #f0f0eb;
@@ -58,6 +59,7 @@
 
 /* ---------- DARK THEME ---------- */
 :root.dark {
+  color-scheme: dark;
   /* Backgrounds */
   --app-bg-start: #000000;
   --app-bg-mid: #0a0a0a;

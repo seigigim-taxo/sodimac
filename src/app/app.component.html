@@ -17,6 +17,22 @@
       </div>
 
       <ion-list lines="none" class="menu-list">
+        <!-- Home -->
+        <ion-menu-toggle>
+          <ion-item button (click)="goHome()" class="menu-home-item">
+            <ion-icon slot="start" name="home-outline"></ion-icon>
+            <ion-label>Inicio</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
+        <!-- Counts -->
+        <ion-menu-toggle>
+          <ion-item button (click)="goCounts()" class="menu-counts-item">
+            <ion-icon slot="start" name="list-outline"></ion-icon>
+            <ion-label>Conteos</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item

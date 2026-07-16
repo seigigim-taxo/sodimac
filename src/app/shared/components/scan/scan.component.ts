@@ -1,8 +1,9 @@
-import { Component, inject, input, output, signal, viewChild, AfterViewInit } from '@angular/core';
+import { Component, HostListener, inject, input, output, signal, viewChild, AfterViewInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IonButton, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { barcodeOutline } from 'ionicons/icons';
+import { Keyboard } from '@capacitor/keyboard';
 
 @Component({
   selector: 'app-scan',
@@ -14,6 +15,7 @@ export class ScanComponent implements AfterViewInit {
   confirmLabel = input('Confirmar');
   scanType = input<'tag' | 'sku'>('sku');
   scan = output<string>();
+  tagReset = output<void>();
   scanInput = viewChild<IonInput>('scanInput');
 
   private fb = inject(FormBuilder);
@@ -30,22 +32,42 @@ export class ScanComponent implements AfterViewInit {
     setTimeout(() => this.scanInput()?.setFocus(), 100);
   }
 
-  onEnter(): void {
+  @HostListener('document:keydown.enter', ['$event'])
+  async onDocumentEnter(event: KeyboardEvent): Promise<void> {
+    if (this.scanType() !== 'sku' || this.tagConfirmed()) return;
+    const inputEl = await this.scanInput()?.getInputElement();
+    if (!inputEl || !inputEl.contains(document.activeElement)) return;
+    event.preventDefault();
     this.confirm();
   }
+
+  async onInputFocus(): Promise<void> {
+    if (this.scanType() === 'sku') {
+      await Keyboard.hide();
+    }
+  }
+
 
   confirm(): void {
     const value = this.form.get('code')?.value?.trim().toUpperCase();
     if (!value) return;
 
-    this.tagValue.set(value);
-    this.tagConfirmed.set(true);
-    this.scan.emit(value);
-
-    if (this.scanType() === 'sku') {
-      this.form.reset();
+    if (this.scanType() === 'tag') {
+      this.tagValue.set(value);
+      this.tagConfirmed.set(true);
     }
 
+    this.scan.emit(value);
+    this.form.reset();
+
     setTimeout(() => this.scanInput()?.setFocus(), 50);
+  }
+
+  onChangeTag(): void {
+    this.tagConfirmed.set(false);
+    this.tagValue.set('');
+    this.form.reset();
+    this.tagReset.emit();
+    setTimeout(() => this.scanInput()?.setFocus(), 100);
   }
 }

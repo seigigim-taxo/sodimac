@@ -1,15 +1,17 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Preferences } from '@capacitor/preferences';
 import { firstValueFrom } from 'rxjs';
-import { AuthService } from '../../data/auth/auth.service';
+import { AuthRepository } from '../../domain/auth/repositories/auth.repository';
 import { Session } from '../../domain/auth/models/session.model';
 import { LoginRequest } from '../../domain/auth/models/login-request.model';
+import { validateCredentials } from '../../domain/auth/utils/auth-validation.utils';
+import { PreferencesService } from '../../core/storage/preferences.service';
 
 const SESSION_KEY = 'session';
 
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
-  private authService = inject(AuthService);
+  private authRepository = inject(AuthRepository);
+  private preferencesService = inject(PreferencesService);
 
   private sessionSignal = signal<Session | null>(null);
   private loadingSignal = signal(false);
@@ -21,9 +23,18 @@ export class AuthFacade {
   readonly isAuthenticated = computed(() => this.sessionSignal() !== null);
 
   async init(): Promise<void> {
-    const stored = await Preferences.get({ key: SESSION_KEY });
-    if (stored.value) {
-      this.sessionSignal.set(JSON.parse(stored.value));
+    const stored = await this.preferencesService.get(SESSION_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (this.isValidSession(parsed)) {
+          this.sessionSignal.set(parsed);
+        } else {
+          await this.preferencesService.remove(SESSION_KEY);
+        }
+      } catch {
+        await this.preferencesService.remove(SESSION_KEY);
+      }
     }
   }
 
@@ -32,7 +43,15 @@ export class AuthFacade {
     this.errorSignal.set(null);
 
     try {
-      const response = await firstValueFrom(this.authService.login(request));
+      // Validación de credenciales (regla de negocio)
+      const validation = validateCredentials(request.rut, request.password);
+      if (!validation.valid) {
+        this.errorSignal.set(validation.error ?? 'Error al iniciar sesión');
+        return;
+      }
+
+      // Llamada al repositorio (acceso a datos)
+      const response = await firstValueFrom(this.authRepository.login(request));
 
       if (!response.success || !response.token || !response.user) {
         this.errorSignal.set(response.error ?? 'Error al iniciar sesión');
@@ -46,7 +65,7 @@ export class AuthFacade {
         rut: response.user.rut,
       };
 
-      await Preferences.set({ key: SESSION_KEY, value: JSON.stringify(session) });
+      await this.preferencesService.set(SESSION_KEY, JSON.stringify(session));
       this.sessionSignal.set(session);
     } catch (err) {
       this.errorSignal.set('Error al iniciar sesión');
@@ -56,7 +75,19 @@ export class AuthFacade {
   }
 
   async logout(): Promise<void> {
-    await Preferences.remove({ key: SESSION_KEY });
+    await this.preferencesService.remove(SESSION_KEY);
     this.sessionSignal.set(null);
+  }
+
+  private isValidSession(value: unknown): value is Session {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof (value as Session).token === 'string' &&
+      (value as Session).token.length > 0 &&
+      typeof (value as Session).userId === 'number' &&
+      typeof (value as Session).name === 'string' &&
+      typeof (value as Session).rut === 'string'
+    );
   }
 }

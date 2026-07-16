@@ -1,34 +1,38 @@
 <div class="scan-container">
-  <!-- Input always visible (pistola + manual) -->
   <form [formGroup]="form" class="scan-form">
     <ion-input
       #scanInput
       formControlName="code"
       [placeholder]="placeholder()"
-      (keyup.enter)="onEnter(); $event.preventDefault()"
-      autofocus
+      [inputmode]="scanType() === 'sku' ? 'none' : 'text'"
+      [autocapitalize]="scanType() === 'tag' ? 'characters' : 'none'"
+      (ionFocus)="onInputFocus()"
       class="input-base"
     >
       <ion-icon slot="start" name="barcode-outline"></ion-icon>
     </ion-input>
-    <ion-button
-      expand="block"
-      (click)="confirm()"
-      [disabled]="form.invalid"
-      class="btn-primary"
-    >
-      {{ confirmLabel() }}
-    </ion-button>
+
+    @if (scanType() === 'tag') {
+      <ion-button
+        expand="block"
+        (click)="tagConfirmed() ? onChangeTag() : confirm()"
+        [disabled]="form.invalid && !tagConfirmed()"
+        class="btn-primary"
+      >
+        {{ tagConfirmed() ? 'Cambiar TAG' : confirmLabel() }}
+      </ion-button>
+    }
   </form>
 
-  <!-- Status banner -->
-  @if (tagConfirmed()) {
-    <div class="status-banner status-banner-success">
-      <span>✓ TAG: {{ tagValue() }}</span>
-    </div>
-  } @else {
-    <div class="status-banner status-banner-info">
-      <span>Escaneando tag para iniciar sesión de conteo</span>
-    </div>
+  @if (scanType() === 'tag') {
+    @if (tagConfirmed()) {
+      <div class="status-banner status-banner-success">
+        <span>✓ TAG: {{ tagValue() }}</span>
+      </div>
+    } @else {
+      <div class="status-banner status-banner-info">
+        <span>Escaneando tag para iniciar sesión de conteo</span>
+      </div>
+    }
   }
 </div>

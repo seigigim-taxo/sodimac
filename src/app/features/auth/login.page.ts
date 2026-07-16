@@ -14,11 +14,13 @@ import {
   IonIcon,
   IonInput,
   IonSpinner,
+  ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
+import { cleanRut, formatRut, validateRut } from '../../domain/auth/utils/rut.utils';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -33,7 +35,7 @@ import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
     IonSpinner,
   ],
 })
-export class LoginPage implements OnInit {
+export class LoginPage implements ViewWillEnter {
   private fb = inject(FormBuilder);
   private auth = inject(AuthFacade);
   private router = inject(Router);
@@ -41,6 +43,7 @@ export class LoginPage implements OnInit {
   form: FormGroup;
   loading = this.auth.loading;
   error = this.auth.error;
+  environment = environment;
 
   constructor() {
     addIcons({ alertCircleOutline });
@@ -62,7 +65,7 @@ export class LoginPage implements OnInit {
     return validateRut(value) ? null : { invalidRut: true };
   };
 
-  ngOnInit(): void {
+  ionViewWillEnter(): void {
     if (this.auth.isAuthenticated()) {
       this.router.navigate(['/home']);
     }

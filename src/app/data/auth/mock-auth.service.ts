@@ -3,23 +3,15 @@ import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { LoginRequest } from '../../domain/auth/models/login-request.model';
 import { LoginResponse } from '../../domain/auth/models/login-response.model';
-import { cleanRut, getFirstSixDigits, validateRut } from '../../shared/utils/rut.utils';
+import { AuthRepository } from '../../domain/auth/repositories/auth.repository';
+import { cleanRut } from '../../domain/auth/utils/rut.utils';
 
 @Injectable({ providedIn: 'root' })
-export class AuthService {
+export class MockAuthService implements AuthRepository {
   login(request: LoginRequest): Observable<LoginResponse> {
     const rut = cleanRut(request.rut);
 
-    if (!validateRut(rut)) {
-      return of({ success: false, error: 'RUT inválido' });
-    }
-
-    const expectedPassword = getFirstSixDigits(rut);
-
-    if (request.password !== expectedPassword) {
-      return of({ success: false, error: 'Contraseña incorrecta' });
-    }
-
+    // Mock: siempre retorna éxito con datos de demo
     return of({
       success: true,
       token: `demo-token-${Date.now()}`,

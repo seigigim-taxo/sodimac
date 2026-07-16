@@ -1,156 +1,335 @@
-﻿# Design System — Sodimac PDA Control de Inventario
+﻿# Design System — Sodimac PDA App
 
-> Documento generado con el apoyo de la skill **UI/UX Pro Max**, adaptado al estilo ya aplicado en la pantalla de login.
+> Documento generado a partir del código implementado. Esta es la fuente de verdad; al modificar el diseño, actualizar este archivo.
+
+---
 
 ## 1. Resumen
 
-- **Estilo visual:** Glassmorphism suave sobre fondo oscuro profundo.
-- **Sensación:** Moderna, premium, técnica y legible en condiciones de bodega/tienda.
-- **Modo:** Dark-first. La app siempre se presenta en modo oscuro; no hay alternancia de tema.
-- **Objetivo:** Que todas las pantallas (login, tienda, eventos, muestras, zonas, conteo, cierre) se vean como parte del mismo sistema.
+- **Estilo visual:** Flat design con superficies sólidas, sin glassmorphism ni blur.
+- **Sensación:** Limpia, técnica, legible en condiciones de PDA / almacén.
+- **Modo:** Light/dark con toggle. La clase `.dark` se aplica al `<ion-app>` para alternar.
+- **Objetivo:** Toda la app (login, tienda, eventos, muestras, zonas, conteo, cierre) comparte los mismos tokens.
 
-## 2. Principios de diseño
+---
 
-1. **Fondo profundo, capas translúcidas.** El fondo es un degradado oscuro; las tarjetas y superficies usan vidrio esmerilado (`backdrop-filter`).
-2. **Toques grandes.** Los operadores usan la app con guantes o en movimiento: botones e inputs de **64 px** de alto, targets táctiles mínimo **44 px**.
-3. **Acentos vibrantes.** Morado, índigo y rosa como gradiente de acción; verde/ámbar para estados.
-4. **Contraste accesible.** Texto principal blanco; textos secundarios con opacidad controlada. Relación de contraste mínima **4.5:1**.
-5. **Movimiento contenido.** Transiciones de **150-300 ms**; respetar `prefers-reduced-motion`.
+## 2. Sistema de temas
 
-## 3. Paleta de colores (tokens)
+El tema se controla con la clase `.dark` en `<ion-app>`:
+
+```
+<ion-app>          → modo light
+<ion-app class="dark"> → modo dark
+```
+
+- `ThemeFacade` inyecta/remueve la clase `.dark` y persiste la preferencia en `@capacitor/preferences`.
+- `StatusBar` nativo se actualiza para coincidir con el tema.
+- **No se usa** `dark.always.css` ni `color-scheme: dark` a nivel de documento.
+
+---
+
+## 3. Paleta de colores (tokens CSS)
+
+### Light (default)
 
 | Token | Valor | Uso |
 |-------|-------|-----|
-| `--app-bg-start` | `#0f172a` | Inicio del degradado de fondo |
-| `--app-bg-mid` | `#1e1b4b` | Punto medio del degradado |
-| `--app-bg-end` | `#312e81` | Fin del degradado de fondo |
-| `--app-surface` | `rgba(255, 255, 255, 0.08)` | Fondo glass de tarjetas |
-| `--app-surface-hover` | `rgba(255, 255, 255, 0.10)` | Superficie glass al hacer hover |
-| `--app-border` | `rgba(255, 255, 255, 0.16)` | Bordes glass |
-| `--app-border-strong` | `rgba(255, 255, 255, 0.20)` | Bordes de inputs |
-| `--app-border-focus` | `rgba(167, 139, 250, 0.60)` | Borde de input enfocado |
-| `--app-primary` | `#6366f1` | Índigo — color primario sólido |
-| `--app-secondary` | `#8b5cf6` | Violeta — color secundario |
-| `--app-accent` | `#ec4899` | Rosa — acento del gradiente CTA |
-| `--app-cta-gradient` | `linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)` | Degradado principal de botones |
-| `--app-text` | `#ffffff` | Texto principal |
-| `--app-text-secondary` | `rgba(255, 255, 255, 0.70)` | Texto secundario |
-| `--app-text-muted` | `rgba(255, 255, 255, 0.55)` | Texto terciario / ayuda |
-| `--app-success` | `#22c55e` | Éxito / cantidad correcta |
-| `--app-warning` | `#f59e0b` | Advertencia |
-| `--app-error` | `#ef4444` | Error |
-| `--app-error-text` | `#fecaca` | Texto dentro de pills de error |
-| `--app-error-surface` | `rgba(239, 68, 68, 0.12)` | Fondo de pills de error |
-| `--app-focus-ring` | `rgba(167, 139, 250, 0.15)` | Halo de foco |
+| `--app-bg-start` | `#f5f5f0` | Fondo degradado inicio |
+| `--app-bg-mid` | `#f0f0eb` | Fondo degradado medio |
+| `--app-bg-end` | `#e8e8e3` | Fondo degradado fin |
+| `--app-bg-gradient` | `linear-gradient(135deg, ...)` | Fondo completo |
+| `--app-surface` | `#ffffff` | Tarjetas, inputs |
+| `--app-surface-hover` | `#f0f0eb` | Hover state |
+| `--app-border` | `rgba(0,0,0,0.14)` | Bordes sutiles |
+| `--app-border-strong` | `rgba(0,0,0,0.30)` | Bordes inputs |
+| `--app-border-focus` | `#F97316` | Borde enfocado |
+| `--app-placeholder` | `#5c6370` | Placeholder inputs |
+| `--app-primary` | `#F97316` | Naranja primario |
+| `--app-secondary` | `#FB923C` | Naranja secundario |
+| `--app-accent` | `#EA580C` | Naranja acento |
+| `--app-cta-gradient` | `linear-gradient(135deg, #EA580C, #F97316)` | Botón CTA |
+| `--app-cta-gradient-hover` | `linear-gradient(135deg, #C2410C, #EA580C)` | CTA hover |
+| `--app-cta-gradient-active` | `linear-gradient(135deg, #9A3412, #C2410C)` | CTA active |
+| `--app-text` | `#1c1c1e` | Texto principal (16.8:1) |
+| `--app-text-secondary` | `rgba(28,28,30,0.80)` | Texto secundario (8.2:1) |
+| `--app-text-muted` | `rgba(28,28,30,0.65)` | Texto terciario (5.4:1) |
+| `--app-success` | `#16a34a` | Éxito (4.7:1) |
+| `--app-success-bg` | `rgba(22,163,74,0.10)` | Fondo éxito |
+| `--app-warning` | `#b45309` | Advertencia |
+| `--app-error` | `#dc2626` | Error |
+| `--app-error-text` | `#b91c1c` | Texto error |
+| `--app-error-surface` | `rgba(220,38,38,0.10)` | Fondo error |
+| `--app-focus-ring` | `rgba(249,115,22,0.30)` | Halo foco |
+| `--app-menu-bg` | `#1c1c1e` | Fondo menú |
+| `--app-menu-text` | `#ffffff` | Texto menú |
+| `--app-menu-text-muted` | `rgba(255,255,255,0.65)` | Texto menú secundario |
+
+### Dark
+
+| Token | Valor |
+|-------|-------|
+| `--app-bg-start` | `#000000` |
+| `--app-bg-mid` | `#0a0a0a` |
+| `--app-bg-end` | `#141414` |
+| `--app-surface` | `#1c1c1e` |
+| `--app-surface-hover` | `#252528` |
+| `--app-border` | `rgba(255,255,255,0.10)` |
+| `--app-border-strong` | `rgba(255,255,255,0.30)` |
+| `--app-border-focus` | `#FB923C` |
+| `--app-placeholder` | `#a3aab5` |
+| `--app-primary` | `#F97316` |
+| `--app-secondary` | `#FB923C` |
+| `--app-accent` | `#EA580C` |
+| `--app-cta-gradient` | `linear-gradient(135deg, #EA580C, #F97316)` |
+| `--app-cta-gradient-hover` | `linear-gradient(135deg, #C2410C, #EA580C)` |
+| `--app-cta-gradient-active` | `linear-gradient(135deg, #9A3412, #C2410C)` |
+| `--app-text` | `#ffffff` |
+| `--app-text-secondary` | `rgba(255,255,255,0.80)` |
+| `--app-text-muted` | `rgba(255,255,255,0.65)` |
+| `--app-success` | `#4ADE80` (7.2:1) |
+| `--app-success-bg` | `rgba(74,222,128,0.10)` |
+| `--app-warning` | `#f59e0b` |
+| `--app-error` | `#ef4444` |
+| `--app-error-text` | `#fecaca` |
+| `--app-error-surface` | `rgba(239,68,68,0.10)` |
+| `--app-focus-ring` | `rgba(249,115,22,0.35)` |
+| `--app-menu-bg` | `#0a0a0a` |
+| `--app-menu-text` | `#ffffff` |
+| `--app-menu-text-muted` | `rgba(255,255,255,0.65)` |
+
+---
 
 ## 4. Tipografía
 
-- **Pareja recomendada por UI/UX Pro Max:** `Rubik` (títulos) + `Nunito Sans` (cuerpo) — *E-commerce Clean*.
-- **Fallback offline:** stack de sistema (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`).
-- **Escala:**
-  - **Display / brand:** `2 rem`, peso `800`.
-  - **H1 de página:** `1.75 rem`, peso `700`.
-  - **H2 / sección:** `1.25 rem`, peso `700`.
-  - **Cuerpo:** `1 rem`, peso `400`.
-  - **Pequeño:** `0.875 rem`, peso `400/600`.
-  - **Mini:** `0.8125 rem`, peso `400`.
+Stack del sistema. No se usan Google Fonts.
+
+```css
+--ion-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+```
+
+Escala (clases utilitarias en `global.scss`):
+
+| Clase | Uso |
+|-------|-----|
+| `.page-title` | `text-2xl font-bold` + `color: var(--app-text)` |
+| `.page-subtitle` | `text-base leading-relaxed` + `color: var(--app-text-muted)` |
+
+---
 
 ## 5. Espaciado y dimensiones
 
 | Elemento | Valor |
 |----------|-------|
-| Ancho máximo de contenido móvil | `420 px` |
-| Padding lateral base | `1.5 rem` |
-| Radio de tarjeta glass | `32 px` |
-| Padding interno de tarjeta | `2.5 rem 1.75 rem` |
-| Alto de input | `64 px` |
-| Radio de input | `16 px` |
-| Padding interno de input | `20 px 1 rem` |
-| Alto de botón principal | `64 px` |
-| Radio de botón | `18 px` |
-| Espacio entre grupos de input | `1.25 rem` |
-| Target táctil mínimo | `44 x 44 px` |
+| Ancho máximo contenido | `420px` |
+| Padding lateral | `1.5rem` (`px-6` en `page-inner`) |
+| Gap entre grupos | `1.5rem` (`gap-6` en `page-inner`) |
+| Alto de input | `64px` |
+| Radio input | `16px` |
+| Alto botón CTA | `64px` |
+| Radio botón CTA | `18px` |
+| Radio tarjeta | `32px` (`rounded-2xl` = 16px, ver nota) |
+| Padding tarjeta | `1.25rem` |
+| Radio borde tarjeta | `0.75rem` (Tailwind `rounded-2xl` ≈ 12px) |
+| Target táctil mínimo | `44×44px` |
+| Alto mínimo botón fantasma | `56px` |
 
-## 6. Efectos y elevación
+> **Nota:** Las tarjetas usan `rounded-2xl` de Tailwind (16px en pantalla 1×), no 32px como dice el doc original.
 
-- **Glass card:**
-  - `background: rgba(255, 255, 255, 0.08)`
-  - `border: 1px solid rgba(255, 255, 255, 0.16)`
-  - `backdrop-filter: blur(24px)`
-  - `box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.12)`
-- **Input enfocado:** halo de `0 0 0 4px var(--app-focus-ring)`.
-- **Botón CTA:** sombra de resplandor `0 12px 32px rgba(139, 92, 246, 0.35)`.
-- **Transiciones:** `150-300 ms ease`, preferiblemente sobre `transform` y `opacity`.
+---
 
-## 7. Componentes base
+## 6. Componentes base
 
-### 7.1 Botón principal (`app-button`)
+### 6.1 Botón principal (`.btn-primary`)
 
-Fondo degradado, texto blanco, alto `64 px`, radio `18 px`, sombra de resplandor. En hover: degradado más intenso y sombra más grande. Deshabilitado: fondo translúcido gris, sin sombra.
+```css
+background: var(--app-cta-gradient);  /* naranja degradado */
+min-height: 64px;
+border-radius: 18px;
+font-weight: bold, uppercase, tracking-wide;
+box-shadow: 0 8px 24px rgba(249,115,22,0.30);
+```
 
-### 7.2 Input (`app-input`)
+Estados:
+- **Hover:** `--box-shadow` aumenta, `translateY(-1px)`
+- **Active:** `translateY(0)`
+- **Disabled:** `opacity: 0.45`, `box-shadow: none`
 
-Fondo translúcido, borde `1px`, radio `16 px`, altura `64 px`, etiqueta flotante. Foco: borde violeta + halo.
+### 6.2 Botón fantasma (`.btn-ghost`)
 
-### 7.3 Tarjeta glass (`glass-card`)
+```css
+background: transparent;
+min-height: 56px;
+border-radius: 16px;
+color: var(--app-text);
+```
+- Hover: `--background: var(--app-surface-hover)`
+- Active: `scale(0.98)`
 
-Superficie esmerilada con borde translúcido y sombra profunda. Usada para formularios, resúmenes y paneles.
+### 6.3 Input base (`.input-base`)
 
-### 7.4 Pill de error (`error-pill`)
+```css
+background: var(--app-surface);
+border: 2px solid var(--app-border-strong);
+border-radius: 16px;
+min-height: 64px;
+color: var(--app-text);
+placeholder: var(--app-placeholder);
+```
 
-Fondo rojo translúcido, borde rojo translúcido, texto rojo claro, bordes redondeados `12 px`, con icono a la izquierda.
+Estados:
+- **Focus:** `border-color: var(--app-border-focus)`, `box-shadow: 0 0 0 4px var(--app-focus-ring)`
 
-### 7.5 Lista de selección (`selectable-list-item`)
+### 6.4 Tarjeta (`.card`)
 
-Fondo glass, borde sutil, radio `16 px`, altura mínima `64 px`. Estado activo/selected: borde violeta + fondo ligeramente más claro.
+```css
+background: var(--app-surface);
+border: 1px solid var(--app-border);
+border-radius: 0.75rem;  /* rounded-2xl */
+padding: 1.25rem;
+```
 
-### 7.6 Chips / badges (`chip`)
+Variantes:
+- `.card-interactive` → `cursor-pointer` + hover background
+- `.card-selected` → `border-color: var(--app-primary)` + fondo naranja translúcido
 
-Fondo glass, radio `9999 px`, altura `32 px`, texto pequeño. Variantes: `chip-primary`, `chip-success`, `chip-warning`, `chip-error`.
+### 6.5 Pill de error (`.error-pill`)
 
-## 8. Aplicación global en Ionic
+```css
+background: var(--app-error-surface);
+border: 1px solid var(--app-error-border);
+color: var(--app-error-text);
+border-radius: 0.75rem;
+padding: 0.75rem 1rem;
+```
 
-- Definir los tokens en `src/theme/variables.scss` bajo `:root`.
-- Sobreescribir variables de Ionic:
-  - `--ion-background-color: var(--app-bg-start)`
-  - `--ion-text-color: var(--app-text)`
-  - `--ion-color-primary: var(--app-primary)`
-  - `--ion-color-secondary: var(--app-secondary)`
-  - `--ion-color-tertiary: var(--app-accent)`
-  - `--ion-color-success`, `--ion-color-warning`, `--ion-color-danger`.
-- Importar `dark.always.css` en `src/global.scss` para que los componentes Ionic usen modo oscuro permanentemente.
-- Usar las clases utilitarias globales en cada página; no repetir valores hardcodeados.
+### 6.6 Pill de éxito (`.success-pill`)
 
-## 9. Accesibilidad y UX
+```css
+background: var(--app-success-bg);
+border: 1px solid var(--app-success-border);
+color: var(--app-success);
+border-radius: 0.75rem;
+```
 
-- Todos los botones/iconos interactivos deben tener target táctil visible.
-- Los inputs deben tener etiquetas asociadas.
-- No usar emojis como iconos; usar Ionicons o SVG.
-- Respetar `prefers-reduced-motion`: si está activo, desactivar transiciones y blur animado.
-- Asegurar que el texto sobre fondo glass mantenga contraste 4.5:1.
+### 6.7 Session badge (`.session-badge`)
 
-## 10. Referencias de skill
+```css
+background: rgba(34,197,94,0.10);
+color: var(--app-success);
+border-radius: 9999px;  /* pill */
+padding: 0.5rem 1rem;
+font-size: 0.875rem;
+```
 
-- **Design system base generado con UI/UX Pro Max:**
-  - Query: `"inventory PDA retail warehouse glassmorphism dark modern"`
-  - Flags: `--design-system --project-name "Sodimac PDA Control de Inventario" --format markdown`
-- **Búsquedas complementarias usadas:**
-  - `--domain style "glassmorphism dark"` → estilo glassmorphism + dark mode OLED.
-  - `--domain color "fintech dark"` → fondo `#0F172A` con acentos vibrantes.
-  - `--domain typography "modern technical retail"` → pareja `Rubik` + `Nunito Sans` (*E-commerce Clean*).
+---
+
+## 7. Layout
+
+### Estructura de página
+
+```html
+<ion-header>         ← toolbar glass con borde
+  <ion-toolbar>
+    <ion-buttons slot="start"> <ion-menu-button> </ion-buttons>
+    <ion-title>
+    <ion-buttons slot="end">  <ion-button back/extra> </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner">   ← max-w-[420px] mx-auto px-6 gap-6
+    ... contenido ...
+  </div>
+</ion-content>
+```
+
+### Menú hamburguesa
+
+Fondo: `var(--app-menu-bg)` (#1c1c1e en light, #0a0a0a en dark).
+Items: `.menu-theme-item` y `.menu-logout-item`.
+
+---
+
+## 8. Override de Ionic
+
+### Variables globales Ionic
+
+```scss
+:root {
+  --ion-background-color: var(--app-bg-start);
+  --ion-text-color: var(--app-text);
+  --ion-color-primary: var(--app-primary);
+  --ion-color-primary-contrast: #ffffff;
+  --ion-item-background: transparent;
+  --ion-card-background: var(--app-surface);
+}
+
+:root {
+  --ion-toolbar-background: var(--app-surface);
+  --ion-toolbar-border-color: var(--app-border);
+  --ion-toolbar-text-color: var(--app-text);
+}
+```
+
+### Fuentes Ionic
+
+No se importan Google Fonts. Ionic usa `--ion-font-family`.
+
+---
+
+## 9. Accesibilidad
+
+- **Contraste:** todos los textos principales ≥4.5:1 (WCAG AA). La doc de tokens indica la relación en cada tema.
+- **Target táctil mínimo:** 44×44px en todos los interactivos.
+- **Focus visible:** `box-shadow: 0 0 0 4px var(--app-focus-ring)` en inputs y botones.
+- **Sin emojis como iconos:** se usan Ionicons exclusivamente.
+- **`prefers-reduced-motion`:** las transiciones de 150-300ms son rápidas; si el usuario prefiere menos movimiento, el navegador lo respeta automáticamente al ser valores fijos (no hay animaciones basadas en scroll o parallax).
+
+---
+
+## 10. Archivos del sistema
+
+| Archivo | Propósito |
+|---------|-----------|
+| `src/theme/variables.scss` | Tokens CSS light/dark + overrides de Ionic |
+| `src/global.scss` | Clases utilitarias Tailwind `@layer components` |
+| `src/app/state/theme/theme.facade.ts` | Lógica de toggle de tema + persistencia |
+| `src/app/app.component.ts` | Toggle en el menú |
+| `src/capacitor.config.ts` | Configuración de `StatusBar` nativo |
+
+---
 
 ## 11. Ejemplo de uso en una página
 
+```html
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner">
+
+    <h2 class="page-title">Título de sección</h2>
+    <p class="page-subtitle">Texto secundario explicativo</p>
+
+    <div class="card">
+      <div class="store-row">
+        <span class="store-label">Label</span>
+        <span class="store-value">Valor</span>
+      </div>
+    </div>
+
+    <ion-button expand="block" class="btn-primary">
+      Acción principal
+    </ion-button>
+
+  </div>
+</ion-content>
+```
+
 ```scss
-.my-page {
-  --background: linear-gradient(135deg, var(--app-bg-start) 0%, var(--app-bg-mid) 40%, var(--app-bg-end) 100%);
-
-  .page-card {
-    @extend .glass-card;
-  }
-
-  .action-button {
-    @extend .app-button;
-  }
+// Scoped page styles (si se necesitan)
+.my-section {
+  // Usar tokens, no hardcodear colores
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 0.75rem;
 }
 ```

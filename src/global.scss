@@ -18,7 +18,7 @@
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
-@import "@ionic/angular/css/palettes/dark.always.css";
+/* Ionic handles light/dark via .dark class on <html> */
 
 /* ===================================================================
    Tailwind component classes — design system tokens
@@ -302,7 +302,33 @@
     }
   }
 
+  .menu-home-item {
+    --background: transparent;
+    --color: var(--app-menu-text);
+    --border-radius: 12px;
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+
+    ion-icon {
+      color: var(--app-menu-text);
+      font-size: 1.4rem;
+    }
+  }
+
   .menu-theme-item {
+    --background: transparent;
+    --color: var(--app-menu-text);
+    --border-radius: 12px;
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+
+    ion-icon {
+      color: var(--app-menu-text);
+      font-size: 1.4rem;
+    }
+  }
+
+  .menu-counts-item {
     --background: transparent;
     --color: var(--app-menu-text);
     --border-radius: 12px;
@@ -360,5 +386,30 @@
   .session-badge-icon {
     @apply w-4 h-4 rounded-sm;
     border: 1.5px solid var(--app-success);
+  }
+
+  /* ---------- BADGES ---------- */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-in-progress {
+    background: rgba(249, 115, 22, 0.12);
+    color: var(--app-primary);
+  }
+
+  .badge-pending {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--app-warning);
+  }
+
+  .badge-synced {
+    background: rgba(22, 163, 74, 0.12);
+    color: var(--app-success);
+  }
+
+  .badge-edited {
+    background: rgba(167, 139, 250, 0.12);
+    color: var(--app-secondary);
   }
 }

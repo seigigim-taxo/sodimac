@@ -68,7 +68,9 @@
         </div>
       </form>
 
-      <p class="text-center text-sm mt-8" style="color: var(--app-text-muted);">Contraseña: primeros 6 dígitos del RUT</p>
+      @if (!environment.production) {
+        <p class="text-center text-sm mt-8" style="color: var(--app-text-muted);">Contraseña: primeros 6 dígitos del RUT</p>
+      }
     </div>
   </div>
 </ion-content>

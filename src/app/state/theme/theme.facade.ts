@@ -1,6 +1,6 @@
-import { Injectable, inject, signal, effect } from '@angular/core';
-import { Preferences } from '@capacitor/preferences';
-import { StatusBar, Style } from '@capacitor/status-bar';
+import { Injectable, inject, signal, effect, computed } from '@angular/core';
+import { PreferencesService } from '../../core/storage/preferences.service';
+import { StatusBarService } from '../../core/theme/status-bar.service';
 
 const THEME_KEY = 'theme';
 
@@ -8,10 +8,13 @@ export type Theme = 'light' | 'dark';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeFacade {
+  private preferencesService = inject(PreferencesService);
+  private statusBarService = inject(StatusBarService);
+
   private themeSignal = signal<Theme>('light');
 
   readonly theme = this.themeSignal.asReadonly();
-  readonly isDark = () => this.themeSignal() === 'dark';
+  readonly isDark = computed(() => this.themeSignal() === 'dark');
 
   constructor() {
     effect(() => {
@@ -22,33 +25,24 @@ export class ThemeFacade {
   }
 
   private async updateStatusBar(theme: Theme): Promise<void> {
-    try {
-      await StatusBar.setStyle({
-        style: theme === 'dark' ? Style.Dark : Style.Light,
-      });
-      await StatusBar.setBackgroundColor({
-        color: theme === 'dark' ? '#1c1c1e' : '#ffffff',
-      });
-    } catch {
-      // StatusBar not available (browser)
-    }
+    await this.statusBarService.setStyle(theme);
   }
 
   async init(): Promise<void> {
-    const stored = await Preferences.get({ key: THEME_KEY });
-    if (stored.value === 'dark' || stored.value === 'light') {
-      this.themeSignal.set(stored.value);
+    const stored = await this.preferencesService.get(THEME_KEY);
+    if (stored === 'dark' || stored === 'light') {
+      this.themeSignal.set(stored);
     }
   }
 
   async toggle(): Promise<void> {
     const next: Theme = this.themeSignal() === 'light' ? 'dark' : 'light';
-    await Preferences.set({ key: THEME_KEY, value: next });
+    await this.preferencesService.set(THEME_KEY, next);
     this.themeSignal.set(next);
   }
 
   async setTheme(theme: Theme): Promise<void> {
-    await Preferences.set({ key: THEME_KEY, value: theme });
+    await this.preferencesService.set(THEME_KEY, theme);
     this.themeSignal.set(theme);
   }
 }

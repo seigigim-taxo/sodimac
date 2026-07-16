@@ -26,14 +26,14 @@
 
     <!-- Scanner component -->
     <app-scan scanType="tag" placeholder="Escanea o ingresa TAG" confirmLabel="Confirmar TAG"
-      (scan)="onTagScan($event)"></app-scan>
+      (scan)="onTagScan($event)" (tagReset)="onTagReset()"></app-scan>
 
     <!-- Zone selection (shown after tag confirmed) -->
     @if (tagConfirmed()) {
     <div class="flex flex-col gap-3 mt-6">
       <h3 class="text-base font-bold" style="color: var(--app-text);">Selecciona una zona</h3>
-      <ion-select placeholder="Seleccionar zona" interface="action-sheet" (ionChange)="onZoneChange($event)"
-        class="zone-select">
+      <ion-select #zoneSelect placeholder="Seleccionar zona" interface="action-sheet" (ionChange)="onZoneChange($event)"
+        class="zone-select" [value]="selectedZone()?.id">
         @for (zone of zones; track zone.id) {
         <ion-select-option [value]="zone.id">
           {{ zone.name }}

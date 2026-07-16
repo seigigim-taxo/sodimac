@@ -1,12 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AppComponent } from './app.component';
+import { AuthRepository } from './domain/auth/repositories/auth.repository';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
-      providers: [provideRouter([])]
+      providers: [
+        provideRouter([]),
+        { provide: AuthRepository, useValue: { login: () => {} } },
+      ],
     }).compileComponents();
     
     const fixture = TestBed.createComponent(AppComponent);
