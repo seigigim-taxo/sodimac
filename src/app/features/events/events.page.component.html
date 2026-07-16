@@ -20,30 +20,69 @@
       <p class="page-subtitle">Elige el evento de inventario para continuar</p>
     </div>
 
-    <div class="flex flex-col gap-4">
-      @for (event of events; track event.id) {
-        <div
-          class="event-card"
-          [class.card-selected]="selectedEvent()?.id === event.id"
-          (click)="selectEvent(event)"
-        >
-          <div class="event-name" [style.color]="selectedEvent()?.id === event.id ? 'var(--app-primary)' : 'var(--app-text)'">
-            {{ event.name }}
-          </div>
-          <div class="event-detail">
-            <span class="event-detail-label">Ubicación</span>
-            <span class="event-detail-value">{{ event.location }}</span>
-          </div>
-          <div class="event-detail">
-            <span class="event-detail-label">Fecha</span>
-            <span class="event-detail-value">{{ event.date }}</span>
-          </div>
-        </div>
-      }
-    </div>
+    @if (!currentStore()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>Debes seleccionar una tienda antes de continuar</span>
+      </div>
 
-    <ion-button expand="block" class="btn-primary" [disabled]="!selectedEvent()" (click)="continue()">
-      Continuar
-    </ion-button>
+      <ion-button expand="block" class="btn-primary" (click)="goHome()">
+        Volver a tiendas
+      </ion-button>
+    }
+
+    @if (currentStore() && loading()) {
+      <div class="flex justify-center py-10">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (noEvents()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>No hay eventos disponibles</span>
+      </div>
+    }
+
+    @if (currentStore() && !loading() && hasEvents()) {
+      <div class="flex flex-col gap-4">
+        @for (event of events(); track event.id) {
+          <div
+            class="event-card"
+            [class.card-selected]="currentEvent()?.id === event.id"
+            (click)="selectEvent(event)"
+          >
+            <div class="event-name" [style.color]="currentEvent()?.id === event.id ? 'var(--app-primary)' : 'var(--app-text)'">
+              {{ event.folio }}
+            </div>
+            <div class="event-detail">
+              <span class="event-detail-label">Sucursal</span>
+              <span class="event-detail-value">{{ event.storeName }}</span>
+            </div>
+            <div class="event-detail">
+              <span class="event-detail-label">Fecha</span>
+              <span class="event-detail-value">{{ formatDate(event.scheduledDate) }}</span>
+            </div>
+            <div class="event-detail">
+              <span class="event-detail-label">Categoría</span>
+              <span class="event-detail-value">{{ event.category }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (currentStore()) {
+      <ion-button expand="block" class="btn-primary" [disabled]="!currentEvent() || loading()" (click)="continue()">
+        Continuar
+      </ion-button>
+    }
   </div>
 </ion-content>

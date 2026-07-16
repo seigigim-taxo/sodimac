@@ -9,8 +9,7 @@ describe('ScanComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ ScanComponent ],
-      imports: [IonicModule.forRoot()]
+      imports: [ScanComponent, IonicModule.forRoot()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScanComponent);
