@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router } from '@angular/router';
+import { ViewWillEnter } from '@ionic/angular';
 import {
   IonButton,
   IonButtons,
@@ -8,18 +9,15 @@ import {
   IonHeader,
   IonIcon,
   IonMenuButton,
+  IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBackOutline } from 'ionicons/icons';
-
-interface EventItem {
-  id: number;
-  name: string;
-  location: string;
-  date: string;
-}
+import { EventFacade } from '../../state/event/event.facade';
+import { StoreFacade } from '../../state/store/store.facade';
+import { InventoryEvent } from '../../domain/event/models/event.model';
 
 @Component({
   selector: 'app-events.page',
@@ -31,35 +29,58 @@ interface EventItem {
     IonHeader,
     IonIcon,
     IonMenuButton,
+    IonSpinner,
     IonTitle,
     IonToolbar,
   ],
 })
-export class EventsPageComponent {
+export class EventsPageComponent implements ViewWillEnter {
   private router = inject(Router);
   private location = inject(Location);
+  private storeFacade = inject(StoreFacade);
+  private eventFacade = inject(EventFacade);
 
-  events: EventItem[] = [
-    { id: 1, name: 'Inventario General', location: 'Pasillo 1-15', date: '15/07/2026' },
-    { id: 2, name: 'Conteo Cíclico', location: 'Bodega', date: '16/07/2026' },
-  ];
-
-  selectedEvent = signal<EventItem | null>(null);
+  events = this.eventFacade.events;
+  selectedEvent = this.eventFacade.selectedEvent;
+  currentEvent = this.eventFacade.currentEvent;
+  loading = this.eventFacade.loading;
+  error = this.eventFacade.error;
+  hasEvents = this.eventFacade.hasEvents;
+  noEvents = this.eventFacade.noEvents;
+  currentStore = this.storeFacade.currentStore;
 
   constructor() {
     addIcons({ arrowBackOutline });
+  }
+
+  ionViewWillEnter(): void {
+    const store = this.currentStore();
+    if (store) {
+      this.eventFacade.loadEvents(store.id);
+    }
   }
 
   goBack(): void {
     this.location.back();
   }
 
-  selectEvent(event: EventItem): void {
-    this.selectedEvent.set(event);
+  goHome(): void {
+    this.router.navigate(['/home']);
+  }
+
+  selectEvent(event: InventoryEvent): void {
+    this.eventFacade.selectEvent(event);
   }
 
   continue(): void {
-    if (!this.selectedEvent()) return;
+    if (!this.currentEvent()) {
+      return;
+    }
     this.router.navigate(['/zone-select']);
+  }
+
+  formatDate(dateString: string): string {
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
   }
 }

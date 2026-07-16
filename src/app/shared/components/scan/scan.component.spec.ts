@@ -9,12 +9,9 @@ describe('ScanComponent', () => {
   let component: ScanComponent;
   let fixture: ComponentFixture<ScanComponent>;
 
-  beforeEach(async () => {
-    // Mock Keyboard plugin for web environment
-    spyOn(Keyboard, 'hide').and.returnValue(Promise.resolve());
-
-    await TestBed.configureTestingModule({
-      imports: [ScanComponent, ReactiveFormsModule, IonInput]
+  beforeEach(waitForAsync(() => {
+    TestBed.configureTestingModule({
+      imports: [ScanComponent, IonicModule.forRoot()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScanComponent);

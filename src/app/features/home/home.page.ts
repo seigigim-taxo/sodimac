@@ -1,4 +1,5 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
+import { Location } from '@angular/common';
 import { Router } from '@angular/router';
 import {
   IonButton,
@@ -6,14 +7,16 @@ import {
   IonContent,
   IonHeader,
   IonMenuButton,
+  IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { ViewWillEnter } from '@ionic/angular';
+import { addIcons } from 'ionicons';
+import { arrowBackOutline } from 'ionicons/icons';
+import { AuthFacade } from '../../state/auth/auth.facade';
+import { StoreFacade } from '../../state/store/store.facade';
 import { ThemeFacade } from '../../state/theme/theme.facade';
-import { CountingFacade } from '../../state/counting/counting.facade';
-import { CountingSession } from '../../domain/counting/models/counting-session.model';
-import { getStatusBadgeClass, getStatusLabel, formatDate } from '../../shared/utils/counting-status.utils';
+import { Store } from '../../domain/store/models/store.model';
 
 @Component({
   selector: 'app-home',
@@ -25,35 +28,52 @@ import { getStatusBadgeClass, getStatusLabel, formatDate } from '../../shared/ut
     IonContent,
     IonHeader,
     IonMenuButton,
+    IonSpinner,
     IonTitle,
     IonToolbar,
   ],
 })
-export class HomePage implements ViewWillEnter {
+export class HomePage implements OnInit {
   private router = inject(Router);
   private theme = inject(ThemeFacade);
-  private countingFacade = inject(CountingFacade);
+  private auth = inject(AuthFacade);
+  private storeFacade = inject(StoreFacade);
 
   isDark = this.theme.isDark;
   sessions = this.countingFacade.sessions;
   recentSessions = computed(() => this.sessions().slice(0, 2));
 
-  store = {
-    name: 'Sodimac Homecenter',
-    code: 'S-123',
-    address: 'Av. Siempre Viva 742',
-    city: 'Santiago',
-  };
+  stores = this.storeFacade.stores;
+  selectedStore = this.storeFacade.selectedStore;
+  currentStore = this.storeFacade.currentStore;
+  loading = this.storeFacade.loading;
+  error = this.storeFacade.error;
+  hasMultipleStores = this.storeFacade.hasMultipleStores;
+  noStores = this.storeFacade.noStores;
 
   getStatusBadgeClass = getStatusBadgeClass;
   getStatusLabel = getStatusLabel;
   formatDate = formatDate;
 
-  ionViewWillEnter(): void {
-    this.countingFacade.reload();
+  ngOnInit(): void {
+    const session = this.auth.session();
+    if (session) {
+      this.storeFacade.loadStores(session.userId);
+    }
+  }
+
+  goBack(): void {
+    this.location.back();
+  }
+
+  selectStore(store: Store): void {
+    this.storeFacade.selectStore(store);
   }
 
   continue(): void {
+    if (!this.currentStore()) {
+      return;
+    }
     this.router.navigate(['/events']);
   }
 

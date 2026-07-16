@@ -1,25 +1,31 @@
-import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { Injectable, inject } from '@angular/core';
+import { Observable, catchError, map, of } from 'rxjs';
+import { ApiService } from '../../core/http/api.service';
+import { ApiLoginData } from '../../domain/auth/models/api-login-response.model';
 import { LoginRequest } from '../../domain/auth/models/login-request.model';
 import { LoginResponse } from '../../domain/auth/models/login-response.model';
-import { AuthRepository } from '../../domain/auth/repositories/auth.repository';
-import { cleanRut } from '../../domain/auth/utils/rut.utils';
 
 @Injectable({ providedIn: 'root' })
-export class MockAuthService implements AuthRepository {
-  login(request: LoginRequest): Observable<LoginResponse> {
-    const rut = cleanRut(request.rut);
+export class AuthService {
+  private api = inject(ApiService);
 
-    // Mock: siempre retorna éxito con datos de demo
-    return of({
-      success: true,
-      token: `demo-token-${Date.now()}`,
-      user: {
-        id: 1,
-        name: 'Operador Demo',
-        rut,
-      },
-    }).pipe(delay(300));
+  login(request: LoginRequest): Observable<LoginResponse> {
+    return this.api.post<ApiLoginData>('auth/login.php', request).pipe(
+      map((data) => ({
+        success: true,
+        token: data.token,
+        user: {
+          id: data.user.id,
+          name: data.user.name,
+          rut: data.user.rut,
+        },
+      })),
+      catchError((error: Error) =>
+        of({
+          success: false,
+          error: error.message || 'Error al iniciar sesión',
+        })
+      )
+    );
   }
 }

@@ -3,7 +3,14 @@
     <ion-buttons slot="start">
       <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
     </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Tienda</ion-title>
+    <ion-title class="text-[var(--app-text)] font-bold text-lg">
+      {{ hasMultipleStores() ? 'Selecciona una tienda' : 'Tienda' }}
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -11,64 +18,82 @@
   <div class="page-inner py-6">
 
     <div class="flex flex-col gap-2">
-      <h2 class="page-title">Tienda asignada</h2>
-      <p class="page-subtitle">Revisa los datos de la tienda antes de continuar</p>
+      <h2 class="page-title">
+        {{ hasMultipleStores() ? 'Tiendas asignadas' : 'Tienda asignada' }}
+      </h2>
+      <p class="page-subtitle">
+        {{ hasMultipleStores() ? 'Selecciona la tienda en la que vas a trabajar' : 'Revisa los datos de la tienda antes de continuar' }}
+      </p>
     </div>
 
-    <div class="card">
-      <div class="store-row">
-        <span class="store-label">Nombre</span>
-        <span class="store-value">{{ store.name }}</span>
+    @if (loading()) {
+      <div class="flex justify-center py-10">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
       </div>
-      <div class="store-row">
-        <span class="store-label">Código</span>
-        <span class="store-value">{{ store.code }}</span>
-      </div>
-      <div class="store-row">
-        <span class="store-label">Dirección</span>
-        <span class="store-value">{{ store.address }}</span>
-      </div>
-      <div class="store-row">
-        <span class="store-label">Ciudad</span>
-        <span class="store-value">{{ store.city }}</span>
-      </div>
-    </div>
-
-    @if (sessions().length > 0) {
-    <div class="card">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-base font-bold" style="color: var(--app-text);">Tus conteos</h3>
-        <ion-button fill="clear" size="small" class="m-0 p-0 min-h-0" style="--color: var(--app-primary);"
-          (click)="openSession()">
-          Ver todos
-        </ion-button>
-      </div>
-
-      @for (session of recentSessions(); track session.id) {
-      <div class="flex justify-between items-start py-3 border-b cursor-pointer"
-        style="border-color: var(--app-border);"
-        [style.border-bottom]="session.id !== recentSessions()[recentSessions().length - 1].id ? '1px solid var(--app-border)' : 'none'"
-        (click)="openSession(session)">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-sm font-bold" style="color: var(--app-text);">{{ session.zone }}</span>
-            <span class="badge" [class]="getStatusBadgeClass(session)">{{ getStatusLabel(session) }}</span>
-          </div>
-          <p class="text-xs" style="color: var(--app-text-muted);">
-            Tag: {{ session.tag }} · {{ formatDate(session.updatedAt) }}
-          </p>
-        </div>
-        <div class="text-right ml-3">
-          <p class="text-lg font-bold" style="color: var(--app-primary);">{{ session.totalQuantity }}</p>
-          <p class="text-xs" style="color: var(--app-text-muted);">unidades</p>
-        </div>
-      </div>
-      }
-    </div>
     }
 
-    <ion-button expand="block" class="btn-primary" (click)="continue()">
-      Nuevo conteo
+    @if (error()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (noStores()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>No tienes tiendas asignadas</span>
+      </div>
+    }
+
+    @if (!loading() && !hasMultipleStores() && currentStore(); as store) {
+      <div class="card">
+        <div class="store-row">
+          <span class="store-label">Nombre</span>
+          <span class="store-value">{{ store.name }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Código</span>
+          <span class="store-value">{{ store.code }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Dirección</span>
+          <span class="store-value">{{ store.address }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Ciudad</span>
+          <span class="store-value">{{ store.city }}</span>
+        </div>
+      </div>
+    }
+
+    @if (!loading() && hasMultipleStores()) {
+      <div class="flex flex-col gap-4">
+        @for (store of stores(); track store.id) {
+          <div
+            class="card card-interactive"
+            [class.card-selected]="selectedStore()?.id === store.id || currentStore()?.id === store.id"
+            (click)="selectStore(store)"
+          >
+            <div class="store-row">
+              <span class="store-label">Nombre</span>
+              <span class="store-value">{{ store.name }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">Código</span>
+              <span class="store-value">{{ store.code }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">Ciudad</span>
+              <span class="store-value">{{ store.city }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <ion-button expand="block" class="btn-primary" [disabled]="!currentStore() || loading()" (click)="continue()">
+      Continuar
     </ion-button>
   </div>
 </ion-content>
