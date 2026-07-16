@@ -1,8 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { ViewWillEnter } from '@ionic/angular';
 import {
   IonButton,
   IonButtons,
@@ -15,6 +13,7 @@ import {
   IonSpinner,
   IonTitle,
   IonToolbar,
+  ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBackOutline } from 'ionicons/icons';
@@ -23,14 +22,12 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { EventFacade } from '../../state/event/event.facade';
 import { StoreFacade } from '../../state/store/store.facade';
 import { ZoneFacade } from '../../state/zone/zone.facade';
-import { Zone } from '../../domain/zone/models/zone.model';
 
 @Component({
   selector: 'app-zone-select.page',
   templateUrl: './zone-select.page.component.html',
   imports: [
     ScanComponent,
-    FormsModule,
     IonButton,
     IonButtons,
     IonContent,
@@ -65,8 +62,6 @@ export class ZoneSelectPageComponent implements ViewWillEnter {
   noZones = this.zoneFacade.noZones;
   canContinue = this.zoneFacade.canContinue;
 
-  selectedZoneId: number | null = null;
-
   constructor() {
     addIcons({ arrowBackOutline });
   }
@@ -80,23 +75,13 @@ export class ZoneSelectPageComponent implements ViewWillEnter {
   }
 
   onTagScan(value: string): void {
-    this.selectedZoneId = null;
     this.zoneFacade.confirmTag(value);
   }
 
-  onIonSelectChange(event: CustomEvent): void {
+  onZoneChange(event: CustomEvent): void {
     const value = event.detail.value;
     const zone = this.zones().find((z) => z.id === Number(value));
     if (zone) {
-      this.selectedZoneId = zone.id;
-      this.zoneFacade.selectZone(zone);
-    }
-  }
-
-  onZoneChange(value: number | null): void {
-    const zone = this.zones().find((z) => z.id === Number(value));
-    if (zone) {
-      this.selectedZoneId = zone.id;
       this.zoneFacade.selectZone(zone);
     }
   }
