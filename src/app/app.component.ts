@@ -18,7 +18,7 @@ import {
   IonContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
+import { arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 
@@ -52,11 +52,19 @@ export class AppComponent {
   isDark = this.theme.isDark;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline });
+    addIcons({ arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline });
   }
 
   goBack(): void {
     this.location.back();
+  }
+
+  goHome(): void {
+    this.router.navigate(['/home']);
+  }
+
+  goCounts(): void {
+    this.router.navigate(['/counting-list']);
   }
 
   async logout(): Promise<void> {

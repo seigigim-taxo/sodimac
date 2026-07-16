@@ -22,6 +22,21 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'counting/:sessionId',
+    loadComponent: () => import('./features/counting/counting.page/counting.page.component').then((m) => m.CountingPageComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'counting-list',
+    loadComponent: () => import('./features/counting/counting-list.page/counting-list.page.component').then((m) => m.CountingListPageComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'counting-detail/:id',
+    loadComponent: () => import('./features/counting/counting-detail.page/counting-detail.page.component').then((m) => m.CountingDetailPageComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full',

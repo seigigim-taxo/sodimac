@@ -1,0 +1,119 @@
+@if (isLoading) {
+  <div class="flex justify-center items-center py-16">
+    <ion-spinner name="crescent" style="color: var(--app-primary); width: 48px; height: 48px;"></ion-spinner>
+  </div>
+}
+
+@if (!isLoading) {
+  @if (showSummary) {
+    <div class="flex gap-3 mb-6">
+      <div class="card flex-1 text-center py-4">
+        <p class="text-2xl font-bold" style="color: var(--app-primary);">{{ pendingCount() }}</p>
+        <p class="text-xs" style="color: var(--app-text-muted);">Pendientes</p>
+      </div>
+      <div class="card flex-1 text-center py-4">
+        <p class="text-2xl font-bold" style="color: var(--app-success);">{{ syncedCount() }}</p>
+        <p class="text-xs" style="color: var(--app-text-muted);">Sincronizados</p>
+      </div>
+    </div>
+  }
+
+  @if (inProgress().length > 0) {
+    <h3 class="text-sm font-bold mb-3" style="color: var(--app-text-muted);">EN CURSO</h3>
+    @for (session of inProgress(); track session.id) {
+      <div class="card mb-4">
+        <div class="flex justify-between items-start">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-sm font-bold" style="color: var(--app-text);">{{ session.zone }}</span>
+              <span class="badge badge-in-progress">{{ getStatusLabel(session) }}</span>
+            </div>
+            <p class="text-xs mb-1" style="color: var(--app-text-muted);">Tag: {{ session.tag }}</p>
+            <p class="text-xs" style="color: var(--app-text-muted);">{{ formatDate(session.updatedAt) }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-bold" style="color: var(--app-text);">{{ session.totalQuantity }}</p>
+            <p class="text-xs" style="color: var(--app-text-muted);">unidades</p>
+          </div>
+        </div>
+        <div class="mt-4">
+          <ion-button expand="block" class="btn-primary" (click)="sessionOpen.emit(session)">
+            Continuar
+          </ion-button>
+        </div>
+      </div>
+    }
+  }
+
+  @if (finalized().length > 0) {
+    <h3 class="text-sm font-bold mb-3 mt-6" style="color: var(--app-text-muted);">FINALIZADOS</h3>
+    @for (session of finalized(); track session.id) {
+      <div class="card mb-4">
+        <div class="flex justify-between items-start">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-sm font-bold" style="color: var(--app-text);">{{ session.zone }}</span>
+              <span [class]="'badge ' + getStatusBadgeClass(session)">{{ getStatusLabel(session) }}</span>
+            </div>
+            <p class="text-xs mb-1" style="color: var(--app-text-muted);">Tag: {{ session.tag }}</p>
+            <p class="text-xs" style="color: var(--app-text-muted);">{{ formatDate(session.updatedAt) }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-bold" style="color: var(--app-text);">{{ session.totalQuantity }}</p>
+            <p class="text-xs" style="color: var(--app-text-muted);">unidades</p>
+          </div>
+        </div>
+
+        @if (showActions) {
+          <div class="flex flex-wrap gap-3 items-center mt-4">
+            <ion-button
+              expand="block"
+              fill="outline"
+              size="small"
+              class="flex-1"
+              (click)="sessionOpen.emit(session)"
+            >
+              Ver conteo
+            </ion-button>
+
+            @if (!session.synced) {
+              <ion-button
+                fill="clear"
+                size="small"
+                class="m-0"
+                [disabled]="syncingId() === session.id"
+                (click)="onSync(session); $event.stopPropagation()"
+              >
+                @if (syncingId() === session.id) {
+                  <ion-spinner name="crescent" slot="icon-only" style="width: 22px; height: 22px; color: var(--app-success);"></ion-spinner>
+                } @else {
+                  <ion-icon slot="icon-only" name="cloud-upload-outline" style="font-size: 22px; color: var(--app-success);"></ion-icon>
+                }
+              </ion-button>
+              <ion-button
+                fill="clear"
+                size="small"
+                class="m-0"
+                [disabled]="deletingId() === session.id"
+                (click)="onDelete(session); $event.stopPropagation()"
+              >
+                @if (deletingId() === session.id) {
+                  <ion-spinner name="crescent" slot="icon-only" style="width: 22px; height: 22px; color: var(--app-error);"></ion-spinner>
+                } @else {
+                  <ion-icon slot="icon-only" name="trash-outline" style="font-size: 22px; color: var(--app-error);"></ion-icon>
+                }
+              </ion-button>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+
+  @if (sessions.length === 0) {
+    <div class="card text-center py-12">
+      <p class="text-base font-medium mb-2" style="color: var(--app-text);">No hay conteos registrados</p>
+      <p class="text-sm" style="color: var(--app-text-muted);">Comienza un nuevo conteo para ver los resultados aquí</p>
+    </div>
+  }
+}
