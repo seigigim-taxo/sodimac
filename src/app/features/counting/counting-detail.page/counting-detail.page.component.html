@@ -1,0 +1,150 @@
+<ion-header>
+  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+    <ion-buttons slot="start">
+      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+    </ion-buttons>
+    <ion-title class="text-[var(--app-text)] font-bold text-lg">Detalle de conteo</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+  @if (isLoading()) {
+  <div class="flex justify-center items-center py-20">
+    <ion-spinner name="crescent"></ion-spinner>
+  </div>
+  } @else if (!session()) {
+  <div class="flex flex-col items-center justify-center py-20 gap-4">
+    <p class="text-[var(--app-text-muted)]">Conteo no encontrado</p>
+    <ion-button fill="outline" (click)="goBack()">Volver</ion-button>
+  </div>
+  } @else {
+  <div class="page-inner py-6">
+
+    <div class="card">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-base font-bold" style="color: var(--app-text);">Información</h3>
+        @if (!isEditing() && !session()!.synced) {
+        <ion-button fill="clear" size="small" class="m-0 p-0 min-h-0" style="--color: var(--app-primary);"
+          (click)="startEditing()">
+          <ion-icon slot="start" name="create-outline"></ion-icon>
+          Editar
+        </ion-button>
+        }
+      </div>
+
+      @if (isEditing()) {
+      <div class="flex flex-col gap-4">
+        <div>
+          <label class="text-sm mb-1 block" style="color: var(--app-text-muted);">Tag actual</label>
+          <p class="font-mono text-base mb-2" style="color: var(--app-text);">{{ session()!.tag }}</p>
+          <app-scan scanType="tag" [confirmLabel]="'Cambiar'" (scan)="onTagScan($event)"></app-scan>
+        </div>
+        <div>
+          <label class="text-sm mb-1 block" style="color: var(--app-text-muted);">Zona</label>
+          <ion-select class="w-full" [interface]="'popover'" [placeholder]="'Seleccionar zona'" [value]="editZone()?.id"
+            (ionChange)="onZoneChange($event)">
+            @for (zone of zones; track zone.id) {
+            <ion-select-option [value]="zone.id">{{ zone.name }}</ion-select-option>
+            }
+          </ion-select>
+        </div>
+        <div class="flex gap-2">
+          <ion-button expand="block" class="btn-primary" [disabled]="!editTag() || !editZone()" (click)="saveEdit()">
+            Guardar
+          </ion-button>
+          <ion-button expand="block" fill="outline" (click)="cancelEditing()">
+            Cancelar
+          </ion-button>
+        </div>
+      </div>
+      } @else {
+      <div class="store-row">
+        <span class="store-label">Tag</span>
+        <span class="store-value font-mono">{{ session()!.tag }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Zona</span>
+        <span class="store-value">{{ session()!.zone }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Estado</span>
+        <span class="badge" [class]="getStatusBadgeClass(session()!)">{{ getStatusLabel(session()!) }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Creado</span>
+        <span class="store-value">{{ formatDate(session()!.createdAt) }}</span>
+      </div>
+      <div class="store-row">
+        <span class="store-label">Actualizado</span>
+        <span class="store-value">{{ formatDate(session()!.updatedAt) }}</span>
+      </div>
+      }
+    </div>
+
+    <div class="card">
+      <h3 class="text-base font-bold mb-3" style="color: var(--app-text);">Resumen</h3>
+      <div class="flex gap-6">
+        <div class="text-center flex-1">
+          <p class="text-3xl font-bold" style="color: var(--app-primary);">{{ session()!.totalItems }}</p>
+          <p class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</p>
+        </div>
+        <div class="text-center flex-1">
+          <p class="text-3xl font-bold" style="color: var(--app-primary);">{{ session()!.totalQuantity }}</p>
+          <p class="text-xs" style="color: var(--app-text-muted);">Unidades totales</p>
+        </div>
+      </div>
+    </div>
+
+    @if (session()!.items.length > 0) {
+    <div class="card">
+      <h3 class="text-base font-bold mb-3" style="color: var(--app-text);">SKUs contados</h3>
+      <div class="flex flex-col">
+        @for (item of session()!.items; track item.sku.code) {
+        <div class="flex justify-between items-center py-2 border-b" style="border-color: var(--app-border);">
+          <span class="font-mono text-sm" style="color: var(--app-text);">{{ item.sku.code }}</span>
+          <span class="font-bold" style="color: var(--app-primary);">x{{ item.quantity }}</span>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+    <div class="flex flex-col gap-3 mt-4">
+      @if (session()!.status === 'in-progress') {
+      <ion-button expand="block" class="btn-primary" (click)="continueCounting()">
+        Continuar contando
+      </ion-button>
+      } @else {
+      @if (!session()!.synced) {
+      <ion-button expand="block" class="btn-primary" [disabled]="isSyncing()" (click)="syncSession()">
+        @if (isSyncing()) {
+        <ion-spinner name="crescent" class="mr-2"></ion-spinner>
+        } @else {
+        <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+        }
+        Sincronizar
+      </ion-button>
+
+      <ion-button expand="block" fill="outline" (click)="reopenSession()">
+        Reabrir conteo
+      </ion-button>
+
+      <ion-button expand="block" fill="clear" color="danger" [disabled]="isDeleting()" (click)="deleteSession()">
+        @if (isDeleting()) {
+        <ion-spinner name="crescent" class="mr-2"></ion-spinner>
+        } @else {
+        <ion-icon slot="start" name="trash-outline"></ion-icon>
+        }
+        Eliminar
+      </ion-button>
+      }
+      }
+    </div>
+  </div>
+  }
+</ion-content>
