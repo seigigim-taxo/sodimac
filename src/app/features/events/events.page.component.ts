@@ -1,7 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router } from '@angular/router';
-import { ViewWillEnter } from '@ionic/angular';
 import {
   IonButton,
   IonButtons,
@@ -12,6 +11,7 @@ import {
   IonSpinner,
   IonTitle,
   IonToolbar,
+  ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBackOutline } from 'ionicons/icons';

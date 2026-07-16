@@ -19,42 +19,48 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Tests once (CI) | `npx ng test --configuration=ci` |
 | Lint | `npm run lint` |
 
-- `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
+- `angular.json` defines a `ci` configuration for `build` and `test` that disables progress and, for tests, disables watch. There is no `ci` configuration for `lint`.
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error (raised from defaults to avoid noisy warnings on richer per-page styles).
 
 ## Architecture
 
 - Entry point: `src/main.ts` bootstraps `AppComponent` via `bootstrapApplication` with `provideHttpClient`, `provideIonicAngular()`, and `PreloadAllModules` routing.
-- `APP_INITIALIZER` calls `AuthFacade.init()` on startup to restore session from `@capacitor/preferences`.
-- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`LoginPage`, `HomePage`), auth guard on `/home`.
+- `APP_INITIALIZER` calls `AuthFacade.init()`, `ThemeFacade.init()` and `CountingFacade.init()` on startup.
+- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `home`, `events`, `zone-select`, `counting/*`, `counting-list`, `counting-detail/*`), auth guard on all protected routes.
 - Pages are standalone components generated with `styleext: scss`, `standalone: true`.
 - Ionic components imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
-- Clean Architecture scaffold (most layers are empty — see below):
-  - `domain/` — models (interfaces only) and planned repository interfaces (empty).
-  - `data/` — concrete implementations. Only `auth/` exists (mock `AuthService`).
-  - `application/` — use cases (empty).
-  - `state/` — Signals-based facades. Only `auth/` exists (`AuthFacade`).
-  - `features/` — standalone pages. Only `auth/login` and `home` exist.
-  - `core/` — cross-cutting infra. Only `auth/guards` has code; `soap/`, `sync/`, `database/` are empty.
-  - `shared/` — only `utils/` has files; `components/`, `directives/`, `pipes/` are empty.
-- **The app is early stage**: only the auth flow (login → home) is built. Branch, Event, SOAP client, SQLite repositories, and sync layer are scaffold directories with no code.
+- Clean Architecture scaffold (implemented for auth, counting, events, stores and zones):
+  - `domain/` — models (interfaces) and repository abstractions for `auth/`, `counting/`, `event/`, `store/`, `zone/`.
+  - `data/` — concrete implementations: `auth/auth.service.ts`, `counting/counting-storage.service.ts`, `event/event.service.ts` + `mock-sample-sku.repository.ts`, `store/store.service.ts`, `zone/zone.service.ts`.
+  - `application/` — use cases for counting (create, save, get, finalize, sync, delete, reopen, update metadata/items).
+  - `state/` — Signals-based facades: `auth/`, `counting/`, `event/`, `store/`, `theme/`, `zone/`.
+  - `features/` — standalone pages: `auth/login`, `home`, `events`, `zone-select`, `counting/*`.
+  - `core/` — cross-cutting infra: `auth/guards/`, `database/` (SQLite connection + migrations), `http/`, `storage/`, `theme/`.
+  - `shared/` — reusable `components/` (`counts-list`, `scan`) and `utils/`.
 
 ## Auth flow
 
 - `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error` signals and `isAuthenticated` computed. Persists session to `@capacitor/preferences` under key `session`.
-- `AuthService` (`src/app/data/auth/`) is a **mock** — validates RUT via modulo-11 (`validateRut`), compares password to first 6 digits of cleaned RUT (`getFirstSixDigits`), returns fake token after 300ms delay.
+- `AuthService` (`src/app/data/auth/auth.service.ts`) implements `AuthRepository` and calls the backend via `ApiService` (`auth/login.php`).
+- Credential validation (RUT + password = first 6 digits of RUT body) lives in `src/app/domain/auth/utils/auth-validation.utils.ts`.
 - `AuthGuard` (`src/app/core/auth/guards/`) checks `AuthFacade.isAuthenticated()`.
 - Login password rule: default password = first 6 digits of the RUT body (e.g., RUT `12345678-9` → password `123456`).
 
 ## RUT utilities
 
-RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
+RUT handling lives in `src/app/domain/auth/utils/rut.utils.ts`:
 - `cleanRut(rut)` — strip dots, dashes, keep only `[0-9kK]`.
 - `formatRut(rut)` — format as `12345678-9`.
 - `validateRut(rut)` — modulo-11 algorithm.
 - `getFirstSixDigits(rut)` — first 6 digits of RUT body (used as default password).
-- `rut-formatter.ts` exists but is empty.
+
+## HTTP / API
+
+- `ApiService` (`src/app/core/http/api.service.ts`) wraps `HttpClient` and expects responses shaped as `{ status: 'OK' | 'ERROR', msg: string, data?: T }`.
+- Environment `apiUrl`:
+  - Dev: `http://192.168.3.5/PoC/ws/api`
+  - Prod: `http://localhost/PoC/ws/api`
 
 ## Tests
 
@@ -81,7 +87,7 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 ## Environment / build
 
 - Environment files in `src/environments/`. Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
-- Only `production: boolean` is defined; no `useMockSoap` toggle exists yet.
+- `environment.ts` defines `production: boolean` and `apiUrl: string`.
 
 ## Theming / UI
 

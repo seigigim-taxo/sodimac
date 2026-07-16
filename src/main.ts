@@ -10,7 +10,7 @@ import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
 import { CountingFacade } from './app/state/counting/counting.facade';
 import { AuthRepository } from './app/domain/auth/repositories/auth.repository';
-import { MockAuthService } from './app/data/auth/mock-auth.service';
+import { AuthService } from './app/data/auth/auth.service';
 import { CountingRepository } from './app/domain/counting/repositories/counting.repository';
 import { CountingStorageService } from './app/data/counting/counting-storage.service';
 import { SampleSkuRepository } from './app/domain/event/repositories/sample-sku.repository';
@@ -36,7 +36,7 @@ bootstrapApplication(AppComponent, {
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
     provideHttpClient(),
-    { provide: AuthRepository, useClass: MockAuthService },
+    { provide: AuthRepository, useClass: AuthService },
     { provide: CountingRepository, useClass: CountingStorageService },
     { provide: SampleSkuRepository, useClass: MockSampleSkuRepository },
     { provide: MIGRATIONS_TOKEN, useValue: [countingMigration] },

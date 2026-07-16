@@ -6,6 +6,7 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonMenuButton,
   IonSpinner,
   IonTitle,
@@ -27,6 +28,7 @@ import { Store } from '../../domain/store/models/store.model';
     IonButtons,
     IonContent,
     IonHeader,
+    IonIcon,
     IonMenuButton,
     IonSpinner,
     IonTitle,
@@ -38,10 +40,9 @@ export class HomePage implements OnInit {
   private theme = inject(ThemeFacade);
   private auth = inject(AuthFacade);
   private storeFacade = inject(StoreFacade);
+  private location = inject(Location);
 
   isDark = this.theme.isDark;
-  sessions = this.countingFacade.sessions;
-  recentSessions = computed(() => this.sessions().slice(0, 2));
 
   stores = this.storeFacade.stores;
   selectedStore = this.storeFacade.selectedStore;
@@ -50,10 +51,6 @@ export class HomePage implements OnInit {
   error = this.storeFacade.error;
   hasMultipleStores = this.storeFacade.hasMultipleStores;
   noStores = this.storeFacade.noStores;
-
-  getStatusBadgeClass = getStatusBadgeClass;
-  getStatusLabel = getStatusLabel;
-  formatDate = formatDate;
 
   ngOnInit(): void {
     const session = this.auth.session();
@@ -75,18 +72,6 @@ export class HomePage implements OnInit {
       return;
     }
     this.router.navigate(['/events']);
-  }
-
-  openSession(session?: CountingSession): void {
-    if (session) {
-      if (session.status === 'in-progress') {
-        this.router.navigate(['/counting', session.id]);
-        return;
-      }
-      this.router.navigate(['/counting-detail', session.id]);
-    } else {
-      this.router.navigate(['/counting-list']);
-    }
   }
 
   async toggleTheme(): Promise<void> {

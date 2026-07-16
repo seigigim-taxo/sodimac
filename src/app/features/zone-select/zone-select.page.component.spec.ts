@@ -96,7 +96,7 @@ describe('ZoneSelectPageComponent', () => {
 
     fixture = TestBed.createComponent(ZoneSelectPageComponent);
     component = fixture.componentInstance;
-  });
+  }));
 
   it('should create', () => {
     expect(component).toBeTruthy();

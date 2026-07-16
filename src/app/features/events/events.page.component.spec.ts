@@ -68,7 +68,7 @@ describe('EventsPageComponent', () => {
 
     fixture = TestBed.createComponent(EventsPageComponent);
     component = fixture.componentInstance;
-  });
+  }));
 
   it('should create', () => {
     expect(component).toBeTruthy();
