@@ -22,6 +22,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'counting',
+    loadComponent: () => import('./features/counting/counting.page/counting.page.component').then((m) => m.CountingPageComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full',

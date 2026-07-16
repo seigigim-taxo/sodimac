@@ -70,8 +70,8 @@
       @if (tagConfirmed() && hasZones()) {
       <div class="flex flex-col gap-3 mt-6">
         <h3 class="text-base font-bold" style="color: var(--app-text);">Selecciona una zona</h3>
-        <ion-select placeholder="Seleccionar zona" interface="action-sheet" (ionChange)="onZoneChange($event)"
-          class="zone-select">
+        <ion-select placeholder="Seleccionar zona" interface="action-sheet" [value]="selectedZoneId"
+          (ionChange)="onIonSelectChange($event)" class="zone-select">
           @for (zone of zones(); track zone.id) {
           <ion-select-option [value]="zone.id">
             {{ zone.name }}
