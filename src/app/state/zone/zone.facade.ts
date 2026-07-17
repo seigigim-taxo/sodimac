@@ -41,7 +41,7 @@ export class ZoneFacade {
     }
   }
 
-  selectZone(zone: Zone): void {
+  selectZone(zone: Zone | null): void {
     this.selectedZoneSignal.set(zone);
   }
 
