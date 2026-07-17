@@ -6,12 +6,16 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:usb": "ng serve --host=0.0.0.0 --port=8100",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
+    "start:external": "ng serve --host=0.0.0.0 --port=8100",
+    "android": "powershell -ExecutionPolicy Bypass -File scripts/android.ps1",
     "android:usb": "powershell -ExecutionPolicy Bypass -File scripts/android-usb.ps1",
-    "android:usb:sync": "powershell -ExecutionPolicy Bypass -File scripts/android-usb-sync.ps1"
+    "android:usb:sync": "powershell -ExecutionPolicy Bypass -File scripts/android-usb-sync.ps1",
+    "android:external": "powershell -ExecutionPolicy Bypass -File scripts/android-external.ps1"
   },
   "private": true,
   "dependencies": {

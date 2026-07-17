@@ -18,8 +18,10 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Tests (watch mode, Chrome) | `npm test` |
 | Tests once (CI) | `npx ng test --configuration=ci` |
 | Lint | `npm run lint` |
-| Android USB live reload | `npm run android:usb` (requiere `npm start -- --host=127.0.0.1` en otra terminal) |
+| Android USB single terminal | `npm run android` (levanta dev server y corre app; funciona con VPN) |
+| Android USB live reload | `npm run android:usb` (requiere `npm run start:usb` en otra terminal; funciona con VPN) |
 | Android USB sync only | `npm run android:usb:sync` |
+| Android WiFi live reload | `npm run start:external` + `npm run android:external` (PC y celular sin VPN) |
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
 - Build output directory is `www` (used by Capacitor as `webDir`).
