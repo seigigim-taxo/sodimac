@@ -4,7 +4,7 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://192.168.3.5/PoC/ws/api'
+  apiUrl: 'http://ws.code/api'
 };
 
 /*
