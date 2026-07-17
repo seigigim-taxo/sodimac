@@ -1,4 +1,4 @@
-export interface Zone {
+﻿export interface Zone {
   id: number;
   name: string;
 }
