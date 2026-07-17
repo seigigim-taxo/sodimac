@@ -83,6 +83,14 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 - No `android`/`ios` platforms committed yet. Add with `npx cap add android` / `npx cap add ios`.
 - Native project dirs and `www` are gitignored.
 
+## SQLite / offline database
+
+- Schema completo en `src/app/data/migrations/app-schema.migration.ts`, replicando las tablas del backend `taxochil_ac-sodimac`.
+- La BD se crea vacía durante el `APP_INITIALIZER`, **antes del login**, vía `SqliteConnectionService.connect()`.
+- `PRAGMA foreign_keys = ON;` está habilitado en cada conexión.
+- Logs en consola indican: si la BD existe, si se crea o recupera la conexión, estado de FK y listado de tablas creadas.
+- Se mantiene `counting_sessions` temporalmente por compatibilidad con el flujo actual de sesiones; será reemplazada por `sod_conteo` en la siguiente fase.
+
 ## Environment / build
 
 - Environment files in `src/environments/`. Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.

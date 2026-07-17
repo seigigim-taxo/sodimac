@@ -20,6 +20,8 @@ function createMockSqlite(mockDb: SQLiteDBConnection) {
     retrieveConnection: jasmine.createSpy('retrieveConnection').and.returnValue(Promise.resolve(mockDb)),
     createConnection: jasmine.createSpy('createConnection').and.returnValue(Promise.resolve(mockDb)),
     closeConnection: jasmine.createSpy('closeConnection').and.returnValue(Promise.resolve()),
+    getDatabaseList: jasmine.createSpy('getDatabaseList').and.returnValue(Promise.resolve({ values: [] })),
+    addUpgradeStatement: jasmine.createSpy('addUpgradeStatement').and.returnValue(Promise.resolve()),
   };
 }
 

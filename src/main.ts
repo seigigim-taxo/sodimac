@@ -16,7 +16,8 @@ import { CountingStorageService } from './app/data/counting/counting-storage.ser
 import { SampleSkuRepository } from './app/domain/event/repositories/sample-sku.repository';
 import { MockSampleSkuRepository } from './app/data/event/mock-sample-sku.repository';
 import { MIGRATIONS_TOKEN } from './app/core/database/migrations/migration.model';
-import { countingMigration } from './app/data/counting/counting-migrations';
+import { appSchemaMigration } from './app/data/migrations/app-schema.migration';
+import { SqliteConnectionService } from './app/core/database/sqlite-connection.service';
 
 const safeInit = (name: string, fn: () => Promise<void>) => async () => {
   try {
@@ -25,6 +26,9 @@ const safeInit = (name: string, fn: () => Promise<void>) => async () => {
     console.error(`[APP_INITIALIZER] ${name} failed:`, err);
   }
 };
+
+const initializeDatabase = (sqlite: SqliteConnectionService) =>
+  safeInit('SqliteConnectionService', () => sqlite.connect());
 
 const initializeAuth = (auth: AuthFacade) => safeInit('AuthFacade', () => auth.init());
 const initializeTheme = (theme: ThemeFacade) => safeInit('ThemeFacade', () => theme.init());
@@ -39,7 +43,13 @@ bootstrapApplication(AppComponent, {
     { provide: AuthRepository, useClass: MockAuthService },
     { provide: CountingRepository, useClass: CountingStorageService },
     { provide: SampleSkuRepository, useClass: MockSampleSkuRepository },
-    { provide: MIGRATIONS_TOKEN, useValue: [countingMigration] },
+    { provide: MIGRATIONS_TOKEN, useValue: [appSchemaMigration] },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initializeDatabase,
+      deps: [SqliteConnectionService],
+      multi: true,
+    },
     {
       provide: APP_INITIALIZER,
       useFactory: initializeAuth,
