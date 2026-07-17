@@ -18,6 +18,8 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Tests (watch mode, Chrome) | `npm test` |
 | Tests once (CI) | `npx ng test --configuration=ci` |
 | Lint | `npm run lint` |
+| Android USB live reload | `npm run android:usb` (requiere `npm start -- --host=127.0.0.1` en otra terminal) |
+| Android USB sync only | `npm run android:usb:sync` |
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
 - Build output directory is `www` (used by Capacitor as `webDir`).
@@ -74,6 +76,7 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 ## Capacitor / native workflow
 
 - Capacitor config: `capacitor.config.ts`. `appId` is still placeholder `io.ionic.starter`.
+- Live reload por USB se activa con la variable de entorno `CAPACITOR_LIVE_RELOAD=true`; apunta a `http://localhost:8100` y requiere `adb reverse tcp:8100 tcp:8100`.
 - Always build before syncing: `npm run build; npx cap sync`.
 - No `android`/`ios` platforms committed yet. Add with `npx cap add android` / `npx cap add ios`.
 - Native project dirs and `www` are gitignored.
