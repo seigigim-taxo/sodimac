@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal, viewChild, AfterViewInit } from '@angular/core';
+import { Component, AfterViewInit, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IonButton, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -10,17 +10,19 @@ import { barcodeOutline } from 'ionicons/icons';
   imports: [ReactiveFormsModule, IonIcon, IonInput, IonButton],
 })
 export class ScanComponent implements AfterViewInit {
-  placeholder = input('');
+  placeholder  = input('');
   confirmLabel = input('Confirmar');
-  scanType = input<'tag' | 'sku'>('sku');
-  scan = output<string>();
-  scanInput = viewChild<IonInput>('scanInput');
+  scanType     = input<'tag' | 'sku'>('sku');
+  scan         = output<string>();
+  scanInput    = viewChild<IonInput>('scanInput');
 
   private fb = inject(FormBuilder);
   form = this.fb.group({ code: ['', Validators.required] });
 
-  tagConfirmed = signal(false);
-  tagValue = signal('');
+  private _tagConfirmed = signal(false);
+  private _tagValue     = signal('');
+  readonly tagConfirmed = this._tagConfirmed.asReadonly();
+  readonly tagValue     = this._tagValue.asReadonly();
 
   constructor() {
     addIcons({ barcodeOutline });
@@ -30,16 +32,19 @@ export class ScanComponent implements AfterViewInit {
     setTimeout(() => this.scanInput()?.setFocus(), 100);
   }
 
-  onEnter(): void {
-    this.confirm();
+  onEnter(event: Event): void {
+    event.preventDefault();
+    if (this.scanType() === 'sku') {
+      this.confirm();
+    }
   }
 
   confirm(): void {
     const value = this.form.get('code')?.value?.trim().toUpperCase();
     if (!value) return;
 
-    this.tagValue.set(value);
-    this.tagConfirmed.set(true);
+    this._tagValue.set(value);
+    this._tagConfirmed.set(true);
     this.scan.emit(value);
 
     if (this.scanType() === 'sku') {

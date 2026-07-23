@@ -1,39 +1,43 @@
-import { Component, inject } from '@angular/core';
-import { Location } from '@angular/common';
+import { Component, ViewChild, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ViewWillEnter } from '@ionic/angular';
 import {
+  AlertController,
+  IonBackButton,
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
-  IonMenuButton,
+  IonLabel,
   IonSelect,
   IonSelectOption,
   IonSpinner,
   IonTitle,
   IonToolbar,
-  ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline } from 'ionicons/icons';
-import { ScanComponent } from 'src/app/shared/components/scan/scan.component';
+import { alertCircleOutline, barcodeOutline } from 'ionicons/icons';
+import { ScanComponent } from '../../shared/components/scan/scan.component';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { EventFacade } from '../../state/event/event.facade';
-import { StoreFacade } from '../../state/store/store.facade';
-import { ZoneFacade } from '../../state/zone/zone.facade';
+import { EventoFacade } from '../../state/evento/evento.facade';
+import { SucursalFacade } from '../../state/store/store.facade';
+import { ZonaFacade } from '../../state/zona/zona.facade';
+import { Zona } from '../../domain/zona/models/zona.model';
 
 @Component({
-  selector: 'app-zone-select.page',
+  selector: 'app-zone-select',
   templateUrl: './zone-select.page.component.html',
+  standalone: true,
   imports: [
     ScanComponent,
+    IonBackButton,
     IonButton,
     IonButtons,
     IonContent,
     IonHeader,
     IonIcon,
-    IonMenuButton,
+    IonLabel,
     IonSelect,
     IonSelectOption,
     IonSpinner,
@@ -42,62 +46,80 @@ import { ZoneFacade } from '../../state/zone/zone.facade';
   ],
 })
 export class ZoneSelectPageComponent implements ViewWillEnter {
-  private router = inject(Router);
-  private location = inject(Location);
-  private auth = inject(AuthFacade);
-  private eventFacade = inject(EventFacade);
-  private storeFacade = inject(StoreFacade);
-  private zoneFacade = inject(ZoneFacade);
+  @ViewChild('zoneSelect') zoneSelect!: IonSelect;
 
-  currentStore = this.storeFacade.currentStore;
-  currentEvent = this.eventFacade.currentEvent;
+  private router          = inject(Router);
+  private alertController = inject(AlertController);
+  private authFacade      = inject(AuthFacade);
+  private eventoFacade    = inject(EventoFacade);
+  private sucursalFacade  = inject(SucursalFacade);
+  private zonaFacade      = inject(ZonaFacade);
 
-  zones = this.zoneFacade.zones;
-  selectedZone = this.zoneFacade.selectedZone;
-  tagConfirmed = this.zoneFacade.tagConfirmed;
-  tagValue = this.zoneFacade.tagValue;
-  loading = this.zoneFacade.loading;
-  error = this.zoneFacade.error;
-  hasZones = this.zoneFacade.hasZones;
-  noZones = this.zoneFacade.noZones;
-  canContinue = this.zoneFacade.canContinue;
+  currentStore = this.sucursalFacade.currentStore;
+  currentEvent = this.eventoFacade.selectedEvent;
+  zones        = this.zonaFacade.zones;
+  selectedZone = this.zonaFacade.selectedZone;
+  tagValue     = this.zonaFacade.tagValue;
+  loading      = this.zonaFacade.loading;
+  error        = this.zonaFacade.error;
+  hasZones     = this.zonaFacade.hasZones;
+  noZones      = this.zonaFacade.noZones;
+  canContinue  = this.zonaFacade.canContinue;
 
   constructor() {
-    addIcons({ arrowBackOutline });
+    addIcons({ alertCircleOutline, barcodeOutline });
   }
 
   ionViewWillEnter(): void {
-    const event = this.currentEvent();
-    const session = this.auth.session();
-    if (event && session) {
-      this.zoneFacade.loadZones(event.id, session.userId);
+    this.zonaFacade.reset();
+    const eventoId   = this.currentEvent()?.id;
+    const operadorId = this.authFacade.session()?.operadorId;
+    if (eventoId && operadorId) {
+      void this.zonaFacade.loadZonas(eventoId, operadorId);
     }
   }
 
-  onTagScan(value: string): void {
-    this.zoneFacade.confirmTag(value);
+  onTagScan(tag: string): void {
+    this.zonaFacade.setTag(tag);
+    requestAnimationFrame(() => this.zoneSelect?.open());
   }
 
-  onZoneChange(event: CustomEvent): void {
-    const value = event.detail.value;
-    const zone = this.zones().find((z) => z.id === Number(value));
-    if (zone) {
-      this.zoneFacade.selectZone(zone);
+  onZoneChange(event: Event): void {
+    const zona = (event as CustomEvent<{ value: Zona | null }>).detail.value;
+    if (!zona) return;
+    this.zonaFacade.selectZona(zona);
+  }
+
+  async continue(): Promise<void> {
+    if (!this.canContinue()) return;
+    const zona = this.selectedZone()!;
+    const tag  = this.tagValue();
+
+    const alert = await this.alertController.create({
+      header:  'Confirmar zona',
+      message: `¿Confirmas la zona ${zona.codigo}${zona.nombre ? ' — ' + zona.nombre : ''} con TAG ${tag}?`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Confirmar',
+          role: 'confirm',
+          handler: () => { void this.doConfirm(); },
+        },
+      ],
+    });
+    await alert.present();
+  }
+
+  private async doConfirm(): Promise<void> {
+    try {
+      await this.zonaFacade.confirmZona();
+      this.router.navigate(['/counting']);
+    } catch {
+      // error ya visible en zonaFacade.error()
     }
-  }
-
-  goBack(): void {
-    this.location.back();
   }
 
   goEvents(): void {
     this.router.navigate(['/events']);
-  }
-
-  continue(): void {
-    if (!this.canContinue()) {
-      return;
-    }
-    this.router.navigate(['/counting']);
   }
 }

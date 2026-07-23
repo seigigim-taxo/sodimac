@@ -21,7 +21,7 @@ describe('AuthService', () => {
     httpMock.verify();
   });
 
-  it('should login successfully', (done) => {
+  it('should login successfully and map API fields', (done) => {
     const request = { rut: '12345678-5', password: '123456' };
     const mockResponse = {
       status: 'OK',
@@ -29,9 +29,10 @@ describe('AuthService', () => {
       data: {
         token: 'abc123',
         user: {
-          id: 1,
-          name: 'Juan Perez',
+          operador_id: 1,
+          nombre_completo: 'Juan Perez',
           rut: '12345678-5',
+          rut_normalizado: '123456785',
           rol: 'Operador de Inventario',
           correo: 'juan.perez@ejemplo.cl',
         },
@@ -39,9 +40,12 @@ describe('AuthService', () => {
     };
 
     service.login(request).subscribe((response) => {
-      expect(response.success).toBeTrue();
       expect(response.token).toBe('abc123');
-      expect(response.user).toEqual({ id: 1, name: 'Juan Perez', rut: '12345678-5' });
+      expect(response.user.nombreCompleto).toBe('Juan Perez');
+      expect(response.user.rut).toBe('12345678-5');
+      expect(response.user.rutNormalizado).toBe('123456785');
+      expect(response.user.cargo).toBe('Operador de Inventario');
+      expect(response.user.correo).toBe('juan.perez@ejemplo.cl');
       done();
     });
 
@@ -51,17 +55,19 @@ describe('AuthService', () => {
     req.flush(mockResponse);
   });
 
-  it('should return error on failed login', (done) => {
+  it('should throw on failed login', (done) => {
     const request = { rut: '12345678-5', password: 'wrong' };
     const mockResponse = {
       status: 'ERROR',
       msg: 'Contraseña incorrecta',
     };
 
-    service.login(request).subscribe((response) => {
-      expect(response.success).toBeFalse();
-      expect(response.error).toBe('Contraseña incorrecta');
-      done();
+    service.login(request).subscribe({
+      next: () => fail('Expected an error'),
+      error: (err: Error) => {
+        expect(err.message).toBe('Contraseña incorrecta');
+        done();
+      },
     });
 
     const req = httpMock.expectOne(`${environment.apiUrl}/auth/login.php`);

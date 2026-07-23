@@ -18,9 +18,10 @@ import {
   IonContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, businessOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
+import { formatRutDisplay } from './shared/utils/rut.utils';
 
 @Component({
   selector: 'app-root',
@@ -43,20 +44,25 @@ import { ThemeFacade } from './state/theme/theme.facade';
   ],
 })
 export class AppComponent {
-  private auth = inject(AuthFacade);
-  private theme = inject(ThemeFacade);
-  private router = inject(Router);
+  private auth     = inject(AuthFacade);
+  private theme    = inject(ThemeFacade);
+  private router   = inject(Router);
   private location = inject(Location);
 
-  session = this.auth.session;
-  isDark = this.theme.isDark;
+  session          = this.auth.session;
+  isDark           = this.theme.isDark;
+  formatRutDisplay = formatRutDisplay;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline });
+    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, businessOutline });
   }
 
   goBack(): void {
     this.location.back();
+  }
+
+  goHome(): void {
+    this.router.navigate(['/home']);
   }
 
   async logout(): Promise<void> {

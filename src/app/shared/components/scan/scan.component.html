@@ -1,11 +1,10 @@
 <div class="scan-container">
-  <!-- Input always visible (pistola + manual) -->
   <form [formGroup]="form" class="scan-form">
     <ion-input
       #scanInput
       formControlName="code"
       [placeholder]="placeholder()"
-      (keyup.enter)="onEnter(); $event.preventDefault()"
+      (keyup.enter)="onEnter($event)"
       autofocus
       class="input-base"
     >
@@ -21,7 +20,6 @@
     </ion-button>
   </form>
 
-  <!-- Status banner -->
   @if (tagConfirmed()) {
     <div class="status-banner status-banner-success">
       <span>✓ TAG: {{ tagValue() }}</span>

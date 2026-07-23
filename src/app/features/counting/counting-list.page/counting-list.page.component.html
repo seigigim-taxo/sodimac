@@ -1,34 +1,15 @@
 <ion-header>
-  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+  <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+      <ion-back-button defaultHref="/zone-select"></ion-back-button>
     </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Conteos</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
-        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
+    <ion-title>Conteos</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="ion-padding [&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content>
   <div class="page-inner py-6">
-    <app-counts-list
-      [sessions]="sessions()"
-      [isLoading]="isLoading()"
-      (sessionOpen)="openSession($event)"
-      (sessionSync)="syncSession($event)"
-      (sessionDelete)="deleteSession($event)"
-    ></app-counts-list>
+    <h2 class="page-title">Lista de conteos</h2>
+    <p class="page-subtitle">Próximamente</p>
   </div>
 </ion-content>
-
-<ion-footer>
-  <div class="p-4">
-    <ion-button expand="block" class="btn-primary" (click)="newCount()">
-      <ion-icon slot="start" name="add-outline"></ion-icon>
-      Nuevo conteo
-    </ion-button>
-  </div>
-</ion-footer>

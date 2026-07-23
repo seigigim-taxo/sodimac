@@ -18,7 +18,7 @@
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
-@import "@ionic/angular/css/palettes/dark.always.css";
+@import "@ionic/angular/css/palettes/dark.class.css";
 
 /* ===================================================================
    Tailwind component classes — design system tokens
@@ -315,6 +315,47 @@
     }
   }
 
+  .menu-section {
+    margin-bottom: 0.5rem;
+    padding: 0 0.5rem;
+    border-bottom: 1px solid var(--app-border);
+    padding-bottom: 0.5rem;
+  }
+
+  .menu-section-title {
+    @apply flex items-center gap-2 text-xs font-semibold uppercase tracking-wider;
+    color: var(--app-menu-text-muted);
+    padding: 0.75rem 0.75rem 0.25rem;
+    margin: 0;
+
+    ion-icon {
+      font-size: 1rem;
+    }
+  }
+
+  .menu-store-list {
+    background: transparent;
+    padding: 0.25rem 0;
+  }
+
+  .menu-store-item {
+    --background: transparent;
+    --color: var(--app-menu-text);
+    --border-radius: 12px;
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+
+    ion-icon {
+      color: var(--app-primary);
+    }
+  }
+
+  .menu-store-selected {
+    --background: color-mix(in srgb, var(--app-primary) 15%, transparent);
+    --color: var(--app-primary);
+    font-weight: 600;
+  }
+
   /* ---------- SCANNER ---------- */
   .scan-container {
     @apply flex flex-col gap-6;
@@ -350,6 +391,66 @@
     @apply flex flex-col gap-4;
   }
 
+  /* ---------- SYNC / LOADING SCREEN ---------- */
+  .sync-container {
+    @apply flex flex-col items-center justify-center;
+    min-height: 100%;
+    padding: 2rem;
+    gap: 3rem;
+  }
+
+  .sync-logo {
+    @apply flex flex-col items-center gap-4;
+
+    img {
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+    }
+  }
+
+  .sync-title {
+    @apply text-2xl font-bold tracking-tight;
+    color: var(--app-text);
+  }
+
+  .sync-body {
+    @apply flex flex-col items-center gap-4 w-full;
+    max-width: 320px;
+  }
+
+  .sync-step-label {
+    @apply text-sm font-medium text-center;
+    color: var(--app-text-muted);
+    min-height: 1.5rem;
+    transition: opacity 0.2s;
+  }
+
+  .sync-bar-track {
+    @apply w-full rounded-full overflow-hidden;
+    height: 10px;
+    background: var(--app-border);
+  }
+
+  .sync-bar-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: var(--app-cta-gradient);
+    transition: width 0.12s linear;
+  }
+
+  .sync-percent {
+    @apply text-3xl font-black tabular-nums;
+    color: var(--app-primary);
+  }
+
+  .sync-error {
+    @apply text-sm font-medium text-center px-4 py-2 rounded-xl;
+    background: var(--app-error-surface);
+    color: var(--app-error-text);
+    border: 1px solid var(--app-error-border);
+  }
+
   /* ---------- SESSION BADGE ---------- */
   .session-badge {
     @apply flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium;
@@ -360,5 +461,26 @@
   .session-badge-icon {
     @apply w-4 h-4 rounded-sm;
     border: 1.5px solid var(--app-success);
+  }
+
+  /* ---------- COUNTING STATUS BADGES ---------- */
+  .status-in-progress {
+    background: rgba(249, 115, 22, 0.12);
+    color: var(--app-primary);
+  }
+
+  .status-completed {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+  }
+
+  .status-synced {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--app-success);
+  }
+
+  .status-error {
+    background: var(--app-error-surface);
+    color: var(--app-error);
   }
 }

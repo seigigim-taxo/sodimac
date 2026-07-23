@@ -27,14 +27,14 @@ export function formatRut(rut: string): string {
 }
 
 /**
- * Extrae los primeros 6 dígitos numéricos del RUT (sin dígito verificador).
- * Se usa para comparar con la contraseña.
+ * Formatea un RUT limpio al formato 12.345.678-9 (con puntos y guión).
  */
-export function getFirstSixDigits(rut: string): string {
+export function formatRutDisplay(rut: string): string {
   const clean = cleanRut(rut);
-  // Ignorar el dígito verificador si está presente
-  const body = clean.length > 1 ? clean.slice(0, -1) : clean;
-  return body.slice(0, 6);
+  if (clean.length <= 1) return clean;
+  const body = clean.slice(0, -1);
+  const dv = clean.slice(-1).toUpperCase();
+  return body.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '-' + dv;
 }
 
 /**

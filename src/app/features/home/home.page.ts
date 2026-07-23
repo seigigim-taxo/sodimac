@@ -1,23 +1,20 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Location } from '@angular/common';
 import { Router } from '@angular/router';
 import {
   IonButton,
-  IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
   IonMenuButton,
+  IonButtons,
   IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline } from 'ionicons/icons';
+import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { StoreFacade } from '../../state/store/store.facade';
-import { ThemeFacade } from '../../state/theme/theme.facade';
-import { Store } from '../../domain/store/models/store.model';
+import { SucursalFacade, Sucursal } from '../../state/store/store.facade';
 
 @Component({
   selector: 'app-home',
@@ -36,49 +33,35 @@ import { Store } from '../../domain/store/models/store.model';
   ],
 })
 export class HomePage implements OnInit {
-  private router = inject(Router);
-  private location = inject(Location);
-  private theme = inject(ThemeFacade);
-  private auth = inject(AuthFacade);
-  private storeFacade = inject(StoreFacade);
+  private router         = inject(Router);
+  private auth           = inject(AuthFacade);
+  private sucursalFacade = inject(SucursalFacade);
 
-  isDark = this.theme.isDark;
-
-  stores = this.storeFacade.stores;
-  selectedStore = this.storeFacade.selectedStore;
-  currentStore = this.storeFacade.currentStore;
-  loading = this.storeFacade.loading;
-  error = this.storeFacade.error;
-  hasMultipleStores = this.storeFacade.hasMultipleStores;
-  noStores = this.storeFacade.noStores;
+  stores             = this.sucursalFacade.stores;
+  selectedStore      = this.sucursalFacade.selectedStore;
+  currentStore       = this.sucursalFacade.currentStore;
+  hasMultipleStores  = this.sucursalFacade.hasMultipleStores;
+  noStores           = this.sucursalFacade.noStores;
+  loading            = this.sucursalFacade.loading;
+  error              = this.sucursalFacade.error;
 
   constructor() {
-    addIcons({ arrowBackOutline });
+    addIcons({ alertCircleOutline });
   }
 
   ngOnInit(): void {
     const session = this.auth.session();
     if (session) {
-      this.storeFacade.loadStores(session.userId);
+      void this.sucursalFacade.loadSucursales(session.operadorId);
     }
   }
 
-  goBack(): void {
-    this.location.back();
-  }
-
-  selectStore(store: Store): void {
-    this.storeFacade.selectStore(store);
+  selectSucursal(sucursal: Sucursal): void {
+    this.sucursalFacade.selectSucursal(sucursal);
   }
 
   continue(): void {
-    if (!this.currentStore()) {
-      return;
-    }
+    if (!this.currentStore()) return;
     this.router.navigate(['/events']);
-  }
-
-  async toggleTheme(): Promise<void> {
-    await this.theme.toggle();
   }
 }

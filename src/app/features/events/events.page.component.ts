@@ -1,86 +1,66 @@
-import { Component, inject } from '@angular/core';
-import { Location } from '@angular/common';
+import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { ViewWillEnter } from '@ionic/angular';
 import {
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
-  IonMenuButton,
+  IonBackButton,
   IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline } from 'ionicons/icons';
-import { EventFacade } from '../../state/event/event.facade';
-import { StoreFacade } from '../../state/store/store.facade';
-import { InventoryEvent } from '../../domain/event/models/event.model';
+import { alertCircleOutline } from 'ionicons/icons';
+import { EventoFacade, Evento } from '../../state/evento/evento.facade';
+import { SucursalFacade } from '../../state/store/store.facade';
 
 @Component({
-  selector: 'app-events.page',
+  selector: 'app-events',
   templateUrl: './events.page.component.html',
+  standalone: true,
   imports: [
     IonButton,
     IonButtons,
     IonContent,
     IonHeader,
     IonIcon,
-    IonMenuButton,
+    IonBackButton,
     IonSpinner,
     IonTitle,
     IonToolbar,
   ],
 })
-export class EventsPageComponent implements ViewWillEnter {
-  private router = inject(Router);
-  private location = inject(Location);
-  private storeFacade = inject(StoreFacade);
-  private eventFacade = inject(EventFacade);
+export class EventsPageComponent implements OnInit {
+  private router         = inject(Router);
+  private eventoFacade   = inject(EventoFacade);
+  private sucursalFacade = inject(SucursalFacade);
 
-  events = this.eventFacade.events;
-  selectedEvent = this.eventFacade.selectedEvent;
-  currentEvent = this.eventFacade.currentEvent;
-  loading = this.eventFacade.loading;
-  error = this.eventFacade.error;
-  hasEvents = this.eventFacade.hasEvents;
-  noEvents = this.eventFacade.noEvents;
-  currentStore = this.storeFacade.currentStore;
+  events        = this.eventoFacade.events;
+  selectedEvent = this.eventoFacade.selectedEvent;
+  loading       = this.eventoFacade.loading;
+  error         = this.eventoFacade.error;
+  hasEvents     = this.eventoFacade.hasEvents;
+  noEvents      = this.eventoFacade.noEvents;
 
   constructor() {
-    addIcons({ arrowBackOutline });
+    addIcons({ alertCircleOutline });
   }
 
-  ionViewWillEnter(): void {
-    const store = this.currentStore();
+  ngOnInit(): void {
+    const store = this.sucursalFacade.currentStore();
     if (store) {
-      this.eventFacade.loadEvents(store.id);
+      void this.eventoFacade.loadEventos(store.id);
     }
   }
 
-  goBack(): void {
-    this.location.back();
-  }
-
-  goHome(): void {
-    this.router.navigate(['/home']);
-  }
-
-  selectEvent(event: InventoryEvent): void {
-    this.eventFacade.selectEvent(event);
+  selectEvento(evento: Evento): void {
+    this.eventoFacade.selectEvento(evento);
   }
 
   continue(): void {
-    if (!this.currentEvent()) {
-      return;
-    }
+    if (!this.selectedEvent()) return;
     this.router.navigate(['/zone-select']);
-  }
-
-  formatDate(dateString: string): string {
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
   }
 }

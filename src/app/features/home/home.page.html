@@ -6,18 +6,12 @@
     <ion-title class="text-[var(--app-text)] font-bold text-lg">
       {{ hasMultipleStores() ? 'Selecciona una tienda' : 'Tienda' }}
     </ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
-        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content class="[&::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
-    <!-- Content -->
     <div class="flex flex-col gap-2">
       <h2 class="page-title">
         {{ hasMultipleStores() ? 'Tiendas asignadas' : 'Tienda asignada' }}
@@ -51,19 +45,11 @@
       <div class="card">
         <div class="store-row">
           <span class="store-label">Nombre</span>
-          <span class="store-value">{{ store.name }}</span>
+          <span class="store-value">{{ store.nombre }}</span>
         </div>
         <div class="store-row">
           <span class="store-label">Código</span>
-          <span class="store-value">{{ store.code }}</span>
-        </div>
-        <div class="store-row">
-          <span class="store-label">Dirección</span>
-          <span class="store-value">{{ store.address }}</span>
-        </div>
-        <div class="store-row">
-          <span class="store-label">Ciudad</span>
-          <span class="store-value">{{ store.city }}</span>
+          <span class="store-value">{{ store.codigoTienda }}</span>
         </div>
       </div>
     }
@@ -73,20 +59,16 @@
         @for (store of stores(); track store.id) {
           <div
             class="card card-interactive"
-            [class.card-selected]="selectedStore()?.id === store.id || currentStore()?.id === store.id"
-            (click)="selectStore(store)"
+            [class.card-selected]="currentStore()?.id === store.id"
+            (click)="selectSucursal(store)"
           >
             <div class="store-row">
               <span class="store-label">Nombre</span>
-              <span class="store-value">{{ store.name }}</span>
+              <span class="store-value">{{ store.nombre }}</span>
             </div>
             <div class="store-row">
               <span class="store-label">Código</span>
-              <span class="store-value">{{ store.code }}</span>
-            </div>
-            <div class="store-row">
-              <span class="store-label">Ciudad</span>
-              <span class="store-value">{{ store.city }}</span>
+              <span class="store-value">{{ store.codigoTienda }}</span>
             </div>
           </div>
         }

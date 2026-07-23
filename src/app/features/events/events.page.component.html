@@ -1,37 +1,21 @@
 <ion-header>
-  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+  <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+      <ion-back-button defaultHref="/home"></ion-back-button>
     </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Eventos</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
-        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
+    <ion-title>Eventos</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content>
   <div class="page-inner py-6">
 
-    <div class="flex flex-col gap-2 mb-6">
+    <div class="flex flex-col gap-2">
       <h2 class="page-title">Selecciona un evento</h2>
       <p class="page-subtitle">Elige el evento de inventario para continuar</p>
     </div>
 
-    @if (!currentStore()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>Debes seleccionar una tienda antes de continuar</span>
-      </div>
-
-      <ion-button expand="block" class="btn-primary" (click)="goHome()">
-        Volver a tiendas
-      </ion-button>
-    }
-
-    @if (currentStore() && loading()) {
+    @if (loading()) {
       <div class="flex justify-center py-10">
         <ion-spinner name="crescent" color="primary"></ion-spinner>
       </div>
@@ -51,38 +35,39 @@
       </div>
     }
 
-    @if (currentStore() && !loading() && hasEvents()) {
+    @if (hasEvents()) {
       <div class="flex flex-col gap-4">
-        @for (event of events(); track event.id) {
+        @for (evento of events(); track evento.id) {
           <div
-            class="event-card"
-            [class.card-selected]="currentEvent()?.id === event.id"
-            (click)="selectEvent(event)"
+            class="card card-interactive"
+            [class.card-selected]="selectedEvent()?.id === evento.id"
+            (click)="selectEvento(evento)"
           >
-            <div class="event-name" [style.color]="currentEvent()?.id === event.id ? 'var(--app-primary)' : 'var(--app-text)'">
-              {{ event.folio }}
+            <div class="store-row">
+              <span class="store-label">Folio</span>
+              <span class="store-value">{{ evento.folio ?? '—' }}</span>
             </div>
-            <div class="event-detail">
-              <span class="event-detail-label">Sucursal</span>
-              <span class="event-detail-value">{{ event.storeName }}</span>
+            <div class="store-row">
+              <span class="store-label">Fecha programada</span>
+              <span class="store-value">{{ evento.fechaProgramada }}</span>
             </div>
-            <div class="event-detail">
-              <span class="event-detail-label">Fecha</span>
-              <span class="event-detail-value">{{ formatDate(event.scheduledDate) }}</span>
-            </div>
-            <div class="event-detail">
-              <span class="event-detail-label">Categoría</span>
-              <span class="event-detail-value">{{ event.category }}</span>
+            <div class="store-row">
+              <span class="store-label">Estado</span>
+              <span class="store-value">{{ evento.estado }}</span>
             </div>
           </div>
         }
       </div>
     }
 
-    @if (currentStore()) {
-      <ion-button expand="block" class="btn-primary" [disabled]="!currentEvent() || loading()" (click)="continue()">
-        Continuar
-      </ion-button>
-    }
+    <ion-button
+      expand="block"
+      class="btn-primary"
+      [disabled]="!selectedEvent() || loading()"
+      (click)="continue()"
+    >
+      Continuar
+    </ion-button>
+
   </div>
 </ion-content>

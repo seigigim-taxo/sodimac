@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/auth/guards/auth.guard';
+import { authGuard } from './state/auth/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -27,8 +27,22 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'counting-list',
+    loadComponent: () => import('./features/counting/counting-list.page/counting-list.page.component').then((m) => m.CountingListPageComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'counting-detail/:id',
+    loadComponent: () => import('./features/counting/counting-detail.page/counting-detail.page.component').then((m) => m.CountingDetailPageComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full',
+  },
+  {
+    path: '**',
+    redirectTo: 'login',
   },
 ];

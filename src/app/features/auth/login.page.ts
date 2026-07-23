@@ -2,7 +2,6 @@ import { Component, inject, OnInit } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
-  FormGroup,
   ReactiveFormsModule,
   ValidationErrors,
   Validators,
@@ -34,33 +33,28 @@ import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
   ],
 })
 export class LoginPage implements OnInit {
-  private fb = inject(FormBuilder);
-  private auth = inject(AuthFacade);
+  private fb     = inject(FormBuilder);
+  private auth   = inject(AuthFacade);
   private router = inject(Router);
 
-  form: FormGroup;
   loading = this.auth.loading;
-  error = this.auth.error;
-
-  constructor() {
-    addIcons({ alertCircleOutline });
-
-    this.form = this.fb.group({
-      rut: ['', [Validators.required, this.rutValidator]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-    });
-  }
+  error   = this.auth.error;
 
   private rutValidator = (control: AbstractControl): ValidationErrors | null => {
     const value = cleanRut(control.value ?? '');
-    if (!value) {
-      return null;
-    }
-    if (value.length < 7 || value.length > 9) {
-      return { invalidRut: true };
-    }
+    if (!value) return null;
+    if (value.length < 7 || value.length > 9) return { invalidRut: true };
     return validateRut(value) ? null : { invalidRut: true };
   };
+
+  form = this.fb.group({
+    rut:      ['', [Validators.required, this.rutValidator]],
+    password: ['', [Validators.required, Validators.minLength(6)]],
+  });
+
+  constructor() {
+    addIcons({ alertCircleOutline });
+  }
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
@@ -73,7 +67,7 @@ export class LoginPage implements OnInit {
     const raw = input.value.replace(/[^0-9kK]/g, '');
     const formatted = formatRut(raw);
     this.form.patchValue({ rut: formatted }, { emitEvent: false });
-    this.form.controls['rut'].updateValueAndValidity();
+    this.form.controls['rut'].updateValueAndValidity({ emitEvent: false });
   }
 
   async onSubmit(): Promise<void> {
@@ -81,22 +75,14 @@ export class LoginPage implements OnInit {
       this.form.markAllAsTouched();
       return;
     }
-
-    const rut = cleanRut(this.form.value.rut);
-    const password = this.form.value.password;
-
+    const rut      = cleanRut(this.form.value.rut ?? '');
+    const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
-
     if (this.auth.isAuthenticated()) {
       this.router.navigate(['/home']);
     }
   }
 
-  get rutControl() {
-    return this.form.get('rut');
-  }
-
-  get passwordControl() {
-    return this.form.get('password');
-  }
+  get rutControl()      { return this.form.get('rut'); }
+  get passwordControl() { return this.form.get('password'); }
 }

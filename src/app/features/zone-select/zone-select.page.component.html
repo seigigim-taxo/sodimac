@@ -1,25 +1,19 @@
 <ion-header>
-  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
+  <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
+      <ion-back-button defaultHref="/events"></ion-back-button>
     </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Zona de conteo</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
-        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
+    <ion-title>Zona de conteo</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="ion-padding [&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
-    <!-- Header info -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold" style="color: var(--app-text);">
         @if (currentEvent() && currentStore()) {
-          {{ currentEvent()?.folio }} — {{ currentStore()?.name }}
+          {{ currentEvent()?.folio }} — {{ currentStore()?.nombre }}
         } @else {
           Selección de zona
         }
@@ -35,55 +29,90 @@
         <ion-icon name="alert-circle-outline"></ion-icon>
         <span>Debes seleccionar un evento antes de continuar</span>
       </div>
-
-      <ion-button expand="block" class="btn-primary" (click)="goEvents()">
+      <ion-button expand="block" class="btn-primary mt-4" (click)="goEvents()">
         Volver a eventos
       </ion-button>
     }
 
-    @if (currentEvent() && loading()) {
-      <div class="flex justify-center py-10">
-        <ion-spinner name="crescent" color="primary"></ion-spinner>
-      </div>
-    }
-
-    @if (error()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>{{ error() }}</span>
-      </div>
-    }
-
-    @if (noZones()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>No tienes zonas asignadas para este evento</span>
-      </div>
-    }
-
     @if (currentEvent()) {
-      <!-- Scanner component -->
-      <app-scan scanType="tag" placeholder="Escanea o ingresa TAG" confirmLabel="Confirmar TAG"
-        (scan)="onTagScan($event)"></app-scan>
 
-      <!-- Zone selection (shown after tag confirmed) -->
-      @if (tagConfirmed() && hasZones()) {
-      <div class="flex flex-col gap-3 mt-6">
-        <h3 class="text-base font-bold" style="color: var(--app-text);">Selecciona una zona</h3>
-        <ion-select placeholder="Seleccionar zona" interface="action-sheet" [value]="selectedZone()?.id"
-          (ionChange)="onZoneChange($event)" class="zone-select">
-          @for (zone of zones(); track zone.id) {
-          <ion-select-option [value]="zone.id">
-            {{ zone.name }}
-          </ion-select-option>
-          }
-        </ion-select>
-      </div>
+      <!-- 1. Escanear TAG -->
+      <app-scan
+        scanType="tag"
+        placeholder="Escanea o ingresa TAG"
+        confirmLabel="Confirmar TAG"
+        (scan)="onTagScan($event)"
+      ></app-scan>
 
-      <ion-button expand="block" class="btn-primary" [disabled]="!canContinue()" (click)="continue()">
+      <!-- Badge TAG confirmado -->
+      @if (tagValue()) {
+        <div class="card mt-4">
+          <div class="flex items-center gap-3">
+            <ion-icon
+              name="barcode-outline"
+              class="text-2xl shrink-0"
+              style="color: var(--app-primary);"
+            ></ion-icon>
+            <div>
+              <p class="text-xs font-medium mb-0.5" style="color: var(--app-text-muted);">TAG escaneado</p>
+              <p class="text-base font-bold" style="color: var(--app-text);">{{ tagValue() }}</p>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 2. Select de zonas -->
+      @if (loading()) {
+        <div class="flex justify-center py-6">
+          <ion-spinner name="crescent" color="primary"></ion-spinner>
+        </div>
+      }
+
+      @if (noZones()) {
+        <div class="error-pill mt-4">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>No tienes zonas asignadas en este evento</span>
+        </div>
+      }
+
+      @if (hasZones() && !loading()) {
+        <div class="card mt-6">
+          <ion-label class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
+            Zona
+          </ion-label>
+          <ion-select
+            #zoneSelect
+            placeholder="Selecciona una zona"
+            (ionChange)="onZoneChange($event)"
+            style="color: var(--app-text); width: 100%; margin-top: 0.5rem;"
+          >
+            @for (zona of zones(); track zona.id) {
+              <ion-select-option [value]="zona">
+                {{ zona.codigo }}{{ zona.nombre ? ' — ' + zona.nombre : '' }}
+              </ion-select-option>
+            }
+          </ion-select>
+        </div>
+      }
+
+      <!-- Error -->
+      @if (error() && !loading()) {
+        <div class="error-pill mt-4">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      <!-- 3. Botón continuar -->
+      <ion-button
+        expand="block"
+        class="btn-primary mt-6"
+        [disabled]="!canContinue() || loading()"
+        (click)="continue()"
+      >
         Continuar
       </ion-button>
-      }
+
     }
   </div>
 </ion-content>

@@ -1,7 +1,9 @@
 export interface ApiLoginUser {
-  id: number;
-  name: string;
+  nombre_completo: string;
+  apellido_paterno: string;
+  apellido_materno: string;
   rut: string;
+  rut_normalizado: string;
   rol: string;
   correo: string;
 }
@@ -9,10 +11,4 @@ export interface ApiLoginUser {
 export interface ApiLoginData {
   token: string;
   user: ApiLoginUser;
-}
-
-export interface ApiLoginResponse {
-  status: 'OK' | 'ERROR';
-  msg: string;
-  data?: ApiLoginData;
 }

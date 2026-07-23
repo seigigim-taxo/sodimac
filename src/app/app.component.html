@@ -12,11 +12,19 @@
     </ion-header>
     <ion-content style="--background: var(--app-menu-bg); --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem;">
       <div class="menu-user-info">
-        <p class="menu-user-name">{{ session()?.name }}</p>
-        <p class="menu-user-rut">{{ session()?.rut }}</p>
+        <p class="menu-user-rut">{{ formatRutDisplay(session()?.rutNormalizado ?? '') }}</p>
+        <p class="menu-user-name">{{ session()?.cargo }}</p>
       </div>
 
       <ion-list lines="none" class="menu-list">
+        <!-- Store selection -->
+        <ion-menu-toggle>
+          <ion-item button (click)="goHome()" class="menu-theme-item">
+            <ion-icon slot="start" name="business-outline"></ion-icon>
+            <ion-label>Tiendas</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item
