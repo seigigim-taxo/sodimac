@@ -12,12 +12,14 @@ export class ZonaFacade {
   private zonesSignal        = signal<Zona[]>([]);
   private selectedZoneSignal = signal<Zona | null>(null);
   private tagValueSignal     = signal<string>('');
+  private ubicacionIdSignal  = signal<number | null>(null);
   private loadingSignal      = signal(false);
   private errorSignal        = signal<string | null>(null);
 
   readonly zones        = this.zonesSignal.asReadonly();
   readonly selectedZone = this.selectedZoneSignal.asReadonly();
   readonly tagValue     = this.tagValueSignal.asReadonly();
+  readonly ubicacionId  = this.ubicacionIdSignal.asReadonly();
   readonly loading      = this.loadingSignal.asReadonly();
   readonly error        = this.errorSignal.asReadonly();
   readonly hasZones     = computed(() => this.zonesSignal().length > 0);
@@ -51,7 +53,8 @@ export class ZonaFacade {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
-      await this.registrarUbicacion.execute(zona.id, tag);
+      const id = await this.registrarUbicacion.execute(zona.id, tag);
+      this.ubicacionIdSignal.set(id);
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al registrar ubicación');
       throw err;
@@ -64,6 +67,7 @@ export class ZonaFacade {
     this.zonesSignal.set([]);
     this.selectedZoneSignal.set(null);
     this.tagValueSignal.set('');
+    this.ubicacionIdSignal.set(null);
     this.errorSignal.set(null);
   }
 }

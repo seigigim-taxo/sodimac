@@ -14,7 +14,7 @@ import {
 } from '@ionic/angular/standalone';
 import { HomePage } from './home.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { StoreFacade } from '../../state/store/store.facade';
+import { StoreFacade } from '../../state/sucursal/sucursal.facade';
 import { ThemeFacade } from '../../state/theme/theme.facade';
 
 describe('HomePage', () => {

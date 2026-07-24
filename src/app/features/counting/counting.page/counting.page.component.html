@@ -1,15 +1,173 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/zone-select"></ion-back-button>
+      <ion-button (click)="goHome()">
+        <ion-icon slot="icon-only" name="home-outline"></ion-icon>
+      </ion-button>
     </ion-buttons>
     <ion-title>Conteo</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content>
+<ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
-    <h2 class="page-title">Conteo</h2>
-    <p class="page-subtitle">Próximamente</p>
+
+    <!-- Header con evento y badge sesión -->
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold" style="color: var(--app-text);">
+        @if (sesion(); as s) {
+          Evento #{{ s.eventoId }}
+        } @else {
+          Conteo
+        }
+      </h2>
+      <div class="session-badge">
+        <div class="session-badge-icon"></div>
+        <span>{{ totalItems() }} producto(s)</span>
+      </div>
+    </div>
+
+    <!-- Sin sesión activa -->
+    @if (!sesion() && !loading()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>No hay sesión de conteo activa. Vuelve a seleccionar zona.</span>
+      </div>
+      <ion-button expand="block" class="btn-primary mt-4" (click)="goZoneSelect()">
+        Volver a zona
+      </ion-button>
+    }
+
+    @if (loading()) {
+      <div class="flex justify-center py-6">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
+      </div>
+    }
+
+    @if (sesion() && !loading()) {
+
+      <!-- Scanner SKU -->
+      <!-- Cantidad a registrar con el próximo scan -->
+      <div class="card mb-4">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
+            Cantidad
+          </span>
+          <ion-input
+            type="number"
+            inputmode="numeric"
+            min="1"
+            [value]="cantidad()"
+            (ionInput)="onCantidadInput($event)"
+            class="input-base"
+            style="max-width: 120px; text-align: center;"
+          ></ion-input>
+        </div>
+      </div>
+
+      <app-scan
+        scanType="sku"
+        placeholder="Escanea o ingresa SKU"
+        confirmLabel="Registrar"
+        [showBanner]="false"
+        (scan)="onScan($event)"
+      ></app-scan>
+
+      <!-- Feedback del último scan: verde solo si el SKU está en la muestra -->
+      @if (lastScan(); as scan) {
+        @if (scan.valido) {
+          <div class="status-banner status-banner-success">
+            <span>✓ SKU: {{ scan.sku }}</span>
+          </div>
+        } @else {
+          <div class="status-banner status-banner-error">
+            <span>✗ SKU {{ scan.sku }} no está en la muestra</span>
+          </div>
+        }
+      } @else {
+        <div class="status-banner status-banner-info">
+          <span>Escanea un SKU para registrar el conteo</span>
+        </div>
+      }
+
+      <!-- Error -->
+      @if (error()) {
+        <div class="error-pill mt-4">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      <!-- Lista de items válidos -->
+      @if (items().length > 0) {
+        <div class="card mt-6">
+          <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
+            Productos contados
+          </p>
+          <ion-list lines="full" style="background: transparent;">
+            @for (item of items(); track item.productoId) {
+              <ion-item style="--background: transparent; --padding-start: 0;">
+                <ion-label>
+                  <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
+                  <h3 class="text-sm font-medium" style="color: var(--app-text);">
+                    {{ item.descripcion ?? item.sku }}
+                  </h3>
+                </ion-label>
+
+                <!-- Controles cantidad -->
+                <div slot="end" class="flex items-center gap-2">
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    (click)="adjust(item.productoId, -1)"
+                    style="--color: var(--app-text-muted);"
+                  >
+                    <ion-icon slot="icon-only" name="remove-outline"></ion-icon>
+                  </ion-button>
+
+                  <span class="text-base font-bold min-w-6 text-center" style="color: var(--app-text);">
+                    {{ item.cantidadFisica }}
+                  </span>
+
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    (click)="adjust(item.productoId, 1)"
+                    style="--color: var(--app-primary);"
+                  >
+                    <ion-icon slot="icon-only" name="add-outline"></ion-icon>
+                  </ion-button>
+
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    (click)="delete(item.productoId)"
+                    style="--color: var(--ion-color-danger);"
+                  >
+                    <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                  </ion-button>
+                </div>
+              </ion-item>
+            }
+          </ion-list>
+        </div>
+      }
+
+      <!-- Botón finalizar -->
+      @if (enCurso()) {
+        <ion-button
+          expand="block"
+          class="btn-primary mt-6"
+          [disabled]="items().length === 0 || loading()"
+          (click)="finalizar()"
+        >
+          Finalizar conteo
+        </ion-button>
+      }
+
+    }
   </div>
 </ion-content>

@@ -10,10 +10,14 @@ import { barcodeOutline } from 'ionicons/icons';
   imports: [ReactiveFormsModule, IonIcon, IonInput, IonButton],
 })
 export class ScanComponent implements AfterViewInit {
-  placeholder  = input('');
-  confirmLabel = input('Confirmar');
-  scanType     = input<'tag' | 'sku'>('sku');
-  scan         = output<string>();
+  placeholder    = input('');
+  confirmLabel   = input('Confirmar');
+  scanType       = input<'tag' | 'sku'>('sku');
+  idleMessage    = input('Escaneando tag para iniciar sesión de conteo');
+  confirmedLabel = input('TAG');
+  // false cuando la página dueña muestra su propio feedback (ej: conteo valida contra la muestra)
+  showBanner     = input(true);
+  scan           = output<string>();
   scanInput    = viewChild<IonInput>('scanInput');
 
   private fb = inject(FormBuilder);

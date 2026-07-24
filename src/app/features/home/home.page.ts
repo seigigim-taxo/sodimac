@@ -14,7 +14,7 @@ import {
 import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { SucursalFacade, Sucursal } from '../../state/store/store.facade';
+import { SucursalFacade, Sucursal } from '../../state/sucursal/sucursal.facade';
 
 @Component({
   selector: 'app-home',

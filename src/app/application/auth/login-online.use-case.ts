@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import { AUTH_API_REPOSITORY_TOKEN } from '../../domain/auth/repositories/auth-api.repository';
 import { OPERADOR_REPOSITORY_TOKEN } from '../../domain/auth/repositories/operador.repository';
 import { LoginRequest } from '../../domain/auth/models/login-request.model';
@@ -11,7 +10,7 @@ export class LoginOnlineUseCase {
   private operadorRepo = inject(OPERADOR_REPOSITORY_TOKEN);
 
   async execute(request: LoginRequest): Promise<Session> {
-    const response = await firstValueFrom(this.authApi.login(request));
+    const response = await this.authApi.login(request);
 
     const rut   = parseInt(response.user.rut, 10);
     const rutDv = response.user.rutNormalizado.slice(-1).toUpperCase();

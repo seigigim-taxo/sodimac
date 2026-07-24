@@ -1,15 +1,224 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/zone-select"></ion-back-button>
+      <ion-back-button defaultHref="/home"></ion-back-button>
     </ion-buttons>
     <ion-title>Conteos</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content>
+<ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
-    <h2 class="page-title">Lista de conteos</h2>
-    <p class="page-subtitle">Próximamente</p>
+
+    <!--
+      Botones planos en vez de ion-segment: ver comentario en global.scss
+      (.tabs-shell) — Ionic no garantiza contraste consistente entre modo
+      iOS/Material ni dentro de un ion-toolbar. Con markup propio el color
+      queda 100% bajo control.
+    -->
+    <div class="counting-tabs-sticky">
+      <div class="tabs-shell" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="tab-btn tab-en-curso"
+          [class.active]="tab() === 'enCurso'"
+          [attr.aria-selected]="tab() === 'enCurso'"
+          (click)="setTab('enCurso')"
+        >
+          <span class="tab-btn-row">
+            <ion-icon name="time-outline"></ion-icon>
+            <span>En curso</span>
+          </span>
+          <span class="tab-badge">{{ enCurso().length }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="tab-btn tab-pendientes"
+          [class.active]="tab() === 'pendientes'"
+          [attr.aria-selected]="tab() === 'pendientes'"
+          (click)="setTab('pendientes')"
+        >
+          <span class="tab-btn-row">
+            <ion-icon name="cloud-upload-outline"></ion-icon>
+            <span>Pendientes</span>
+          </span>
+          <span class="tab-badge">{{ finalizados().length }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="tab-btn tab-sincronizados"
+          [class.active]="tab() === 'sincronizados'"
+          [attr.aria-selected]="tab() === 'sincronizados'"
+          (click)="setTab('sincronizados')"
+        >
+          <span class="tab-btn-row">
+            <ion-icon name="checkmark-done-outline"></ion-icon>
+            <span>Sincronizados</span>
+          </span>
+          <span class="tab-badge">{{ sincronizados().length }}</span>
+        </button>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="flex justify-center py-10">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (noConteos()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>Aún no tienes conteos registrados</span>
+      </div>
+    }
+
+    <!-- ===== Pestaña: En curso ===== -->
+    @if (tab() === 'enCurso' && !loading()) {
+      @if (enCurso().length === 0 && !noConteos()) {
+        <div class="error-pill">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>No tienes conteos en curso</span>
+        </div>
+      }
+      <div class="flex flex-col gap-4">
+        @for (conteo of enCurso(); track trackConteo(conteo)) {
+          <div class="card">
+            <div class="store-row">
+              <span class="store-label">Zona</span>
+              <span class="store-value">{{ conteo.zonaCodigo }}{{ conteo.zonaNombre ? ' — ' + conteo.zonaNombre : '' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">TAG</span>
+              <span class="store-value">{{ conteo.tag ?? '—' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">Productos / Unidades</span>
+              <span class="store-value">{{ conteo.totalProductos }} / {{ conteo.totalUnidades }}</span>
+            </div>
+            <ion-button expand="block" class="btn-primary mt-3" (click)="continuar(conteo)">
+              <ion-icon slot="start" name="play-outline"></ion-icon>
+              Continuar conteo
+            </ion-button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ===== Pestaña: Pendientes (finalizados, sin sincronizar) ===== -->
+    @if (tab() === 'pendientes' && !loading()) {
+      @if (finalizados().length === 0 && !noConteos()) {
+        <div class="error-pill">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>No tienes conteos pendientes de sincronizar</span>
+        </div>
+      }
+      <div class="flex flex-col gap-4">
+        @for (conteo of finalizados(); track trackConteo(conteo)) {
+          <div class="card card-interactive" (click)="verDetalle(conteo)">
+            <div class="store-row">
+              <span class="store-label">Zona</span>
+              <span class="store-value">{{ conteo.zonaCodigo }}{{ conteo.zonaNombre ? ' — ' + conteo.zonaNombre : '' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">TAG</span>
+              <span class="store-value">{{ conteo.tag ?? '—' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">Productos / Unidades</span>
+              <span class="store-value">{{ conteo.totalProductos }} / {{ conteo.totalUnidades }}</span>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <ion-button
+                expand="block"
+                fill="outline"
+                class="flex-1"
+                (click)="verDetalle(conteo); $event.stopPropagation()"
+              >
+                <ion-icon slot="start" name="create-outline"></ion-icon>
+                Ver / Editar
+              </ion-button>
+              <ion-button
+                fill="clear"
+                (click)="eliminar(conteo); $event.stopPropagation()"
+                style="--color: var(--ion-color-danger);"
+              >
+                <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+              </ion-button>
+            </div>
+            <ion-button
+              expand="block"
+              class="btn-primary mt-2"
+              [disabled]="isSyncing(conteo)"
+              (click)="sincronizar(conteo); $event.stopPropagation()"
+            >
+              @if (isSyncing(conteo)) {
+                <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+                Sincronizando…
+              } @else {
+                <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+                Sincronizar
+              }
+            </ion-button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ===== Pestaña: Sincronizados (solo lectura) ===== -->
+    @if (tab() === 'sincronizados' && !loading()) {
+      @if (sincronizados().length === 0 && !noConteos()) {
+        <div class="error-pill">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>Aún no tienes conteos sincronizados</span>
+        </div>
+      }
+      <div class="flex flex-col gap-4">
+        @for (conteo of sincronizados(); track trackConteo(conteo)) {
+          <div class="card card-interactive" style="opacity: 0.75;" (click)="verDetalle(conteo)">
+            <div class="store-row">
+              <span class="store-label">Zona</span>
+              <span class="store-value">{{ conteo.zonaCodigo }}{{ conteo.zonaNombre ? ' — ' + conteo.zonaNombre : '' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">TAG</span>
+              <span class="store-value">{{ conteo.tag ?? '—' }}</span>
+            </div>
+            <div class="store-row">
+              <span class="store-label">Productos / Unidades</span>
+              <span class="store-value">{{ conteo.totalProductos }} / {{ conteo.totalUnidades }}</span>
+            </div>
+            <div class="flex items-center justify-between mt-3">
+              <div class="flex items-center gap-2" style="color: var(--app-success);">
+                <ion-icon name="checkmark-done-outline"></ion-icon>
+                <span class="text-sm font-medium">Sincronizado</span>
+              </div>
+              <ion-button
+                fill="outline"
+                size="small"
+                (click)="verDetalle(conteo); $event.stopPropagation()"
+              >
+                <ion-icon slot="start" name="eye-outline"></ion-icon>
+                Ver
+              </ion-button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
   </div>
 </ion-content>

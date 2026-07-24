@@ -79,7 +79,7 @@ export class LoginPage implements OnInit {
     const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/home']);
+      this.router.navigate(['/sync-loading']);
     }
   }
 

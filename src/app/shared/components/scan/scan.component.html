@@ -20,13 +20,15 @@
     </ion-button>
   </form>
 
-  @if (tagConfirmed()) {
-    <div class="status-banner status-banner-success">
-      <span>✓ TAG: {{ tagValue() }}</span>
-    </div>
-  } @else {
-    <div class="status-banner status-banner-info">
-      <span>Escaneando tag para iniciar sesión de conteo</span>
-    </div>
+  @if (showBanner()) {
+    @if (tagConfirmed()) {
+      <div class="status-banner status-banner-success">
+        <span>✓ {{ confirmedLabel() }}: {{ tagValue() }}</span>
+      </div>
+    } @else {
+      <div class="status-banner status-banner-info">
+        <span>{{ idleMessage() }}</span>
+      </div>
+    }
   }
 </div>

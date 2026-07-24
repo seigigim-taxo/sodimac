@@ -7,6 +7,7 @@ import {
   IonHeader,
   IonIcon,
   IonBackButton,
+  IonMenuButton,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -14,7 +15,7 @@ import {
 import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
 import { EventoFacade, Evento } from '../../state/evento/evento.facade';
-import { SucursalFacade } from '../../state/store/store.facade';
+import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 
 @Component({
   selector: 'app-events',
@@ -27,6 +28,7 @@ import { SucursalFacade } from '../../state/store/store.facade';
     IonHeader,
     IonIcon,
     IonBackButton,
+    IonMenuButton,
     IonSpinner,
     IonTitle,
     IonToolbar,

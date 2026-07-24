@@ -5,9 +5,9 @@ import { UBICACION_REPOSITORY_TOKEN } from '../../domain/ubicacion/repositories/
 export class RegistrarUbicacionUseCase {
   private ubicacionRepo = inject(UBICACION_REPOSITORY_TOKEN);
 
-  async execute(zonaId: number, tag: string): Promise<void> {
+  async execute(zonaId: number, tag: string): Promise<number> {
     if (!tag.trim()) throw new Error('El TAG no puede estar vacío');
     if (zonaId <= 0)  throw new Error('Zona inválida');
-    await this.ubicacionRepo.insert(zonaId, tag);
+    return this.ubicacionRepo.insert(zonaId, tag);
   }
 }

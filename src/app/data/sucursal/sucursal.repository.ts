@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
-import { SucursalRepository } from '../../domain/store/repositories/sucursal.repository';
-import { Sucursal } from '../../domain/store/models/sucursal.model';
+import { SucursalRepository } from '../../domain/sucursal/repositories/sucursal.repository';
+import { Sucursal } from '../../domain/sucursal/models/sucursal.model';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteSucursalRepository implements SucursalRepository {

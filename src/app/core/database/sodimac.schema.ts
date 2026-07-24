@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 13;
+export const SODIMAC_DB_VERSION = 18;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -37,8 +37,7 @@ const TABLES: readonly string[] = [
     user_id     INTEGER NOT NULL REFERENCES sod_user(id),
     sucursal_id INTEGER NOT NULL REFERENCES sod_sucursal(id),
     soft_delete INTEGER NOT NULL DEFAULT 0,
-    estado      INTEGER NOT NULL DEFAULT 1,
-    UNIQUE (user_id, sucursal_id)
+    estado      INTEGER NOT NULL DEFAULT 1
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_agenda (
@@ -54,8 +53,6 @@ const TABLES: readonly string[] = [
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     agenda_id           INTEGER          DEFAULT NULL REFERENCES sod_agenda(id),
     sucursal_id         INTEGER NOT NULL REFERENCES sod_sucursal(id),
-    operador_id      INTEGER NOT NULL REFERENCES sod_user(id),
-    folio               TEXT             DEFAULT NULL UNIQUE,
     fecha_programada    TEXT    NOT NULL,
     fecha_ejecucion     TEXT             DEFAULT NULL,
     estado              TEXT    NOT NULL DEFAULT 'ABIERTO',
@@ -66,8 +63,7 @@ const TABLES: readonly string[] = [
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     sku           TEXT    NOT NULL UNIQUE,
     codigo_barras TEXT    DEFAULT NULL,
-    descripcion   TEXT    DEFAULT NULL,
-    control_peso  INTEGER NOT NULL DEFAULT 0
+    descripcion   TEXT    DEFAULT NULL
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_muestra (
@@ -105,8 +101,7 @@ const TABLES: readonly string[] = [
     zona_tipo_id   INTEGER NOT NULL REFERENCES sod_zona_tipo(id),
     codigo         TEXT    NOT NULL,
     nombre         TEXT    DEFAULT NULL,
-    fecha_registro TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (sucursal_id, codigo)
+    fecha_registro TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_ubicacion (
@@ -114,8 +109,7 @@ const TABLES: readonly string[] = [
     zona_id     INTEGER NOT NULL REFERENCES sod_zona(id),
     codigo      TEXT    NOT NULL,
     tag         TEXT    DEFAULT NULL,
-    descripcion TEXT    DEFAULT NULL,
-    UNIQUE (zona_id, tag)
+    descripcion TEXT    DEFAULT NULL
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_asignacion_zona (
@@ -123,19 +117,16 @@ const TABLES: readonly string[] = [
     evento_id        INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
     zona_id          INTEGER NOT NULL REFERENCES sod_zona(id),
     operador_id      INTEGER NOT NULL REFERENCES sod_user(id),
-    fecha_asignacion TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (evento_id, zona_id, operador_id)
+    fecha_asignacion TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_sincronizacion (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     evento_id            INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
     pda_id               INTEGER NOT NULL REFERENCES sod_pda(id),
-    coordinador_id       INTEGER NOT NULL REFERENCES sod_user(id),
     tipo                 TEXT    NOT NULL CHECK (tipo IN ('DESCARGA_A_PDA', 'CARGA_DESDE_PDA')),
     fecha_hora           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    registros_procesados INTEGER          DEFAULT NULL,
-    observaciones        TEXT    DEFAULT NULL
+    registros_procesados INTEGER          DEFAULT NULL
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_conteo (
@@ -146,11 +137,8 @@ const TABLES: readonly string[] = [
     operador_id      INTEGER NOT NULL REFERENCES sod_user(id),
     pda_id           INTEGER NOT NULL REFERENCES sod_pda(id),
     cantidad_fisica  REAL    NOT NULL,
-    tipo_conteo      TEXT    NOT NULL DEFAULT 'VENTA' CHECK (tipo_conteo IN ('VENTA', 'ALTILLO', 'PESAJE', 'RECONTEO', 'AUDITORIA_CAJAS')),
-    es_altillo       INTEGER NOT NULL DEFAULT 0,
-    storage_asociado TEXT    DEFAULT NULL,
-    fecha_hora       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    observaciones    TEXT    DEFAULT NULL
+    estado           TEXT    NOT NULL DEFAULT 'EN_CURSO' CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
+    fecha_hora       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`
 
 ];

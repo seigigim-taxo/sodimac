@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { GetSucursalesUseCase } from '../../application/store/get-sucursales.use-case';
-import { Sucursal } from '../../domain/store/models/sucursal.model';
+import { GetSucursalesUseCase } from '../../application/sucursal/get-sucursales.use-case';
+import { Sucursal } from '../../domain/sucursal/models/sucursal.model';
 export type { Sucursal };
 
 @Injectable({ providedIn: 'root' })

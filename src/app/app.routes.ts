@@ -1,10 +1,16 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './state/auth/guards/auth.guard';
+import { noSesionActivaGuard } from './state/conteo/guards/no-sesion-activa.guard';
 
 export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
+  },
+  {
+    path: 'sync-loading',
+    loadComponent: () => import('./features/sync-loading/sync-loading.page').then((m) => m.SyncLoadingPageComponent),
+    canActivate: [authGuard],
   },
   {
     path: 'home',
@@ -14,12 +20,12 @@ export const routes: Routes = [
   {
     path: 'events',
     loadComponent: () => import('./features/events/events.page.component').then((m) => m.EventsPageComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, noSesionActivaGuard],
   },
   {
     path: 'zone-select',
     loadComponent: () => import('./features/zone-select/zone-select.page.component').then((m) => m.ZoneSelectPageComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, noSesionActivaGuard],
   },
   {
     path: 'counting',
@@ -32,7 +38,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
-    path: 'counting-detail/:id',
+    path: 'counting-detail',
     loadComponent: () => import('./features/counting/counting-detail.page/counting-detail.page.component').then((m) => m.CountingDetailPageComponent),
     canActivate: [authGuard],
   },

@@ -4,6 +4,9 @@
       <ion-back-button defaultHref="/events"></ion-back-button>
     </ion-buttons>
     <ion-title>Zona de conteo</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -13,7 +16,7 @@
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold" style="color: var(--app-text);">
         @if (currentEvent() && currentStore()) {
-          {{ currentEvent()?.folio }} — {{ currentStore()?.nombre }}
+          Evento #{{ currentEvent()?.id }} — {{ currentStore()?.nombre }}
         } @else {
           Selección de zona
         }

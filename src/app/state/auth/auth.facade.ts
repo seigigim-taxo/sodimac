@@ -32,7 +32,15 @@ export class AuthFacade {
 
   async init(): Promise<void> {
     const session = await this.loadSession.execute();
-    if (session) this.sessionSignal.set(session);
+    if (session) {
+      /*
+       * La sesión sobrevive en Preferences aunque la DB se haya recreado
+       * (bump de versión). Sin este seed, un usuario con sesión persistida
+       * entra directo al flujo con las tablas vacías.
+       */
+      await this.seedDevData.execute(session.operadorId);
+      this.sessionSignal.set(session);
+    }
   }
 
   async login(request: LoginRequest): Promise<void> {
@@ -58,6 +66,7 @@ export class AuthFacade {
     try {
       const result = await this.loginOffline.execute(request);
       this.offlineLoginSignal.set(result.fueOffline);
+      await this.seedDevData.execute(result.session.operadorId);
       await this.saveSession(result.session);
     } catch (err: unknown) {
       this.errorSignal.set(extractMessage(err));

@@ -10,6 +10,7 @@ import {
   IonHeader,
   IonIcon,
   IonLabel,
+  IonMenuButton,
   IonSelect,
   IonSelectOption,
   IonSpinner,
@@ -21,7 +22,7 @@ import { alertCircleOutline, barcodeOutline } from 'ionicons/icons';
 import { ScanComponent } from '../../shared/components/scan/scan.component';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
-import { SucursalFacade } from '../../state/store/store.facade';
+import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ZonaFacade } from '../../state/zona/zona.facade';
 import { Zona } from '../../domain/zona/models/zona.model';
 
@@ -38,6 +39,7 @@ import { Zona } from '../../domain/zona/models/zona.model';
     IonHeader,
     IonIcon,
     IonLabel,
+    IonMenuButton,
     IonSelect,
     IonSelectOption,
     IonSpinner,

@@ -4,6 +4,9 @@
       <ion-back-button defaultHref="/home"></ion-back-button>
     </ion-buttons>
     <ion-title>Eventos</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -44,8 +47,8 @@
             (click)="selectEvento(evento)"
           >
             <div class="store-row">
-              <span class="store-label">Folio</span>
-              <span class="store-value">{{ evento.folio ?? '—' }}</span>
+              <span class="store-label">Evento</span>
+              <span class="store-value">#{{ evento.id }}</span>
             </div>
             <div class="store-row">
               <span class="store-label">Fecha programada</span>

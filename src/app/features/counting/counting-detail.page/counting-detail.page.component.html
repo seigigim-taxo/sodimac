@@ -1,15 +1,154 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/counting"></ion-back-button>
+      <ion-back-button defaultHref="/counting-list"></ion-back-button>
     </ion-buttons>
     <ion-title>Detalle de conteo</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content>
+<ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
-    <h2 class="page-title">Detalle de conteo</h2>
-    <p class="page-subtitle">Próximamente</p>
+
+    @if (!resumen() && !loading()) {
+      <div class="error-pill">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>Selecciona un conteo desde la lista</span>
+      </div>
+    }
+
+    @if (resumen(); as r) {
+
+      <!-- Cabecera del conteo -->
+      <div class="card mb-6">
+        <div class="store-row">
+          <span class="store-label">Zona</span>
+          <span class="store-value">{{ r.zonaCodigo }}{{ r.zonaNombre ? ' — ' + r.zonaNombre : '' }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">TAG</span>
+          <span class="store-value">{{ r.tag ?? '—' }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Evento</span>
+          <span class="store-value">#{{ r.eventoId }}</span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Estado</span>
+          <span class="store-value">
+            @if (r.estado === 'SINCRONIZADO') {
+              <span class="inline-flex items-center gap-1" style="color: var(--app-success);">
+                <ion-icon name="checkmark-done-outline"></ion-icon> Sincronizado
+              </span>
+            } @else {
+              {{ r.estado === 'FINALIZADO' ? 'Finalizado' : 'En curso' }}
+            }
+          </span>
+        </div>
+      </div>
+
+      @if (r.estado === 'FINALIZADO') {
+        <ion-button
+          expand="block"
+          class="btn-primary mb-6"
+          [disabled]="syncing()"
+          (click)="sincronizar()"
+        >
+          @if (syncing()) {
+            <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+            Sincronizando…
+          } @else {
+            <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+            Sincronizar
+          }
+        </ion-button>
+      }
+
+      @if (loading()) {
+        <div class="flex justify-center py-6">
+          <ion-spinner name="crescent" color="primary"></ion-spinner>
+        </div>
+      }
+
+      @if (error()) {
+        <div class="error-pill mb-4">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      @if (noItems()) {
+        <div class="error-pill">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>Este conteo no tiene productos</span>
+        </div>
+      }
+
+      <!-- Items -->
+      @if (items().length > 0) {
+        <div class="card">
+          <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
+            Productos contados
+          </p>
+          <ion-list lines="full" style="background: transparent;">
+            @for (item of items(); track item.productoId) {
+              <ion-item style="--background: transparent; --padding-start: 0;">
+                <ion-label>
+                  <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
+                  <h3 class="text-sm font-medium" style="color: var(--app-text);">
+                    {{ item.descripcion ?? item.sku }}
+                  </h3>
+                </ion-label>
+
+                @if (editable()) {
+                  <!-- Editable: FINALIZADO -->
+                  <div slot="end" class="flex items-center gap-2">
+                    <ion-button
+                      fill="clear"
+                      size="small"
+                      (click)="adjust(item.productoId, -1)"
+                      style="--color: var(--app-text-muted);"
+                    >
+                      <ion-icon slot="icon-only" name="remove-outline"></ion-icon>
+                    </ion-button>
+
+                    <span class="text-base font-bold min-w-6 text-center" style="color: var(--app-text);">
+                      {{ item.cantidadFisica }}
+                    </span>
+
+                    <ion-button
+                      fill="clear"
+                      size="small"
+                      (click)="adjust(item.productoId, 1)"
+                      style="--color: var(--app-primary);"
+                    >
+                      <ion-icon slot="icon-only" name="add-outline"></ion-icon>
+                    </ion-button>
+
+                    <ion-button
+                      fill="clear"
+                      size="small"
+                      (click)="delete(item.productoId)"
+                      style="--color: var(--ion-color-danger);"
+                    >
+                      <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                    </ion-button>
+                  </div>
+                } @else {
+                  <!-- Solo lectura: SINCRONIZADO -->
+                  <span slot="end" class="text-base font-bold" style="color: var(--app-text);">
+                    {{ item.cantidadFisica }}
+                  </span>
+                }
+              </ion-item>
+            }
+          </ion-list>
+        </div>
+      }
+
+    }
   </div>
 </ion-content>
