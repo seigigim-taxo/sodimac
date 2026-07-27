@@ -78,6 +78,6 @@ describe('LoginPage', () => {
     await component.onSubmit();
 
     expect(authFacade.login).toHaveBeenCalledWith({ rut: '123456785', password: '123456' });
-    expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
   });
 });

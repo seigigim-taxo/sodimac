@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './state/auth/guards/auth.guard';
 import { noSesionActivaGuard } from './state/conteo/guards/no-sesion-activa.guard';
+import { eventoSeleccionadoGuard } from './state/evento/guards/evento-seleccionado.guard';
 
 export const routes: Routes = [
   {
@@ -15,31 +16,19 @@ export const routes: Routes = [
   {
     path: 'home',
     loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage),
-    canActivate: [authGuard],
-  },
-  {
-    path: 'events',
-    loadComponent: () => import('./features/events/events.page.component').then((m) => m.EventsPageComponent),
-    canActivate: [authGuard, noSesionActivaGuard],
-  },
-  {
-    path: 'zone-select',
-    loadComponent: () => import('./features/zone-select/zone-select.page.component').then((m) => m.ZoneSelectPageComponent),
     canActivate: [authGuard, noSesionActivaGuard],
   },
   {
     path: 'counting',
     loadComponent: () => import('./features/counting/counting.page/counting.page.component').then((m) => m.CountingPageComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, eventoSeleccionadoGuard],
   },
   {
-    path: 'counting-list',
-    loadComponent: () => import('./features/counting/counting-list.page/counting-list.page.component').then((m) => m.CountingListPageComponent),
-    canActivate: [authGuard],
-  },
-  {
-    path: 'counting-detail',
-    loadComponent: () => import('./features/counting/counting-detail.page/counting-detail.page.component').then((m) => m.CountingDetailPageComponent),
+    // Sin eventoSeleccionadoGuard a propósito: "Cerrar tienda" debe poder
+    // llegar aquí incluso si el operador nunca llegó a seleccionar un
+    // evento (ej. no hay eventos disponibles hoy).
+    path: 'tags-resumen',
+    loadComponent: () => import('./features/counting/tags-resumen.page/tags-resumen.page.component').then((m) => m.TagsResumenPageComponent),
     canActivate: [authGuard],
   },
   {

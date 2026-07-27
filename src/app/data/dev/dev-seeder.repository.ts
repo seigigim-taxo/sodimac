@@ -49,15 +49,13 @@ export class SqliteDevSeederRepository implements DevSeederRepository {
     const mp01Id  = sucMap.get('MP01');
     if (!lc01Id || !mp01Id) return;
 
-    // 2. Vincular sucursales al operador (sin UNIQUE — WHERE NOT EXISTS)
-    for (const sucId of [lc01Id, mp01Id]) {
-      await db.run(
-        `INSERT INTO sod_user_sucursal (user_id, sucursal_id)
-         SELECT ?, ?
-         WHERE NOT EXISTS (SELECT 1 FROM sod_user_sucursal WHERE user_id = ? AND sucursal_id = ?)`,
-        [operadorId, sucId, operadorId, sucId]
-      );
-    }
+    // 2. Vincular sucursal al operador — UNA sola (la tienda llega asignada, no se selecciona)
+    await db.run(
+      `INSERT INTO sod_user_sucursal (user_id, sucursal_id)
+       SELECT ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM sod_user_sucursal WHERE user_id = ? AND sucursal_id = ?)`,
+      [operadorId, lc01Id, operadorId, lc01Id]
+    );
 
     // 3. Zona tipos (nombre es UNIQUE — OR IGNORE es suficiente)
     await db.run(`INSERT OR IGNORE INTO sod_zona_tipo (nombre, descripcion) VALUES (?, ?)`, ['Venta',   'Piso de venta']);
@@ -92,10 +90,10 @@ export class SqliteDevSeederRepository implements DevSeederRepository {
     const hoy = new Date().toISOString().slice(0, 10);
     for (const sucId of [lc01Id, mp01Id]) {
       await db.run(
-        `INSERT INTO sod_evento_inventario (sucursal_id, fecha_programada, estado)
-         SELECT ?, ?, 'ABIERTO'
+        `INSERT INTO sod_evento_inventario (sucursal_id, nombre, fecha_programada, estado)
+         SELECT ?, ?, ?, 'ABIERTO'
          WHERE NOT EXISTS (SELECT 1 FROM sod_evento_inventario WHERE sucursal_id = ? AND estado = 'ABIERTO')`,
-        [sucId, hoy, sucId]
+        [sucId, 'Cat Candados', hoy, sucId]
       );
     }
 

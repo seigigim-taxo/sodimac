@@ -1,6 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, ViewChild, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
-import { ViewWillEnter } from '@ionic/angular';
 import {
   AlertController,
   IonButton,
@@ -13,20 +12,38 @@ import {
   IonLabel,
   IonList,
   IonMenuButton,
+  IonSelect,
+  IonSelectOption,
   IonSpinner,
   IonTitle,
   IonToolbar,
-  ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, alertCircleOutline, closeCircleOutline, homeOutline, removeOutline, trashOutline } from 'ionicons/icons';
+import {
+  addOutline, alertCircleOutline, barcodeOutline, checkmarkDoneOutline,
+  flagOutline, listOutline, refreshOutline, removeOutline, timeOutline, trashOutline,
+} from 'ionicons/icons';
 import { ScanComponent } from '../../../shared/components/scan/scan.component';
-import { AuthFacade } from '../../../state/auth/auth.facade';
-import { ConteoFacade } from '../../../state/conteo/conteo.facade';
-import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { EventoFacade } from '../../../state/evento/evento.facade';
-import { PdaFacade } from '../../../state/pda/pda.facade';
-import { ZonaFacade } from '../../../state/zona/zona.facade';
+import { MUESTRA_MOCK, TagsMockStore } from '../../../state/counting-mock/tags-mock.store';
+
+/*
+ * MOCK — pantalla de trabajo (TAG + zona + conteo) armada con data en
+ * memoria para probar la UX del flujo nuevo. Sin dominio/aplicación/data
+ * todavía: la muestra y las zonas están simuladas aquí mismo. El estado
+ * de los tags (pendiente/enviado) vive en TagsMockStore, compartido con
+ * la pantalla de resumen. Se reemplaza por la integración real después.
+ */
+
+interface ZonaMock { id: number; codigo: string; nombre: string; }
+interface ItemMock { productoId: number; sku: string; descripcion: string; cantidad: number; }
+
+const ZONAS_MOCK: ZonaMock[] = [
+  { id: 1, codigo: 'LC01-V01', nombre: 'Venta Principal' },
+  { id: 2, codigo: 'LC01-A01', nombre: 'Altillo Norte' },
+];
+
+let productoIdSeq = 1;
 
 @Component({
   selector: 'app-counting-page',
@@ -44,90 +61,79 @@ import { ZonaFacade } from '../../../state/zona/zona.facade';
     IonLabel,
     IonList,
     IonMenuButton,
+    IonSelect,
+    IonSelectOption,
     IonSpinner,
     IonTitle,
     IonToolbar,
   ],
 })
-export class CountingPageComponent implements ViewWillEnter {
+export class CountingPageComponent {
+  @ViewChild('zonaSelect') zonaSelect!: IonSelect;
+  @ViewChild('tagInputEl') tagInputEl!: ElementRef<HTMLIonInputElement>;
+
   private router          = inject(Router);
   private alertController = inject(AlertController);
-  private toastController = inject(ToastController);
-  private authFacade      = inject(AuthFacade);
   private eventoFacade    = inject(EventoFacade);
-  private zonaFacade      = inject(ZonaFacade);
-  private pdaFacade       = inject(PdaFacade);
-  private conteoFacade    = inject(ConteoFacade);
-  private conteoList      = inject(ConteoListFacade);
+  private tagsStore       = inject(TagsMockStore);
 
-  sesion     = this.conteoFacade.sesion;
-  items      = this.conteoFacade.items;
-  rechazados = this.conteoFacade.rechazados;
-  loading    = this.conteoFacade.loading;
-  error      = this.conteoFacade.error;
-  enCurso    = this.conteoFacade.enCurso;
-  totalItems = this.conteoFacade.totalItems;
+  currentEvent = this.eventoFacade.selectedEvent;
+  zonas        = ZONAS_MOCK;
 
-  // Feedback del último scan: verde solo si el SKU existe en la muestra.
-  // Se autolimpia a los 3s (ver scheduleLastScanClear).
+  // Tag en curso
+  tagInputValue = signal('');
+  tagError      = signal<string | null>(null);
+  tagActual     = signal<string | null>(null);
+  zonaActual    = signal<ZonaMock | null>(null);
+
+  // Conteo del tag en curso
+  items    = signal<ItemMock[]>([]);
+  cantidad = signal(1);
   lastScan = signal<{ sku: string; valido: boolean } | null>(null);
   private lastScanTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  // Cantidad a registrar en el próximo scan; vuelve a 1 después de cada registro
-  cantidad = signal(1);
+  // Panel de tags de hoy — compartido con la pantalla de resumen
+  tagsHoy       = this.tagsStore.tags;
+  sincronizando = this.tagsStore.sincronizando;
+
+  totalItems = computed(() => this.items().length);
 
   constructor() {
     addIcons({
-      addOutline,
-      removeOutline,
-      trashOutline,
-      alertCircleOutline,
-      closeCircleOutline,
-      homeOutline,
+      addOutline, alertCircleOutline, barcodeOutline, checkmarkDoneOutline,
+      flagOutline, listOutline, refreshOutline, removeOutline, timeOutline, trashOutline,
     });
   }
 
-  async ionViewWillEnter(): Promise<void> {
-    /*
-     * Dos vías de entrada. La selección explícita desde la lista de conteos
-     * tiene prioridad y se consume una sola vez; solo si no hay selección se
-     * usa el flujo de zona (evento seleccionado + ubicación recién confirmada).
-     * Nunca se mezclan campos de ambas fuentes.
-     */
-    const seleccionado = this.conteoList.consumirSeleccion();
+  goToResumen(): void {
+    this.router.navigate(['/tags-resumen']);
+  }
 
-    let eventoId:    number | undefined;
-    let ubicacionId: number | undefined;
-    if (seleccionado) {
-      eventoId    = seleccionado.eventoId;
-      ubicacionId = seleccionado.ubicacionId;
-    } else {
-      eventoId    = this.eventoFacade.selectedEvent()?.id;
-      ubicacionId = this.zonaFacade.ubicacionId() ?? undefined;
-    }
+  onTagInput(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+    this.tagInputValue.set(value);
+  }
 
-    const operadorId = this.authFacade.session()?.operadorId;
-    const pdaId      = this.pdaFacade.pdaId();
+  confirmarTag(): void {
+    const value = this.tagInputValue().trim().toUpperCase();
+    if (!value) return;
 
-    if (!eventoId || !ubicacionId || !operadorId || !pdaId) {
-      // Sin datos suficientes: limpiar para no mostrar la sesión anterior como actual
-      this.conteoFacade.reset();
-      this.clearLastScan();
+    if (this.tagsStore.yaUsado(value)) {
+      this.tagError.set(`El TAG ${value} ya fue usado en este evento`);
       return;
     }
 
-    this.clearLastScan();
-    await this.conteoFacade.init(eventoId, ubicacionId, operadorId, pdaId);
+    this.tagError.set(null);
+    this.tagActual.set(value);
+    this.tagInputValue.set('');
 
-    if (this.conteoFacade.recovered()) {
-      const toast = await this.toastController.create({
-        message:  'Sesión de conteo recuperada',
-        duration: 3000,
-        color:    'warning',
-        position: 'top',
-      });
-      await toast.present();
-    }
+    requestAnimationFrame(() => this.zonaSelect?.open());
+  }
+
+  onZonaChange(event: Event): void {
+    const zona = (event as CustomEvent<{ value: ZonaMock | null }>).detail.value;
+    if (!zona) return;
+    this.zonaActual.set(zona);
   }
 
   onCantidadInput(event: Event): void {
@@ -135,85 +141,94 @@ export class CountingPageComponent implements ViewWillEnter {
     this.cantidad.set(Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1);
   }
 
-  async onScan(sku: string): Promise<void> {
-    const resultado = await this.conteoFacade.scan(sku, this.cantidad());
-    // 'error': sin banner verde/rojo — el error pill del facade ya explica el fallo
-    if (resultado === 'error') {
-      this.clearLastScan();
-    } else {
-      this.setLastScan({ sku, valido: resultado === 'valido' });
+  onScanSku(sku: string): void {
+    const codigo = sku.trim().toUpperCase();
+    const descripcion = MUESTRA_MOCK[codigo];
+
+    if (!descripcion) {
+      this.setLastScan({ sku: codigo, valido: false });
+      this.cantidad.set(1);
+      return;
     }
+
+    this.items.update((prev) => {
+      const idx = prev.findIndex((i) => i.sku === codigo);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], cantidad: next[idx].cantidad + this.cantidad() };
+        return next;
+      }
+      return [{ productoId: productoIdSeq++, sku: codigo, descripcion, cantidad: this.cantidad() }, ...prev];
+    });
+    this.setLastScan({ sku: codigo, valido: true });
     this.cantidad.set(1);
   }
 
-  // Muestra el feedback del scan y lo retira solo a los 3s (cancela el timer anterior si había uno).
   private setLastScan(scan: { sku: string; valido: boolean }): void {
     clearTimeout(this.lastScanTimeoutId);
     this.lastScan.set(scan);
     this.lastScanTimeoutId = setTimeout(() => this.lastScan.set(null), 3000);
   }
 
-  private clearLastScan(): void {
-    clearTimeout(this.lastScanTimeoutId);
-    this.lastScan.set(null);
-  }
-
   adjust(productoId: number, delta: number): void {
-    void this.conteoFacade.adjust(productoId, delta);
+    this.items.update((prev) => prev.map((i) =>
+      i.productoId === productoId ? { ...i, cantidad: Math.max(1, i.cantidad + delta) } : i
+    ));
   }
 
   async delete(productoId: number): Promise<void> {
     const item = this.items().find((i) => i.productoId === productoId);
     if (!item) return;
-
     const alert = await this.alertController.create({
       header:  'Eliminar producto',
-      message: `¿Eliminar ${item.descripcion ?? item.sku} (cantidad ${item.cantidadFisica}) del conteo?`,
+      message: `¿Eliminar ${item.descripcion} (cantidad ${item.cantidad}) del conteo?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        {
-          text:    'Eliminar',
-          role:    'destructive',
-          handler: () => { void this.conteoFacade.delete(productoId); },
-        },
+        { text: 'Eliminar', role: 'destructive', handler: () => {
+          this.items.update((prev) => prev.filter((i) => i.productoId !== productoId));
+        } },
       ],
     });
     await alert.present();
   }
 
-  async finalizar(): Promise<void> {
+  async finalizarTag(): Promise<void> {
+    const zona = this.zonaActual();
+    const tag  = this.tagActual();
+    if (!zona || !tag || this.items().length === 0) return;
+
     const alert = await this.alertController.create({
-      header:  'Finalizar conteo',
-      message: `Vas a finalizar el conteo con ${this.totalItems()} producto(s). Esta acción no se puede deshacer.`,
+      header:  'Finalizar TAG',
+      message: `Vas a finalizar el TAG ${tag} con ${this.totalItems()} producto(s). Se intentará sincronizar de inmediato.`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        {
-          text:    'Finalizar',
-          role:    'confirm',
-          handler: () => { void this.doFinalizar(); },
-        },
+        { text: 'Finalizar', role: 'confirm', handler: () => { this.doFinalizarTag(tag, zona); } },
       ],
     });
     await alert.present();
   }
 
-  goZoneSelect(): void {
-    this.router.navigate(['/zone-select']);
+  private doFinalizarTag(codigo: string, zona: ZonaMock): void {
+    this.tagsStore.agregarPendiente({
+      codigo,
+      zona:               zona.codigo,
+      cantidadProductos:  this.items().length,
+      skus:               this.items().map((i) => i.sku),
+    });
+    this.resetTagActual();
   }
 
-  goHome(): void {
-    this.router.navigate(['/home']);
+  private resetTagActual(): void {
+    this.tagActual.set(null);
+    this.zonaActual.set(null);
+    this.items.set([]);
+    this.cantidad.set(1);
+    this.lastScan.set(null);
+    this.tagError.set(null);
+    setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
   }
 
-  private async doFinalizar(): Promise<void> {
-    try {
-      await this.conteoFacade.finalizar();
-      // La ubicación del flujo de zona ya se consumió: limpiarla evita que
-      // una próxima entrada a /counting reabra esta ubicación por accidente.
-      this.zonaFacade.reset();
-      this.router.navigate(['/counting-list']);
-    } catch {
-      // error ya visible en conteoFacade.error()
-    }
+  reintentar(codigo: string): void {
+    this.tagsStore.reintentar(codigo);
   }
 }

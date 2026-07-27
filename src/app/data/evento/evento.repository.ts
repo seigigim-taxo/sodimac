@@ -32,6 +32,7 @@ export class SqliteEventoRepository implements EventoRepository {
             id:              row['id']               as number,
             agendaId:        row['agenda_id']        as number | null,
             sucursalId:      row['sucursal_id']      as number,
+            nombre:          row['nombre']           as string,
             fechaProgramada: row['fecha_programada'] as string,
             fechaEjecucion:  row['fecha_ejecucion']  as string | null,
             estado:          row['estado']           as Evento['estado'],

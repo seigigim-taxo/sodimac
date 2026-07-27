@@ -5,11 +5,11 @@ import { PdaFacade } from '../../pda/pda.facade';
 import { GetConteosUseCase } from '../../../application/conteo/get-conteos.use-case';
 
 /*
- * Bloquea /events y /zone-select mientras haya un conteo EN_CURSO: reiniciar
- * el flujo de evento/zona a mitad de un conteo activo no tiene sentido de
- * negocio y puede generar ubicaciones/sesiones huérfanas. Cubre toda vía de
- * entrada (botón atrás de Android, deep link, navegación manual), no solo el
- * botón de la UI.
+ * Bloquea /home (tienda + selección de evento) mientras haya un conteo
+ * EN_CURSO: reiniciar la selección de evento a mitad de un trabajo activo
+ * no tiene sentido de negocio y puede generar sesiones huérfanas. Cubre
+ * toda vía de entrada (botón atrás de Android, deep link, navegación
+ * manual), no solo el botón de la UI.
  */
 export const noSesionActivaGuard: CanActivateFn = async () => {
   const auth       = inject(AuthFacade);
@@ -24,5 +24,5 @@ export const noSesionActivaGuard: CanActivateFn = async () => {
   const conteos    = await getConteos.execute(operadorId, pdaId);
   const hayEnCurso = conteos.some((c) => c.estado === 'EN_CURSO');
 
-  return hayEnCurso ? router.createUrlTree(['/home']) : true;
+  return hayEnCurso ? router.createUrlTree(['/counting']) : true;
 };

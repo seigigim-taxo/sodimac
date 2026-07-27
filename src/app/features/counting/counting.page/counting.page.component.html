@@ -1,10 +1,5 @@
 <ion-header>
   <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-button (click)="goHome()">
-        <ion-icon slot="icon-only" name="home-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
     <ion-title>Conteo</ion-title>
     <ion-buttons slot="end">
       <ion-menu-button></ion-menu-button>
@@ -15,11 +10,11 @@
 <ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
-    <!-- Header con evento y badge sesión -->
+    <!-- Header: evento + total del tag en curso -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold" style="color: var(--app-text);">
-        @if (sesion(); as s) {
-          Evento #{{ s.eventoId }}
+        @if (currentEvent(); as e) {
+          {{ e.nombre }}
         } @else {
           Conteo
         }
@@ -30,144 +25,213 @@
       </div>
     </div>
 
-    <!-- Sin sesión activa -->
-    @if (!sesion() && !loading()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>No hay sesión de conteo activa. Vuelve a seleccionar zona.</span>
-      </div>
-      <ion-button expand="block" class="btn-primary mt-4" (click)="goZoneSelect()">
-        Volver a zona
-      </ion-button>
-    }
-
-    @if (loading()) {
-      <div class="flex justify-center py-6">
-        <ion-spinner name="crescent" color="primary"></ion-spinner>
-      </div>
-    }
-
-    @if (sesion() && !loading()) {
-
-      <!-- Scanner SKU -->
-      <!-- Cantidad a registrar con el próximo scan -->
-      <div class="card mb-4">
-        <div class="flex items-center justify-between gap-3">
-          <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-            Cantidad
-          </span>
-          <ion-input
-            type="number"
-            inputmode="numeric"
-            min="1"
-            [value]="cantidad()"
-            (ionInput)="onCantidadInput($event)"
-            class="input-base"
-            style="max-width: 120px; text-align: center;"
-          ></ion-input>
-        </div>
-      </div>
-
-      <app-scan
-        scanType="sku"
-        placeholder="Escanea o ingresa SKU"
-        confirmLabel="Registrar"
-        [showBanner]="false"
-        (scan)="onScan($event)"
-      ></app-scan>
-
-      <!-- Feedback del último scan: verde solo si el SKU está en la muestra -->
-      @if (lastScan(); as scan) {
-        @if (scan.valido) {
-          <div class="status-banner status-banner-success">
-            <span>✓ SKU: {{ scan.sku }}</span>
-          </div>
+    <!-- ===== TAG — siempre visible; se bloquea apenas queda confirmado ===== -->
+    <div class="card mb-4">
+      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
+        TAG
+      </p>
+      <ion-input
+        #tagInputEl
+        [value]="tagActual() ?? tagInputValue()"
+        [disabled]="!!tagActual()"
+        (ionInput)="onTagInput($event)"
+        (keyup.enter)="confirmarTag()"
+        placeholder="Escanea o ingresa el TAG"
+        class="input-base"
+        autofocus
+      >
+        <ion-icon slot="start" name="barcode-outline"></ion-icon>
+      </ion-input>
+      <ion-button
+        expand="block"
+        class="btn-primary mt-4"
+        [disabled]="!!tagActual()"
+        (click)="confirmarTag()"
+      >
+        @if (tagActual()) {
+          ✓ TAG confirmado
         } @else {
-          <div class="status-banner status-banner-error">
-            <span>✗ SKU {{ scan.sku }} no está en la muestra</span>
-          </div>
+          Confirmar TAG
         }
-      } @else {
-        <div class="status-banner status-banner-info">
-          <span>Escanea un SKU para registrar el conteo</span>
-        </div>
-      }
+      </ion-button>
 
-      <!-- Error -->
-      @if (error()) {
+      @if (tagError()) {
         <div class="error-pill mt-4">
           <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>{{ error() }}</span>
+          <span>{{ tagError() }}</span>
         </div>
       }
+    </div>
 
-      <!-- Lista de items válidos -->
-      @if (items().length > 0) {
-        <div class="card mt-6">
-          <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-            Productos contados
-          </p>
-          <ion-list lines="full" style="background: transparent;">
-            @for (item of items(); track item.productoId) {
-              <ion-item style="--background: transparent; --padding-start: 0;">
-                <ion-label>
-                  <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
-                  <h3 class="text-sm font-medium" style="color: var(--app-text);">
-                    {{ item.descripcion ?? item.sku }}
-                  </h3>
-                </ion-label>
+    <!-- ===== Zona — siempre visible; bloqueada hasta tener TAG ===== -->
+    <div class="card mb-4">
+      <ion-label class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
+        Zona
+      </ion-label>
+      <ion-select
+        #zonaSelect
+        [disabled]="!tagActual()"
+        placeholder="Selecciona una zona"
+        (ionChange)="onZonaChange($event)"
+        style="color: var(--app-text); width: 100%; margin-top: 0.5rem;"
+      >
+        @for (zona of zonas; track zona.id) {
+          <ion-select-option [value]="zona">{{ zona.codigo }} — {{ zona.nombre }}</ion-select-option>
+        }
+      </ion-select>
+      @if (!tagActual()) {
+        <p class="text-xs mt-2" style="color: var(--app-text-muted);">Confirma el TAG para habilitar la zona</p>
+      }
+    </div>
 
-                <!-- Controles cantidad -->
-                <div slot="end" class="flex items-center gap-2">
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    (click)="adjust(item.productoId, -1)"
-                    style="--color: var(--app-text-muted);"
-                  >
-                    <ion-icon slot="icon-only" name="remove-outline"></ion-icon>
-                  </ion-button>
+    <!-- ===== Conteo — siempre visible; bloqueado hasta tener TAG + zona ===== -->
+    <div class="card mb-4">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
+          Cantidad
+        </span>
+        <ion-input
+          type="number"
+          inputmode="numeric"
+          min="1"
+          [value]="cantidad()"
+          [disabled]="!(tagActual() && zonaActual())"
+          (ionInput)="onCantidadInput($event)"
+          class="input-base"
+          style="max-width: 120px; text-align: center;"
+        ></ion-input>
+      </div>
+    </div>
 
-                  <span class="text-base font-bold min-w-6 text-center" style="color: var(--app-text);">
-                    {{ item.cantidadFisica }}
-                  </span>
+    <app-scan
+      scanType="sku"
+      placeholder="Escanea o ingresa SKU"
+      confirmLabel="Registrar"
+      [showBanner]="false"
+      [locked]="!(tagActual() && zonaActual())"
+      (scan)="onScanSku($event)"
+    ></app-scan>
 
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    (click)="adjust(item.productoId, 1)"
-                    style="--color: var(--app-primary);"
-                  >
-                    <ion-icon slot="icon-only" name="add-outline"></ion-icon>
-                  </ion-button>
+    @if (!(tagActual() && zonaActual())) {
+      <div class="status-banner status-banner-info mt-4">
+        <span>Confirma el TAG y selecciona la zona para empezar a escanear</span>
+      </div>
+    } @else if (lastScan(); as scan) {
+      @if (scan.valido) {
+        <div class="status-banner status-banner-success mt-4">
+          <span>✓ SKU: {{ scan.sku }}</span>
+        </div>
+      } @else {
+        <div class="status-banner status-banner-error mt-4">
+          <span>✗ SKU {{ scan.sku }} no está en la muestra</span>
+        </div>
+      }
+    } @else {
+      <div class="status-banner status-banner-info mt-4">
+        <span>Escanea un SKU para registrar el conteo</span>
+      </div>
+    }
 
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    (click)="delete(item.productoId)"
-                    style="--color: var(--ion-color-danger);"
-                  >
-                    <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+    @if (items().length > 0) {
+      <div class="card mt-6">
+        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
+          Productos de este TAG
+        </p>
+        <ion-list lines="full" style="background: transparent;">
+          @for (item of items(); track item.productoId) {
+            <ion-item style="--background: transparent; --padding-start: 0;">
+              <ion-label>
+                <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
+                <h3 class="text-sm font-medium" style="color: var(--app-text);">{{ item.descripcion }}</h3>
+              </ion-label>
+              <div slot="end" class="flex items-center gap-2">
+                <ion-button fill="clear" size="small" (click)="adjust(item.productoId, -1)" style="--color: var(--app-text-muted);">
+                  <ion-icon slot="icon-only" name="remove-outline"></ion-icon>
+                </ion-button>
+                <span class="text-base font-bold min-w-6 text-center" style="color: var(--app-text);">{{ item.cantidad }}</span>
+                <ion-button fill="clear" size="small" (click)="adjust(item.productoId, 1)" style="--color: var(--app-primary);">
+                  <ion-icon slot="icon-only" name="add-outline"></ion-icon>
+                </ion-button>
+                <ion-button fill="clear" size="small" (click)="delete(item.productoId)" style="--color: var(--ion-color-danger);">
+                  <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                </ion-button>
+              </div>
+            </ion-item>
+          }
+        </ion-list>
+      </div>
+    }
+
+    <ion-button
+      expand="block"
+      class="btn-primary mt-6"
+      [disabled]="!(tagActual() && zonaActual()) || items().length === 0"
+      (click)="finalizarTag()"
+    >
+      <ion-icon slot="start" name="flag-outline"></ion-icon>
+      Finalizar TAG
+    </ion-button>
+
+    <!-- ===== Navegación al resumen/finalización ===== -->
+    @if (tagsHoy().length > 0) {
+      <ion-button
+        expand="block"
+        class="btn-primary mt-4"
+        [disabled]="!!tagActual()"
+        (click)="goToResumen()"
+      >
+        <ion-icon slot="start" name="list-outline"></ion-icon>
+        Ver resumen y finalizar
+      </ion-button>
+      @if (tagActual()) {
+        <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+          Finaliza o cancela el TAG en curso para ir al resumen
+        </p>
+      }
+    }
+
+    <!-- ===== Panel de tags de hoy (siempre visible) ===== -->
+    @if (tagsHoy().length > 0) {
+      <p class="text-xs font-semibold uppercase tracking-wider mt-8 mb-3" style="color: var(--app-text-muted);">
+        Tags de hoy
+      </p>
+      <div class="flex flex-col gap-3">
+        @for (tag of tagsHoy(); track tag.codigo) {
+          <div class="card">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-bold" style="color: var(--app-text);">{{ tag.codigo }}</p>
+                <p class="text-xs" style="color: var(--app-text-muted);">
+                  {{ tag.zona }} · {{ tag.cantidadProductos }} producto(s) · {{ tag.hora }}
+                </p>
+              </div>
+
+              @if (tag.estado === 'ENVIADO') {
+                <div class="flex items-center gap-1.5" style="color: var(--app-success);">
+                  <ion-icon name="checkmark-done-outline"></ion-icon>
+                  <span class="text-xs font-bold">Enviado</span>
+                </div>
+              } @else if (sincronizando().has(tag.codigo)) {
+                <div class="flex items-center gap-1.5" style="color: var(--app-text-muted);">
+                  <ion-spinner name="crescent" style="width: 16px; height: 16px;"></ion-spinner>
+                  <span class="text-xs font-bold">Enviando…</span>
+                </div>
+              } @else {
+                <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-1.5" style="color: var(--app-warning, #D97706);">
+                    <ion-icon name="time-outline"></ion-icon>
+                    <span class="text-xs font-bold">Pendiente</span>
+                  </div>
+                  <ion-button fill="clear" size="small" (click)="reintentar(tag.codigo)" style="--color: var(--app-primary);">
+                    <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
                   </ion-button>
                 </div>
-              </ion-item>
-            }
-          </ion-list>
-        </div>
-      }
-
-      <!-- Botón finalizar -->
-      @if (enCurso()) {
-        <ion-button
-          expand="block"
-          class="btn-primary mt-6"
-          [disabled]="items().length === 0 || loading()"
-          (click)="finalizar()"
-        >
-          Finalizar conteo
-        </ion-button>
-      }
-
+              }
+            </div>
+          </div>
+        }
+      </div>
     }
+
   </div>
 </ion-content>

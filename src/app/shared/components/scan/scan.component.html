@@ -13,7 +13,7 @@
     <ion-button
       expand="block"
       (click)="confirm()"
-      [disabled]="form.invalid"
+      [disabled]="form.invalid || locked()"
       class="btn-primary"
     >
       {{ confirmLabel() }}
