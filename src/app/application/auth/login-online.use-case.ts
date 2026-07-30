@@ -12,7 +12,8 @@ export class LoginOnlineUseCase {
   async execute(request: LoginRequest): Promise<Session> {
     const response = await this.authApi.login(request);
 
-    const rut   = parseInt(response.user.rut, 10);
+    // rutNormalizado ya viene limpio ('99800120K'), sin puntos ni guión.
+    const rut   = parseInt(response.user.rutNormalizado.slice(0, -1), 10);
     const rutDv = response.user.rutNormalizado.slice(-1).toUpperCase();
 
     const localId = await this.operadorRepo.guardar({

@@ -11,27 +11,40 @@ export class SqliteOperadorRepository implements OperadorRepository {
   async guardar(op: OperadorCacheado): Promise<number> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 
-    // 1. Resolver rol_id por nombre (sod_rol ya tiene SEED)
+    // 1. Resolver rol_id
     const rolRow = await db.query(
       `SELECT id FROM sod_rol WHERE id = ?`,
       [op.rolId ?? 1]
     );
     const rolId = (rolRow.values?.[0]?.['id'] as number) ?? 1;
 
-    // 2. Upsert sod_user por (rut, rut_dv) UNIQUE
+    // 2. Verificar si ya existe
+    const existing = await db.query(
+      `SELECT id FROM sod_user WHERE rut = ? AND rut_dv = ?`,
+      [op.rut, op.rutDv]
+    );
+    const existingId = (existing.values?.[0] as Record<string, unknown> | undefined)?.['id'] as number | undefined;
+
+    if (existingId !== undefined) {
+      // Actualizar existente
+      await db.run(
+        `UPDATE sod_user
+         SET rol_id = ?, nombres = ?, apellido_paterno = ?, apellido_materno = ?, correo = ?
+         WHERE id = ?`,
+        [rolId, op.nombres, op.apellidoPaterno, op.apellidoMaterno, op.correo, existingId]
+      );
+      return existingId;
+    }
+
+    // 3. Insertar nuevo
     await db.run(
-      `INSERT OR IGNORE INTO sod_user
+      `INSERT INTO sod_user
          (rol_id, rut, rut_dv, nombres, apellido_paterno, apellido_materno, correo)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [rolId, op.rut, op.rutDv, op.nombres, op.apellidoPaterno, op.apellidoMaterno, op.correo]
     );
-    await db.run(
-      `UPDATE sod_user
-       SET rol_id = ?, nombres = ?, apellido_paterno = ?, apellido_materno = ?, correo = ?
-       WHERE rut = ? AND rut_dv = ?`,
-      [rolId, op.nombres, op.apellidoPaterno, op.apellidoMaterno, op.correo, op.rut, op.rutDv]
-    );
 
+    // 4. Recuperar el id insertado
     const userRow = await db.query(
       `SELECT id FROM sod_user WHERE rut = ? AND rut_dv = ?`,
       [op.rut, op.rutDv]

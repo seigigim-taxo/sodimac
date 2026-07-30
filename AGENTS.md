@@ -33,22 +33,22 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
   1. `DatabaseRepository.initialize()` must complete first.
   2. Then `AuthFacade.init()` and `PdaFacade.init()` run in parallel.
   3. `ThemeFacade.init()` runs in a separate initializer (uses Capacitor Preferences, not SQLite).
-- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `sync-loading`, `home`, `counting`, `counting-list`), all guarded by `authGuard` except `login`. `home` also uses `noSesionActivaGuard`.
+- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `sync-loading`, `home`, `counting-tag`, `counting`, `tags-resumen`), all guarded by `authGuard` except `login`. `home` also uses `noSesionActivaGuard`. `counting-tag` and `counting` use `eventoSeleccionadoGuard`; `counting` additionally uses `tagEnSesionGuard`.
 - Pages are standalone components generated with `styleext: scss`, `standalone: true`.
 - Ionic components imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
 - Clean Architecture scaffold:
   - `domain/` — models and repository interfaces.
-  - `application/` — use cases.
-  - `data/` — concrete implementations (auth, database, conteo, evento, muestra, pda, sucursal, sync, theme, ubicacion, zona, zona-tipo, dev).
-  - `state/` — Signals-based facades (auth, theme, counting-mock, evento, pda, sucursal, zona).
-  - `features/` — standalone pages.
+  - `application/` — use cases (auth, conteo, dev, evento, pda, sincronizacion, sucursal, ubicacion, zona-tipo, zona).
+  - `data/` — concrete implementations (auth, database, conteo, evento, muestra, pda, sincronizacion, sucursal, sync, theme, ubicacion, zona, zona-tipo, dev).
+  - `state/` — Signals-based facades (auth, conteo, counting-mock, evento, pda, sucursal, sync, theme, zona, zona-tipo).
+  - `features/` — standalone pages (auth, counting, home, sync-loading).
   - `core/` — cross-cutting infra (http, database, auth/guards).
   - `shared/` — utils, components, static data.
 
 ## Current counting flow (WIP / mocked)
 
-- `counting` and `counting-list` are under active development.
-- The working screen (`CountingPageComponent`) and the summary screen (`TagsResumenPageComponent`) share `TagsMockStore` (`src/app/state/counting-mock/`).
+- `counting-tag`, `counting`, and `tags-resumen` are under active development.
+- The tag selection screen (`TagZonaPageComponent`), working screen (`CountingPageComponent`), and summary screen (`TagsResumenPageComponent`) share `TagsMockStore` (`src/app/state/counting-mock/`).
 - Tag state and simulated sync are in-memory only; the real persistence layer is not wired yet.
 - `sync-loading` is currently a simulated progress screen (no real download endpoint).
 
@@ -64,7 +64,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 ## Backend / API
 
 - Base URL is configured in `src/environments/environment.ts` and `environment.prod.ts` (`apiUrl`).
-  - Development: `http://192.168.1.9/ws/api`
+  - Development: `http://10.3.104.102/ws/api`
   - Production: `http://192.168.1.9/api`
 - The PHP web service lives in the Laragon docroot under `C:\laragon\www\ws\api\`. Because Laragon serves `C:\laragon\www\` as the root, the real endpoint is `http://<host>/ws/api/auth/login.php`, not `http://<host>/api/auth/login.php`.
 - `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
@@ -81,7 +81,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `@capacitor-community/sqlite` is wrapped by `SqliteConnectionService` (`src/app/core/database/`).
 - SQLite is only initialized on native platforms (`Capacitor.isNativePlatform()`); on web/Karma it is silently skipped.
-- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `19`).
+- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `23`).
 - The repository drops tables only when the schema version changes; old renamed/legacy tables (`cat_operador`, `cat_zona`, etc.) are also dropped during a version bump.
 - To force a clean database in development, bump `SODIMAC_DB_VERSION` in `sodimac.schema.ts`.
 - Dev data seeding (`SqliteDevSeederRepository`) inserts sample stores, zones, events, products, and sample assignments after login.

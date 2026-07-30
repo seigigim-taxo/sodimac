@@ -6,6 +6,7 @@ import { LogoutUseCase } from '../../application/auth/logout.use-case';
 import { LoadSessionUseCase } from '../../application/auth/load-session.use-case';
 import { PersistSessionUseCase } from '../../application/auth/persist-session.use-case';
 import { SeedDevDataUseCase } from '../../application/dev/seed-dev-data.use-case';
+import { OPERADOR_REPOSITORY_TOKEN } from '../../domain/auth/repositories/operador.repository';
 import { Session } from '../../domain/auth/models/session.model';
 import { LoginRequest } from '../../domain/auth/models/login-request.model';
 export type { Session, LoginRequest };
@@ -18,6 +19,7 @@ export class AuthFacade {
   private loadSession    = inject(LoadSessionUseCase);
   private persistSession = inject(PersistSessionUseCase);
   private seedDevData    = inject(SeedDevDataUseCase);
+  private operadorRepo   = inject(OPERADOR_REPOSITORY_TOKEN);
 
   private sessionSignal      = signal<Session | null>(null);
   private loadingSignal      = signal(false);
@@ -48,6 +50,10 @@ export class AuthFacade {
     this.errorSignal.set(null);
     this.offlineLoginSignal.set(false);
     try {
+      if (await this.existeOperadorLocal(request.rut)) {
+        await this.handleOfflineLogin(request);
+        return;
+      }
       const session = await this.loginOnline.execute(request);
       await this.seedDevData.execute(session.operadorId);
       await this.saveSession(session);
@@ -60,6 +66,13 @@ export class AuthFacade {
     } finally {
       this.loadingSignal.set(false);
     }
+  }
+
+  private async existeOperadorLocal(rutNormalizado: string): Promise<boolean> {
+    const rut   = parseInt(rutNormalizado.slice(0, -1), 10);
+    const rutDv = rutNormalizado.slice(-1).toUpperCase();
+    const cached = await this.operadorRepo.obtenerPorRut(rut, rutDv);
+    return cached !== null;
   }
 
   private async handleOfflineLogin(request: LoginRequest): Promise<void> {

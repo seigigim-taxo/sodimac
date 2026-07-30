@@ -79,7 +79,10 @@ export class LoginPage implements OnInit {
     const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/sync-loading']);
+      // Offline: la sesión y los datos mock ya quedaron listos en el login mismo —
+      // no hay nada que "descargar", así que la barra de sincronización sobra.
+      const destino = this.auth.wasOfflineLogin() ? '/home' : '/sync-loading';
+      this.router.navigate([destino]);
     }
   }
 

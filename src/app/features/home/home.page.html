@@ -114,9 +114,7 @@
       }
     </ion-button>
     <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
-      Este evento está en análisis —
-      {{ skusPendientesAnalisis(selectedEvent()!) }}
-      SKU(s) pendiente(s). Sincroniza para descargar la muestra a recontar
+      Este evento está en análisis. Sincroniza para descargar la muestra a recontar
     </p>
     } @else {
     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading()"
