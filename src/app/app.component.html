@@ -17,6 +17,14 @@
       </div>
 
       <ion-list lines="none" class="menu-list">
+        <!-- Inicio -->
+        <ion-menu-toggle>
+          <ion-item button (click)="goHome()" class="menu-theme-item">
+            <ion-icon slot="start" name="home-outline"></ion-icon>
+            <ion-label>Inicio</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Tags -->
         <ion-menu-toggle>
           <ion-item button (click)="goTags()" class="menu-theme-item">

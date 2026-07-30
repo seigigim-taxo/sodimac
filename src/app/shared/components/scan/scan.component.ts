@@ -1,8 +1,10 @@
 import { Component, AfterViewInit, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IonButton, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { barcodeOutline } from 'ionicons/icons';
+import { stripEmojis } from '../../utils/text.utils';
 
 @Component({
   selector: 'app-scan',
@@ -47,6 +49,15 @@ export class ScanComponent implements AfterViewInit {
         codeControl?.enable({ emitEvent: false });
       }
     });
+
+    // No se permiten emojis en el código de TAG/SKU escaneado o tipeado.
+    this.form.get('code')?.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((value) => {
+        if (typeof value !== 'string') return;
+        const limpio = stripEmojis(value);
+        if (limpio !== value) this.form.get('code')?.setValue(limpio, { emitEvent: false });
+      });
   }
 
   ngAfterViewInit(): void {

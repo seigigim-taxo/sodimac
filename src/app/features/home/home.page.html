@@ -12,174 +12,173 @@
 
     <!-- Tienda: solo informativa, no se selecciona -->
     @if (storeLoading()) {
-      <div class="flex justify-center py-6">
-        <ion-spinner name="crescent" color="primary"></ion-spinner>
-      </div>
+    <div class="flex justify-center py-6">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+    </div>
     }
 
     @if (storeError()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>{{ storeError() }}</span>
-      </div>
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ storeError() }}</span>
+    </div>
     }
 
     @if (noStores()) {
-      <div class="error-pill">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>No tienes una tienda asignada</span>
-      </div>
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No tienes una tienda asignada</span>
+    </div>
     }
 
     @if (!storeLoading() && currentStore(); as store) {
-      <div class="card mb-6">
-        <div class="flex items-center gap-3">
-          <ion-icon name="business-outline" class="text-2xl shrink-0" style="color: var(--app-primary);"></ion-icon>
-          <div>
-            <p class="text-xs font-medium mb-0.5" style="color: var(--app-text-muted);">Tienda</p>
-            <p class="text-base font-bold" style="color: var(--app-text);">{{ store.nombre }}</p>
-            <p class="text-xs" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
-          </div>
+    <div class="card mb-6">
+      <div class="flex items-center gap-3">
+        <ion-icon name="business-outline" class="text-2xl shrink-0" style="color: var(--app-primary);"></ion-icon>
+        <div>
+          <p class="text-xs font-medium mb-0.5" style="color: var(--app-text-muted);">Tienda</p>
+          <p class="text-base font-bold" style="color: var(--app-text);">{{ store.nombre }}</p>
+          <p class="text-xs" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
         </div>
       </div>
+    </div>
     }
 
     <!-- Evento: se selecciona aquí mismo -->
     @if (currentStore()) {
-      <div class="flex flex-col gap-2 mb-4">
-        <h2 class="page-title">Selecciona un evento</h2>
-        <p class="page-subtitle">Elige el evento de inventario para continuar</p>
-      </div>
+    <div class="flex flex-col gap-2 mb-4">
+      <h2 class="page-title">Selecciona un evento</h2>
+      <p class="page-subtitle">Elige el evento de inventario para continuar</p>
+    </div>
 
-      @if (eventsLoading()) {
-        <div class="flex justify-center py-10">
-          <ion-spinner name="crescent" color="primary"></ion-spinner>
+    @if (eventsLoading()) {
+    <div class="flex justify-center py-10">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+    </div>
+    }
+
+    @if (eventsError()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ eventsError() }}</span>
+    </div>
+    }
+
+    @if (noEvents()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No hay eventos disponibles</span>
+    </div>
+    }
+
+    @if (hasEvents()) {
+    <div class="flex flex-col gap-4">
+      @for (evento of events(); track evento.id) {
+      <div class="card" [class.card-interactive]="puedeSeleccionar(evento)"
+        [class.card-selected]="selectedEvent()?.id === evento.id" [style.opacity]="puedeSeleccionar(evento) ? 1 : 0.55"
+        (click)="selectEvento(evento)">
+        <div class="store-row">
+          <span class="store-label">Evento</span>
+          <span class="store-value">{{ evento.nombre }}</span>
         </div>
-      }
-
-      @if (eventsError()) {
-        <div class="error-pill">
-          <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>{{ eventsError() }}</span>
-        </div>
-      }
-
-      @if (noEvents()) {
-        <div class="error-pill">
-          <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>No hay eventos disponibles</span>
-        </div>
-      }
-
-      @if (hasEvents()) {
-        <div class="flex flex-col gap-4">
-          @for (evento of events(); track evento.id) {
-            <div
-              class="card"
-              [class.card-interactive]="puedeSeleccionar(evento)"
-              [class.card-selected]="selectedEvent()?.id === evento.id"
-              [style.opacity]="puedeSeleccionar(evento) ? 1 : 0.55"
-              (click)="selectEvento(evento)"
-            >
-              <div class="store-row">
-                <span class="store-label">Evento</span>
-                <span class="store-value">{{ evento.nombre }}</span>
-              </div>
-              <div class="store-row">
-                <span class="store-label">Fecha programada</span>
-                <span class="store-value">
-                  {{ evento.fechaProgramada }}
-                  @if (esVencido(evento)) {
-                    <span style="color: var(--ion-color-danger); font-weight: 700;"> · Vencido</span>
-                  }
-                </span>
-              </div>
-              <div class="store-row">
-                <span class="store-label">Estado</span>
-                <span class="store-value">
-                  {{ evento.estado }}
-                  @if (esCerrado(evento)) {
-                    <span style="color: var(--ion-color-danger); font-weight: 700;"> · No disponible</span>
-                  }
-                </span>
-              </div>
-            </div>
-          }
-        </div>
-      }
-
-      <ion-button
-        expand="block"
-        class="btn-primary mt-6"
-        [disabled]="!selectedEvent() || eventsLoading()"
-        (click)="continue()"
-      >
-        Continuar
-      </ion-button>
-
-      @if (hasEvents()) {
-        <p class="text-xs font-semibold uppercase tracking-wider mt-6 mb-3" style="color: var(--app-text-muted);">
-          Conteos
-        </p>
-        <div class="flex flex-col gap-2">
-          @for (evento of events(); track evento.id) {
-            @if (tieneConteo(evento)) {
-              @let r = resumenConteo(evento);
-              <div class="card" style="padding: 0.75rem 0.875rem;">
-                <div class="flex items-center justify-between gap-3 mb-2">
-                  <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ evento.nombre }}</span>
-                  @if (r.cerrado) {
-                    <span class="text-xs font-bold uppercase tracking-wide shrink-0" style="color: var(--app-success);">Cerrado</span>
-                  } @else {
-                    <span class="text-xs font-bold uppercase tracking-wide shrink-0" style="color: var(--app-warning, #D97706);">Abierto</span>
-                  }
-                </div>
-                <div class="grid grid-cols-2 gap-x-3 gap-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs" style="color: var(--app-text-muted);">Tags pendientes de sincronizar</span>
-                    <span class="text-xs font-semibold" [style.color]="r.pendientes > 0 ? 'var(--app-warning, #D97706)' : 'var(--app-text)'">
-                      {{ r.pendientes }}
-                    </span>
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
-                    <span class="text-xs font-semibold" style="color: var(--app-text);">{{ r.finalizados }}</span>
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs" style="color: var(--app-text-muted);">SKUs contados</span>
-                    <span class="text-xs font-semibold" style="color: var(--app-success);">{{ r.contados }}</span>
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs" style="color: var(--app-text-muted);">SKUs faltantes</span>
-                    <span class="text-xs font-semibold" [style.color]="r.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
-                      {{ r.faltantes }}
-                    </span>
-                  </div>
-                </div>
-              </div>
+        <div class="store-row">
+          <span class="store-label">Fecha programada</span>
+          <span class="store-value">
+            {{ evento.fechaProgramada }}
+            @if (esVencido(evento)) {
+            <span style="color: var(--ion-color-danger); font-weight: 700;"> · Vencido</span>
             }
-          }
+          </span>
         </div>
+        <div class="store-row">
+          <span class="store-label">Estado</span>
+          <span class="store-value">
+            {{ estadoEfectivoLabel(evento) }}
+            @if (esCerrado(evento)) {
+            <span style="color: var(--ion-color-danger); font-weight: 700;"> · No disponible</span>
+            }
+          </span>
+        </div>
+      </div>
       }
+    </div>
+    }
+
+    @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
+    <ion-button expand="block" class="btn-primary mt-6" [disabled]="sincronizando()" (click)="sincronizar()">
+      @if (sincronizando()) {
+      <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+      Sincronizando…
+      } @else {
+      Sincronizar
+      }
+    </ion-button>
+    <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+      Este evento está en análisis —
+      {{ skusPendientesAnalisis(selectedEvent()!) }}
+      SKU(s) pendiente(s). Sincroniza para descargar la muestra a recontar
+    </p>
+    } @else {
+    <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading()"
+      (click)="continue()">
+      {{ modoActual() === 'RECONTEO' ? 'Iniciar reconteo' : 'Iniciar conteo' }}
+    </ion-button>
+    }
+
+    @if (conteosCerrados().length > 0) {
+    <p class="text-xs font-semibold uppercase tracking-wider mt-6 mb-3" style="color: var(--app-text-muted);">
+      Conteos finalizados
+    </p>
+    <div class="flex flex-col gap-2">
+      @for (conteo of conteosCerrados(); track conteo.id) {
+      <div class="card" style="padding: 0.75rem 0.875rem;">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <div class="flex flex-col min-w-0">
+            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ conteo.eventoNombre }}</span>
+            <span class="text-xs" style="color: var(--app-text-muted);">{{ conteo.cerradoEn }}</span>
+          </div>
+          <span class="text-xs font-bold uppercase tracking-wide shrink-0"
+            style="color: var(--app-success);">Finalizado</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs" style="color: var(--app-text-muted);">Iteración</span>
+            <span class="text-xs font-semibold" style="color: var(--app-text);">{{ conteo.iteracion }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
+            <span class="text-xs font-semibold" style="color: var(--app-text);">{{ tagsFinalizadosDe(conteo) }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs" style="color: var(--app-text-muted);">SKUs contados</span>
+            <span class="text-xs font-semibold" style="color: var(--app-success);">{{ contadosDe(conteo) }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs" style="color: var(--app-text-muted);">SKUs faltantes</span>
+            <span class="text-xs font-semibold"
+              [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+              {{ conteo.faltantes }}
+            </span>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+    }
     }
 
     @if (currentStore()) {
-      <ion-button
-        expand="block"
-        fill="outline"
-        class="mt-4"
-        style="--border-color: var(--ion-color-danger); --color: var(--ion-color-danger);"
-        [disabled]="!puedeCerrarTienda()"
-        (click)="cerrarTienda()"
-      >
-        <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
-        Cerrar tienda
-      </ion-button>
-      @if (!puedeCerrarTienda()) {
-        <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
-          Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
-        </p>
-      }
+    <ion-button expand="block" fill="outline" class="mt-4"
+      style="--border-color: var(--ion-color-danger); --color: var(--ion-color-danger);"
+      [disabled]="!puedeCerrarTienda()" (click)="cerrarTienda()">
+      <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
+      Cerrar tienda
+    </ion-button>
+    @if (!puedeCerrarTienda()) {
+    <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+      Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
+    </p>
+    }
     }
 
   </div>

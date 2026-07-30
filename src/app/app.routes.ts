@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './state/auth/guards/auth.guard';
 import { noSesionActivaGuard } from './state/conteo/guards/no-sesion-activa.guard';
 import { eventoSeleccionadoGuard } from './state/evento/guards/evento-seleccionado.guard';
+import { tagEnSesionGuard } from './state/counting-mock/guards/tag-en-sesion.guard';
 
 export const routes: Routes = [
   {
@@ -19,9 +20,14 @@ export const routes: Routes = [
     canActivate: [authGuard, noSesionActivaGuard],
   },
   {
+    path: 'counting-tag',
+    loadComponent: () => import('./features/counting/tag-zona.page/tag-zona.page.component').then((m) => m.TagZonaPageComponent),
+    canActivate: [authGuard, eventoSeleccionadoGuard],
+  },
+  {
     path: 'counting',
     loadComponent: () => import('./features/counting/counting.page/counting.page.component').then((m) => m.CountingPageComponent),
-    canActivate: [authGuard, eventoSeleccionadoGuard],
+    canActivate: [authGuard, eventoSeleccionadoGuard, tagEnSesionGuard],
   },
   {
     // Sin eventoSeleccionadoGuard a propósito: "Cerrar tienda" debe poder

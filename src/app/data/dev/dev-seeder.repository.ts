@@ -97,6 +97,7 @@ export class SqliteDevSeederRepository implements DevSeederRepository {
       );
     }
 
+
     const eventoRows = await db.query(
       `SELECT id, sucursal_id FROM sod_evento_inventario WHERE sucursal_id IN (?, ?) AND estado = 'ABIERTO'`,
       [lc01Id, mp01Id]

@@ -5,6 +5,6 @@ export interface Evento {
     nombre: string;
     fechaProgramada: string;
     fechaEjecucion: string | null;
-    estado: 'ABIERTO' | 'CERRADO' | 'EN_PROCESO' | 'CANCELADO';
+    estado: 'ABIERTO' | 'CERRADO' | 'EN_PROCESO' | 'CANCELADO' | 'EN_ANALISIS' | 'RECONTEO';
     fechaRegistro: string;
 }

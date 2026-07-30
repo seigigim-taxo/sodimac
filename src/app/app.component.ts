@@ -18,7 +18,7 @@ import {
   IonContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { formatRutDisplay } from './shared/utils/rut.utils';
@@ -54,11 +54,15 @@ export class AppComponent {
   formatRutDisplay = formatRutDisplay;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline });
+    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline });
   }
 
   goBack(): void {
     this.location.back();
+  }
+
+  goHome(): void {
+    this.router.navigate(['/home']);
   }
 
   goTags(): void {

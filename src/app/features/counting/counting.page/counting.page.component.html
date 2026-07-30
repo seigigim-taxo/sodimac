@@ -1,6 +1,12 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>Conteo</ion-title>
+    <ion-title>
+      @if (tagActual(); as tag) {
+        TAG {{ tag }}
+      } @else {
+        Conteo
+      }
+    </ion-title>
     <ion-buttons slot="end">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
@@ -10,81 +16,32 @@
 <ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
-    <!-- Header: evento + total del tag en curso -->
+    <!-- Header: evento + zona + total del tag en curso -->
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-xl font-bold" style="color: var(--app-text);">
-        @if (currentEvent(); as e) {
-          {{ e.nombre }}
-        } @else {
-          Conteo
+      <div class="flex flex-col">
+        <h2 class="text-xl font-bold" style="color: var(--app-text);">
+          @if (currentEvent(); as e) {
+            {{ e.nombre }}
+          } @else {
+            Conteo
+          }
+        </h2>
+        @if (modoActual() === 'RECONTEO') {
+          <p class="text-xs font-bold uppercase tracking-wide" style="color: var(--app-warning, #D97706);">
+            Reconteo · faltan {{ totalFaltantes() }} producto(s)
+          </p>
         }
-      </h2>
+        @if (zonaActual(); as zona) {
+          <p class="text-xs" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
+        }
+      </div>
       <div class="session-badge">
         <div class="session-badge-icon"></div>
         <span>{{ totalItems() }} producto(s)</span>
       </div>
     </div>
 
-    <!-- ===== TAG — siempre visible; se bloquea apenas queda confirmado ===== -->
-    <div class="card mb-4">
-      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-        TAG
-      </p>
-      <ion-input
-        #tagInputEl
-        [value]="tagActual() ?? tagInputValue()"
-        [disabled]="!!tagActual()"
-        (ionInput)="onTagInput($event)"
-        (keyup.enter)="confirmarTag()"
-        placeholder="Escanea o ingresa el TAG"
-        class="input-base"
-        autofocus
-      >
-        <ion-icon slot="start" name="barcode-outline"></ion-icon>
-      </ion-input>
-      <ion-button
-        expand="block"
-        class="btn-primary mt-4"
-        [disabled]="!!tagActual()"
-        (click)="confirmarTag()"
-      >
-        @if (tagActual()) {
-          ✓ TAG confirmado
-        } @else {
-          Confirmar TAG
-        }
-      </ion-button>
-
-      @if (tagError()) {
-        <div class="error-pill mt-4">
-          <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>{{ tagError() }}</span>
-        </div>
-      }
-    </div>
-
-    <!-- ===== Zona — siempre visible; bloqueada hasta tener TAG ===== -->
-    <div class="card mb-4">
-      <ion-label class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-        Zona
-      </ion-label>
-      <ion-select
-        #zonaSelect
-        [disabled]="!tagActual()"
-        placeholder="Selecciona una zona"
-        (ionChange)="onZonaChange($event)"
-        style="color: var(--app-text); width: 100%; margin-top: 0.5rem;"
-      >
-        @for (zona of zonas; track zona.id) {
-          <ion-select-option [value]="zona">{{ zona.codigo }} — {{ zona.nombre }}</ion-select-option>
-        }
-      </ion-select>
-      @if (!tagActual()) {
-        <p class="text-xs mt-2" style="color: var(--app-text-muted);">Confirma el TAG para habilitar la zona</p>
-      }
-    </div>
-
-    <!-- ===== Conteo — siempre visible; bloqueado hasta tener TAG + zona ===== -->
+    <!-- ===== Cantidad ===== -->
     <div class="card mb-4">
       <div class="flex items-center justify-between gap-3">
         <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
@@ -95,7 +52,6 @@
           inputmode="numeric"
           min="1"
           [value]="cantidad()"
-          [disabled]="!(tagActual() && zonaActual())"
           (ionInput)="onCantidadInput($event)"
           class="input-base"
           style="max-width: 120px; text-align: center;"
@@ -108,15 +64,10 @@
       placeholder="Escanea o ingresa SKU"
       confirmLabel="Registrar"
       [showBanner]="false"
-      [locked]="!(tagActual() && zonaActual())"
       (scan)="onScanSku($event)"
     ></app-scan>
 
-    @if (!(tagActual() && zonaActual())) {
-      <div class="status-banner status-banner-info mt-4">
-        <span>Confirma el TAG y selecciona la zona para empezar a escanear</span>
-      </div>
-    } @else if (lastScan(); as scan) {
+    @if (lastScan(); as scan) {
       @if (scan.valido) {
         <div class="status-banner status-banner-success mt-4">
           <span>✓ SKU: {{ scan.sku }}</span>
@@ -137,8 +88,24 @@
         <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
           Productos de este TAG
         </p>
+
+        <ion-input
+          [value]="busquedaSku()"
+          (ionInput)="onBusquedaInput($event)"
+          placeholder="Buscar por SKU o descripción"
+          class="input-base mb-3"
+        >
+          <ion-icon slot="start" name="search-outline"></ion-icon>
+        </ion-input>
+
+        @if (itemsFiltrados().length === 0) {
+          <p class="text-sm text-center py-4" style="color: var(--app-text-muted);">
+            Sin resultados para "{{ busquedaSku() }}"
+          </p>
+        }
+
         <ion-list lines="full" style="background: transparent;">
-          @for (item of items(); track item.productoId) {
+          @for (item of itemsFiltrados(); track item.productoId) {
             <ion-item style="--background: transparent; --padding-start: 0;">
               <ion-label>
                 <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
@@ -165,73 +132,19 @@
     <ion-button
       expand="block"
       class="btn-primary mt-6"
-      [disabled]="!(tagActual() && zonaActual()) || items().length === 0"
+      [disabled]="items().length === 0 || finalizando()"
       (click)="finalizarTag()"
     >
       <ion-icon slot="start" name="flag-outline"></ion-icon>
       Finalizar TAG
     </ion-button>
 
-    <!-- ===== Navegación al resumen/finalización ===== -->
-    @if (tagsHoy().length > 0) {
-      <ion-button
-        expand="block"
-        class="btn-primary mt-4"
-        [disabled]="!!tagActual()"
-        (click)="goToResumen()"
-      >
-        <ion-icon slot="start" name="list-outline"></ion-icon>
-        Ver resumen y finalizar
-      </ion-button>
-      @if (tagActual()) {
-        <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
-          Finaliza o cancela el TAG en curso para ir al resumen
-        </p>
-      }
-    }
-
-    <!-- ===== Panel de tags de hoy (siempre visible) ===== -->
-    @if (tagsHoy().length > 0) {
-      <p class="text-xs font-semibold uppercase tracking-wider mt-8 mb-3" style="color: var(--app-text-muted);">
-        Tags de hoy
-      </p>
-      <div class="flex flex-col gap-3">
-        @for (tag of tagsHoy(); track tag.codigo) {
-          <div class="card">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-bold" style="color: var(--app-text);">{{ tag.codigo }}</p>
-                <p class="text-xs" style="color: var(--app-text-muted);">
-                  {{ tag.zona }} · {{ tag.cantidadProductos }} producto(s) · {{ tag.hora }}
-                </p>
-              </div>
-
-              @if (tag.estado === 'ENVIADO') {
-                <div class="flex items-center gap-1.5" style="color: var(--app-success);">
-                  <ion-icon name="checkmark-done-outline"></ion-icon>
-                  <span class="text-xs font-bold">Enviado</span>
-                </div>
-              } @else if (sincronizando().has(tag.codigo)) {
-                <div class="flex items-center gap-1.5" style="color: var(--app-text-muted);">
-                  <ion-spinner name="crescent" style="width: 16px; height: 16px;"></ion-spinner>
-                  <span class="text-xs font-bold">Enviando…</span>
-                </div>
-              } @else {
-                <div class="flex items-center gap-2">
-                  <div class="flex items-center gap-1.5" style="color: var(--app-warning, #D97706);">
-                    <ion-icon name="time-outline"></ion-icon>
-                    <span class="text-xs font-bold">Pendiente</span>
-                  </div>
-                  <ion-button fill="clear" size="small" (click)="reintentar(tag.codigo)" style="--color: var(--app-primary);">
-                    <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
-                  </ion-button>
-                </div>
-              }
-            </div>
-          </div>
-        }
-      </div>
-    }
-
   </div>
+
+  @if (finalizando()) {
+    <div class="flex flex-col items-center justify-center gap-3" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+      <ion-spinner name="crescent" color="light" style="width: 48px; height: 48px;"></ion-spinner>
+      <p class="text-base font-semibold" style="color: white;">Sincronizando TAG…</p>
+    </div>
+  }
 </ion-content>

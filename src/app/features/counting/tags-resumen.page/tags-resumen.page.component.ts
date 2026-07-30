@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   AlertController,
@@ -9,14 +9,18 @@ import {
   IonHeader,
   IonIcon,
   IonMenuButton,
+  IonSegment,
+  IonSegmentButton,
+  IonLabel,
   IonSpinner,
   IonTitle,
   IonToolbar,
   ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, refreshOutline, timeOutline } from 'ionicons/icons';
-import { TagsMockStore } from '../../../state/counting-mock/tags-mock.store';
+import { alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline } from 'ionicons/icons';
+import { TagsMockStore, ZONAS_MOCK } from '../../../state/counting-mock/tags-mock.store';
+import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
 
 /*
  * MOCK — resumen de tags con 2 estados: Pendiente (finalizado localmente,
@@ -40,6 +44,9 @@ import { TagsMockStore } from '../../../state/counting-mock/tags-mock.store';
     IonHeader,
     IonIcon,
     IonMenuButton,
+    IonSegment,
+    IonSegmentButton,
+    IonLabel,
     IonSpinner,
     IonTitle,
     IonToolbar,
@@ -47,6 +54,7 @@ import { TagsMockStore } from '../../../state/counting-mock/tags-mock.store';
 })
 export class TagsResumenPageComponent {
   private tagsStore       = inject(TagsMockStore);
+  private tagSesion       = inject(TagSesionStore);
   private router          = inject(Router);
   private alertController = inject(AlertController);
   private toastController = inject(ToastController);
@@ -54,39 +62,88 @@ export class TagsResumenPageComponent {
   pendientes    = this.tagsStore.pendientes;
   finalizados   = this.tagsStore.finalizados;
   sincronizando = this.tagsStore.sincronizando;
-  noTags        = () => this.pendientes().length === 0 && this.finalizados().length === 0;
+  modoActual    = this.tagsStore.modoActual;
+  hayConteoActivo = () => this.pendientes().length > 0 || this.finalizados().length > 0;
 
-  // Resumen final del conteo
+  // Resumen final del conteo activo
   totalMuestra    = this.tagsStore.totalMuestra;
   totalContados   = this.tagsStore.totalContados;
   totalFaltantes  = this.tagsStore.totalFaltantes;
   todosEnviados   = this.tagsStore.todosEnviados;
 
+  /*
+   * Sin conteo activo: se muestran pestañas, una por cada conteo ya
+   * cerrado de este evento (solo lectura), más recientes primero.
+   */
+  conteosCerrados     = this.tagsStore.conteosCerradosDelEventoActual;
+  conteoSeleccionadoId = signal<number | null>(null);
+  conteoSeleccionado   = computed(() => {
+    const id = this.conteoSeleccionadoId() ?? this.conteosCerrados()[0]?.id ?? null;
+    return this.conteosCerrados().find((c) => c.id === id) ?? this.conteosCerrados()[0] ?? null;
+  });
+  noTags = () => !this.hayConteoActivo() && this.conteosCerrados().length === 0;
+
   constructor() {
-    addIcons({ alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, refreshOutline, timeOutline });
+    addIcons({ alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline });
   }
 
-  reintentar(codigo: string): void {
-    this.tagsStore.reintentar(codigo);
+  // Conteos que pertenecen a un cierre — por relación (cierreId), no por snapshot guardado.
+  tagsDelCierre(conteo: { id: number }): ReturnType<TagsMockStore['tagsDeCierre']> {
+    return this.tagsStore.tagsDeCierre(conteo.id);
+  }
+
+  contadosDe(conteo: { id: number }): number {
+    return this.tagsStore.contadosDeCierre(conteo.id);
+  }
+
+  // Resuelven tag/zona desde sod_ubicacion (mock) por id — el conteo no los lleva propios.
+  codigoDe(tag: { ubicacionId: number }): string {
+    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.tag ?? '';
+  }
+
+  zonaDe(tag: { ubicacionId: number }): string {
+    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.zonaCodigo ?? '';
+  }
+
+  reintentar(ubicacionId: number): void {
+    this.tagsStore.reintentar(ubicacionId);
+  }
+
+  onSegmentChange(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
+    this.conteoSeleccionadoId.set(Number(value));
+  }
+
+  // Solo disponible para tags Pendiente — un TAG ya Enviado no se puede reabrir.
+  editarTag(ubicacionId: number): void {
+    const tag = this.tagsStore.tags().find((t) => t.ubicacionId === ubicacionId);
+    if (!tag) return;
+    const ubicacion = this.tagsStore.obtenerUbicacion(ubicacionId);
+    const zona      = ZONAS_MOCK.find((z) => z.codigo === ubicacion?.zonaCodigo) ?? ZONAS_MOCK[0];
+    this.tagSesion.iniciar(ubicacion?.tag ?? '', zona, tag.items);
+    this.router.navigate(['/counting']);
   }
 
   async finalizarConteo(): Promise<void> {
     if (!this.todosEnviados()) return;
 
+    const esReconteo = this.modoActual() === 'RECONTEO';
     const alert = await this.alertController.create({
-      header:  'Finalizar conteo',
+      header:  esReconteo ? 'Finalizar reconteo' : 'Finalizar conteo',
       message: `Contados ${this.totalContados()} de ${this.totalMuestra()} productos${this.totalFaltantes() > 0 ? ` (${this.totalFaltantes()} sin contar)` : ''}. Esta acción no se puede deshacer. ¿Confirmas?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarConteo(); } },
+        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarConteo(esReconteo); } },
       ],
     });
     await alert.present();
   }
 
-  private async doFinalizarConteo(): Promise<void> {
+  private async doFinalizarConteo(esReconteo: boolean): Promise<void> {
+    this.tagsStore.archivarConteoActual();
+
     const toast = await this.toastController.create({
-      message:  'Conteo finalizado — todos los TAGs sincronizados',
+      message:  esReconteo ? 'Reconteo finalizado — todos los TAGs sincronizados' : 'Conteo finalizado — todos los TAGs sincronizados',
       duration: 2500,
       color:    'success',
       position: 'top',

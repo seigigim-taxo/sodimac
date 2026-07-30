@@ -1,4 +1,4 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
@@ -45,6 +45,10 @@ export class HomePage implements ViewWillEnter {
   private alertController = inject(AlertController);
 
   puedeCerrarTienda = this.tagsStore.puedeCerrarTienda;
+  conteosCerrados   = this.tagsStore.conteosCerrados;
+  iteracionActual   = this.tagsStore.iteracionActual;
+  modoActual        = this.tagsStore.modoActual;
+  sincronizando     = signal(false);
 
   currentStore  = this.sucursalFacade.currentStore;
   storeLoading  = this.sucursalFacade.loading;
@@ -89,12 +93,38 @@ export class HomePage implements ViewWillEnter {
     return !this.esVencido(evento) && !this.esCerrado(evento);
   }
 
-  tieneConteo(evento: Evento): boolean {
-    return this.tagsStore.tieneConteo(evento.id);
+  estadoEfectivo(evento: Evento): Evento['estado'] {
+    return this.tagsStore.estadoEfectivo(evento);
   }
 
-  resumenConteo(evento: Evento) {
-    return this.tagsStore.resumenDe(evento.id);
+  private static readonly ESTADO_LABELS: Record<Evento['estado'], string> = {
+    ABIERTO:     'Abierto',
+    CERRADO:     'Cerrado',
+    EN_PROCESO:  'En proceso',
+    CANCELADO:   'Cancelado',
+    EN_ANALISIS: 'En análisis',
+    RECONTEO:    'Reconteo',
+  };
+
+  estadoEfectivoLabel(evento: Evento): string {
+    return HomePage.ESTADO_LABELS[this.estadoEfectivo(evento)];
+  }
+
+  enAnalisis(evento: Evento): boolean {
+    return this.estadoEfectivo(evento) === 'EN_ANALISIS';
+  }
+
+  skusPendientesAnalisis(evento: Evento): number {
+    return this.tagsStore.skusPendientesAnalisis(evento.id);
+  }
+
+  // Derivados por relación (cierreId), no guardados en el ConteoCerradoMock.
+  tagsFinalizadosDe(conteo: { id: number }): number {
+    return this.tagsStore.tagsFinalizadosDeCierre(conteo.id);
+  }
+
+  contadosDe(conteo: { id: number }): number {
+    return this.tagsStore.contadosDeCierre(conteo.id);
   }
 
   selectEvento(evento: Evento): void {
@@ -104,7 +134,20 @@ export class HomePage implements ViewWillEnter {
 
   continue(): void {
     if (!this.selectedEvent()) return;
-    this.router.navigate(['/counting']);
+    this.router.navigate(['/counting-tag']);
+  }
+
+  async sincronizar(): Promise<void> {
+    const evento = this.selectedEvent();
+    if (!evento) return;
+
+    this.sincronizando.set(true);
+    // Espera visible simulando la descarga de la muestra a recontar.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    this.tagsStore.sincronizarReconteo(evento.id);
+    this.sincronizando.set(false);
+    // Se queda en Home con la data ya actualizada — el operador decide cuándo entrar
+    // al listado de TAGs a recontar con el botón "Iniciar reconteo".
   }
 
   async cerrarTienda(): Promise<void> {
