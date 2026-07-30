@@ -8,9 +8,6 @@ import {
   IonHeader,
   IonIcon,
   IonInput,
-  IonItem,
-  IonLabel,
-  IonList,
   IonMenuButton,
   IonSpinner,
   IonTitle,
@@ -47,9 +44,6 @@ let productoIdSeq = 1;
     IonHeader,
     IonIcon,
     IonInput,
-    IonItem,
-    IonLabel,
-    IonList,
     IonMenuButton,
     IonSpinner,
     IonTitle,
@@ -78,6 +72,17 @@ export class CountingPageComponent {
   iteracionActual = this.tagsStore.iteracionActual;
   modoActual      = this.tagsStore.modoActual;
   totalFaltantes  = this.tagsStore.totalFaltantes;
+
+  // En reconteo la cantidad no puede superar lo que queda por recontar; en conteo
+  // normal no hay techo (null = sin límite).
+  cantidadMaxima = computed(() => (this.modoActual() === 'RECONTEO' ? this.totalFaltantes() : null));
+
+  // Se deja entrar el valor excedido al signal a propósito: así el operador ve lo que
+  // escribió junto al aviso, en vez de que el campo lo corrija en silencio.
+  cantidadExcedida = computed(() => {
+    const max = this.cantidadMaxima();
+    return max !== null && this.cantidad() > max;
+  });
 
   // Filtra la lista de productos ya escaneados por SKU o descripción — no afecta el conteo, solo la vista.
   itemsFiltrados = computed(() => {
@@ -112,6 +117,10 @@ export class CountingPageComponent {
   }
 
   onScanSku(sku: string): void {
+    // Sobre el máximo de reconteo no se registra nada — el aviso ya está en pantalla
+    // y la cantidad se mantiene para que el operador la corrija.
+    if (this.cantidadExcedida()) return;
+
     const codigo = sku.trim().toUpperCase();
     const descripcion = MUESTRA_MOCK[codigo];
 

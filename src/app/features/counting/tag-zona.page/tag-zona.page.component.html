@@ -17,17 +17,18 @@
   <div class="page-inner py-6">
 
     <div class="flex flex-col gap-2 mb-4">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center justify-between gap-3">
         <h2 class="page-title">{{ modoActual() === 'RECONTEO' ? 'Reconteo' : 'Nuevo TAG' }}</h2>
         @if (modoActual() === 'RECONTEO') {
-        <span class="text-xs font-bold uppercase tracking-wide" style="color: var(--app-warning, #D97706);">
-          Reconteo de {{ totalFaltantes() }} producto(s)
+        <span class="badge badge-warning shrink-0">
+          {{ totalFaltantes() }} producto(s)
         </span>
         }
       </div>
       <p class="page-subtitle">
         @if (modoActual() === 'RECONTEO') {
-        TAG y zona vienen fijos por backoffice — no se pueden editar
+        Seleccione el TAG a recontar, luego ingréselo o escanéelo para validar y finalmente seleccione la zona para
+        empezar a contar
         } @else {
         Escanea el TAG y selecciona la zona para empezar a contar
         }
@@ -40,12 +41,18 @@
     <!-- ===== TAG(s) a recontar: hay que elegir cuál ===== -->
     <ion-list lines="full" style="background: transparent;">
       @for (t of tagsPorRecontar(); track t.ubicacionId) {
-      <ion-item button class="card mb-3" style="--background: var(--app-surface);" (click)="seleccionarTagRecontar(t)">
-        <ion-icon slot="start" name="barcode-outline"></ion-icon>
+      <ion-item button class="card card-interactive mb-3" lines="none"
+        style="--background: transparent; --padding-start: 0; --inner-padding-end: 0;"
+        (click)="seleccionarTagRecontar(t)">
+        <div class="icon-badge" slot="start">
+          <ion-icon name="barcode-outline"></ion-icon>
+        </div>
         <ion-label>
-          <p class="text-sm font-bold" style="color: var(--app-text);">TAG {{ codigoDeUbicacion(t.ubicacionId) }}</p>
-          <p class="text-xs" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(t.ubicacionId) }}</p>
+          <p class="text-sm font-bold num" style="color: var(--app-text);">TAG {{ codigoDeUbicacion(t.ubicacionId) }}
+          </p>
+          <p class="text-[12px]" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(t.ubicacionId) }}</p>
         </ion-label>
+        <ion-icon slot="end" name="arrow-forward-outline" style="color: var(--app-text-muted);"></ion-icon>
       </ion-item>
       }
     </ion-list>
@@ -53,20 +60,16 @@
     <!-- ===== TAG elegido: hay que ingresarlo/escanearlo para validar ===== -->
     <div class="card mb-4">
       <div class="flex items-center gap-2 mb-3">
-        <ion-icon name="barcode-outline" style="color: var(--app-text-muted);"></ion-icon>
-        <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-          TAG seleccionado
-        </p>
+        <ion-icon name="barcode-outline" style="color: var(--app-text-muted); font-size: 1rem;"></ion-icon>
+        <p class="field-label">TAG seleccionado</p>
       </div>
-      <p class="text-base font-bold" style="color: var(--app-text);">TAG {{ codigoDeUbicacion(seleccionado.ubicacionId)
-        }}</p>
-      <p class="text-sm" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(seleccionado.ubicacionId) }}</p>
+      <p class="text-[15px] font-bold num" style="color: var(--app-text);">TAG {{
+        codigoDeUbicacion(seleccionado.ubicacionId) }}</p>
+      <p class="text-[13px]" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(seleccionado.ubicacionId) }}</p>
     </div>
 
     <div class="card mb-4">
-      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-        Ingresa o escanea el TAG
-      </p>
+      <p class="section-label">Ingresa o escanea el TAG</p>
       <ion-input [value]="tagRecontarInput()" (ionInput)="onTagRecontarInput($event)"
         (keyup.enter)="confirmarTagRecontar()"
         placeholder="Ingresa el TAG {{ codigoDeUbicacion(seleccionado.ubicacionId) }}" class="input-base" autofocus>
@@ -86,20 +89,18 @@
       Validar TAG
     </ion-button>
 
-    <ion-button expand="block" fill="clear" class="mt-2" (click)="cancelarTagRecontar()">
+    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" (click)="cancelarTagRecontar()">
       Volver a la lista
     </ion-button>
     } @else if (tagActual() && zonaActual(); as zona) {
     <!-- ===== TAG + Zona fijos, listos para iniciar ===== -->
     <div class="card mb-4">
       <div class="flex items-center gap-2 mb-3">
-        <ion-icon name="lock-closed-outline" style="color: var(--app-text-muted);"></ion-icon>
-        <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-          TAG y zona (fijos)
-        </p>
+        <ion-icon name="lock-closed-outline" style="color: var(--app-text-muted); font-size: 1rem;"></ion-icon>
+        <p class="field-label">TAG y zona (fijos)</p>
       </div>
-      <p class="text-base font-bold" style="color: var(--app-text);">TAG {{ tagActual() }}</p>
-      <p class="text-sm" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
+      <p class="text-[15px] font-bold num" style="color: var(--app-text);">TAG {{ tagActual() }}</p>
+      <p class="text-[13px]" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
     </div>
 
     <ion-button expand="block" class="btn-primary mt-2" (click)="irAContar()">
@@ -107,7 +108,7 @@
       Iniciar reconteo
     </ion-button>
 
-    <ion-button expand="block" fill="clear" class="mt-2" (click)="cambiarTagRecontar()">
+    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" (click)="cambiarTagRecontar()">
       Cambiar TAG
     </ion-button>
     } @else {
@@ -121,9 +122,12 @@
 
     <!-- ===== TAG ===== -->
     <div class="card mb-4">
-      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-        TAG
-      </p>
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="field-label">Tag de ubicación</p>
+        @if (tagActual()) {
+        <span class="badge badge-success">Confirmado</span>
+        }
+      </div>
       <ion-input #tagInputEl [value]="tagActual() ?? tagInputValue()" [disabled]="!!tagActual()"
         (ionInput)="onTagInput($event)" (keyup.enter)="confirmarTag()" placeholder="Escanea o ingresa el TAG"
         class="input-base" autofocus>
@@ -131,8 +135,8 @@
       </ion-input>
 
       @if (tagActual()) {
-      <ion-button expand="block" fill="outline" class="mt-4" (click)="cancelarTag()">
-        ✓ TAG confirmado — cambiar
+      <ion-button expand="block" class="btn-outline mt-4" (click)="cancelarTag()">
+        Cambiar TAG
       </ion-button>
       } @else {
       <ion-button expand="block" class="btn-primary mt-4" (click)="confirmarTag()">
@@ -150,17 +154,15 @@
 
     <!-- ===== Zona — bloqueada hasta tener TAG ===== -->
     <div class="card mb-4">
-      <ion-label class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-        Zona
-      </ion-label>
+      <p class="field-label mb-2">Zona</p>
       <ion-select #zonaSelect [disabled]="!tagActual()" [value]="zonaActual()" placeholder="Selecciona una zona"
-        (ionChange)="onZonaChange($event)" style="color: var(--app-text); width: 100%; margin-top: 0.5rem;">
+        (ionChange)="onZonaChange($event)" class="zone-select" [style.opacity]="tagActual() ? 1 : 0.5">
         @for (zona of zonas; track zona.id) {
         <ion-select-option [value]="zona">{{ zona.codigo }} — {{ zona.nombre }}</ion-select-option>
         }
       </ion-select>
       @if (!tagActual()) {
-      <p class="text-xs mt-2" style="color: var(--app-text-muted);">Confirma el TAG para habilitar la zona</p>
+      <p class="hint-text">Confirma el TAG para habilitar la zona</p>
       }
     </div>
 
@@ -174,7 +176,7 @@
 
     <!-- ===== Navegación al resumen/finalización ===== -->
     @if (tagsHoy().length > 0) {
-    <ion-button expand="block" fill="outline" class="mt-4" (click)="goToResumen()">
+    <ion-button expand="block" class="btn-outline mt-4" (click)="goToResumen()">
       <ion-icon slot="start" name="list-outline"></ion-icon>
       Ver resumen y finalizar
     </ion-button>

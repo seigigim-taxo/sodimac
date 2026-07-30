@@ -8,10 +8,12 @@
 @import "@fontsource/sora/800.css";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
 
 h1, h2, h3, .page-title, .sync-title {
   font-family: 'Sora', var(--ion-font-family);
+  letter-spacing: -0.02em;
 }
 
 @tailwind base;
@@ -33,69 +35,165 @@ h1, h2, h3, .page-title, .sync-title {
 @import "@ionic/angular/css/palettes/dark.class.css";
 
 /* ===================================================================
+   App bar — barra plana con borde de 1px, como el canvas
+   =================================================================== */
+ion-header ion-toolbar {
+  --min-height: 56px;
+  --border-width: 0 0 1px 0;
+  --border-style: solid;
+}
+
+ion-header {
+  box-shadow: none;
+
+  &::after {
+    display: none;
+  }
+}
+
+ion-title {
+  font-family: 'Sora', var(--ion-font-family);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ===================================================================
    Tailwind component classes — design system tokens
+   Basado en el canvas de diseño Safin360 · Control de Inventario:
+   superficies planas, bordes de 1px, radios de 16px, controles de
+   56px, etiquetas micro en monoespaciada y numerales tabulares.
    =================================================================== */
 @layer components {
 
   /* ---------- LAYOUT ---------- */
   .page-inner {
     @apply flex flex-col;
-    @apply max-w-[420px] mx-auto px-6;
+    @apply max-w-[420px] mx-auto px-5;
     @apply gap-6;
   }
 
   .page-title {
-    @apply text-2xl font-bold leading-tight;
+    @apply text-2xl font-extrabold leading-tight;
     color: var(--app-text);
   }
 
   .page-subtitle {
-    @apply text-base leading-relaxed;
+    @apply text-sm leading-relaxed;
     color: var(--app-text-muted);
+  }
+
+  /*
+   * Etiqueta micro en monoespaciada — el recurso tipográfico que ordena
+   * el canvas: campos, secciones y encabezados de bloque.
+   */
+  .field-label {
+    @apply block text-[11px] font-medium uppercase;
+    font-family: theme('fontFamily.mono');
+    letter-spacing: 0.08em;
+    color: var(--app-text-muted);
+  }
+
+  .section-label {
+    @apply block text-[11px] font-medium uppercase mb-3;
+    font-family: theme('fontFamily.mono');
+    letter-spacing: 0.08em;
+    color: var(--app-text-muted);
+  }
+
+  /* Numerales: códigos, cantidades, fechas y totales */
+  .num {
+    font-family: theme('fontFamily.mono');
+    @apply tabular-nums;
   }
 
   /* ---------- BUTTONS ---------- */
   .btn-primary {
-    --background: var(--app-cta-gradient);
-    --background-hover: var(--app-cta-gradient-hover);
-    --background-activated: var(--app-cta-gradient-active);
+    --background: var(--app-primary);
+    --background-hover: var(--app-primary-hover);
+    --background-activated: var(--app-primary-active);
     --background-disabled: var(--app-surface);
-    --border-radius: 18px;
-    --box-shadow: 0 8px 24px rgba(230, 18, 106, 0.30);
+    --border-radius: 16px;
+    --box-shadow: 0 8px 24px -8px rgba(230, 18, 106, 0.45);
     --color: #ffffff;
     --opacity-disabled: 1;
-    --padding-start: 1.5rem;
-    --padding-end: 1.5rem;
+    --padding-start: 1.25rem;
+    --padding-end: 1.25rem;
 
-    @apply w-full text-lg font-bold uppercase tracking-wide;
-    @apply transition-all duration-200;
-    min-height: 64px;
-
-    &:not([disabled]):hover {
-      --box-shadow: 0 12px 32px rgba(230, 18, 106, 0.40);
-      transform: translateY(-1px);
-    }
+    @apply w-full text-[15px] font-semibold normal-case tracking-normal;
+    @apply transition-transform duration-150;
+    min-height: 56px;
+    text-transform: none;
 
     &:not([disabled]):active {
-      transform: translateY(0);
+      transform: scale(0.98);
     }
 
     &[disabled] {
       --box-shadow: none;
-      opacity: 0.45;
+      opacity: 0.4;
+    }
+  }
+
+  /* Variante morada — acciones de cierre/finalización */
+  .btn-accent {
+    --background: var(--app-accent);
+    --background-hover: var(--app-accent);
+    --background-activated: var(--app-accent);
+    --background-disabled: var(--app-surface);
+    --border-radius: 16px;
+    --box-shadow: 0 8px 24px -8px rgba(63, 32, 135, 0.45);
+    --color: #ffffff;
+    --opacity-disabled: 1;
+    --padding-start: 1.25rem;
+    --padding-end: 1.25rem;
+
+    @apply w-full text-[15px] font-semibold;
+    @apply transition-transform duration-150;
+    min-height: 56px;
+    text-transform: none;
+
+    &:not([disabled]):active {
+      transform: scale(0.98);
+    }
+
+    &[disabled] {
+      --box-shadow: none;
+      opacity: 0.4;
+    }
+  }
+
+  /* Variante contorno — acción secundaria sobre superficie */
+  .btn-outline {
+    --background: var(--app-surface);
+    --background-hover: var(--app-surface-hover);
+    --border-radius: 16px;
+    --box-shadow: 0 1px 2px rgba(27, 31, 36, 0.06);
+    --color: var(--app-text);
+    --padding-start: 1.25rem;
+    --padding-end: 1.25rem;
+
+    @apply w-full text-[15px] font-semibold;
+    min-height: 56px;
+    text-transform: none;
+    border: 1px solid var(--app-border);
+    border-radius: 16px;
+
+    &:not([disabled]):active {
+      transform: scale(0.98);
     }
   }
 
   .btn-ghost {
     --background: transparent;
     --background-hover: var(--app-surface-hover);
-    --color: var(--app-text);
+    --color: var(--app-primary);
     --border-radius: 16px;
     --padding-start: 1rem;
     --padding-end: 1rem;
 
-    @apply w-full min-h-[56px] text-base font-semibold;
-    @apply transition-all duration-200;
+    @apply w-full min-h-[48px] text-[14px] font-semibold;
+    text-transform: none;
 
     &:active {
       transform: scale(0.98);
@@ -107,81 +205,134 @@ h1, h2, h3, .page-title, .sync-title {
     color: var(--app-text) !important;
     --background: var(--app-surface);
     --border-radius: 16px;
-    --border-color: var(--app-border-strong);
+    --border-color: var(--app-border);
     --border-style: solid;
-    --border-width: 2px;
-    --highlight-color-focused: var(--app-secondary);
-    --highlight-color-valid: var(--app-secondary);
+    --border-width: 1px;
+    --highlight-color-focused: var(--app-primary);
+    --highlight-color-valid: var(--app-primary);
     --placeholder-color: var(--app-placeholder);
     --color: var(--app-text);
     --padding-start: 1rem;
     --padding-end: 1rem;
-    --padding-top: 20px;
-    --padding-bottom: 20px;
+    --padding-top: 14px;
+    --padding-bottom: 14px;
 
-    @apply w-full text-base transition-all duration-200;
-    min-height: 64px;
+    @apply w-full text-[15px] transition-shadow duration-200;
+    min-height: 56px;
+
+    ion-icon[slot='start'] {
+      color: var(--app-text-muted);
+      margin-inline-end: 0.75rem;
+      font-size: 1.15rem;
+    }
 
     &:focus-within {
-      --background: var(--app-surface-hover);
       --border-color: var(--app-border-focus);
-      box-shadow: 0 0 0 4px var(--app-focus-ring);
+      box-shadow: 0 0 0 3px var(--app-focus-ring);
+    }
+  }
+
+  /* Campo fuera de rango — el aviso lo explica, el borde lo señala */
+  .input-invalid {
+    --border-color: var(--app-warning);
+    --border-width: 2px;
+
+    &:focus-within {
+      --border-color: var(--app-warning);
+      box-shadow: 0 0 0 3px var(--app-warning-bg);
     }
   }
 
   /* ---------- CARDS ---------- */
   .card {
-    @apply rounded-2xl p-5 border transition-all duration-200;
+    @apply rounded-2xl p-4 border transition-all duration-200;
     background: var(--app-surface);
     border-color: var(--app-border);
+    box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
   }
 
   .card-interactive {
     @apply cursor-pointer;
     &:hover {
-      background: var(--app-surface-hover);
+      border-color: var(--app-border-strong);
     }
   }
 
   .card-selected {
     border-color: var(--app-primary) !important;
-    background: rgba(230, 18, 106, 0.08) !important;
+    background: color-mix(in srgb, var(--app-primary) 5%, var(--app-surface)) !important;
+    box-shadow: 0 0 0 1px var(--app-primary), 0 4px 16px -4px rgba(230, 18, 106, 0.18) !important;
   }
 
-  /* ---------- STORE ROWS ---------- */
+  /* ---------- BADGES (píldoras de estado) ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1;
+    @apply text-[11px] font-semibold uppercase tracking-wider;
+    background: var(--app-surface-hover);
+    color: var(--app-text-muted);
+    border: 1px solid var(--app-border);
+
+    ion-icon {
+      font-size: 0.85rem;
+    }
+  }
+
+  .badge-success {
+    background: var(--app-success-bg);
+    border-color: var(--app-success-border);
+    color: var(--app-success);
+  }
+
+  .badge-warning {
+    background: var(--app-warning-bg);
+    border-color: var(--app-warning-border);
+    color: var(--app-warning);
+  }
+
+  .badge-error {
+    background: var(--app-error-surface);
+    border-color: var(--app-error-border);
+    color: var(--app-error-text);
+  }
+
+  /* ---------- DATA ROWS ---------- */
   .store-row {
-    @apply flex justify-between items-center;
-    padding: 0.875rem 0;
+    @apply flex justify-between items-center gap-3;
+    padding: 0.625rem 0;
     border-bottom: 1px solid var(--app-border);
+
+    &:first-child { padding-top: 0; }
 
     &:last-child {
       border-bottom: none;
+      padding-bottom: 0;
     }
   }
 
   .store-label {
-    @apply text-sm font-medium;
+    @apply text-[13px];
     color: var(--app-text-muted);
   }
 
   .store-value {
-    @apply text-base font-semibold text-right;
+    @apply text-sm font-medium text-right;
     color: var(--app-text);
   }
 
   /* ---------- EVENT CARDS ---------- */
   .event-card {
-    @apply rounded-2xl p-5 border cursor-pointer transition-all duration-200;
+    @apply rounded-2xl p-4 border cursor-pointer transition-all duration-200;
     background: var(--app-surface);
     border-color: var(--app-border);
+    box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
 
     &:hover {
-      background: var(--app-surface-hover);
+      border-color: var(--app-border-strong);
     }
   }
 
   .event-name {
-    @apply text-base font-bold mb-3;
+    @apply text-[15px] font-bold mb-3;
     color: var(--app-text);
   }
 
@@ -191,18 +342,18 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .event-detail-label {
-    @apply text-sm;
+    @apply text-[13px];
     color: var(--app-text-muted);
   }
 
   .event-detail-value {
-    @apply text-sm font-semibold;
+    @apply text-sm font-medium;
     color: var(--app-text);
   }
 
   /* ---------- TAG CONFIRMED ---------- */
   .tag-confirmed {
-    @apply flex items-center gap-3 mt-4 px-4 py-3 rounded-xl text-sm font-semibold;
+    @apply flex items-center gap-3 mt-4 px-4 py-3 rounded-2xl text-sm font-semibold;
     background: var(--app-success-bg);
     border: 1px solid var(--app-success-border);
     color: var(--app-success);
@@ -210,20 +361,34 @@ h1, h2, h3, .page-title, .sync-title {
 
   /* ---------- ERROR PILL ---------- */
   .error-pill {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium;
+    @apply flex items-start gap-3 px-4 py-3.5 rounded-2xl text-[13px] font-medium;
     background: var(--app-error-surface);
     border: 1px solid var(--app-error-border);
     color: var(--app-error-text);
 
     ion-icon {
-      @apply text-xl shrink-0;
+      @apply text-lg shrink-0;
       color: var(--app-error);
+      margin-top: 1px;
+    }
+  }
+
+  /* ---------- WARNING PILL ---------- */
+  .warning-pill {
+    @apply flex items-start gap-3 px-4 py-3.5 rounded-2xl text-[13px] font-medium;
+    background: var(--app-warning-bg);
+    border: 1px solid var(--app-warning-border);
+    color: var(--app-warning);
+
+    ion-icon {
+      @apply text-lg shrink-0;
+      margin-top: 1px;
     }
   }
 
   /* ---------- SUCCESS PILL ---------- */
   .success-pill {
-    @apply flex items-center gap-2 px-4 py-3 rounded-xl text-base font-semibold;
+    @apply flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold;
     background: var(--app-success-bg);
     border: 1px solid var(--app-success-border);
     color: var(--app-success);
@@ -231,8 +396,19 @@ h1, h2, h3, .page-title, .sync-title {
 
   /* ---------- HINT TEXT ---------- */
   .hint-text {
-    @apply text-sm mt-3;
+    @apply text-[12px] mt-3;
     color: var(--app-text-muted);
+  }
+
+  /* ---------- ICON BADGE (círculo de estado) ---------- */
+  .icon-badge {
+    @apply flex items-center justify-center rounded-2xl shrink-0;
+    width: 44px;
+    height: 44px;
+    background: color-mix(in srgb, var(--app-primary) 10%, transparent);
+    color: var(--app-primary);
+
+    ion-icon { font-size: 1.35rem; }
   }
 
   /* ---------- THEME TOGGLE ---------- */
@@ -246,7 +422,7 @@ h1, h2, h3, .page-title, .sync-title {
     --box-shadow: none;
 
     @apply min-w-[48px] min-h-[48px];
-    border: 2px solid var(--app-border-strong);
+    border: 1px solid var(--app-border);
 
     &:hover {
       border-color: var(--app-border-focus);
@@ -257,23 +433,20 @@ h1, h2, h3, .page-title, .sync-title {
   .zone-select {
     --background: var(--app-surface);
     --border-radius: 16px;
-    --border-color: var(--app-border-strong);
-    --border-width: 2px;
-    --border-style: solid;
     --padding-start: 1rem;
     --padding-end: 1rem;
-    --padding-top: 16px;
-    --padding-bottom: 16px;
+    --padding-top: 14px;
+    --padding-bottom: 14px;
     --placeholder-color: var(--app-placeholder);
     --color: var(--app-text);
 
-    @apply w-full min-h-[56px] text-base transition-all duration-200;
-    border: 2px solid var(--app-border-strong);
+    @apply w-full min-h-[56px] text-[15px] transition-shadow duration-200;
+    border: 1px solid var(--app-border);
     border-radius: 16px;
 
     &:focus-within {
       border-color: var(--app-border-focus);
-      box-shadow: 0 0 0 4px var(--app-focus-ring);
+      box-shadow: 0 0 0 3px var(--app-focus-ring);
     }
   }
 
@@ -282,7 +455,7 @@ h1, h2, h3, .page-title, .sync-title {
     @apply text-center;
     padding: 1.5rem 1rem;
     margin-bottom: 0.5rem;
-    border-bottom: 1px solid var(--app-border);
+    border-bottom: 1px solid var(--app-menu-border);
   }
 
   .menu-user-name {
@@ -292,7 +465,7 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .menu-user-rut {
-    @apply text-sm;
+    @apply text-[13px];
     color: var(--app-menu-text-muted);
     margin: 0;
   }
@@ -330,12 +503,14 @@ h1, h2, h3, .page-title, .sync-title {
   .menu-section {
     margin-bottom: 0.5rem;
     padding: 0 0.5rem;
-    border-bottom: 1px solid var(--app-border);
+    border-bottom: 1px solid var(--app-menu-border);
     padding-bottom: 0.5rem;
   }
 
   .menu-section-title {
-    @apply flex items-center gap-2 text-xs font-semibold uppercase tracking-wider;
+    @apply flex items-center gap-2 text-[11px] font-medium uppercase;
+    font-family: theme('fontFamily.mono');
+    letter-spacing: 0.08em;
     color: var(--app-menu-text-muted);
     padding: 0.75rem 0.75rem 0.25rem;
     margin: 0;
@@ -370,43 +545,47 @@ h1, h2, h3, .page-title, .sync-title {
 
   /* ---------- SCANNER ---------- */
   .scan-container {
-    @apply flex flex-col gap-6;
+    @apply flex flex-col gap-4;
   }
 
   .status-banner {
-    @apply rounded-2xl px-6 py-4 text-center text-base font-medium;
+    @apply flex items-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-medium;
+    border: 1px solid transparent;
   }
 
   .status-banner-info {
-    background: rgba(230, 18, 106, 0.08);
-    color: var(--app-text);
+    background: var(--app-surface);
+    border-color: var(--app-border);
+    color: var(--app-text-muted);
   }
 
   .status-banner-success {
     background: var(--app-success-bg);
-    border: 1px solid var(--app-success-border);
+    border-color: var(--app-success-border);
     color: var(--app-success);
   }
 
   .status-banner-error {
-    background: rgba(220, 38, 38, 0.08);
-    border: 1px solid rgba(220, 38, 38, 0.35);
-    color: var(--ion-color-danger);
+    background: var(--app-error-surface);
+    border-color: var(--app-error-border);
+    color: var(--app-error-text);
   }
 
   .btn-manual-input {
-    --background: var(--app-cta-gradient);
-    --background-hover: var(--app-cta-gradient-hover);
-    --background-activated: var(--app-cta-gradient-active);
-    --border-radius: 18px;
+    --background: var(--app-primary);
+    --background-hover: var(--app-primary-hover);
+    --background-activated: var(--app-primary-active);
+    --border-radius: 16px;
+    --box-shadow: 0 8px 24px -8px rgba(230, 18, 106, 0.45);
     --color: #ffffff;
 
-    @apply w-full text-lg font-bold;
-    min-height: 64px;
+    @apply w-full text-[15px] font-semibold;
+    min-height: 56px;
+    text-transform: none;
   }
 
   .scan-form {
-    @apply flex flex-col gap-4;
+    @apply flex flex-col gap-3;
   }
 
   /* ---------- SYNC / LOADING SCREEN ---------- */
@@ -428,7 +607,7 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .sync-title {
-    @apply text-2xl font-bold tracking-tight;
+    @apply text-2xl font-extrabold;
     color: var(--app-text);
   }
 
@@ -438,7 +617,7 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .sync-step-label {
-    @apply text-sm font-medium text-center;
+    @apply text-[13px] font-medium text-center;
     color: var(--app-text-muted);
     min-height: 1.5rem;
     transition: opacity 0.2s;
@@ -446,7 +625,7 @@ h1, h2, h3, .page-title, .sync-title {
 
   .sync-bar-track {
     @apply w-full rounded-full overflow-hidden;
-    height: 10px;
+    height: 8px;
     background: var(--app-border);
   }
 
@@ -458,12 +637,13 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .sync-percent {
-    @apply text-3xl font-black tabular-nums;
+    @apply text-3xl font-extrabold tabular-nums;
+    font-family: theme('fontFamily.mono');
     color: var(--app-info);
   }
 
   .sync-error {
-    @apply text-sm font-medium text-center px-4 py-2 rounded-xl;
+    @apply text-[13px] font-medium text-center px-4 py-3 rounded-2xl;
     background: var(--app-error-surface);
     color: var(--app-error-text);
     border: 1px solid var(--app-error-border);
@@ -471,14 +651,16 @@ h1, h2, h3, .page-title, .sync-title {
 
   /* ---------- SESSION BADGE ---------- */
   .session-badge {
-    @apply flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium;
-    background: rgba(34, 197, 94, 0.10);
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 shrink-0;
+    @apply text-[11px] font-semibold uppercase tracking-wider;
+    background: var(--app-success-bg);
+    border: 1px solid var(--app-success-border);
     color: var(--app-success);
   }
 
   .session-badge-icon {
-    @apply w-4 h-4 rounded-sm;
-    border: 1.5px solid var(--app-success);
+    @apply w-2 h-2 rounded-full shrink-0;
+    background: var(--app-success);
   }
 
   /* ---------- COUNTING LIST TABS ---------- */
@@ -512,7 +694,7 @@ h1, h2, h3, .page-title, .sync-title {
     border: 1px solid var(--app-border);
     border-radius: 16px;
     padding: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
   }
 
   .tab-btn {
@@ -522,12 +704,12 @@ h1, h2, h3, .page-title, .sync-title {
     align-items: center;
     justify-content: center;
     gap: 0.2rem;
-    min-height: 52px;
+    min-height: 48px;
     border: none;
     border-radius: 12px;
     background: transparent;
     font-family: inherit;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.75rem;
     letter-spacing: 0;
     cursor: pointer;
@@ -555,6 +737,7 @@ h1, h2, h3, .page-title, .sync-title {
   }
 
   .tab-badge {
+    font-family: theme('fontFamily.mono');
     font-size: 0.6875rem;
     font-weight: 700;
     min-width: 20px;
@@ -610,5 +793,68 @@ h1, h2, h3, .page-title, .sync-title {
   .status-error {
     background: var(--app-error-surface);
     color: var(--app-error);
+  }
+
+  /* ---------- PRODUCT ROW + STEPPER (conteo) ---------- */
+  .item-row {
+    @apply flex items-center justify-between gap-3 rounded-2xl p-3.5;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+  }
+
+  .item-sku {
+    @apply text-sm font-bold;
+    font-family: theme('fontFamily.mono');
+    color: var(--app-text);
+  }
+
+  .item-desc {
+    @apply text-[12px] truncate;
+    color: var(--app-text-muted);
+  }
+
+  .step-btn {
+    --background: var(--app-surface-hover);
+    --background-hover: var(--app-surface-hover);
+    --border-radius: 10px;
+    --color: var(--app-text-muted);
+    --padding-start: 0;
+    --padding-end: 0;
+    --box-shadow: none;
+
+    @apply m-0;
+    width: 34px;
+    height: 34px;
+  }
+
+  .step-btn-danger {
+    --background: transparent;
+    --color: var(--app-error);
+  }
+
+  .qty-chip {
+    @apply flex items-center justify-center rounded-[10px] text-sm font-bold;
+    font-family: theme('fontFamily.mono');
+    min-width: 40px;
+    height: 34px;
+    padding: 0 0.5rem;
+    background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+    color: var(--app-accent);
+  }
+
+  /* ---------- TOTAL DESTACADO ---------- */
+  .total-row {
+    @apply flex justify-between items-center;
+  }
+
+  .total-label {
+    @apply text-[13px];
+    color: var(--app-text-muted);
+  }
+
+  .total-value {
+    @apply text-lg font-bold;
+    font-family: theme('fontFamily.mono');
+    color: var(--app-primary);
   }
 }

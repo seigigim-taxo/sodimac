@@ -26,27 +26,25 @@
       <!-- ===== Conteo activo: mismo comportamiento de siempre ===== -->
 
       <!-- Resumen del trabajo + Finalizar conteo -->
-      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-        Resumen del trabajo
-      </p>
+      <p class="section-label">Resumen del trabajo</p>
       <div class="card mb-4">
         <div class="store-row">
           <span class="store-label">Tags pendientes de sincronización</span>
-          <span class="store-value" [style.color]="pendientes().length > 0 ? 'var(--app-warning, #D97706)' : 'var(--app-text)'">
+          <span class="store-value num" [style.color]="pendientes().length > 0 ? 'var(--app-warning, #D97706)' : 'var(--app-text)'">
             {{ pendientes().length }}
           </span>
         </div>
         <div class="store-row">
           <span class="store-label">Tags finalizados</span>
-          <span class="store-value">{{ finalizados().length }}</span>
+          <span class="store-value num">{{ finalizados().length }}</span>
         </div>
         <div class="store-row">
           <span class="store-label">Total contados</span>
-          <span class="store-value" style="color: var(--app-success);">{{ totalContados() }}</span>
+          <span class="store-value num" style="color: var(--app-success);">{{ totalContados() }}</span>
         </div>
         <div class="store-row">
           <span class="store-label">SKUs sin contar</span>
-          <span class="store-value" [style.color]="totalFaltantes() > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+          <span class="store-value num" [style.color]="totalFaltantes() > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
             {{ totalFaltantes() }}
           </span>
         </div>
@@ -55,7 +53,7 @@
       <div class="mb-8">
         <ion-button
           expand="block"
-          class="btn-primary"
+          class="btn-accent"
           [disabled]="!todosEnviados()"
           (click)="finalizarConteo()"
         >
@@ -63,7 +61,7 @@
           {{ modoActual() === 'RECONTEO' ? 'Finalizar reconteo' : 'Finalizar conteo' }}
         </ion-button>
         @if (!todosEnviados()) {
-          <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+          <p class="hint-text text-center">
             Todos los TAGs deben quedar "Enviado" para poder finalizar
           </p>
         }
@@ -71,36 +69,43 @@
 
       <!-- Pendientes -->
       @if (pendientes().length > 0) {
-        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-warning, #D97706);">
+        <p class="section-label" style="color: var(--app-warning, #D97706);">
           Pendiente ({{ pendientes().length }})
         </p>
-        <div class="flex flex-col gap-3 mb-6">
+        <div class="flex flex-col gap-2.5 mb-6">
           @for (tag of pendientes(); track tag.ubicacionId) {
             <div class="card">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-bold" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
-                  <p class="text-xs" style="color: var(--app-text-muted);">
-                    {{ zonaDe(tag) }} · {{ tag.cantidadProductos }} producto(s) · {{ tag.hora }}
-                  </p>
-                </div>
+              <div class="flex items-center justify-between gap-3 mb-2">
+                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
 
                 @if (sincronizando().has(tag.ubicacionId)) {
-                  <div class="flex items-center gap-1.5" style="color: var(--app-text-muted);">
-                    <ion-spinner name="crescent" style="width: 16px; height: 16px;"></ion-spinner>
-                    <span class="text-xs font-bold">Enviando…</span>
-                  </div>
+                  <span class="badge">
+                    <ion-spinner name="crescent" style="width: 12px; height: 12px;"></ion-spinner>
+                    Enviando…
+                  </span>
                 } @else {
-                  <div class="flex items-center gap-2">
-                    <div class="flex items-center gap-1.5" style="color: var(--app-warning, #D97706);">
-                      <ion-icon name="time-outline"></ion-icon>
-                      <span class="text-xs font-bold">Pendiente</span>
-                    </div>
-                    <ion-button fill="clear" size="small" (click)="editarTag(tag.ubicacionId)" style="--color: var(--app-primary);">
-                      <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+                  <span class="badge badge-warning">
+                    <ion-icon name="time-outline"></ion-icon>
+                    Pendiente
+                  </span>
+                }
+              </div>
+
+              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+                  {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+                  <span class="num">{{ tag.hora }}</span>
+                </p>
+
+                @if (!sincronizando().has(tag.ubicacionId)) {
+                  <div class="flex items-center gap-1 shrink-0">
+                    <ion-button class="step-btn" (click)="editarTag(tag.ubicacionId)" style="--color: var(--app-primary);">
+                      <ion-icon slot="icon-only" name="create-outline" style="font-size: 0.95rem;"></ion-icon>
                     </ion-button>
-                    <ion-button fill="clear" size="small" (click)="reintentar(tag.ubicacionId)" style="--color: var(--app-primary);">
-                      <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+                    <ion-button class="step-btn" (click)="reintentar(tag.ubicacionId)" style="--color: var(--app-primary);">
+                      <ion-icon slot="icon-only" name="refresh-outline" style="font-size: 0.95rem;"></ion-icon>
                     </ion-button>
                   </div>
                 }
@@ -112,24 +117,24 @@
 
       <!-- Finalizados -->
       @if (finalizados().length > 0) {
-        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-success);">
+        <p class="section-label" style="color: var(--app-success);">
           Finalizado ({{ finalizados().length }})
         </p>
         <div class="flex flex-col gap-3">
           @for (tag of finalizados(); track tag.ubicacionId) {
-            <div class="card" style="opacity: 0.75;">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-bold" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
-                  <p class="text-xs" style="color: var(--app-text-muted);">
-                    {{ zonaDe(tag) }} · {{ tag.cantidadProductos }} producto(s) · {{ tag.hora }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-1.5" style="color: var(--app-success);">
+            <div class="card">
+              <div class="flex items-center justify-between gap-3 mb-2">
+                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
+                <span class="badge badge-success">
                   <ion-icon name="checkmark-done-outline"></ion-icon>
-                  <span class="text-xs font-bold">Enviado</span>
-                </div>
+                  Enviado
+                </span>
               </div>
+              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+              <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+                {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+                <span class="num">{{ tag.hora }}</span>
+              </p>
             </div>
           }
         </div>
@@ -147,48 +152,46 @@
       </ion-segment>
 
       @if (conteoSeleccionado(); as conteo) {
-        <p class="text-xs mb-4" style="color: var(--app-text-muted);">
+        <p class="text-[12px] num mb-4" style="color: var(--app-text-muted);">
           Finalizado el {{ conteo.cerradoEn }}
         </p>
 
-        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-          Resumen del trabajo
-        </p>
+        <p class="section-label">Resumen del trabajo</p>
         <div class="card mb-6">
           <div class="store-row">
             <span class="store-label">Tags finalizados</span>
-            <span class="store-value">{{ tagsDelCierre(conteo).length }}</span>
+            <span class="store-value num">{{ tagsDelCierre(conteo).length }}</span>
           </div>
           <div class="store-row">
             <span class="store-label">Total contados</span>
-            <span class="store-value" style="color: var(--app-success);">{{ contadosDe(conteo) }}</span>
+            <span class="store-value num" style="color: var(--app-success);">{{ contadosDe(conteo) }}</span>
           </div>
           <div class="store-row">
             <span class="store-label">SKUs sin contar</span>
-            <span class="store-value" [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+            <span class="store-value num" [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
               {{ conteo.faltantes }}
             </span>
           </div>
         </div>
 
-        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-success);">
+        <p class="section-label" style="color: var(--app-success);">
           Finalizado ({{ tagsDelCierre(conteo).length }})
         </p>
         <div class="flex flex-col gap-3">
           @for (tag of tagsDelCierre(conteo); track tag.ubicacionId) {
-            <div class="card" style="opacity: 0.75;">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-bold" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
-                  <p class="text-xs" style="color: var(--app-text-muted);">
-                    {{ zonaDe(tag) }} · {{ tag.cantidadProductos }} producto(s) · {{ tag.hora }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-1.5" style="color: var(--app-success);">
+            <div class="card">
+              <div class="flex items-center justify-between gap-3 mb-2">
+                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
+                <span class="badge badge-success">
                   <ion-icon name="checkmark-done-outline"></ion-icon>
-                  <span class="text-xs font-bold">Enviado</span>
-                </div>
+                  Enviado
+                </span>
               </div>
+              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+              <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+                {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+                <span class="num">{{ tag.hora }}</span>
+              </p>
             </div>
           }
         </div>

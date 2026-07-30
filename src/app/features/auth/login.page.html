@@ -1,74 +1,75 @@
 <ion-content class="[&::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
-  <div class="flex flex-col justify-between min-h-full px-6 py-8 relative z-10">
+  <div class="flex flex-col min-h-full max-w-[420px] mx-auto px-5 py-8 relative z-10">
 
     <!-- Header: brand -->
     <div class="mb-10">
-      <h1 class="text-3xl font-extrabold tracking-tight mb-1 leading-none" style="color: var(--app-text);">Control de Inventario</h1>
-      <p class="text-xs font-bold tracking-widest uppercase" style="background: linear-gradient(90deg, #E6126A, #BF24A0, #35BEE8); -webkit-background-clip: text; background-clip: text; color: transparent;">Sodimac</p>
+      <p class="text-[11px] font-bold tracking-[0.18em] uppercase mb-2" style="background: linear-gradient(90deg, #E6126A, #BF24A0, #35BEE8); -webkit-background-clip: text; background-clip: text; color: transparent;">Sodimac</p>
+      <h1 class="text-[30px] font-extrabold leading-[1.05] tracking-tight" style="color: var(--app-text);">Control de<br />inventario.</h1>
     </div>
 
     <!-- Form -->
-    <div class="flex-1">
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <div class="text-center mb-6">
-          <h2 class="text-2xl font-bold tracking-tight mb-1" style="color: var(--app-text);">Bienvenido</h2>
-          <p class="text-base" style="color: var(--app-text-secondary);">Ingresa tus credenciales para continuar</p>
-        </div>
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col flex-1">
+      <div class="mb-8">
+        <h2 class="text-2xl font-extrabold tracking-tight mb-1" style="color: var(--app-text);">Bienvenido.</h2>
+        <p class="text-[15px] leading-relaxed" style="color: var(--app-text-muted);">Ingresa tus credenciales para continuar</p>
+      </div>
 
-        <div class="flex flex-col gap-5">
-          <div>
-            <ion-input
-              formControlName="rut"
-              (ionInput)="onRutInput($event)"
-              label="RUT"
-              labelPlacement="floating"
-              placeholder="12345678-9"
-              inputmode="text"
-              autocomplete="username"
-              class="input-base"
-            ></ion-input>
-            @if (rutControl?.touched && rutControl?.hasError('invalidRut')) {
-              <span class="block text-sm mt-2 ml-1" style="color: var(--app-error-text);">RUT inválido</span>
-            }
-          </div>
-
-          <div>
-            <ion-input
-              formControlName="password"
-              label="Contraseña"
-              labelPlacement="floating"
-              type="password"
-              placeholder="••••••"
-              autocomplete="current-password"
-              class="input-base"
-            ></ion-input>
-            @if (passwordControl?.touched && passwordControl?.hasError('required')) {
-              <span class="block text-sm mt-2 ml-1" style="color: var(--app-error-text);">La contraseña es obligatoria</span>
-            }
-          </div>
-
-          @if (error()) {
-            <div class="error-pill">
-              <ion-icon name="alert-circle-outline"></ion-icon>
-              <span>{{ error() }}</span>
-            </div>
+      <div class="flex flex-col gap-5">
+        <div>
+          <span class="field-label mb-1.5">RUT</span>
+          <ion-input
+            formControlName="rut"
+            (ionInput)="onRutInput($event)"
+            aria-label="RUT"
+            placeholder="12.345.678-9"
+            inputmode="text"
+            autocomplete="username"
+            class="input-base"
+          ></ion-input>
+          @if (rutControl?.touched && rutControl?.hasError('invalidRut')) {
+            <span class="block text-[13px] mt-2 ml-1" style="color: var(--app-error-text);">RUT inválido</span>
           }
-
-          <ion-button
-            expand="block"
-            type="submit"
-            [disabled]="loading() || form.invalid"
-            class="btn-primary"
-          >
-            @if (loading()) {
-              <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
-            }
-            Ingresar
-          </ion-button>
         </div>
-      </form>
 
-      <p class="text-center text-sm mt-8" style="color: var(--app-text-muted);">Contraseña: primeros 6 dígitos del RUT</p>
-    </div>
+        <div>
+          <span class="field-label mb-1.5">Contraseña</span>
+          <ion-input
+            formControlName="password"
+            aria-label="Contraseña"
+            type="password"
+            placeholder="••••••"
+            autocomplete="current-password"
+            class="input-base"
+          ></ion-input>
+          @if (passwordControl?.touched && passwordControl?.hasError('required')) {
+            <span class="block text-[13px] mt-2 ml-1" style="color: var(--app-error-text);">La contraseña es obligatoria</span>
+          }
+        </div>
+
+        @if (error()) {
+          <div class="error-pill">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <span>{{ error() }}</span>
+          </div>
+        }
+      </div>
+
+      <p class="text-[12px] mt-3" style="color: var(--app-text-muted);">Contraseña: primeros 6 dígitos del RUT</p>
+
+      <!-- CTA anclado al fondo, como en el canvas -->
+      <div class="mt-auto pt-10">
+        <ion-button
+          expand="block"
+          type="submit"
+          [disabled]="loading() || form.invalid"
+          class="btn-primary"
+        >
+          @if (loading()) {
+            <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+          }
+          Ingresar
+        </ion-button>
+      </div>
+    </form>
   </div>
 </ion-content>

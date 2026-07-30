@@ -4,6 +4,7 @@
       #scanInput
       formControlName="code"
       [placeholder]="placeholder()"
+      [attr.aria-label]="placeholder()"
       (keyup.enter)="onEnter($event)"
       autofocus
       class="input-base"

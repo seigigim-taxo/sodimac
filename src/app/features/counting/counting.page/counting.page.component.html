@@ -2,9 +2,9 @@
   <ion-toolbar>
     <ion-title>
       @if (tagActual(); as tag) {
-        TAG {{ tag }}
+      TAG {{ tag }}
       } @else {
-        Conteo
+      Conteo
       }
     </ion-title>
     <ion-buttons slot="end">
@@ -17,22 +17,17 @@
   <div class="page-inner py-6">
 
     <!-- Header: evento + zona + total del tag en curso -->
-    <div class="flex items-center justify-between mb-6">
-      <div class="flex flex-col">
-        <h2 class="text-xl font-bold" style="color: var(--app-text);">
+    <div class="flex items-start justify-between gap-3 mb-5">
+      <div class="flex flex-col min-w-0">
+        <h2 class="text-xl font-extrabold leading-tight truncate" style="color: var(--app-text);">
           @if (currentEvent(); as e) {
-            {{ e.nombre }}
+          {{ e.nombre }}
           } @else {
-            Conteo
+          Conteo
           }
         </h2>
-        @if (modoActual() === 'RECONTEO') {
-          <p class="text-xs font-bold uppercase tracking-wide" style="color: var(--app-warning, #D97706);">
-            Reconteo · faltan {{ totalFaltantes() }} producto(s)
-          </p>
-        }
         @if (zonaActual(); as zona) {
-          <p class="text-xs" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
+        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
         }
       </div>
       <div class="session-badge">
@@ -41,110 +36,126 @@
       </div>
     </div>
 
+    @if (modoActual() === 'RECONTEO') {
+    <div class="status-banner mb-4"
+      style="background: var(--app-warning-bg); border-color: var(--app-warning-border); color: var(--app-warning);">
+      <span>Reconteo de <span class="num font-bold">{{ totalFaltantes() }}</span> producto(s)</span>
+    </div>
+    }
+
     <!-- ===== Cantidad ===== -->
     <div class="card mb-4">
       <div class="flex items-center justify-between gap-3">
-        <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--app-text-muted);">
-          Cantidad
-        </span>
-        <ion-input
-          type="number"
-          inputmode="numeric"
-          min="1"
-          [value]="cantidad()"
-          (ionInput)="onCantidadInput($event)"
-          class="input-base"
-          style="max-width: 120px; text-align: center;"
-        ></ion-input>
+        <div class="flex flex-col gap-1">
+          <span class="field-label">Cantidad</span>
+          @if (cantidadMaxima() !== null) {
+          <span class="text-[11px]" style="color: var(--app-text-muted);">
+            Máximo <span class="num font-semibold">{{ cantidadMaxima() }}</span>
+          </span>
+          }
+        </div>
+        <ion-input type="number" inputmode="numeric" min="1" [attr.max]="cantidadMaxima()" [value]="cantidad()"
+          (ionInput)="onCantidadInput($event)" aria-label="Cantidad" class="input-base num"
+          [class.input-invalid]="cantidadExcedida()"
+          style="max-width: 96px; text-align: center; font-weight: 700;"></ion-input>
       </div>
+
+      @if (cantidadExcedida()) {
+      <div class="warning-pill mt-3">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        @if (cantidadMaxima() === 0) {
+        <span>No quedan productos por recontar en este evento</span>
+        } @else {
+        <span>
+          No se puede registrar: la cantidad supera los
+          <span class="num font-bold">{{ cantidadMaxima() }}</span> producto(s) por recontar
+        </span>
+        }
+      </div>
+      }
     </div>
 
-    <app-scan
-      scanType="sku"
-      placeholder="Escanea o ingresa SKU"
-      confirmLabel="Registrar"
-      [showBanner]="false"
-      (scan)="onScanSku($event)"
-    ></app-scan>
+    <app-scan scanType="sku" placeholder="Escanea o ingresa SKU" confirmLabel="Registrar" [showBanner]="false"
+      (scan)="onScanSku($event)"></app-scan>
 
     @if (lastScan(); as scan) {
-      @if (scan.valido) {
-        <div class="status-banner status-banner-success mt-4">
-          <span>✓ SKU: {{ scan.sku }}</span>
-        </div>
-      } @else {
-        <div class="status-banner status-banner-error mt-4">
-          <span>✗ SKU {{ scan.sku }} no está en la muestra</span>
-        </div>
-      }
+    @if (scan.valido) {
+    <div class="status-banner status-banner-success mt-4">
+      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
+    </div>
     } @else {
-      <div class="status-banner status-banner-info mt-4">
-        <span>Escanea un SKU para registrar el conteo</span>
-      </div>
+    <div class="status-banner status-banner-error mt-4">
+      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
+    </div>
+    }
+    } @else {
+    <div class="status-banner status-banner-info mt-4">
+      <span>Escanea un SKU para registrar el conteo</span>
+    </div>
     }
 
     @if (items().length > 0) {
-      <div class="card mt-6">
-        <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color: var(--app-text-muted);">
-          Productos de este TAG
-        </p>
+    <div class="mt-6">
+      <p class="field-label mb-3">Productos de este TAG</p>
 
-        <ion-input
-          [value]="busquedaSku()"
-          (ionInput)="onBusquedaInput($event)"
-          placeholder="Buscar por SKU o descripción"
-          class="input-base mb-3"
-        >
-          <ion-icon slot="start" name="search-outline"></ion-icon>
-        </ion-input>
+      <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
+        placeholder="Buscar por SKU o descripción" class="input-base mb-3">
+        <ion-icon slot="start" name="search-outline"></ion-icon>
+      </ion-input>
 
-        @if (itemsFiltrados().length === 0) {
-          <p class="text-sm text-center py-4" style="color: var(--app-text-muted);">
-            Sin resultados para "{{ busquedaSku() }}"
-          </p>
+      @if (itemsFiltrados().length === 0) {
+      <p class="text-[13px] text-center py-4" style="color: var(--app-text-muted);">
+        Sin resultados para "{{ busquedaSku() }}"
+      </p>
+      }
+
+      <div class="flex flex-col gap-2.5">
+        @for (item of itemsFiltrados(); track item.productoId) {
+        <div class="item-row">
+          <div class="min-w-0">
+            <p class="item-sku">{{ item.sku }}</p>
+            <p class="item-desc">{{ item.descripcion }}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <ion-button class="step-btn" (click)="adjust(item.productoId, -1)">
+              <ion-icon slot="icon-only" name="remove-outline" style="font-size: 0.9rem;"></ion-icon>
+            </ion-button>
+            <span class="qty-chip">{{ item.cantidad }}</span>
+            <ion-button class="step-btn" (click)="adjust(item.productoId, 1)" style="--color: var(--app-primary);">
+              <ion-icon slot="icon-only" name="add-outline" style="font-size: 0.9rem;"></ion-icon>
+            </ion-button>
+            <ion-button class="step-btn step-btn-danger" (click)="delete(item.productoId)">
+              <ion-icon slot="icon-only" name="trash-outline" style="font-size: 0.95rem;"></ion-icon>
+            </ion-button>
+          </div>
+        </div>
         }
-
-        <ion-list lines="full" style="background: transparent;">
-          @for (item of itemsFiltrados(); track item.productoId) {
-            <ion-item style="--background: transparent; --padding-start: 0;">
-              <ion-label>
-                <p class="text-xs" style="color: var(--app-text-muted);">{{ item.sku }}</p>
-                <h3 class="text-sm font-medium" style="color: var(--app-text);">{{ item.descripcion }}</h3>
-              </ion-label>
-              <div slot="end" class="flex items-center gap-2">
-                <ion-button fill="clear" size="small" (click)="adjust(item.productoId, -1)" style="--color: var(--app-text-muted);">
-                  <ion-icon slot="icon-only" name="remove-outline"></ion-icon>
-                </ion-button>
-                <span class="text-base font-bold min-w-6 text-center" style="color: var(--app-text);">{{ item.cantidad }}</span>
-                <ion-button fill="clear" size="small" (click)="adjust(item.productoId, 1)" style="--color: var(--app-primary);">
-                  <ion-icon slot="icon-only" name="add-outline"></ion-icon>
-                </ion-button>
-                <ion-button fill="clear" size="small" (click)="delete(item.productoId)" style="--color: var(--ion-color-danger);">
-                  <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
-                </ion-button>
-              </div>
-            </ion-item>
-          }
-        </ion-list>
       </div>
+    </div>
     }
 
-    <ion-button
-      expand="block"
-      class="btn-primary mt-6"
-      [disabled]="items().length === 0 || finalizando()"
-      (click)="finalizarTag()"
-    >
-      <ion-icon slot="start" name="flag-outline"></ion-icon>
-      Finalizar TAG
-    </ion-button>
+    <!-- Total + CTA, como la barra inferior del canvas -->
+    <div class="mt-6">
+      @if (items().length > 0) {
+      <div class="total-row mb-3">
+        <span class="total-label">Productos registrados</span>
+        <span class="total-value">{{ totalItems() }}</span>
+      </div>
+      }
+      <ion-button expand="block" class="btn-accent" [disabled]="items().length === 0 || finalizando()"
+        (click)="finalizarTag()">
+        <ion-icon slot="start" name="flag-outline"></ion-icon>
+        Finalizar TAG
+      </ion-button>
+    </div>
 
   </div>
 
   @if (finalizando()) {
-    <div class="flex flex-col items-center justify-center gap-3" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
-      <ion-spinner name="crescent" color="light" style="width: 48px; height: 48px;"></ion-spinner>
-      <p class="text-base font-semibold" style="color: white;">Sincronizando TAG…</p>
-    </div>
+  <div class="flex flex-col items-center justify-center gap-3"
+    style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <ion-spinner name="crescent" color="light" style="width: 48px; height: 48px;"></ion-spinner>
+    <p class="text-base font-semibold" style="color: white;">Sincronizando TAG…</p>
+  </div>
   }
 </ion-content>

@@ -34,11 +34,13 @@
     @if (!storeLoading() && currentStore(); as store) {
     <div class="card mb-6">
       <div class="flex items-center gap-3">
-        <ion-icon name="business-outline" class="text-2xl shrink-0" style="color: var(--app-primary);"></ion-icon>
-        <div>
-          <p class="text-xs font-medium mb-0.5" style="color: var(--app-text-muted);">Tienda</p>
-          <p class="text-base font-bold" style="color: var(--app-text);">{{ store.nombre }}</p>
-          <p class="text-xs" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
+        <div class="icon-badge">
+          <ion-icon name="business-outline"></ion-icon>
+        </div>
+        <div class="min-w-0">
+          <p class="field-label mb-1">Tienda</p>
+          <p class="text-[15px] font-bold truncate" style="color: var(--app-text);">{{ store.nombre }}</p>
+          <p class="text-[12px] num" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
         </div>
       </div>
     </div>
@@ -79,11 +81,14 @@
         (click)="selectEvento(evento)">
         <div class="store-row">
           <span class="store-label">Evento</span>
-          <span class="store-value">{{ evento.nombre }}</span>
+          <span class="store-value font-bold"
+            [style.color]="selectedEvent()?.id === evento.id ? 'var(--app-primary)' : 'var(--app-text)'">
+            {{ evento.nombre }}
+          </span>
         </div>
         <div class="store-row">
           <span class="store-label">Fecha programada</span>
-          <span class="store-value">
+          <span class="store-value num">
             {{ evento.fechaProgramada }}
             @if (esVencido(evento)) {
             <span style="color: var(--ion-color-danger); font-weight: 700;"> · Vencido</span>
@@ -92,10 +97,10 @@
         </div>
         <div class="store-row">
           <span class="store-label">Estado</span>
-          <span class="store-value">
-            {{ estadoEfectivoLabel(evento) }}
+          <span class="flex items-center gap-2">
+            <span class="badge" [class.badge-error]="esCerrado(evento)">{{ estadoEfectivoLabel(evento) }}</span>
             @if (esCerrado(evento)) {
-            <span style="color: var(--ion-color-danger); font-weight: 700;"> · No disponible</span>
+            <span class="badge badge-error">No disponible</span>
             }
           </span>
         </div>
@@ -113,7 +118,7 @@
       Sincronizar
       }
     </ion-button>
-    <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+    <p class="hint-text text-center">
       Este evento está en análisis. Sincroniza para descargar la muestra a recontar
     </p>
     } @else {
@@ -124,36 +129,36 @@
     }
 
     @if (conteosCerrados().length > 0) {
-    <p class="text-xs font-semibold uppercase tracking-wider mt-6 mb-3" style="color: var(--app-text-muted);">
-      Conteos finalizados
-    </p>
-    <div class="flex flex-col gap-2">
+    <p class="section-label mt-8">Conteos finalizados</p>
+    <div class="flex flex-col gap-2.5">
       @for (conteo of conteosCerrados(); track conteo.id) {
-      <div class="card" style="padding: 0.75rem 0.875rem;">
-        <div class="flex items-center justify-between gap-3 mb-2">
+      <div class="card">
+        <div class="flex items-center justify-between gap-3 mb-3">
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ conteo.eventoNombre }}</span>
-            <span class="text-xs" style="color: var(--app-text-muted);">{{ conteo.cerradoEn }}</span>
+            <span class="text-[12px] num" style="color: var(--app-text-muted);">{{ conteo.cerradoEn }}</span>
           </div>
-          <span class="text-xs font-bold uppercase tracking-wide shrink-0"
-            style="color: var(--app-success);">Finalizado</span>
+          <span class="badge badge-success">Finalizado</span>
         </div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+        <div class="h-px mb-3" style="background: var(--app-border);"></div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-xs" style="color: var(--app-text-muted);">Iteración</span>
-            <span class="text-xs font-semibold" style="color: var(--app-text);">{{ conteo.iteracion }}</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ conteo.iteracion }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
-            <span class="text-xs font-semibold" style="color: var(--app-text);">{{ tagsFinalizadosDe(conteo) }}</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Tags finalizados</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ tagsFinalizadosDe(conteo)
+              }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-xs" style="color: var(--app-text-muted);">SKUs contados</span>
-            <span class="text-xs font-semibold" style="color: var(--app-success);">{{ contadosDe(conteo) }}</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs contados</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ contadosDe(conteo)
+              }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-xs" style="color: var(--app-text-muted);">SKUs faltantes</span>
-            <span class="text-xs font-semibold"
+            <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs faltantes</span>
+            <span class="text-[13px] font-semibold num"
               [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
               {{ conteo.faltantes }}
             </span>
@@ -166,14 +171,13 @@
     }
 
     @if (currentStore()) {
-    <ion-button expand="block" fill="outline" class="mt-4"
-      style="--border-color: var(--ion-color-danger); --color: var(--ion-color-danger);"
+    <ion-button expand="block" class="btn-outline mt-6" style="--color: var(--ion-color-danger);"
       [disabled]="!puedeCerrarTienda()" (click)="cerrarTienda()">
       <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
       Cerrar tienda
     </ion-button>
     @if (!puedeCerrarTienda()) {
-    <p class="text-xs text-center mt-2" style="color: var(--app-text-muted);">
+    <p class="hint-text text-center">
       Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
     </p>
     }
