@@ -95,6 +95,11 @@ export class SqliteDevSeederRepository implements DevSeederRepository {
          WHERE NOT EXISTS (SELECT 1 FROM sod_evento_inventario WHERE sucursal_id = ? AND estado = 'ABIERTO')`,
         [sucId, 'Cat Candados', hoy, sucId]
       );
+      // Si ya existía de una sesión anterior, se refresca a hoy — evita que quede "vencido" para siempre.
+      await db.run(
+        `UPDATE sod_evento_inventario SET fecha_programada = ? WHERE sucursal_id = ? AND estado = 'ABIERTO'`,
+        [hoy, sucId]
+      );
     }
 
 

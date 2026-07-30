@@ -2,6 +2,18 @@
  * App Global CSS
  */
 
+/* Tipografía de marca — autohospedada, funciona 100% offline (sin CDN) */
+@import "@fontsource/sora/400.css";
+@import "@fontsource/sora/700.css";
+@import "@fontsource/sora/800.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/700.css";
+
+h1, h2, h3, .page-title, .sync-title {
+  font-family: 'Sora', var(--ion-font-family);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -49,7 +61,7 @@
     --background-activated: var(--app-cta-gradient-active);
     --background-disabled: var(--app-surface);
     --border-radius: 18px;
-    --box-shadow: 0 8px 24px rgba(249, 115, 22, 0.30);
+    --box-shadow: 0 8px 24px rgba(230, 18, 106, 0.30);
     --color: #ffffff;
     --opacity-disabled: 1;
     --padding-start: 1.5rem;
@@ -60,7 +72,7 @@
     min-height: 64px;
 
     &:not([disabled]):hover {
-      --box-shadow: 0 12px 32px rgba(249, 115, 22, 0.40);
+      --box-shadow: 0 12px 32px rgba(230, 18, 106, 0.40);
       transform: translateY(-1px);
     }
 
@@ -133,7 +145,7 @@
 
   .card-selected {
     border-color: var(--app-primary) !important;
-    background: rgba(249, 115, 22, 0.08) !important;
+    background: rgba(230, 18, 106, 0.08) !important;
   }
 
   /* ---------- STORE ROWS ---------- */
@@ -366,7 +378,7 @@
   }
 
   .status-banner-info {
-    background: rgba(249, 115, 22, 0.08);
+    background: rgba(230, 18, 106, 0.08);
     color: var(--app-text);
   }
 
@@ -441,13 +453,13 @@
   .sync-bar-fill {
     height: 100%;
     border-radius: 9999px;
-    background: var(--app-cta-gradient);
+    background: var(--app-info);
     transition: width 0.12s linear;
   }
 
   .sync-percent {
     @apply text-3xl font-black tabular-nums;
-    color: var(--app-primary);
+    color: var(--app-info);
   }
 
   .sync-error {
@@ -556,17 +568,17 @@
   }
 
   .tab-en-curso { color: var(--app-primary); }
-  .tab-en-curso .tab-badge { background: rgba(249, 115, 22, 0.15); color: var(--app-primary); }
+  .tab-en-curso .tab-badge { background: rgba(230, 18, 106, 0.15); color: var(--app-primary); }
   .tab-en-curso.active {
-    background: #C2410C;
+    background: #A80E58;
     color: #ffffff;
   }
   .tab-en-curso.active .tab-badge { background: rgba(255, 255, 255, 0.25); color: #ffffff; }
 
-  .tab-pendientes { color: #6366f1; }
-  .tab-pendientes .tab-badge { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+  .tab-pendientes { color: #3F2087; }
+  .tab-pendientes .tab-badge { background: rgba(63, 32, 135, 0.15); color: #3F2087; }
   .tab-pendientes.active {
-    background: #4338CA;
+    background: #3F2087;
     color: #ffffff;
   }
   .tab-pendientes.active .tab-badge { background: rgba(255, 255, 255, 0.25); color: #ffffff; }
@@ -581,13 +593,13 @@
 
   /* ---------- COUNTING STATUS BADGES ---------- */
   .status-in-progress {
-    background: rgba(249, 115, 22, 0.12);
+    background: rgba(230, 18, 106, 0.12);
     color: var(--app-primary);
   }
 
   .status-completed {
-    background: rgba(99, 102, 241, 0.12);
-    color: #6366f1;
+    background: rgba(63, 32, 135, 0.12);
+    color: #3F2087;
   }
 
   .status-synced {
