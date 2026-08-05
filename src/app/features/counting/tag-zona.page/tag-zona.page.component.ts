@@ -110,11 +110,14 @@ export class TagZonaPageComponent implements ViewWillEnter {
     await this.conteoList.cargarTagsReconteo(evento.id, iteracion);
   }
 
+  /*
+   * Las zonas salen de la tienda del evento, no de una asignación por operador:
+   * dentro del evento asignado, el operador elige en cuál trabajar.
+   */
   private cargarZonas(): void {
-    const evento     = this.currentEvent();
-    const operadorId = this.auth.session()?.operadorId;
-    if (evento && operadorId) {
-      void this.zonaFacade.loadZonas(evento.id, operadorId);
+    const evento = this.currentEvent();
+    if (evento) {
+      void this.zonaFacade.loadZonas(evento.sucursalId);
     }
   }
 

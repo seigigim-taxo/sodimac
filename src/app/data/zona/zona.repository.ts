@@ -9,21 +9,25 @@ import { Zona } from '../../domain/zona/models/zona.model';
 export class SqliteZonaRepository implements ZonaRepository {
   private connection = inject(SqliteConnectionService);
 
-  async getByEventoAndOperador(eventoId: number, operadorId: number): Promise<Zona[]> {
+  /*
+   * Sin JOIN contra sod_asignacion: la asignación es operador ↔ evento, no
+   * operador ↔ zona. Dentro del evento, el operador elige libremente entre
+   * todas las zonas de su tienda.
+   */
+  async getBySucursal(sucursalId: number): Promise<Zona[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
       `SELECT z.id, z.sucursal_id, z.zona_tipo_id, z.codigo, z.nombre, z.fecha_registro,
               zt.nombre AS zona_tipo_nombre
        FROM sod_zona z
        INNER JOIN sod_zona_tipo zt ON zt.id = z.zona_tipo_id
-       INNER JOIN sod_asignacion_zona az ON az.zona_id = z.id
-       WHERE az.evento_id = ? AND az.operador_id = ?
+       WHERE z.sucursal_id = ?
        ORDER BY z.codigo ASC`,
-      [eventoId, operadorId]
+      [sucursalId]
     );
     const zonas = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
     if (isDevMode()) {
-      console.log('[ZonaRepo] getByEventoAndOperador', { eventoId, operadorId, total: zonas.length });
+      console.log('[ZonaRepo] getBySucursal', { sucursalId, total: zonas.length });
       console.table(zonas);
     }
     return zonas;

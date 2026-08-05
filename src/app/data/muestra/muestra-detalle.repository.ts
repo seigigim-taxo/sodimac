@@ -8,43 +8,50 @@ import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.mode
 export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository {
   private connection = inject(SqliteConnectionService);
 
+  /*
+   * Transaccional, y acá importa más que en ningún otro lado: el DELETE del
+   * detalle va antes de los INSERT. Si falla a mitad sin transacción, la muestra
+   * queda sin líneas y el operador no puede contar nada.
+   */
   async reemplazarDetalles(muestraId: number, lineas: LineaMuestraParaGuardar[]): Promise<void> {
-    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
-
-    /*
-     * Los productos se dan de alta o se actualizan, pero NUNCA se borran:
-     * sod_conteo.producto_id los referencia y borrar uno rompería conteos ya
-     * hechos. Un producto que sale de la muestra simplemente deja de tener
-     * línea de detalle.
-     */
-    for (const linea of lineas) {
-      await db.run(
-        `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
-         VALUES (?, ?, ?)
-         ON CONFLICT (sku) DO UPDATE SET
-           codigo_barras = excluded.codigo_barras,
-           descripcion   = excluded.descripcion`,
-        [linea.sku, linea.codigoBarras, linea.descripcion]
-      );
-    }
-
-    /*
-     * Reemplazo completo del detalle. Es seguro porque ninguna tabla tiene FK
-     * contra sod_muestra_detalle: son datos derivados de la muestra.
-     */
-    await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId]);
-
-    for (const linea of lineas) {
+    await this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
       /*
-       * stock_sistema queda en 0: la preparación no lo trae todavía. Mientras
-       * siga así, las diferencias van a marcar todo lo contado como sobrante.
+       * Los productos se dan de alta o se actualizan, pero NUNCA se borran:
+       * sod_conteo.producto_id los referencia y borrar uno rompería conteos ya
+       * hechos. Un producto que sale de la muestra simplemente deja de tener
+       * línea de detalle.
        */
-      await db.run(
-        `INSERT INTO sod_muestra_detalle (id_muestra_det_sv, muestra_id, producto_id, stock_sistema)
-         SELECT ?, ?, id, 0 FROM sod_producto WHERE sku = ?`,
-        [linea.idMuestraDet, muestraId, linea.sku]
-      );
-    }
+      for (const linea of lineas) {
+        await db.run(
+          `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
+           VALUES (?, ?, ?)
+           ON CONFLICT (sku) DO UPDATE SET
+             codigo_barras = excluded.codigo_barras,
+             descripcion   = excluded.descripcion`,
+          [linea.sku, linea.codigoBarras, linea.descripcion],
+          false
+        );
+      }
+
+      /*
+       * Reemplazo completo del detalle. Es seguro porque ninguna tabla tiene FK
+       * contra sod_muestra_detalle: son datos derivados de la muestra.
+       */
+      await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId], false);
+
+      for (const linea of lineas) {
+        /*
+         * stock_sistema queda en 0: la preparación no lo trae todavía. Mientras
+         * siga así, las diferencias van a marcar todo lo contado como sobrante.
+         */
+        await db.run(
+          `INSERT INTO sod_muestra_detalle (id_muestra_det_sv, muestra_id, producto_id, stock_sistema)
+           SELECT ?, ?, id, 0 FROM sod_producto WHERE sku = ?`,
+          [linea.idMuestraDet, muestraId, linea.sku],
+          false
+        );
+      }
+    });
   }
 
   async getByMuestra(muestraId: number): Promise<MuestraDetalle[]> {

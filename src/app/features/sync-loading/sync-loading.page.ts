@@ -5,6 +5,24 @@ import { IonButton, IonContent, IonProgressBar } from '@ionic/angular/standalone
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { SincronizarDatosInicialesUseCase } from '../../application/sincronizacion/sincronizar-datos-iniciales.use-case';
 import { EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
+import { ContractError } from '../../domain/shared/errors/contract.error';
+import { NetworkError } from '../../domain/shared/errors/network.error';
+
+/*
+ * Un contrato roto no es un problema de conexión y no se arregla reintentando:
+ * el operador necesita saber que tiene que avisar, no insistir. El detalle
+ * técnico va a la consola, no a la pantalla de alguien en piso de tienda.
+ */
+function mensajeDeError(err: unknown): string {
+  if (err instanceof ContractError) {
+    console.error('[sync] contrato inesperado:', err.message);
+    return 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.';
+  }
+  if (err instanceof NetworkError) {
+    return 'Sin conexión con el servidor. Revisa la red e intenta de nuevo.';
+  }
+  return err instanceof Error ? err.message : 'No se pudo descargar la información.';
+}
 
 /*
  * Descarga inicial tras el login. La barra cubre TODO el proceso: no llega a
@@ -77,7 +95,7 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
       this.router.navigate(['/home']);
     } catch (err: unknown) {
       this.detenerAvance();
-      this.error.set(err instanceof Error ? err.message : 'No se pudo descargar la información.');
+      this.error.set(mensajeDeError(err));
     }
   }
 

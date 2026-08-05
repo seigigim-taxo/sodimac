@@ -4,7 +4,7 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://192.168.1.11/app/ws/sodimac/api'
+  apiUrl: 'http://50.16.13.230/app/ws/sodimac/api'
 };
 
 /*

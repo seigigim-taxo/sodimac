@@ -17,45 +17,52 @@ export class SqliteSucursalRepository implements SucursalRepository {
     return (row.values?.[0]?.['id'] as number | undefined) ?? null;
   }
 
+  /*
+   * Transaccional: una sucursal sin su fila en sod_user_sucursal es invisible
+   * para getByUsuario(), así que escribir solo la primera mitad es peor que no
+   * escribir nada.
+   */
   async guardarDeUsuario(userId: number, tiendas: SucursalParaGuardar[]): Promise<void> {
     if (tiendas.length === 0) return;
 
-    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
+      for (const tienda of tiendas) {
+        /*
+         * codigo_tienda es UNIQUE: sirve de identidad estable entre el backend y
+         * la base local, cuyo id es AUTOINCREMENT propio.
+         */
+        await db.run(
+          `INSERT INTO sod_sucursal (codigo_tienda, nombre)
+           VALUES (?, ?)
+           ON CONFLICT (codigo_tienda) DO UPDATE SET nombre = excluded.nombre`,
+          [tienda.codigoTienda, tienda.nombre],
+          false
+        );
 
-    for (const tienda of tiendas) {
-      /*
-       * codigo_tienda es UNIQUE: sirve de identidad estable entre el backend y
-       * la base local, cuyo id es AUTOINCREMENT propio.
-       */
-      await db.run(
-        `INSERT INTO sod_sucursal (codigo_tienda, nombre)
-         VALUES (?, ?)
-         ON CONFLICT (codigo_tienda) DO UPDATE SET nombre = excluded.nombre`,
-        [tienda.codigoTienda, tienda.nombre]
-      );
+        const row = await db.query(
+          `SELECT id FROM sod_sucursal WHERE codigo_tienda = ?`,
+          [tienda.codigoTienda]
+        );
+        const sucursalId = row.values?.[0]?.['id'] as number | undefined;
+        if (sucursalId === undefined) {
+          throw new Error(`No se pudo recuperar la sucursal ${tienda.codigoTienda}`);
+        }
 
-      const row = await db.query(
-        `SELECT id FROM sod_sucursal WHERE codigo_tienda = ?`,
-        [tienda.codigoTienda]
-      );
-      const sucursalId = row.values?.[0]?.['id'] as number | undefined;
-      if (sucursalId === undefined) {
-        throw new Error(`No se pudo recuperar la sucursal ${tienda.codigoTienda}`);
+        /*
+         * sod_user_sucursal no tiene UNIQUE, así que la idempotencia va con un
+         * INSERT condicional en vez de ON CONFLICT.
+         */
+        await db.run(
+          `INSERT INTO sod_user_sucursal (user_id, sucursal_id)
+           SELECT ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1 FROM sod_user_sucursal WHERE user_id = ? AND sucursal_id = ?
+           )`,
+          [userId, sucursalId, userId, sucursalId],
+          false
+        );
       }
-
-      /*
-       * sod_user_sucursal no tiene UNIQUE, así que la idempotencia va con un
-       * INSERT condicional en vez de ON CONFLICT.
-       */
-      await db.run(
-        `INSERT INTO sod_user_sucursal (user_id, sucursal_id)
-         SELECT ?, ?
-         WHERE NOT EXISTS (
-           SELECT 1 FROM sod_user_sucursal WHERE user_id = ? AND sucursal_id = ?
-         )`,
-        [userId, sucursalId, userId, sucursalId]
-      );
-    }
+    });
   }
 
   async getByUsuario(userId: number): Promise<Sucursal[]> {

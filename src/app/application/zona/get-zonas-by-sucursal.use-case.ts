@@ -3,10 +3,10 @@ import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repos
 import { Zona } from '../../domain/zona/models/zona.model';
 
 @Injectable({ providedIn: 'root' })
-export class GetZonasByEventoUseCase {
+export class GetZonasBySucursalUseCase {
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
 
-  async execute(eventoId: number, operadorId: number): Promise<Zona[]> {
-    return this.zonaRepo.getByEventoAndOperador(eventoId, operadorId);
+  async execute(sucursalId: number): Promise<Zona[]> {
+    return this.zonaRepo.getBySucursal(sucursalId);
   }
 }

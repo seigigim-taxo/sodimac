@@ -1,12 +1,12 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { GetZonasByEventoUseCase } from '../../application/zona/get-zonas-by-evento.use-case';
+import { GetZonasBySucursalUseCase } from '../../application/zona/get-zonas-by-sucursal.use-case';
 import { RegistrarUbicacionUseCase } from '../../application/ubicacion/registrar-ubicacion.use-case';
 import { Zona } from '../../domain/zona/models/zona.model';
 export type { Zona };
 
 @Injectable({ providedIn: 'root' })
 export class ZonaFacade {
-  private getZonasByEvento   = inject(GetZonasByEventoUseCase);
+  private getZonasBySucursal = inject(GetZonasBySucursalUseCase);
   private registrarUbicacion = inject(RegistrarUbicacionUseCase);
 
   private zonesSignal        = signal<Zona[]>([]);
@@ -26,11 +26,11 @@ export class ZonaFacade {
   readonly noZones      = computed(() => this.zonesSignal().length === 0 && !this.loadingSignal());
   readonly canContinue  = computed(() => this.tagValueSignal() !== '' && this.selectedZoneSignal() !== null);
 
-  async loadZonas(eventoId: number, operadorId: number): Promise<void> {
+  async loadZonas(sucursalId: number): Promise<void> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
-      this.zonesSignal.set(await this.getZonasByEvento.execute(eventoId, operadorId));
+      this.zonesSignal.set(await this.getZonasBySucursal.execute(sucursalId));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar zonas');
     } finally {

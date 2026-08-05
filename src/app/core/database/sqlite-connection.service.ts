@@ -47,4 +47,35 @@ export class SqliteConnectionService {
     this.connections.set(dbName, db);
     return db;
   }
+
+  /*
+   * Ejecuta `fn` dentro de una transacción: o se escribe todo o no se escribe
+   * nada. Sin esto, una escritura que toca varias tablas puede fallar a mitad y
+   * dejar filas huérfanas — una sucursal sin su vínculo al operador, o una
+   * muestra sin detalle.
+   *
+   * IMPORTANTE: los `db.run()` de adentro deben pasar `false` como tercer
+   * argumento. Ese parámetro vale `true` por default y hace que cada statement
+   * abra y cierre su propia transacción, que es justo lo que se quiere evitar.
+   */
+  async enTransaccion<T>(dbName: string, fn: (db: SQLiteDBConnection) => Promise<T>): Promise<T> {
+    const db = await this.getConnection(dbName);
+    await db.beginTransaction();
+    try {
+      const resultado = await fn(db);
+      await db.commitTransaction();
+      return resultado;
+    } catch (err) {
+      /*
+       * El rollback va en su propio try: si también falla, el error que importa
+       * es el original, no el del rollback.
+       */
+      try {
+        await db.rollbackTransaction();
+      } catch (errRollback) {
+        console.error(`${TAG} falló el rollback:`, errRollback);
+      }
+      throw err;
+    }
+  }
 }
