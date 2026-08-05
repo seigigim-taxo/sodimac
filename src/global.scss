@@ -232,17 +232,6 @@ ion-title {
     }
   }
 
-  /* Campo fuera de rango — el aviso lo explica, el borde lo señala */
-  .input-invalid {
-    --border-color: var(--app-warning);
-    --border-width: 2px;
-
-    &:focus-within {
-      --border-color: var(--app-warning);
-      box-shadow: 0 0 0 3px var(--app-warning-bg);
-    }
-  }
-
   /* ---------- CARDS ---------- */
   .card {
     @apply rounded-2xl p-4 border transition-all duration-200;
@@ -293,6 +282,20 @@ ion-title {
     background: var(--app-error-surface);
     border-color: var(--app-error-border);
     color: var(--app-error-text);
+  }
+
+  /* ---------- TAG CHIPS (sugerencias de reconteo) ---------- */
+  .tag-chip {
+    --border-radius: 16px;
+    --border-color: var(--app-primary);
+    --color: var(--app-primary);
+    --background: transparent;
+    text-transform: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    height: 32px;
+    min-height: 32px;
   }
 
   /* ---------- DATA ROWS ---------- */
@@ -569,6 +572,12 @@ ion-title {
     background: var(--app-error-surface);
     border-color: var(--app-error-border);
     color: var(--app-error-text);
+  }
+
+  .status-banner-warning {
+    background: var(--app-warning-bg);
+    border-color: var(--app-warning-border);
+    color: var(--app-warning);
   }
 
   .btn-manual-input {

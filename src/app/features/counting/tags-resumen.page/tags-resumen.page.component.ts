@@ -1,5 +1,6 @@
 import { Component, inject, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ViewWillEnter } from '@ionic/angular';
 import {
   AlertController,
   IonBackButton,
@@ -18,19 +19,23 @@ import {
   ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline } from 'ionicons/icons';
-import { TagsMockStore, ZONAS_MOCK } from '../../../state/counting-mock/tags-mock.store';
-import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
+import {
+  alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
+  createOutline, refreshOutline, timeOutline, trashOutline,
+} from 'ionicons/icons';
+import { AuthFacade } from '../../../state/auth/auth.facade';
+import { PdaFacade } from '../../../state/pda/pda.facade';
+import { EventoFacade } from '../../../state/evento/evento.facade';
+import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
+import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
 
 /*
- * MOCK — resumen de tags con 2 estados: Pendiente (finalizado localmente,
- * sync falló, encolado) y Finalizado (sincronizado con éxito). Lee del
- * mismo TagsMockStore que la pantalla de trabajo, así que refleja en vivo
- * lo que se va cerrando ahí. El tag EN CURSO (el que se está contando
- * ahora, antes de "Finalizar TAG") no aparece aquí a propósito: su
- * recuperación tras un apagón es un problema de persistencia que resuelve
- * la propia pantalla de trabajo al reabrirse, no algo que este resumen
- * necesite mostrar.
+ * Resumen de los conteos del evento, agrupados por ubicación y estado
+ * (EN_CURSO / FINALIZADO / SINCRONIZADO), leídos de sod_conteo. Las pestañas
+ * separan las iteraciones cuando hay más de una.
+ *
+ * Desde acá también se cierra el conteo del evento, que es lo que lo deja
+ * EN_ANALISIS o CERRADO.
  */
 @Component({
   selector: 'app-tags-resumen',
@@ -52,103 +57,219 @@ import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
     IonToolbar,
   ],
 })
-export class TagsResumenPageComponent {
-  private tagsStore       = inject(TagsMockStore);
-  private tagSesion       = inject(TagSesionStore);
-  private router          = inject(Router);
+export class TagsResumenPageComponent implements ViewWillEnter {
+  private router = inject(Router);
   private alertController = inject(AlertController);
   private toastController = inject(ToastController);
 
-  pendientes    = this.tagsStore.pendientes;
-  finalizados   = this.tagsStore.finalizados;
-  sincronizando = this.tagsStore.sincronizando;
-  modoActual    = this.tagsStore.modoActual;
-  hayConteoActivo = () => this.pendientes().length > 0 || this.finalizados().length > 0;
+  // CONTEO (real)
+  private auth = inject(AuthFacade);
+  private pda = inject(PdaFacade);
+  private eventoFacade = inject(EventoFacade);
+  private conteoList = inject(ConteoListFacade);
+  private resumenFacade = inject(ResumenEventoFacade);
 
-  // Resumen final del conteo activo
-  totalMuestra    = this.tagsStore.totalMuestra;
-  totalContados   = this.tagsStore.totalContados;
-  totalFaltantes  = this.tagsStore.totalFaltantes;
-  todosEnviados   = this.tagsStore.todosEnviados;
+  currentEvent = this.eventoFacade.selectedEvent;
+  // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
+  iteracionActual = this.conteoList.iteracionActiva;
 
-  /*
-   * Sin conteo activo: se muestran pestañas, una por cada conteo ya
-   * cerrado de este evento (solo lectura), más recientes primero.
-   */
-  conteosCerrados     = this.tagsStore.conteosCerradosDelEventoActual;
-  conteoSeleccionadoId = signal<number | null>(null);
-  conteoSeleccionado   = computed(() => {
-    const id = this.conteoSeleccionadoId() ?? this.conteosCerrados()[0]?.id ?? null;
-    return this.conteosCerrados().find((c) => c.id === id) ?? this.conteosCerrados()[0] ?? null;
+  resumenAvanceGlobal = this.resumenFacade.avance;
+  resumenesEvento = computed(() => {
+    const evento = this.currentEvent();
+    if (!evento) return [];
+    return this.conteoList.conteos().filter((c) => c.eventoId === evento.id);
   });
-  noTags = () => !this.hayConteoActivo() && this.conteosCerrados().length === 0;
+  // Pestañas por iteración — normalmente hay una sola mientras no exista reconteo real.
+  iteracionesReales = computed(() => {
+    const set = new Set(this.resumenesEvento().map((c) => c.iteracion));
+    return [...set].sort((a, b) => b - a);
+  });
+  private iteracionSeleccionadaSignal = signal<number | null>(null);
+  iteracionSeleccionada = computed(() => this.iteracionSeleccionadaSignal() ?? this.iteracionesReales()[0] ?? null);
+  resumenesIteracionActual = computed(() => {
+    const it = this.iteracionSeleccionada();
+    return it === null ? [] : this.resumenesEvento().filter((c) => c.iteracion === it);
+  });
+
+  // Pestañas por conteo individual (TAG)
+  conteosComoPestanas = computed(() => this.resumenesIteracionActual());
+  private conteoSeleccionadoSignal = signal<ConteoResumen | null>(null);
+  conteoSeleccionado = computed(() => {
+    const explicito = this.conteoSeleccionadoSignal();
+    if (explicito) return explicito;
+    const conteos = this.conteosComoPestanas();
+    return conteos.length > 0 ? conteos[0] : null;
+  });
+
+  // Resumen global de la iteración actual
+  resumenGlobalIteracion = computed(() => {
+    const conteos = this.resumenesIteracionActual();
+    if (conteos.length === 0) return null;
+
+    const totalUnidades = conteos.reduce((sum, c) => sum + c.totalUnidades, 0);
+    const totalProductos = conteos.reduce((sum, c) => sum + c.totalProductos, 0);
+    const tagsFinalizados = conteos.filter((c) => c.estado === 'FINALIZADO' || c.estado === 'SINCRONIZADO').length;
+
+    return {
+      totalUnidades,
+      totalProductos,
+      tagsFinalizados,
+      totalTags: conteos.length,
+    };
+  });
+
+  // Modo solo lectura: cuando el evento está en EN_ANALISIS, no se permiten acciones destructivas
+  modoSoloLectura = computed(() => {
+    const estado = this.currentEvent()?.estado;
+    return estado === 'EN_ANALISIS';
+  });
+
+  enCursoReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'EN_CURSO'));
+  finalizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'FINALIZADO'));
+  sincronizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'SINCRONIZADO'));
+  /*
+   * El conteo del evento ya se cerró: quedó EN_ANALISIS (faltaron SKUs) o
+   * CERRADO. En ambos casos esta pantalla pasa a ser de solo lectura — no se
+   * puede volver a finalizar lo que ya está finalizado.
+   */
+  conteoCerrado = computed(() => {
+    const estado = this.currentEvent()?.estado;
+    return estado === 'EN_ANALISIS' || estado === 'CERRADO';
+  });
+  estadoEventoLabel = computed(() =>
+    this.currentEvent()?.estado === 'CERRADO' ? 'Conteo cerrado' : 'Conteo cerrado — evento en análisis'
+  );
+
+  // No se puede cerrar el evento con algún TAG todavía en curso.
+  puedeFinalizarEvento = computed(() =>
+    !this.conteoCerrado() &&
+    this.resumenesEvento().length > 0 &&
+    this.resumenesEvento().every((c) => c.estado !== 'EN_CURSO')
+  );
+  finalizandoEvento = this.resumenFacade.finalizando;
+
+
+  isSyncing(c: ConteoResumen): boolean {
+    return this.conteoList.isSyncing(c);
+  }
+
 
   constructor() {
-    addIcons({ alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline });
+    addIcons({
+      alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
+      createOutline, refreshOutline, timeOutline, trashOutline,
+    });
+
   }
 
-  // Conteos que pertenecen a un cierre — por relación (cierreId), no por snapshot guardado.
-  tagsDelCierre(conteo: { id: number }): ReturnType<TagsMockStore['tagsDeCierre']> {
-    return this.tagsStore.tagsDeCierre(conteo.id);
+  /*
+   * La carga va acá y no en el constructor: ion-router-outlet mantiene las
+   * páginas vivas en el stack de navegación, así que al volver desde Home el
+   * componente se reutiliza y el constructor NO se vuelve a ejecutar — la
+   * pantalla quedaba mostrando lo que había cargado la primera vez.
+   * ionViewWillEnter sí corre en cada entrada, incluida la primera.
+   */
+  async ionViewWillEnter(): Promise<void> {
+    // El estado del evento pudo cambiar fuera de esta pantalla (se cerró el
+    // conteo, se abrió una iteración): sin releerlo se decide con datos viejos.
+    await this.eventoFacade.refreshSelected();
+
+    // A esta pantalla se puede llegar directo desde el menú, sin pasar por
+    // TAG+zona: la ronda hay que resolverla acá también.
+    const evento = this.currentEvent();
+    if (evento) await this.conteoList.cargarIteracionActiva(evento.id);
+    this.cargarResumenReal();
+    await this.cargarResumenAvance();
   }
 
-  contadosDe(conteo: { id: number }): number {
-    return this.tagsStore.contadosDeCierre(conteo.id);
+  private cargarResumenReal(): void {
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (operadorId && pdaId) {
+      void this.conteoList.load(operadorId, pdaId);
+    }
   }
 
-  // Resuelven tag/zona desde sod_ubicacion (mock) por id — el conteo no los lleva propios.
-  codigoDe(tag: { ubicacionId: number }): string {
-    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.tag ?? '';
+  private async cargarResumenAvance(): Promise<void> {
+    const evento = this.currentEvent();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (evento && operadorId && pdaId) {
+      await this.resumenFacade.cargarAvance(evento.id, operadorId, pdaId);
+    }
   }
 
-  zonaDe(tag: { ubicacionId: number }): string {
-    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.zonaCodigo ?? '';
+  async sincronizarReal(c: ConteoResumen): Promise<void> {
+    await this.conteoList.sincronizar(c);
   }
 
-  reintentar(ubicacionId: number): void {
-    this.tagsStore.reintentar(ubicacionId);
-  }
-
-  onSegmentChange(event: Event): void {
-    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
-    this.conteoSeleccionadoId.set(Number(value));
-  }
-
-  // Solo disponible para tags Pendiente — un TAG ya Enviado no se puede reabrir.
-  editarTag(ubicacionId: number): void {
-    const tag = this.tagsStore.tags().find((t) => t.ubicacionId === ubicacionId);
-    if (!tag) return;
-    const ubicacion = this.tagsStore.obtenerUbicacion(ubicacionId);
-    const zona      = ZONAS_MOCK.find((z) => z.codigo === ubicacion?.zonaCodigo) ?? ZONAS_MOCK[0];
-    this.tagSesion.iniciar(ubicacion?.tag ?? '', zona, tag.items);
-    this.router.navigate(['/counting']);
-  }
-
-  async finalizarConteo(): Promise<void> {
-    if (!this.todosEnviados()) return;
-
-    const esReconteo = this.modoActual() === 'RECONTEO';
+  async eliminarReal(c: ConteoResumen): Promise<void> {
     const alert = await this.alertController.create({
-      header:  esReconteo ? 'Finalizar reconteo' : 'Finalizar conteo',
-      message: `Contados ${this.totalContados()} de ${this.totalMuestra()} productos${this.totalFaltantes() > 0 ? ` (${this.totalFaltantes()} sin contar)` : ''}. Esta acción no se puede deshacer. ¿Confirmas?`,
+      header: 'Eliminar conteo',
+      message: `¿Eliminar el conteo del TAG ${c.tag} (${c.zonaCodigo})?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarConteo(esReconteo); } },
+        { text: 'Eliminar', role: 'destructive', handler: () => { void this.conteoList.delete(c); } },
       ],
     });
     await alert.present();
   }
 
-  private async doFinalizarConteo(esReconteo: boolean): Promise<void> {
-    this.tagsStore.archivarConteoActual();
+  async finalizarEventoReal(): Promise<void> {
+    if (!this.puedeFinalizarEvento()) return;
+    const evento = this.currentEvent();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (!evento || !operadorId || !pdaId) return;
 
-    const toast = await this.toastController.create({
-      message:  esReconteo ? 'Reconteo finalizado — todos los TAGs sincronizados' : 'Conteo finalizado — todos los TAGs sincronizados',
-      duration: 2500,
-      color:    'success',
-      position: 'top',
+    const alert = await this.alertController.create({
+      header: 'Finalizar conteo',
+      message: 'Vas a cerrar el conteo de este evento. Esta acción no se puede deshacer. ¿Confirmas?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarEventoReal(evento.id, operadorId, pdaId); } },
+      ],
     });
-    await toast.present();
+    await alert.present();
+  }
+
+  private async doFinalizarEventoReal(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
+    const resultado = await this.resumenFacade.finalizarEvento(eventoId, operadorId, pdaId);
+
+    if (!resultado) {
+      await this.avisar(this.resumenFacade.error() ?? 'Error al finalizar el conteo', 'danger');
+      return;
+    }
+
+    // El evento cambió de estado en base: sin releerlo, Home y esta misma
+    // pantalla seguirían tratándolo como ABIERTO (y Home no ofrecería
+    // "Sincronizar" para abrir la iteración siguiente).
+    await this.eventoFacade.refreshSelected();
+    await this.avisar(
+      resultado.faltantes > 0
+        ? `Conteo finalizado — evento en análisis (${resultado.faltantes} SKU(s) sin contar)`
+        : 'Conteo finalizado — evento cerrado',
+      'success'
+    );
     this.router.navigate(['/home']);
+  }
+
+  private async avisar(message: string, color: 'success' | 'danger'): Promise<void> {
+    const toast = await this.toastController.create({ message, duration: 3000, color, position: 'top' });
+    await toast.present();
+  }
+
+  onIteracionChange(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
+    this.iteracionSeleccionadaSignal.set(Number(value));
+    // Al cambiar de iteración, resetear el conteo seleccionado
+    this.conteoSeleccionadoSignal.set(null);
+  }
+
+  onConteoChange(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
+    const conteoId = Number(value);
+    const conteo = this.conteosComoPestanas().find((c) => c.ubicacionId === conteoId);
+    this.conteoSeleccionadoSignal.set(conteo ?? null);
   }
 }

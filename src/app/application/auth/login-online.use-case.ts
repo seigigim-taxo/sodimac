@@ -16,24 +16,16 @@ export class LoginOnlineUseCase {
     const rut   = parseInt(response.user.rutNormalizado.slice(0, -1), 10);
     const rutDv = response.user.rutNormalizado.slice(-1).toUpperCase();
 
-    const localId = await this.operadorRepo.guardar({
-      id:              0,
-      rolId:           1,
-      rut,
-      rutDv,
-      nombres:         response.user.nombreCompleto,
-      apellidoPaterno: response.user.apellidoPaterno || null,
-      apellidoMaterno: response.user.apellidoMaterno || null,
-      correo:          response.user.correo,
-      fechaRegistro:   '',
-    });
+    /*
+     * El login solo devuelve rut y correo: el nombre y el rol no viajan en la
+     * respuesta, asi que las columnas quedan nulas hasta que otra sincronizacion
+     * las complete.
+     */
+    const localId = await this.operadorRepo.asegurarOperador(rut, rutDv, response.user.correo);
 
     return {
-      token:          response.token,
       operadorId:     localId,
       rutNormalizado: response.user.rutNormalizado,
-      nombreCompleto: response.user.nombreCompleto,
-      cargo:          response.user.cargo,
       correo:         response.user.correo,
     };
   }

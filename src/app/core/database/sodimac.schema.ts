@@ -49,8 +49,11 @@ const TABLES: readonly string[] = [
     fecha_registro TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
 
+  // codigo_evento_sv: clave del backend. Nullable porque todavía no lo manda;
+  // SQLite admite varios NULL en una columna UNIQUE.
   `CREATE TABLE IF NOT EXISTS sod_evento_inventario (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_evento_sv       TEXT             DEFAULT NULL UNIQUE,
     agenda_id           INTEGER          DEFAULT NULL REFERENCES sod_agenda(id),
     sucursal_id         INTEGER NOT NULL REFERENCES sod_sucursal(id),
     nombre              TEXT    NOT NULL DEFAULT '',
@@ -69,13 +72,18 @@ const TABLES: readonly string[] = [
 
   `CREATE TABLE IF NOT EXISTS sod_muestra (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_muestra_sv TEXT             DEFAULT NULL UNIQUE,
     evento_id      INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
     sucursal_id    INTEGER NOT NULL REFERENCES sod_sucursal(id),
+    nombre         TEXT             DEFAULT NULL,
     nombre_archivo TEXT             DEFAULT NULL
   )`,
 
+  // id_muestra_det_sv: id remoto. Acá sí va el numérico — no hay código de
+  // negocio, y hace falta para subir los conteos referenciando la línea original.
   `CREATE TABLE IF NOT EXISTS sod_muestra_detalle (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_muestra_det_sv     INTEGER          DEFAULT NULL,
     muestra_id         INTEGER NOT NULL REFERENCES sod_muestra(id),
     producto_id        INTEGER NOT NULL REFERENCES sod_producto(id),
     stock_sistema      REAL    NOT NULL DEFAULT 0.00,
@@ -139,6 +147,7 @@ const TABLES: readonly string[] = [
     pda_id           INTEGER NOT NULL REFERENCES sod_pda(id),
     cantidad_fisica  REAL    NOT NULL,
     estado           TEXT    NOT NULL DEFAULT 'EN_CURSO' CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
+    iteracion        INTEGER NOT NULL DEFAULT 1,
     fecha_hora       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`
 

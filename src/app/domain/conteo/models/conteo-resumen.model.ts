@@ -16,5 +16,6 @@ export interface ConteoResumen {
   zonaNombre:     string | null;
   totalProductos: number;
   totalUnidades:  number;
+  iteracion:      number;
   fechaUltima:    string;
 }

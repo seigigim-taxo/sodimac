@@ -1,0 +1,83 @@
+/*
+ * Datos que devuelve la preparación de la sincronización.
+ *
+ * El login solo confirma la identidad (rut + correo); el perfil completo del
+ * operador —nombre, cargo, tipo— llega recién acá. Por eso la preparación no
+ * es opcional: sin ella la sesión queda sin nombre para mostrar.
+ */
+export interface UsuarioPreparado {
+  login: string;
+  rut: string;
+  rutNormalizado: string;
+  nombreCompleto: string;
+  nombres: string;
+  apellidoPaterno: string | null;
+  apellidoMaterno: string | null;
+  cargo: string;
+  tipoUsuario: string;
+  esUsuarioCliente: boolean;
+  autenticado: boolean;
+}
+
+/*
+ * `idTienda` es el id del backend. No se persiste: sod_sucursal usa su propio
+ * AUTOINCREMENT y la identidad compartida entre ambos mundos es codigoTienda.
+ */
+export interface TiendaPreparada {
+  idTienda: number;
+  codigoTienda: string;
+  nombreTienda: string;
+}
+
+/*
+ * Una línea de la muestra: el producto que hay que contar.
+ * `stockSistema` no viene en la preparación — la columna queda en 0 hasta que
+ * el backend lo entregue.
+ */
+export interface DetalleMuestraPreparado {
+  idMuestraDet: number;
+  sku: string;
+  codigoBarras: string | null;
+  descripcion: string | null;
+}
+
+/*
+ * El endpoint manda la muestra aplanada: el encabezado se repite en cada fila
+ * junto con su detalle. Acá ya viene agrupada — un encabezado, N detalles.
+ */
+export interface MuestraPreparada {
+  idMuestra: number;
+  codigoMuestra: string;
+  nombreMuestra: string | null;
+  fechaInicioVigencia: string | null;
+  fechaFinVigencia: string | null;
+  detalles: DetalleMuestraPreparado[];
+}
+
+/*
+ * `fechaProgramada` puede venir null: el backend todavía no la define.
+ * `fechaEjecucion` y `fechaRegistro` no se piden — las pone el dispositivo al
+ * iniciar el conteo.
+ */
+export interface EventoPreparado {
+  fechaProgramada: string | null;
+  estado: string;
+}
+
+export interface DatosPreparacion {
+  usuario: UsuarioPreparado;
+  tiendas: TiendaPreparada[];
+  muestra: MuestraPreparada | null;
+  evento: EventoPreparado | null;
+}
+
+export interface PreparacionRequest {
+  correo: string;
+  rut: string;
+}
+
+/*
+ * Etapas que atraviesa la sincronización inicial. La UI las usa para no dar
+ * por terminada la carga hasta que las tablas quedaron efectivamente escritas.
+ */
+export type EtapaSincronizacion = 'DESCARGANDO' | 'GUARDANDO' | 'LISTO';

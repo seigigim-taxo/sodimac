@@ -110,57 +110,88 @@
     }
 
     @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
-    <ion-button expand="block" class="btn-primary mt-6" [disabled]="sincronizando()" (click)="sincronizar()">
+    <!-- Banner de estado: PDA en espera -->
+    <div class="status-banner status-banner-warning mt-6">
+      <ion-icon name="hourglass-outline"></ion-icon>
+      <span>PDA en espera — SGO está analizando resultados</span>
+    </div>
+
+    <!-- Info adicional -->
+    <div class="card mb-4 mt-4">
+      <p class="text-sm" style="color: var(--app-text-muted);">
+        El evento <strong>{{ selectedEvent()!.nombre }}</strong> está en análisis.
+        Sincroniza para obtener la muestra de la siguiente iteración.
+      </p>
+    </div>
+
+    @if (sincronizandoTimeout()) {
+    <!-- Timeout: mostrar botón de reintentar -->
+    <div class="card mb-4" style="border-color: var(--ion-color-warning);">
+      <p class="text-sm" style="color: var(--ion-color-warning); font-weight: 600;">
+        ⚠ El SGO no ha respondido. ¿Deseas reintentar?
+      </p>
+    </div>
+    <ion-button expand="block" class="btn-primary" (click)="reintentarSincronizacion()">
+      <ion-icon slot="start" name="sync-outline"></ion-icon>
+      Reintentar sincronización
+    </ion-button>
+    } @else {
+    <!-- Sincronización normal -->
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="sincronizando()" (click)="sincronizar()">
       @if (sincronizando()) {
       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
-      Sincronizando…
+      Analizando...
       } @else {
-      Sincronizar
+      <ion-icon slot="start" name="sync-outline"></ion-icon>
+      Sincronizar con SGO
       }
     </ion-button>
-    <p class="hint-text text-center">
-      Este evento está en análisis. Sincroniza para descargar la muestra a recontar
-    </p>
+    }
     } @else {
     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading()"
       (click)="continue()">
-      {{ modoActual() === 'RECONTEO' ? 'Iniciar reconteo' : 'Iniciar conteo' }}
+      @if (esReconteo()) {
+        Iniciar reconteo
+      } @else {
+        Iniciar conteo
+      }
     </ion-button>
     }
 
-    @if (conteosCerrados().length > 0) {
+    @if (eventosFinalizados().length > 0) {
     <p class="section-label mt-8">Conteos finalizados</p>
     <div class="flex flex-col gap-2.5">
-      @for (conteo of conteosCerrados(); track conteo.id) {
+      @for (item of eventosFinalizados(); track item.evento.id) {
       <div class="card">
         <div class="flex items-center justify-between gap-3 mb-3">
           <div class="flex flex-col min-w-0">
-            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ conteo.eventoNombre }}</span>
-            <span class="text-[12px] num" style="color: var(--app-text-muted);">{{ conteo.cerradoEn }}</span>
+            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ item.evento.nombre }}</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">{{ estadoEfectivoLabel(item.evento) }}</span>
           </div>
-          <span class="badge badge-success">Finalizado</span>
+          <span class="badge" [class.badge-success]="item.evento.estado === 'CERRADO'"
+            [class.badge-warning]="item.evento.estado === 'EN_ANALISIS'">
+            {{ item.evento.estado === 'CERRADO' ? 'Cerrado' : 'En análisis' }}
+          </span>
         </div>
         <div class="h-px mb-3" style="background: var(--app-border);"></div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
           <div class="flex items-center justify-between">
             <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
-            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ conteo.iteracion }}</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.iteracion }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-[12px]" style="color: var(--app-text-muted);">Tags finalizados</span>
-            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ tagsFinalizadosDe(conteo)
-              }}</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.tagsFinalizados }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs contados</span>
-            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ contadosDe(conteo)
-              }}</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ item.resumen.contados }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs faltantes</span>
             <span class="text-[13px] font-semibold num"
-              [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
-              {{ conteo.faltantes }}
+              [style.color]="item.resumen.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+              {{ item.resumen.faltantes }}
             </span>
           </div>
         </div>

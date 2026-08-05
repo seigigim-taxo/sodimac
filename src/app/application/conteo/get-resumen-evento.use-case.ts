@@ -1,0 +1,38 @@
+import { Injectable, inject } from '@angular/core';
+import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo.repository';
+import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
+import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
+
+export interface ResumenEvento {
+  totalMuestra: number;
+  contados: number;
+  faltantes: number;
+  tagsFinalizados: number;
+  iteracion: number;
+  qContado: number;
+}
+
+@Injectable({ providedIn: 'root' })
+export class GetResumenEventoUseCase {
+  private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
+  private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
+  private detalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
+
+  // Lectura pura (sin tocar el estado del evento) — para mostrar el resumen de
+  // un evento ya cerrado o en análisis, ej. en el historial de Home.
+  async execute(eventoId: number, operadorId: number, pdaId: number): Promise<ResumenEvento> {
+    const resumenes = await this.conteoRepo.getResumenes(operadorId, pdaId);
+    const delEvento = resumenes.filter((r) => r.eventoId === eventoId);
+    const tagsFinalizados = delEvento.filter((r) => r.estado === 'FINALIZADO' || r.estado === 'SINCRONIZADO').length;
+    const iteracion = await this.conteoRepo.getIteracionActiva(eventoId);
+
+    const muestra = await this.muestraRepo.getByEvento(eventoId);
+    const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
+    const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
+    const faltantes = Math.max(0, totalMuestra - skusContados.length);
+
+    const qContado = await this.conteoRepo.getUnidadesContadasPorEvento(eventoId, operadorId, pdaId);
+
+    return { totalMuestra, contados: skusContados.length, faltantes, tagsFinalizados, iteracion, qContado };
+  }
+}

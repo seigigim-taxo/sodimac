@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'http://192.168.1.9/api'
+  apiUrl: 'http://50.16.13.230/app/ws/sodimac/api'
 };

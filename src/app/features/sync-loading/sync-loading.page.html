@@ -7,14 +7,19 @@
     </div>
 
     <div class="sync-body">
-      <p class="sync-step-label">Descargando datos para trabajar…</p>
+      @if (error(); as mensaje) {
+        <p class="sync-step-label">{{ mensaje }}</p>
+        <ion-button expand="block" (click)="reintentar()">Reintentar</ion-button>
+      } @else {
+        <p class="sync-step-label">{{ etiqueta() }}</p>
 
-      <ion-progress-bar
-        [value]="progress() / 100"
-        style="width: 100%; height: 8px; border-radius: 9999px; --background: var(--app-border); --progress-background: var(--app-info);"
-      ></ion-progress-bar>
+        <ion-progress-bar
+          [value]="progress() / 100"
+          style="width: 100%; height: 8px; border-radius: 9999px; --background: var(--app-border); --progress-background: var(--app-info);"
+        ></ion-progress-bar>
 
-      <p class="sync-percent">{{ progress() | number:'1.0-0' }}%</p>
+        <p class="sync-percent">{{ progress() | number:'1.0-0' }}%</p>
+      }
     </div>
 
   </div>

@@ -9,5 +9,6 @@ export interface ConteoItem {
   descripcion:    string | null;
   cantidadFisica: number;
   estado:         EstadoConteo;
+  iteracion:      number;
   fechaHora:      string;
 }

@@ -20,13 +20,14 @@ describe('LoginPage', () => {
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
       'AuthFacade',
-      ['login', 'logout', 'isAuthenticated'],
+      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin'],
       {
         loading: () => false,
         error: () => null,
       }
     );
     authSpy.isAuthenticated.and.returnValue(false);
+    authSpy.wasOfflineLogin.and.returnValue(false);
 
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 

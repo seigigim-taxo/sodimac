@@ -22,11 +22,13 @@ import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { formatRutDisplay } from './shared/utils/rut.utils';
+import { BuscadorSkuComponent } from './shared/components/buscador-sku/buscador-sku.component';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   imports: [
+    BuscadorSkuComponent,
     IonApp,
     IonRouterOutlet,
     IonMenu,
@@ -65,7 +67,7 @@ export class AppComponent {
     this.router.navigate(['/home']);
   }
 
-  goTags(): void {
+  goConteos(): void {
     this.router.navigate(['/tags-resumen']);
   }
 

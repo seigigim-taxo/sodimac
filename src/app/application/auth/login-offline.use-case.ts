@@ -30,11 +30,8 @@ export class LoginOfflineUseCase {
     return {
       fueOffline: true,
       session: {
-        token:          'offline',
         operadorId:     cached.id,
         rutNormalizado,
-        nombreCompleto: cached.nombres ?? '',
-        cargo:          '',
         correo:         cached.correo,
       },
     };

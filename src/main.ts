@@ -22,9 +22,10 @@ import { OPERADOR_REPOSITORY_TOKEN } from './app/domain/auth/repositories/operad
 import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/sucursal.repository';
 import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
 import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/ubicacion.repository';
-import { DEV_SEEDER_REPOSITORY_TOKEN } from './app/domain/dev/repositories/dev-seeder.repository';
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
+import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
 import { SqliteConteoRepository } from './app/data/conteo/conteo.repository';
@@ -38,17 +39,27 @@ import { AuthService } from './app/data/auth/auth.service';
 import { CapacitorSessionStorageRepository } from './app/data/auth/session-storage.repository';
 import { SqliteOperadorRepository } from './app/data/auth/operador.repository';
 import { SqliteSucursalRepository } from './app/data/sucursal/sucursal.repository';
-import { SqliteDevSeederRepository } from './app/data/dev/dev-seeder.repository';
 
-// DB must complete before Auth or PDA query SQLite.
-// Theme uses Capacitor Preferences (not SQLite) — runs in parallel.
+/*
+ * DB must complete before Auth or PDA query SQLite.
+ * Theme uses Capacitor Preferences (not SQLite) — runs in parallel.
+ *
+ * El try/catch es deliberado: un APP_INITIALIZER que rechaza aborta el bootstrap
+ * y deja la pantalla EN BLANCO, sin ninguna pista de qué falló. Prefiere arrancar
+ * y que el error se vea al intentar usar la app (login, conteo), que es donde el
+ * operador puede reportarlo. El detalle queda en consola con este tag.
+ */
 const initializeApp = (
   db:   DatabaseRepository,
   auth: AuthFacade,
   pda:  PdaFacade,
 ) => async () => {
-  await db.initialize();
-  await Promise.all([auth.init(), pda.init()]);
+  try {
+    await db.initialize();
+    await Promise.all([auth.init(), pda.init()]);
+  } catch (err) {
+    console.error('[initializeApp] fallo al inicializar la app:', err);
+  }
 };
 
 const initializeTheme = (theme: ThemeFacade) => () => theme.init();
@@ -81,10 +92,17 @@ bootstrapApplication(AppComponent, {
     { provide: EVENTO_REPOSITORY_TOKEN,          useClass: SqliteEventoRepository },
     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
+
+    /*
+     * PLAN_MUESTRA_REPOSITORY_TOKEN quedó SIN implementación a propósito: la
+     * muestra de las iteraciones de reconteo la decide el SGO y ese endpoint
+     * todavía no existe. Abrir una iteración nueva falla con NullInjectorError
+     * hasta que se registre acá un HttpPlanMuestraRepository.
+     */
     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
-    { provide: DEV_SEEDER_REPOSITORY_TOKEN,      useClass: SqliteDevSeederRepository },
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
+    { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
   ],
 });

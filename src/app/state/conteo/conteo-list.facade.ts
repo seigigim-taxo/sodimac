@@ -1,7 +1,9 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { GetConteosUseCase } from '../../application/conteo/get-conteos.use-case';
+import { GetIteracionActivaUseCase } from '../../application/conteo/get-iteracion-activa.use-case';
 import { DeleteConteoSesionUseCase } from '../../application/conteo/delete-conteo-sesion.use-case';
 import { SincronizarConteoUseCase } from '../../application/sincronizacion/sincronizar-conteo.use-case';
+import { GetTagsReconteoUseCase } from '../../application/conteo/get-tags-reconteo.use-case';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
 export type { ConteoResumen };
 
@@ -14,14 +16,26 @@ function keyOf(conteo: ConteoResumen): string {
 @Injectable({ providedIn: 'root' })
 export class ConteoListFacade {
   private getConteos    = inject(GetConteosUseCase);
+  private getIteracion  = inject(GetIteracionActivaUseCase);
   private deleteSesion  = inject(DeleteConteoSesionUseCase);
   private sincronizarUC = inject(SincronizarConteoUseCase);
+  private getTagsUC     = inject(GetTagsReconteoUseCase);
 
   private conteosSignal      = signal<ConteoResumen[]>([]);
   private seleccionadoSignal = signal<ConteoResumen | null>(null);
   private loadingSignal      = signal(false);
   private errorSignal        = signal<string | null>(null);
   private syncingKeysSignal  = signal<ReadonlySet<string>>(new Set());
+
+  // TAGs sugeridos para reconteo: los que ya se contaron en iteraciones anteriores.
+  /*
+   * Ronda en curso del evento seleccionado. Vive acá y no en EventoFacade porque
+   * se deriva de sod_conteo — el evento no guarda la iteración.
+   */
+  private iteracionActivaSignal = signal(1);
+
+  private tagsReconteoSignal = signal<string[]>([]);
+  private tagsReconteoLoadingSignal = signal(false);
 
   readonly conteos       = this.conteosSignal.asReadonly();
   readonly seleccionado  = this.seleccionadoSignal.asReadonly();
@@ -31,6 +45,10 @@ export class ConteoListFacade {
   readonly finalizados   = computed(() => this.conteosSignal().filter((c) => c.estado === 'FINALIZADO'));
   readonly sincronizados = computed(() => this.conteosSignal().filter((c) => c.estado === 'SINCRONIZADO'));
   readonly noConteos     = computed(() => this.conteosSignal().length === 0 && !this.loadingSignal());
+
+  readonly iteracionActiva    = this.iteracionActivaSignal.asReadonly();
+  readonly tagsReconteo       = this.tagsReconteoSignal.asReadonly();
+  readonly tagsReconteoLoading = this.tagsReconteoLoadingSignal.asReadonly();
 
   isSyncing(conteo: ConteoResumen): boolean {
     return this.syncingKeysSignal().has(keyOf(conteo));
@@ -95,5 +113,36 @@ export class ConteoListFacade {
         return next;
       });
     }
+  }
+
+  /*
+   * Carga los TAGs ya contados en iteraciones anteriores para sugerirlos en
+   * la pantalla de reconteo. Si iteracionActual === 1, no hay reconteo y la
+   * lista queda vacía.
+   */
+  async cargarIteracionActiva(eventoId: number): Promise<number> {
+    const iteracion = await this.getIteracion.execute(eventoId);
+    this.iteracionActivaSignal.set(iteracion);
+    return iteracion;
+  }
+
+  async cargarTagsReconteo(eventoId: number, iteracionActual: number): Promise<void> {
+    this.tagsReconteoLoadingSignal.set(true);
+    try {
+      this.tagsReconteoSignal.set(await this.getTagsUC.execute(eventoId, iteracionActual));
+    } catch (err) {
+      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar TAGs de reconteo');
+      this.tagsReconteoSignal.set([]);
+    } finally {
+      this.tagsReconteoLoadingSignal.set(false);
+    }
+  }
+
+  /*
+   * Indica si un TAG ya fue contado en iteraciones anteriores. Se usa en la
+   * UI para decidir si mostrar confirmación al ingresar un TAG nuevo.
+   */
+  esTagSugerido(tag: string): boolean {
+    return this.tagsReconteoSignal().includes(tag.trim().toUpperCase());
   }
 }

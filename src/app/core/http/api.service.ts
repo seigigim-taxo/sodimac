@@ -1,7 +1,6 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
-import { Observable, map, throwError } from 'rxjs';
+import { Injectable } from '@angular/core';
 import { environment } from '../../../environments/environment';
+import { NetworkError } from '../../domain/shared/errors/network.error';
 
 export interface ApiResponse<T> {
   status: 'OK' | 'ERROR';
@@ -13,37 +12,76 @@ export interface ApiResponse<T> {
   providedIn: 'root',
 })
 export class ApiService {
-  private http = inject(HttpClient);
   private readonly baseUrl = environment.apiUrl;
 
-  get<T>(path: string, params?: Record<string, string | number | boolean>): Observable<T> {
-    let httpParams = new HttpParams();
+  async get<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
+    const url = new URL(`${this.baseUrl}/${path}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        httpParams = httpParams.set(key, String(value));
+        url.searchParams.set(key, String(value));
       });
     }
 
-    return this.http
-      .get<ApiResponse<T>>(`${this.baseUrl}/${path}`, { params: httpParams })
-      .pipe(map((response) => this.unwrap(response)));
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      return this.unwrap<T>(data);
+    } catch (err) {
+      throw this.mapError(err);
+    }
   }
 
-  post<T>(path: string, body: unknown): Observable<T> {
-    return this.http
-      .post<ApiResponse<T>>(`${this.baseUrl}/${path}`, body)
-      .pipe(map((response) => this.unwrap(response)));
+  async post<T>(path: string, body: unknown): Promise<T> {
+    try {
+      const response = await fetch(`${this.baseUrl}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      return this.unwrap<T>(data);
+    } catch (err) {
+      throw this.mapError(err);
+    }
   }
 
-  private unwrap<T>(response: ApiResponse<T>): T {
-    if (response.status === 'ERROR') {
-      throw new Error(response.msg ?? 'Error en el servicio');
+  private unwrap<T>(data: ApiResponse<T>): T {
+    if (data.status === 'ERROR') {
+      throw new Error(data.msg ?? 'Error en el servicio');
     }
 
-    if (response.data === undefined || response.data === null) {
+    if (data.data === undefined || data.data === null) {
       throw new Error('Respuesta del servicio sin datos');
     }
 
-    return response.data;
+    return data.data;
+  }
+
+  /*
+   * Los fallos de fetch llegan como TypeError con mensajes como
+   * "Failed to fetch", "NetworkError" o "Load failed". Los mapeo a NetworkError
+   * para que AuthFacade pueda detectarlos y caer al login offline.
+   */
+  private mapError(err: unknown): Error {
+    if (err instanceof NetworkError) return err;
+    if (err instanceof Error) {
+      const msg = err.message.toLowerCase();
+      if (
+        msg.includes('network') ||
+        msg.includes('timeout') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('failed to connect') ||
+        msg.includes('unable to resolve') ||
+        msg.includes('socket') ||
+        msg.includes('load failed')
+      ) {
+        return new NetworkError(err.message);
+      }
+      return err;
+    }
+    return new NetworkError('Error de red desconocido');
   }
 }

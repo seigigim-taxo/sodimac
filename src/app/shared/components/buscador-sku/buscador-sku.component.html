@@ -1,0 +1,18 @@
+<div class="card">
+  <p class="field-label mb-3">Buscador SKU → TAG</p>
+
+  @if (hayEvento()) {
+  <ion-input [value]="valor()" (ionInput)="onInput($event)" (keyup.enter)="buscar()"
+    aria-label="Buscar SKU en el evento" placeholder="SKU a buscar" class="input-base mb-3"
+    style="--background: var(--app-surface-hover); --border-color: var(--app-primary); --border-width: 2px;">
+    <ion-icon slot="start" name="search-outline"></ion-icon>
+  </ion-input>
+  <ion-button expand="block" class="btn-primary" [disabled]="!valor().trim() || buscando()" (click)="buscar()">
+    Buscar
+  </ion-button>
+  } @else {
+  <p class="text-[13px]" style="color: var(--app-text-muted);">
+    Selecciona un evento para buscar dónde se contó un SKU.
+  </p>
+  }
+</div>

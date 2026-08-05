@@ -21,6 +21,16 @@ export class SqliteConnectionService {
   }
 
   async getConnection(dbName: string): Promise<SQLiteDBConnection> {
+    /*
+     * En web el plugin exige el elemento jeep-sqlite en el DOM y falla con un
+     * error que no dice nada del contexto. Se corta antes con un mensaje que sí
+     * explica qué pasa: sin esto, cualquier consulta desde `ng serve` terminaba
+     * en una pantalla en blanco.
+     */
+    if (!this.isSupported) {
+      throw new Error(`${TAG} SQLite solo está disponible en plataforma nativa (Android/iOS). En web no hay base local.`);
+    }
+
     const cached = this.connections.get(dbName);
     if (cached) {
       return cached;
