@@ -7,11 +7,11 @@ export class DeleteConteoItemUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
   async execute(
-    eventoId: number, ubicacionId: number,
+    conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
     estado: EstadoConteo
   ): Promise<void> {
     if (estado === 'SINCRONIZADO') throw new Error('Un conteo sincronizado no se puede modificar');
-    return this.conteoRepo.delete(eventoId, ubicacionId, productoId, operadorId, pdaId, estado);
+    return this.conteoRepo.delete(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);
   }
 }

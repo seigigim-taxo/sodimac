@@ -4,6 +4,7 @@ import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo
 import { PLAN_MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/plan-muestra.repository';
 
 export interface ResultadoAbrirIteracion {
+  conteoId:          number;
   iteracion:         number;
   iteracionAnterior: number;
   // false = la ronda se abrió pero no hay muestra que recontar (nada que revisar).
@@ -11,17 +12,14 @@ export interface ResultadoAbrirIteracion {
 }
 
 /*
- * Abre la ronda siguiente de un evento que quedó EN_ANALISIS: lo pasa a RECONTEO,
- * que es lo que habilita al operador a volver a contar.
+ * Abre la ronda siguiente de un evento que quedó EN_ANALISIS: crea su fila en
+ * sod_conteo y pasa el evento a RECONTEO, que es lo que habilita al operador a
+ * volver a contar.
  *
- * El NÚMERO de la ronda no se persiste: la iteración vive solo en sod_conteo, y
- * una ronda recién abierta todavía no tiene filas propias. El número que devuelve
- * este caso de uso es informativo (para el mensaje que ve el operador); la fila
- * real se estampa con MAX(iteracion) al primer escaneo.
- *
- * LIMITACIÓN CONOCIDA que se arrastra de ahí: mientras no exista dónde guardar la
- * ronda activa, el primer conteo de la ronda nueva se registra con el número de la
- * anterior. Corregirlo requiere decidir dónde se guarda esa ronda.
+ * La ronda se crea ACÁ, vacía, y no al primer escaneo. Es lo que permite
+ * distinguir "ronda 2 abierta y sin contar" de "ronda 1 cerrada" — antes la
+ * iteración se derivaba de MAX() sobre las líneas, así que el primer conteo de
+ * la ronda nueva se registraba con el número de la anterior.
  *
  * `iteracionSgo` queda como punto de entrada para cuando el análisis del SGO
  * devuelva el número.
@@ -48,7 +46,14 @@ export class AbrirSiguienteIteracionUseCase {
       throw new Error('Solo se puede abrir una iteración nueva sobre un evento en análisis.');
     }
 
-    const actual    = await this.conteoRepo.getIteracionActiva(eventoId);
+    /*
+     * Un evento EN_ANALISIS no tiene ronda abierta —la anterior se cerró—, así
+     * que el número previo sale de la última ronda registrada. Si no hay
+     * ninguna, la ronda actual es la 1.
+     */
+    const ultima = await this.conteoRepo.getUltimaRonda(eventoId);
+    const actual = ultima?.iteracion ?? 1;
+
     const siguiente = iteracionSgo ?? actual + 1;
     // Una iteración nunca retrocede: si el SGO mandara un número menor o igual,
     // se corta acá antes de reabrir una ronda ya cerrada.
@@ -64,10 +69,16 @@ export class AbrirSiguienteIteracionUseCase {
 
     const muestraId = await this.planMuestraRepo.prepararMuestraDeIteracion(eventoId, siguiente);
 
+    /*
+     * La ronda se crea antes de habilitar el reconteo: si el operador entrara a
+     * contar y la ronda no existiera, sus líneas no tendrían de qué colgar.
+     */
+    const ronda = await this.conteoRepo.abrirRonda(eventoId, siguiente);
     await this.eventoRepo.updateEstado(eventoId, 'RECONTEO');
 
     return {
-      iteracion:         siguiente,
+      conteoId:          ronda.id,
+      iteracion:         ronda.iteracion,
       iteracionAnterior: actual,
       conMuestra:        muestraId !== null,
     };

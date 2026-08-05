@@ -111,42 +111,52 @@ function parsearUsuario(raw: unknown): UsuarioPreparado {
 
 /* `codigo_tienda` es la clave con que se vincula todo; `nombre` es NOT NULL. */
 function parsearTiendas(raw: unknown): TiendaPreparada[] {
-  return comoLista(raw).map((t, i) => {
-    const campo = `data.tiendas[${i}]`;
-    return {
+  const lista = comoLista(raw);
+  if (lista.length === 0) return [];
+
+  const t = lista[0];
+  const campo = 'data.tiendas';
+  return [
+    {
       idTienda: enteroOpcional(t, 'id_tienda') ?? 0,
       codigoTienda: texto(t, 'codigo_tienda', campo),
       nombreTienda: texto(t, 'nombre_tienda', campo),
-    };
-  });
+    },
+  ];
 }
 
 /*
- * Las filas vienen aplanadas: encabezado repetido + una línea de detalle cada
- * una. Se agrupan por codigo_muestra y se devuelve la primera muestra, que es
- * la única que la app maneja hoy.
+ * La muestra viene como objeto suelto y los productos como array separado
+ * en `data.productos`. Se agrupan los detalles por muestra.
  */
-function parsearPrimeraMuestra(raw: unknown): MuestraPreparada | null {
-  const filas = comoLista(raw);
-  const primera = filas[0];
-  if (!primera) return null;
+function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): MuestraPreparada | null {
+  const muestra = esJson(muestraRaw) ? muestraRaw : null;
+  if (!muestra) return null;
 
-  const codigo = texto(primera, 'codigo_muestra', 'data.muestras[0]');
-  const suyas = filas.filter((f) => f['codigo_muestra'] === codigo);
+  const codigo = texto(muestra, 'codigo_muestra', 'data.muestras');
+
+  const productos = comoLista(productosRaw);
+  
+  console.log('[Parser] Productos recibidos:', productos.length);
+  console.log('[Parser] Productos raw:', productos);
+
+  const detalles = productos.map((p, i) => ({
+    sku: texto(p, 'sku', `data.productos[${i}]`),
+    idMuestraDet: enteroOpcional(p, 'id_muestra_det') ?? 0,
+    codigoBarras: textoOpcional(p, 'codigo_barras'),
+    descripcion: textoOpcional(p, 'descripcion'),
+  }));
+  
+  console.log('[Parser] Detalles parseados:', detalles);
+  console.log('[Parser] SKUs extraídos:', detalles.map(d => d.sku));
 
   return {
-    idMuestra: enteroOpcional(primera, 'id_muestra') ?? 0,
+    idMuestra: enteroOpcional(muestra, 'id_muestra') ?? 0,
     codigoMuestra: codigo,
-    nombreMuestra: textoOpcional(primera, 'nombre_muestra'),
-    fechaInicioVigencia: aFechaIso(textoOpcional(primera, 'fecha_inicio_vigencia')),
-    fechaFinVigencia: aFechaIso(textoOpcional(primera, 'fecha_fin_vigencia')),
-    detalles: suyas.map((f, i) => ({
-      /* Sin sku la línea no sirve: es la clave con que se resuelve el producto. */
-      sku: texto(f, 'sku', `data.muestras[${i}]`),
-      idMuestraDet: enteroOpcional(f, 'id_muestra_det') ?? 0,
-      codigoBarras: textoOpcional(f, 'codigo_barras'),
-      descripcion: textoOpcional(f, 'descripcion'),
-    })),
+    nombreMuestra: textoOpcional(muestra, 'nombre_muestra'),
+    fechaInicioVigencia: aFechaIso(textoOpcional(muestra, 'fecha_inicio_vigencia')),
+    fechaFinVigencia: aFechaIso(textoOpcional(muestra, 'fecha_fin_vigencia')),
+    detalles,
   };
 }
 
@@ -172,13 +182,28 @@ function parsearEvento(raw: unknown): EventoPreparado | null {
   };
 }
 
+/*
+ * Las zonas vienen como tuplas [codigo, descripcion]. Se normalizan a objetos.
+ */
+function parsearZonas(raw: unknown): { codigo: string; descripcion: string | null }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((t): t is [unknown, unknown] => Array.isArray(t) && t.length >= 1)
+    .map((t) => ({
+      codigo: typeof t[0] === 'string' ? t[0] : '',
+      descripcion: typeof t[1] === 'string' ? t[1] : null,
+    }))
+    .filter((z) => z.codigo !== '');
+}
+
 export function parsearPreparacion(raw: unknown): DatosPreparacion {
   const data = objeto(raw, 'data');
 
   return {
     usuario: parsearUsuario(data['usuario']),
     tiendas: parsearTiendas(data['tiendas']),
-    muestra: parsearPrimeraMuestra(data['muestras']),
+    muestra: parsearPrimeraMuestra(data['muestras'], data['productos']),
     evento: parsearEvento(data['eventos']),
+    zonas: parsearZonas(data['zonas_tienda']),
   };
 }

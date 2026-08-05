@@ -19,11 +19,11 @@ export class IniciarSesionConteoUseCase {
    * la sesión parte vacía (las filas se crearán con el primer scan).
    */
   async execute(
-    eventoId: number, ubicacionId: number, operadorId: number, pdaId: number
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
   ): Promise<IniciarSesionResult> {
-    const items = await this.conteoRepo.getBySesion(eventoId, ubicacionId, operadorId, pdaId, 'EN_CURSO');
+    const items = await this.conteoRepo.getBySesion(conteoId, ubicacionId, operadorId, pdaId, 'EN_CURSO');
     return {
-      sesion:    { eventoId, ubicacionId, operadorId, pdaId },
+      sesion:    { conteoId, ubicacionId, operadorId, pdaId },
       items,
       recovered: items.length > 0,
     };

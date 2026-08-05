@@ -7,8 +7,8 @@ export class DeleteConteoSesionUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
   async execute(
-    eventoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo
   ): Promise<void> {
-    return this.conteoRepo.deleteSesion(eventoId, ubicacionId, operadorId, pdaId, estado);
+    return this.conteoRepo.deleteSesion(conteoId, ubicacionId, operadorId, pdaId, estado);
   }
 }

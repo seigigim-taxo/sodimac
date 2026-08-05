@@ -5,6 +5,7 @@ import { UpsertConteoItemUseCase } from '../../application/conteo/upsert-conteo-
 import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-item.use-case';
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
 import { FinalizarSesionConteoUseCase } from '../../application/conteo/finalizar-sesion-conteo.use-case';
+import { GetRondaActivaUseCase } from '../../application/conteo/get-ronda-activa.use-case';
 import { WriteQueue } from '../../core/utils/write-queue';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { SesionConteo } from '../../domain/conteo/models/sesion-conteo.model';
@@ -18,6 +19,7 @@ export class ConteoFacade {
   private adjustItem    = inject(AdjustConteoItemUseCase);
   private deleteItem    = inject(DeleteConteoItemUseCase);
   private finalizarUC   = inject(FinalizarSesionConteoUseCase);
+  private getRonda      = inject(GetRondaActivaUseCase);
 
   private sesionSignal     = signal<SesionConteo | null>(null);
   private itemsSignal      = signal<ConteoItem[]>([]);
@@ -41,13 +43,24 @@ export class ConteoFacade {
   readonly totalItems = computed(() => this.itemsSignal().length);
   readonly enCurso    = computed(() => this.sesionSignal() !== null && !this.finalizadaSignal());
 
+  /*
+   * La ronda se resuelve UNA vez acá y viaja en la sesión: de ahí en más, cada
+   * línea sabe a qué ronda pertenece sin volver a preguntarlo. Si el evento no
+   * tiene ronda abierta no se puede contar — es un estado real (evento en
+   * análisis o cerrado), así que se informa en vez de escribir en el vacío.
+   */
   async init(eventoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void> {
     this.reset();
     this.loadingSignal.set(true);
     try {
+      const ronda = await this.getRonda.execute(eventoId);
+      if (!ronda) {
+        throw new Error('El evento no tiene una ronda de conteo abierta.');
+      }
+
       const [muestraSet, resultado] = await Promise.all([
         this.loadMuestra.execute(eventoId),
-        this.iniciarSesion.execute(eventoId, ubicacionId, operadorId, pdaId),
+        this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
       ]);
       this.muestraSet = muestraSet;
       this.sesionSignal.set(resultado.sesion);
@@ -69,7 +82,12 @@ export class ConteoFacade {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
-    const productoId = this.muestraSet.skuMap.get(sku.trim().toUpperCase());
+    const skuBuscado = sku.trim().toUpperCase();
+    const productoId = this.muestraSet.skuMap.get(skuBuscado);
+    
+    console.log('[ConteoFacade.scan] SKU buscado:', skuBuscado);
+    console.log('[ConteoFacade.scan] SKUs en mapa:', Array.from(this.muestraSet.skuMap.keys()));
+    console.log('[ConteoFacade.scan] productoId encontrado:', productoId);
 
     if (productoId === undefined) {
       // SKU no está en la muestra — feedback rojo, no persiste
@@ -84,7 +102,7 @@ export class ConteoFacade {
     await this.writeQueue.enqueue(async () => {
       try {
         const item = await this.upsertItem.execute(
-          sesion.eventoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad
         );
         this.upsertItemEnMemoria(item);
         persistido = true;
@@ -101,7 +119,7 @@ export class ConteoFacade {
     await this.writeQueue.enqueue(async () => {
       try {
         const item = await this.adjustItem.execute(
-          sesion.eventoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, delta, 'EN_CURSO'
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, delta, 'EN_CURSO'
         );
         this.upsertItemEnMemoria(item);
       } catch (err) {
@@ -116,7 +134,7 @@ export class ConteoFacade {
     await this.writeQueue.enqueue(async () => {
       try {
         await this.deleteItem.execute(
-          sesion.eventoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, 'EN_CURSO'
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, 'EN_CURSO'
         );
         this.itemsSignal.update((prev) => prev.filter((i) => i.productoId !== productoId));
       } catch (err) {
@@ -130,9 +148,7 @@ export class ConteoFacade {
     if (!sesion) return;
     this.loadingSignal.set(true);
     try {
-      await this.finalizarUC.execute(
-        sesion.eventoId, sesion.ubicacionId, sesion.operadorId, sesion.pdaId
-      );
+      await this.finalizarUC.execute(sesion.conteoId, sesion.ubicacionId, sesion.operadorId);
       this.finalizadaSignal.set(true);
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al finalizar sesión');

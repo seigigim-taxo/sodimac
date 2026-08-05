@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 30;
+export const SODIMAC_DB_VERSION = 31;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -137,17 +137,40 @@ const TABLES: readonly string[] = [
     registros_procesados INTEGER          DEFAULT NULL
   )`,
 
+  /*
+   * LA RONDA. Se crea VACÍA al abrir la iteración, no al primer escaneo: por eso
+   * "ronda 2 abierta y sin contar" es distinguible de "ronda 1 cerrada", que es
+   * justo lo que antes no se podía y hacía que las rondas se mezclaran.
+   * El UNIQUE hace idempotente abrir la misma iteración dos veces.
+   */
   `CREATE TABLE IF NOT EXISTS sod_conteo (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    evento_id        INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
-    ubicacion_id     INTEGER DEFAULT NULL REFERENCES sod_ubicacion(id),
-    producto_id      INTEGER NOT NULL REFERENCES sod_producto(id),
-    operador_id      INTEGER NOT NULL REFERENCES sod_user(id),
-    pda_id           INTEGER NOT NULL REFERENCES sod_pda(id),
-    cantidad_fisica  REAL    NOT NULL,
-    estado           TEXT    NOT NULL DEFAULT 'EN_CURSO' CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
-    iteracion        INTEGER NOT NULL DEFAULT 1,
-    fecha_hora       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    evento_id      INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
+    iteracion      INTEGER NOT NULL,
+    estado         TEXT    NOT NULL DEFAULT 'ABIERTO'
+                   CHECK (estado IN ('ABIERTO', 'FINALIZADO', 'SINCRONIZADO')),
+    fecha_apertura TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_cierre   TEXT             DEFAULT NULL,
+    UNIQUE (evento_id, iteracion)
+  )`,
+
+  /*
+   * LO CONTADO. El TAG entra por relación (ubicacion_id), no como columna de la
+   * ronda: un mismo TAG se cuenta en varias rondas y una ronda toca varios TAGs.
+   * operador_id y pda_id van acá porque varios operadores trabajan la misma ronda.
+   */
+  `CREATE TABLE IF NOT EXISTS sod_conteo_detalle (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conteo_id       INTEGER NOT NULL REFERENCES sod_conteo(id),
+    ubicacion_id    INTEGER NOT NULL REFERENCES sod_ubicacion(id),
+    producto_id     INTEGER NOT NULL REFERENCES sod_producto(id),
+    operador_id     INTEGER NOT NULL REFERENCES sod_user(id),
+    pda_id          INTEGER NOT NULL REFERENCES sod_pda(id),
+    cantidad_fisica REAL    NOT NULL,
+    estado          TEXT    NOT NULL DEFAULT 'EN_CURSO'
+                    CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
+    fecha_hora      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
   )`
 
 ];
@@ -176,6 +199,7 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_asignacion',
   'sod_sincronizacion',
   'sod_conteo',
+  'sod_conteo_detalle',
 ] as const;
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];

@@ -21,17 +21,26 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
        * hechos. Un producto que sale de la muestra simplemente deja de tener
        * línea de detalle.
        */
+      console.log('[MuestraDetalle] Guardando', lineas.length, 'líneas para muestra', muestraId);
+      console.log('[MuestraDetalle] SKUs a guardar:', lineas.map(l => l.sku));
+      
       for (const linea of lineas) {
+        const skuNormalizado = linea.sku.trim().toUpperCase();
+        console.log('[MuestraDetalle] Normalizado:', linea.sku, '→', skuNormalizado);
         await db.run(
           `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
            VALUES (?, ?, ?)
            ON CONFLICT (sku) DO UPDATE SET
              codigo_barras = excluded.codigo_barras,
              descripcion   = excluded.descripcion`,
-          [linea.sku, linea.codigoBarras, linea.descripcion],
+          [skuNormalizado, linea.codigoBarras, linea.descripcion],
           false
         );
       }
+
+      const tablaProductos = await db.query(`SELECT * FROM sod_producto`, []);
+      console.log('[DB] Tabla sod_producto completa:');
+      console.table(tablaProductos.values);
 
       /*
        * Reemplazo completo del detalle. Es seguro porque ninguna tabla tiene FK
@@ -40,6 +49,7 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
       await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId], false);
 
       for (const linea of lineas) {
+        const skuNormalizado = linea.sku.trim().toUpperCase();
         /*
          * stock_sistema queda en 0: la preparación no lo trae todavía. Mientras
          * siga así, las diferencias van a marcar todo lo contado como sobrante.
@@ -47,10 +57,14 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         await db.run(
           `INSERT INTO sod_muestra_detalle (id_muestra_det_sv, muestra_id, producto_id, stock_sistema)
            SELECT ?, ?, id, 0 FROM sod_producto WHERE sku = ?`,
-          [linea.idMuestraDet, muestraId, linea.sku],
+          [linea.idMuestraDet, muestraId, skuNormalizado],
           false
         );
       }
+      
+      const tablaDetalle = await db.query(`SELECT * FROM sod_muestra_detalle`, []);
+      console.log('[DB] Tabla sod_muestra_detalle completa:');
+      console.table(tablaDetalle.values);
     });
   }
 
@@ -64,7 +78,10 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
        WHERE md.muestra_id = ?`,
       [muestraId]
     );
-    return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
+    const detalles = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
+    console.log('[MuestraDetalle] getByMuestra(', muestraId, ') devolvió', detalles.length, 'detalles');
+    console.log('[MuestraDetalle] SKUs:', detalles.map(d => ({ sku: d.sku, productoId: d.productoId })));
+    return detalles;
   }
 
   private map(row: Record<string, unknown>): MuestraDetalle {

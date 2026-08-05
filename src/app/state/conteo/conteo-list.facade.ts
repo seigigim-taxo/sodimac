@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { GetConteosUseCase } from '../../application/conteo/get-conteos.use-case';
-import { GetIteracionActivaUseCase } from '../../application/conteo/get-iteracion-activa.use-case';
+import { GetRondaActivaUseCase } from '../../application/conteo/get-ronda-activa.use-case';
 import { DeleteConteoSesionUseCase } from '../../application/conteo/delete-conteo-sesion.use-case';
 import { SincronizarConteoUseCase } from '../../application/sincronizacion/sincronizar-conteo.use-case';
 import { GetTagsReconteoUseCase } from '../../application/conteo/get-tags-reconteo.use-case';
@@ -16,7 +16,7 @@ function keyOf(conteo: ConteoResumen): string {
 @Injectable({ providedIn: 'root' })
 export class ConteoListFacade {
   private getConteos    = inject(GetConteosUseCase);
-  private getIteracion  = inject(GetIteracionActivaUseCase);
+  private getRonda      = inject(GetRondaActivaUseCase);
   private deleteSesion  = inject(DeleteConteoSesionUseCase);
   private sincronizarUC = inject(SincronizarConteoUseCase);
   private getTagsUC     = inject(GetTagsReconteoUseCase);
@@ -120,8 +120,14 @@ export class ConteoListFacade {
    * la pantalla de reconteo. Si iteracionActual === 1, no hay reconteo y la
    * lista queda vacía.
    */
+  /*
+   * Sin ronda abierta se asume la 1: es la pantalla de TAG pidiendo contexto
+   * para sugerir chips, no una operación de escritura. Quien sí corta si falta
+   * la ronda es ConteoFacade.init(), antes de dejar contar.
+   */
   async cargarIteracionActiva(eventoId: number): Promise<number> {
-    const iteracion = await this.getIteracion.execute(eventoId);
+    const ronda = await this.getRonda.execute(eventoId);
+    const iteracion = ronda?.iteracion ?? 1;
     this.iteracionActivaSignal.set(iteracion);
     return iteracion;
   }

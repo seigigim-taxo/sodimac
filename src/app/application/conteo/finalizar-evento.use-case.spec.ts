@@ -18,7 +18,7 @@ function evento(parcial: Partial<Evento> = {}): Evento {
 
 function resumen(parcial: Partial<ConteoResumen> = {}): ConteoResumen {
   return {
-    eventoId: 1, ubicacionId: 1, operadorId: 1, pdaId: 1, estado: 'FINALIZADO',
+    conteoId: 1, eventoId: 1, ubicacionId: 1, operadorId: 1, pdaId: 1, estado: 'FINALIZADO',
     tag: 'A-01', zonaCodigo: 'LC01', zonaNombre: 'Venta', totalProductos: 2,
     totalUnidades: 10, iteracion: 1, fechaUltima: '2026-08-03 11:00:00', ...parcial,
   };

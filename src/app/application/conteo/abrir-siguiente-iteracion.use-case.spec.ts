@@ -25,13 +25,26 @@ describe('AbrirSiguienteIteracionUseCase', () => {
   let conteoRepo: jasmine.SpyObj<ConteoRepository>;
   let planRepo: jasmine.SpyObj<PlanMuestraRepository>;
 
+  /* Ronda tal como la devuelve el repositorio tras abrirla. */
+  function ronda(iteracion: number) {
+    return {
+      id: 100 + iteracion,
+      eventoId: 1,
+      iteracion,
+      estado: 'ABIERTO' as const,
+      fechaApertura: '2026-08-05 10:00:00',
+      fechaCierre: null,
+    };
+  }
+
   beforeEach(() => {
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById', 'updateEstado', 'getBySucursal']);
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getIteracionActiva']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getUltimaRonda', 'abrirRonda']);
     planRepo = jasmine.createSpyObj('PlanMuestraRepository', ['prepararMuestraDeIteracion']);
 
     eventoRepo.updateEstado.and.resolveTo();
-    conteoRepo.getIteracionActiva.and.resolveTo(1);
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(1));
+    conteoRepo.abrirRonda.and.callFake((_e: number, i: number) => Promise.resolve(ronda(i)));
     planRepo.prepararMuestraDeIteracion.and.resolveTo(99);
 
     TestBed.configureTestingModule({
@@ -50,23 +63,23 @@ describe('AbrirSiguienteIteracionUseCase', () => {
 
     const resultado = await useCase.execute(1);
 
-    expect(resultado).toEqual({ iteracion: 2, iteracionAnterior: 1, conMuestra: true });
+    expect(resultado).toEqual({ conteoId: 102, iteracion: 2, iteracionAnterior: 1, conMuestra: true });
     expect(eventoRepo.updateEstado).toHaveBeenCalledWith(1, 'RECONTEO');
   });
 
-  it('toma la ronda actual del conteo, no del evento', async () => {
+  it('toma la ronda actual de la última registrada, no del evento', async () => {
     eventoRepo.getById.and.resolveTo(evento());
-    conteoRepo.getIteracionActiva.and.resolveTo(3);
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(3));
 
     const resultado = await useCase.execute(1);
 
-    expect(conteoRepo.getIteracionActiva).toHaveBeenCalledWith(1);
+    expect(conteoRepo.getUltimaRonda).toHaveBeenCalledWith(1);
     expect(resultado.iteracion).toBe(4);
   });
 
   it('usa el número que indique el SGO cuando se le pasa', async () => {
     eventoRepo.getById.and.resolveTo(evento());
-    conteoRepo.getIteracionActiva.and.resolveTo(2);
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(2));
 
     const resultado = await useCase.execute(1, 5);
 
@@ -75,7 +88,7 @@ describe('AbrirSiguienteIteracionUseCase', () => {
 
   it('rechaza una iteración que no sea posterior a la activa', async () => {
     eventoRepo.getById.and.resolveTo(evento());
-    conteoRepo.getIteracionActiva.and.resolveTo(3);
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(3));
 
     await expectAsync(useCase.execute(1, 3)).toBeRejectedWithError(/no es posterior a la activa/);
     expect(eventoRepo.updateEstado).not.toHaveBeenCalled();
@@ -98,6 +111,26 @@ describe('AbrirSiguienteIteracionUseCase', () => {
     expect(resultado.conMuestra).toBeFalse();
     // La ronda igual se abre: el estado del evento tiene que avanzar.
     expect(eventoRepo.updateEstado).toHaveBeenCalledWith(1, 'RECONTEO');
+  });
+
+  it('abre la ronda ANTES de habilitar el reconteo', async () => {
+    eventoRepo.getById.and.resolveTo(evento());
+
+    await useCase.execute(1);
+
+    // La ronda existe aunque todavía no se haya contado nada: es lo que antes
+    // no se podía, porque la iteración se derivaba de MAX() sobre las líneas.
+    expect(conteoRepo.abrirRonda).toHaveBeenCalledWith(1, 2);
+    expect(conteoRepo.abrirRonda).toHaveBeenCalledBefore(eventoRepo.updateEstado);
+  });
+
+  it('no abre ninguna ronda si la iteración es inválida', async () => {
+    eventoRepo.getById.and.resolveTo(evento());
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(3));
+
+    await expectAsync(useCase.execute(1, 2)).toBeRejected();
+
+    expect(conteoRepo.abrirRonda).not.toHaveBeenCalled();
   });
 
   it('falla si el evento no existe', async () => {

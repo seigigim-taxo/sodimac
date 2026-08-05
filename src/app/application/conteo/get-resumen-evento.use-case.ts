@@ -24,7 +24,13 @@ export class GetResumenEventoUseCase {
     const resumenes = await this.conteoRepo.getResumenes(operadorId, pdaId);
     const delEvento = resumenes.filter((r) => r.eventoId === eventoId);
     const tagsFinalizados = delEvento.filter((r) => r.estado === 'FINALIZADO' || r.estado === 'SINCRONIZADO').length;
-    const iteracion = await this.conteoRepo.getIteracionActiva(eventoId);
+    /*
+     * La ronda del resumen: la abierta si el evento está en curso, o la última
+     * registrada si ya se cerró (este caso de uso también sirve al historial).
+     */
+    const ronda = await this.conteoRepo.getRondaAbierta(eventoId)
+               ?? await this.conteoRepo.getUltimaRonda(eventoId);
+    const iteracion = ronda?.iteracion ?? 1;
 
     const muestra = await this.muestraRepo.getByEvento(eventoId);
     const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;

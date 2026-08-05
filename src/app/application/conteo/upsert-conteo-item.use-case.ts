@@ -7,7 +7,7 @@ export class UpsertConteoItemUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
   async execute(
-    eventoId: number, ubicacionId: number,
+    conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
     cantidad: number
   ): Promise<ConteoItem> {
@@ -20,6 +20,6 @@ export class UpsertConteoItemUseCase {
     if (cantidad < 0 || !Number.isFinite(cantidad)) {
       throw new Error('La cantidad no puede ser negativa');
     }
-    return this.conteoRepo.upsert(eventoId, ubicacionId, productoId, operadorId, pdaId, cantidad);
+    return this.conteoRepo.upsert(conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad);
   }
 }

@@ -30,6 +30,11 @@ export class SqliteMuestraRepository implements MuestraRepository {
         if (id === undefined) {
             throw new Error(`No se pudo recuperar la muestra ${muestra.codigoMuestra}`);
         }
+        
+        const tablaCompleta = await db.query(`SELECT * FROM sod_muestra`, []);
+        console.log('[DB] Tabla sod_muestra completa:');
+        console.table(tablaCompleta.values);
+        
         return id;
     }
 

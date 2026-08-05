@@ -1,8 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { isDevMode } from '@angular/core';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
-import { ZonaRepository } from '../../domain/zona/repositories/zona.repository';
+import { ZonaParaGuardar, ZonaRepository } from '../../domain/zona/repositories/zona.repository';
 import { Zona } from '../../domain/zona/models/zona.model';
 
 @Injectable({ providedIn: 'root' })
@@ -26,11 +25,36 @@ export class SqliteZonaRepository implements ZonaRepository {
       [sucursalId]
     );
     const zonas = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
-    if (isDevMode()) {
-      console.log('[ZonaRepo] getBySucursal', { sucursalId, total: zonas.length });
-      console.table(zonas);
-    }
+    console.log('[ZonaRepo] getBySucursal', { sucursalId, total: zonas.length });
+    console.table(zonas);
     return zonas;
+  }
+
+  /*
+   * Reemplazo completo: se borran las ubicaciones y zonas existentes de la
+   * sucursal y se insertan las nuevas. El orden importa: sod_ubicacion tiene
+   * FK a sod_zona(id), así que hay que limpiar ubicaciones antes que zonas.
+   */
+  async reemplazarDeSucursal(sucursalId: number, zonas: ZonaParaGuardar[]): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    await db.run(
+      `DELETE FROM sod_ubicacion WHERE zona_id IN (SELECT id FROM sod_zona WHERE sucursal_id = ?)`,
+      [sucursalId]
+    );
+    await db.run(`DELETE FROM sod_zona WHERE sucursal_id = ?`, [sucursalId]);
+
+    for (const z of zonas) {
+      await db.run(
+        `INSERT INTO sod_zona (sucursal_id, zona_tipo_id, codigo, nombre)
+         VALUES (?, ?, ?, ?)`,
+        [sucursalId, z.zonaTipoId, z.codigo, z.nombre]
+      );
+    }
+    
+    const tablaZona = await db.query(`SELECT * FROM sod_zona`, []);
+    console.log('[DB] Tabla sod_zona completa:');
+    console.table(tablaZona.values);
   }
 
   private map(row: Record<string, unknown>): Zona {

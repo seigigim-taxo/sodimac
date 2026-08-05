@@ -64,11 +64,21 @@ export interface EventoPreparado {
   estado: string;
 }
 
+/*
+ * Zona de la tienda. El endpoint las manda como tuplas [codigo, descripcion];
+ * acá ya vienen con nombre.
+ */
+export interface ZonaPreparada {
+  codigo: string;
+  descripcion: string | null;
+}
+
 export interface DatosPreparacion {
   usuario: UsuarioPreparado;
   tiendas: TiendaPreparada[];
   muestra: MuestraPreparada | null;
   evento: EventoPreparado | null;
+  zonas: ZonaPreparada[];
 }
 
 export interface PreparacionRequest {

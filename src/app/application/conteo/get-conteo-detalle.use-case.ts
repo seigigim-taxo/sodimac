@@ -8,8 +8,8 @@ export class GetConteoDetalleUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
   async execute(
-    eventoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo
   ): Promise<ConteoItem[]> {
-    return this.conteoRepo.getBySesion(eventoId, ubicacionId, operadorId, pdaId, estado);
+    return this.conteoRepo.getBySesion(conteoId, ubicacionId, operadorId, pdaId, estado);
   }
 }

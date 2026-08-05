@@ -5,6 +5,8 @@ import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/su
 import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
+import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
+import { ZONA_TIPO_REPOSITORY_TOKEN } from '../../domain/zona-tipo/repositories/zona-tipo.repository';
 import { DatosPreparacion, EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
@@ -29,6 +31,8 @@ export class SincronizarDatosInicialesUseCase {
   private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private muestraDetalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
+  private zonaTipoRepo = inject(ZONA_TIPO_REPOSITORY_TOKEN);
+  private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
 
   async execute(
     session: Session,
@@ -71,6 +75,7 @@ export class SincronizarDatosInicialesUseCase {
     );
 
     await this.guardarEventoYMuestra(datos);
+    await this.guardarZonas(datos);
 
     onEtapa?.('LISTO');
   }
@@ -99,6 +104,9 @@ export class SincronizarDatosInicialesUseCase {
       nombre: datos.muestra?.nombreMuestra ?? '',
     });
 
+    console.log('[Sincronizar] Evento ID:', eventoId);
+    console.log('[Sincronizar] Muestra datos:', datos.muestra);
+
     if (!datos.muestra) return;
 
     const muestraId = await this.muestraRepo.asegurarMuestra({
@@ -108,6 +116,39 @@ export class SincronizarDatosInicialesUseCase {
       nombre: datos.muestra.nombreMuestra,
     });
 
+    console.log('[Sincronizar] Muestra ID:', muestraId);
+    console.log('[Sincronizar] Detalles a guardar:', datos.muestra.detalles.length);
+
     await this.muestraDetalleRepo.reemplazarDetalles(muestraId, datos.muestra.detalles);
+    
+    console.log('[Sincronizar] Detalles guardados exitosamente');
+  }
+
+  /*
+   * Las zonas vienen como tuplas [codigo, descripcion]. El codigo es el tipo
+   * de zona (VENTA, BODEGA, etc.) y la descripcion es su etiqueta para el
+   * operador. Se asegura el tipo y se crea la zona ligada a la sucursal.
+   */
+  private async guardarZonas(datos: DatosPreparacion): Promise<void> {
+    const tienda = datos.tiendas[0];
+    if (!tienda) return;
+
+    const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
+    if (sucursalId === null) return;
+
+    const zonasParaGuardar = [];
+    for (const z of datos.zonas) {
+      const zonaTipoId = await this.zonaTipoRepo.asegurarTipo({
+        nombre: z.codigo,
+        descripcion: z.descripcion,
+      });
+      zonasParaGuardar.push({
+        codigo: z.codigo,
+        nombre: z.descripcion,
+        zonaTipoId,
+      });
+    }
+
+    await this.zonaRepo.reemplazarDeSucursal(sucursalId, zonasParaGuardar);
   }
 }

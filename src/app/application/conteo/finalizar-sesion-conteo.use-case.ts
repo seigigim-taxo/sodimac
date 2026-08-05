@@ -5,9 +5,12 @@ import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo
 export class FinalizarSesionConteoUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
-  async execute(
-    eventoId: number, ubicacionId: number, operadorId: number, pdaId: number
-  ): Promise<void> {
-    return this.conteoRepo.finalizarSesion(eventoId, ubicacionId, operadorId, pdaId);
+  /*
+   * Cierra el TAG para este operador. No lleva pdaId: el operador puede haber
+   * cambiado de PDA a mitad del turno, y lo que se cierra es lo que él contó en
+   * esa ubicación, venga del equipo que venga.
+   */
+  async execute(conteoId: number, ubicacionId: number, operadorId: number): Promise<void> {
+    return this.conteoRepo.cerrarTag(conteoId, ubicacionId, operadorId);
   }
 }

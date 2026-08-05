@@ -5,7 +5,7 @@ import { CONTEO_REPOSITORY_TOKEN, ConteoRepository } from '../../domain/conteo/r
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 
 const ITEM: ConteoItem = {
-  id: 1, eventoId: 1, ubicacionId: 1, productoId: 7, sku: 'AF001',
+  id: 1, conteoId: 1, ubicacionId: 1, productoId: 7, sku: 'AF001',
   descripcion: 'Producto', cantidadFisica: 3, estado: 'EN_CURSO',
   iteracion: 1, fechaHora: '2026-08-03 10:00:00',
 };

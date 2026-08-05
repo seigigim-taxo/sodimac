@@ -13,15 +13,26 @@ export class LoadMuestraSetUseCase {
 
   async execute(eventoId: number): Promise<MuestraSet> {
     const muestra = await this.muestraRepo.getByEvento(eventoId);
-    if (!muestra) return { skuMap: new Map() };
+    if (!muestra) {
+      console.log('[LoadMuestraSet] No hay muestra para evento', eventoId);
+      return { skuMap: new Map() };
+    }
+    
+    console.log('[LoadMuestraSet] Muestra encontrada:', muestra.id, muestra.codigoMuestra);
 
     const detalles = await this.detalleRepo.getByMuestra(muestra.id);
     const skuMap = new Map<string, number>();
     for (const d of detalles) {
       // Normaliza a mayúsculas: scan.component ya emite el SKU en uppercase,
       // así el lookup no falla si el dato en sod_producto tiene minúsculas.
-      skuMap.set(d.sku.toUpperCase(), d.productoId);
+      const skuNormalizado = d.sku.trim().toUpperCase();
+      skuMap.set(skuNormalizado, d.productoId);
+      console.log('[LoadMuestraSet] Agregando al mapa:', skuNormalizado, '→', d.productoId);
     }
+    
+    console.log('[LoadMuestraSet] Mapa final con', skuMap.size, 'SKUs');
+    console.log('[LoadMuestraSet] SKUs en mapa:', Array.from(skuMap.keys()));
+    
     return { skuMap };
   }
 }

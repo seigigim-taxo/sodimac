@@ -12,7 +12,7 @@ import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
  */
 function item(parcial: Partial<ConteoItem> = {}): ConteoItem {
   return {
-    id: 1, eventoId: 1, ubicacionId: 1, productoId: 100, sku: 'AF001',
+    id: 1, conteoId: 7, ubicacionId: 1, productoId: 100, sku: 'AF001',
     descripcion: 'Taladro', cantidadFisica: 1, estado: 'EN_CURSO',
     iteracion: 1, fechaHora: '2026-08-03 10:00:00', ...parcial,
   };
@@ -24,11 +24,16 @@ describe('ConteoFacade', () => {
 
   beforeEach(async () => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', [
-      'upsert', 'adjust', 'delete', 'getBySesion', 'finalizarSesion',
+      'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag', 'getRondaAbierta',
     ]);
     conteoRepo.getBySesion.and.resolveTo([]);
     conteoRepo.upsert.and.resolveTo(item());
-    conteoRepo.finalizarSesion.and.resolveTo();
+    conteoRepo.cerrarTag.and.resolveTo();
+    // La ronda abierta es lo que ConteoFacade.init() resuelve antes de dejar contar.
+    conteoRepo.getRondaAbierta.and.resolveTo({
+      id: 7, eventoId: 1, iteracion: 1, estado: 'ABIERTO',
+      fechaApertura: '2026-08-05 10:00:00', fechaCierre: null,
+    });
 
     const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEvento']);
     muestraRepo.getByEvento.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, nombre: null, nombreArchivo: null });
@@ -54,7 +59,7 @@ describe('ConteoFacade', () => {
     const resultado = await facade.scan('AF001', 2);
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(1, 1, 100, 1, 1, 2);
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2);
     expect(facade.items().length).toBe(1);
   });
 
@@ -64,7 +69,7 @@ describe('ConteoFacade', () => {
     const resultado = await facade.scan('AF001', 0);
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(1, 1, 100, 1, 1, 0);
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 0);
     expect(facade.items()[0].cantidadFisica).toBe(0);
   });
 
@@ -90,6 +95,23 @@ describe('ConteoFacade', () => {
 
     expect(resultado).toBe('error');
     expect(facade.error()).toBe('DB caída');
+  });
+
+  it('cuenta contra la ronda abierta, no contra el evento', async () => {
+    await facade.scan('AF001');
+
+    // 7 es el id de la ronda; el evento es 1. Confundirlos compilaba igual.
+    expect(conteoRepo.upsert.calls.mostRecent().args[0]).toBe(7);
+    expect(facade.sesion()?.conteoId).toBe(7);
+  });
+
+  it('no deja contar si el evento no tiene ronda abierta', async () => {
+    conteoRepo.getRondaAbierta.and.resolveTo(null);
+
+    await facade.init(1, 1, 1, 1);
+
+    expect(facade.error()).toMatch(/ronda de conteo abierta/);
+    expect(facade.sesion()).toBeNull();
   });
 
   it('no acepta scans después de finalizar la sesión', async () => {

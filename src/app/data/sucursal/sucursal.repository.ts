@@ -62,6 +62,14 @@ export class SqliteSucursalRepository implements SucursalRepository {
           false
         );
       }
+      
+      const tablaSucursal = await db.query(`SELECT * FROM sod_sucursal`, []);
+      console.log('[DB] Tabla sod_sucursal completa:');
+      console.table(tablaSucursal.values);
+      
+      const tablaUserSucursal = await db.query(`SELECT * FROM sod_user_sucursal`, []);
+      console.log('[DB] Tabla sod_user_sucursal completa:');
+      console.table(tablaUserSucursal.values);
     });
   }
 
