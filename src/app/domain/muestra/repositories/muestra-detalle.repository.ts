@@ -11,6 +11,7 @@ export interface LineaMuestraParaGuardar {
   sku: string;
   codigoBarras: string | null;
   descripcion: string | null;
+  stockSistema: number;
 }
 
 export interface MuestraDetalleRepository {

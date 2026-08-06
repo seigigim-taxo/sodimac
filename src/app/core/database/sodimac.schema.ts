@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 31;
+export const SODIMAC_DB_VERSION = 34;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -36,25 +36,11 @@ const TABLES: readonly string[] = [
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL REFERENCES sod_user(id),
     sucursal_id INTEGER NOT NULL REFERENCES sod_sucursal(id),
-    soft_delete INTEGER NOT NULL DEFAULT 0,
     estado      INTEGER NOT NULL DEFAULT 1
   )`,
 
-  `CREATE TABLE IF NOT EXISTS sod_agenda (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    sucursal_id INTEGER NOT NULL REFERENCES sod_sucursal(id),
-    titulo      TEXT    NOT NULL,
-    fecha_inicio  TEXT  NOT NULL,
-    fecha_termino TEXT  NOT NULL,
-    fecha_registro TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`,
-
-  // codigo_evento_sv: clave del backend. Nullable porque todavía no lo manda;
-  // SQLite admite varios NULL en una columna UNIQUE.
   `CREATE TABLE IF NOT EXISTS sod_evento_inventario (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    codigo_evento_sv       TEXT             DEFAULT NULL UNIQUE,
-    agenda_id           INTEGER          DEFAULT NULL REFERENCES sod_agenda(id),
     sucursal_id         INTEGER NOT NULL REFERENCES sod_sucursal(id),
     nombre              TEXT    NOT NULL DEFAULT '',
     fecha_programada    TEXT    NOT NULL,
@@ -72,18 +58,14 @@ const TABLES: readonly string[] = [
 
   `CREATE TABLE IF NOT EXISTS sod_muestra (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    codigo_muestra_sv TEXT             DEFAULT NULL UNIQUE,
-    evento_id      INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
+    evento_id      INTEGER NOT NULL UNIQUE REFERENCES sod_evento_inventario(id),
     sucursal_id    INTEGER NOT NULL REFERENCES sod_sucursal(id),
     nombre         TEXT             DEFAULT NULL,
     nombre_archivo TEXT             DEFAULT NULL
   )`,
 
-  // id_muestra_det_sv: id remoto. Acá sí va el numérico — no hay código de
-  // negocio, y hace falta para subir los conteos referenciando la línea original.
   `CREATE TABLE IF NOT EXISTS sod_muestra_detalle (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_muestra_det_sv     INTEGER          DEFAULT NULL,
     muestra_id         INTEGER NOT NULL REFERENCES sod_muestra(id),
     producto_id        INTEGER NOT NULL REFERENCES sod_producto(id),
     stock_sistema      REAL    NOT NULL DEFAULT 0.00,
@@ -98,19 +80,11 @@ const TABLES: readonly string[] = [
     activo  INTEGER NOT NULL DEFAULT 1
   )`,
 
-  `CREATE TABLE IF NOT EXISTS sod_zona_tipo (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre      TEXT    NOT NULL UNIQUE,
-    descripcion TEXT    DEFAULT NULL
-  )`,
-
   `CREATE TABLE IF NOT EXISTS sod_zona (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    sucursal_id    INTEGER NOT NULL REFERENCES sod_sucursal(id),
-    zona_tipo_id   INTEGER NOT NULL REFERENCES sod_zona_tipo(id),
-    codigo         TEXT    NOT NULL,
-    nombre         TEXT    DEFAULT NULL,
-    fecha_registro TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    sucursal_id INTEGER NOT NULL REFERENCES sod_sucursal(id),
+    nombre      TEXT    NOT NULL,
+    descripcion TEXT    DEFAULT NULL
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_ubicacion (
@@ -177,9 +151,7 @@ const TABLES: readonly string[] = [
 
 const SEED = `
   INSERT OR IGNORE INTO sod_rol (nombre, descripcion) VALUES
-    ('Operador de Inventario', 'Realiza conteos con PDA'),
-    ('Coordinador',            'Coordina eventos de inventario'),
-    ('Analista Sodimac',       'Analista de la tienda');
+    ('Operador de Inventario', 'Realiza conteos con PDA');
 `;
 
 export const SODIMAC_TABLE_NAMES = [
@@ -187,13 +159,11 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_user',
   'sod_sucursal',
   'sod_user_sucursal',
-  'sod_agenda',
   'sod_evento_inventario',
   'sod_producto',
   'sod_muestra',
   'sod_muestra_detalle',
   'sod_pda',
-  'sod_zona_tipo',
   'sod_zona',
   'sod_ubicacion',
   'sod_asignacion',

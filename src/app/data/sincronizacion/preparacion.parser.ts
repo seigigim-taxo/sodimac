@@ -53,6 +53,16 @@ function enteroOpcional(obj: Json, clave: string): number | null {
   return typeof valor === 'number' && Number.isFinite(valor) ? valor : null;
 }
 
+function numeroOpcional(obj: Json, clave: string): number | null {
+  const valor = obj[clave];
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  if (typeof valor === 'string' && valor.trim() !== '') {
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function describir(valor: unknown): string {
   if (valor === null) return 'null';
   if (valor === undefined) return 'nada';
@@ -121,6 +131,7 @@ function parsearTiendas(raw: unknown): TiendaPreparada[] {
       idTienda: enteroOpcional(t, 'id_tienda') ?? 0,
       codigoTienda: texto(t, 'codigo_tienda', campo),
       nombreTienda: texto(t, 'nombre_tienda', campo),
+      zonaOperativa: textoOpcional(t, 'zona_operativa'),
     },
   ];
 }
@@ -145,6 +156,7 @@ function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): Mues
     idMuestraDet: enteroOpcional(p, 'id_muestra_det') ?? 0,
     codigoBarras: textoOpcional(p, 'codigo_barras'),
     descripcion: textoOpcional(p, 'descripcion'),
+    stockSistema: numeroOpcional(p, 'stock_sistema') ?? 0,
   }));
   
   console.log('[Parser] Detalles parseados:', detalles);

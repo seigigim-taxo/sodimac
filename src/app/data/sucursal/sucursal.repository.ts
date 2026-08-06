@@ -32,10 +32,12 @@ export class SqliteSucursalRepository implements SucursalRepository {
          * la base local, cuyo id es AUTOINCREMENT propio.
          */
         await db.run(
-          `INSERT INTO sod_sucursal (codigo_tienda, nombre)
-           VALUES (?, ?)
-           ON CONFLICT (codigo_tienda) DO UPDATE SET nombre = excluded.nombre`,
-          [tienda.codigoTienda, tienda.nombre],
+          `INSERT INTO sod_sucursal (codigo_tienda, nombre, zona_operativa)
+           VALUES (?, ?, ?)
+           ON CONFLICT (codigo_tienda) DO UPDATE SET
+             nombre = excluded.nombre,
+             zona_operativa = excluded.zona_operativa`,
+          [tienda.codigoTienda, tienda.nombre, tienda.zonaOperativa],
           false
         );
 

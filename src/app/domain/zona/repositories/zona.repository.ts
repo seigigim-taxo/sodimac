@@ -2,9 +2,8 @@ import { InjectionToken } from '@angular/core';
 import { Zona } from '../models/zona.model';
 
 export interface ZonaParaGuardar {
-  codigo: string;
-  nombre: string | null;
-  zonaTipoId: number;
+  nombre: string;
+  descripcion: string | null;
 }
 
 export interface ZonaRepository {

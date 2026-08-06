@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, isDevMode } from '@angular/core';
 import { PREPARACION_API_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/preparacion-api.repository';
 import { OPERADOR_REPOSITORY_TOKEN } from '../../domain/auth/repositories/operador.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
@@ -6,7 +6,8 @@ import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
-import { ZONA_TIPO_REPOSITORY_TOKEN } from '../../domain/zona-tipo/repositories/zona-tipo.repository';
+import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
+import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
 import { DatosPreparacion, EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
@@ -31,8 +32,8 @@ export class SincronizarDatosInicialesUseCase {
   private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private muestraDetalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
-  private zonaTipoRepo = inject(ZONA_TIPO_REPOSITORY_TOKEN);
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
+  private sqlite = inject(SqliteConnectionService);
 
   async execute(
     session: Session,
@@ -71,11 +72,13 @@ export class SincronizarDatosInicialesUseCase {
       datos.tiendas.map((t) => ({
         codigoTienda: t.codigoTienda,
         nombre: t.nombreTienda,
+        zonaOperativa: t.zonaOperativa,
       }))
     );
 
     await this.guardarEventoYMuestra(datos);
     await this.guardarZonas(datos);
+    await this.logDatabase();
 
     onEtapa?.('LISTO');
   }
@@ -125,9 +128,9 @@ export class SincronizarDatosInicialesUseCase {
   }
 
   /*
-   * Las zonas vienen como tuplas [codigo, descripcion]. El codigo es el tipo
+   * Las zonas vienen como tuplas [codigo, descripcion]. El codigo es el nombre
    * de zona (VENTA, BODEGA, etc.) y la descripcion es su etiqueta para el
-   * operador. Se asegura el tipo y se crea la zona ligada a la sucursal.
+   * operador. Se crea la zona ligada a la sucursal.
    */
   private async guardarZonas(datos: DatosPreparacion): Promise<void> {
     const tienda = datos.tiendas[0];
@@ -136,19 +139,38 @@ export class SincronizarDatosInicialesUseCase {
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
     if (sucursalId === null) return;
 
-    const zonasParaGuardar = [];
-    for (const z of datos.zonas) {
-      const zonaTipoId = await this.zonaTipoRepo.asegurarTipo({
-        nombre: z.codigo,
-        descripcion: z.descripcion,
-      });
-      zonasParaGuardar.push({
-        codigo: z.codigo,
-        nombre: z.descripcion,
-        zonaTipoId,
-      });
-    }
+    const zonasParaGuardar = datos.zonas.map(z => ({
+      nombre: z.codigo,
+      descripcion: z.descripcion,
+    }));
 
     await this.zonaRepo.reemplazarDeSucursal(sucursalId, zonasParaGuardar);
+  }
+
+  private async logDatabase(): Promise<void> {
+    if (!isDevMode() || !this.sqlite.isSupported) return;
+
+    console.log('[DB] === Inicio log completo de base de datos ===');
+    try {
+      const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
+      for (const tabla of SODIMAC_TABLE_NAMES) {
+        try {
+          const result = await db.query(`SELECT * FROM ${tabla}`);
+          const rows = result.values ?? [];
+          console.group(`[DB] ${tabla} (${rows.length} filas)`);
+          if (rows.length > 0) {
+            console.table(rows);
+          } else {
+            console.log('(vacía)');
+          }
+          console.groupEnd();
+        } catch (err) {
+          console.error(`[DB] Error al leer ${tabla}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('[DB] Error al abrir conexión para log:', err);
+    }
+    console.log('[DB] === Fin log completo de base de datos ===');
   }
 }

@@ -8,27 +8,26 @@ import { Muestra } from '../../domain/muestra/models/muestra.model';
 export class SqliteMuestraRepository implements MuestraRepository {
     private connection = inject(SqliteConnectionService);
 
-    /* Upsert por codigo_muestra_sv, la clave natural que manda el backend. */
+    /* Upsert por evento_id, la clave natural que identifica la muestra. */
     async asegurarMuestra(muestra: MuestraParaGuardar): Promise<number> {
         const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 
         await db.run(
-            `INSERT INTO sod_muestra (codigo_muestra_sv, evento_id, sucursal_id, nombre)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (codigo_muestra_sv) DO UPDATE SET
-               evento_id   = excluded.evento_id,
+            `INSERT INTO sod_muestra (evento_id, sucursal_id, nombre)
+             VALUES (?, ?, ?)
+             ON CONFLICT (evento_id) DO UPDATE SET
                sucursal_id = excluded.sucursal_id,
                nombre      = excluded.nombre`,
-            [muestra.codigoMuestra, muestra.eventoId, muestra.sucursalId, muestra.nombre]
+            [muestra.eventoId, muestra.sucursalId, muestra.nombre]
         );
 
         const row = await db.query(
-            `SELECT id FROM sod_muestra WHERE codigo_muestra_sv = ?`,
-            [muestra.codigoMuestra]
+            `SELECT id FROM sod_muestra WHERE evento_id = ?`,
+            [muestra.eventoId]
         );
         const id = row.values?.[0]?.['id'] as number | undefined;
         if (id === undefined) {
-            throw new Error(`No se pudo recuperar la muestra ${muestra.codigoMuestra}`);
+            throw new Error(`No se pudo recuperar la muestra evento_id=${muestra.eventoId}`);
         }
         
         const tablaCompleta = await db.query(`SELECT * FROM sod_muestra`, []);
@@ -51,7 +50,7 @@ export class SqliteMuestraRepository implements MuestraRepository {
     private map(row: Record<string, unknown>): Muestra {
         return {
             id:            row['id']             as number,
-            codigoMuestra: row['codigo_muestra_sv'] as string | null,
+            codigoMuestra: null,
             eventoId:      row['evento_id']      as number,
             sucursalId:    row['sucursal_id']    as number,
             nombre:        row['nombre']         as string | null,

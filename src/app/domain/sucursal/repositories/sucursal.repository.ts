@@ -5,6 +5,7 @@ import { Sucursal } from '../models/sucursal.model';
 export interface SucursalParaGuardar {
   codigoTienda: string;
   nombre: string;
+  zonaOperativa: string | null;
 }
 
 export interface SucursalRepository {

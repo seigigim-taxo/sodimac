@@ -21,7 +21,6 @@ import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from './app/domain/muestra/repositor
 import { OPERADOR_REPOSITORY_TOKEN } from './app/domain/auth/repositories/operador.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/sucursal.repository';
 import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
-import { ZONA_TIPO_REPOSITORY_TOKEN } from './app/domain/zona-tipo/repositories/zona-tipo.repository';
 import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/ubicacion.repository';
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
@@ -32,7 +31,6 @@ import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
 import { SqliteConteoRepository } from './app/data/conteo/conteo.repository';
 import { SqliteSincronizacionRepository } from './app/data/sincronizacion/sincronizacion.repository';
 import { SqliteZonaRepository } from './app/data/zona/zona.repository';
-import { SqliteZonaTipoRepository } from './app/data/zona-tipo/zona-tipo.repository';
 import { SqliteUbicacionRepository } from './app/data/ubicacion/ubicacion.repository';
 import { SqliteEventoRepository } from './app/data/evento/evento.repository';
 import { SqliteMuestraRepository } from './app/data/muestra/muestra.repository';
@@ -102,7 +100,6 @@ bootstrapApplication(AppComponent, {
      * hasta que se registre acá un HttpPlanMuestraRepository.
      */
     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
-    { provide: ZONA_TIPO_REPOSITORY_TOKEN,       useClass: SqliteZonaTipoRepository },
     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },

@@ -50,14 +50,10 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
 
       for (const linea of lineas) {
         const skuNormalizado = linea.sku.trim().toUpperCase();
-        /*
-         * stock_sistema queda en 0: la preparación no lo trae todavía. Mientras
-         * siga así, las diferencias van a marcar todo lo contado como sobrante.
-         */
         await db.run(
-          `INSERT INTO sod_muestra_detalle (id_muestra_det_sv, muestra_id, producto_id, stock_sistema)
-           SELECT ?, ?, id, 0 FROM sod_producto WHERE sku = ?`,
-          [linea.idMuestraDet, muestraId, skuNormalizado],
+          `INSERT INTO sod_muestra_detalle (muestra_id, producto_id, stock_sistema)
+           SELECT ?, id, ? FROM sod_producto WHERE sku = ?`,
+          [muestraId, linea.stockSistema, skuNormalizado],
           false
         );
       }

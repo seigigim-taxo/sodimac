@@ -79,7 +79,6 @@ export class SqliteEventoRepository implements EventoRepository {
     private map(row: Record<string, unknown>): Evento {
         return {
             id:              row['id']               as number,
-            agendaId:        row['agenda_id']        as number | null,
             sucursalId:      row['sucursal_id']      as number,
             nombre:          row['nombre']           as string,
             fechaProgramada: row['fecha_programada'] as string,

@@ -87,7 +87,7 @@
         placeholder="Selecciona una zona" (ionChange)="onZonaChange($event)" class="zone-select"
         [style.opacity]="tagConfirmado() ? 1 : 0.5">
         @for (zona of zonas(); track zona.id) {
-        <ion-select-option [value]="zona">{{ zona.codigo }} — {{ zona.nombre }}</ion-select-option>
+        <ion-select-option [value]="zona">{{ zona.nombre }}{{ zona.descripcion ? ' — ' + zona.descripcion : '' }}</ion-select-option>
         }
       </ion-select>
       @if (!tagConfirmado()) {

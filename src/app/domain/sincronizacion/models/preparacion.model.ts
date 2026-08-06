@@ -27,18 +27,18 @@ export interface TiendaPreparada {
   idTienda: number;
   codigoTienda: string;
   nombreTienda: string;
+  zonaOperativa: string | null;
 }
 
 /*
  * Una línea de la muestra: el producto que hay que contar.
- * `stockSistema` no viene en la preparación — la columna queda en 0 hasta que
- * el backend lo entregue.
  */
 export interface DetalleMuestraPreparado {
   idMuestraDet: number;
   sku: string;
   codigoBarras: string | null;
   descripcion: string | null;
+  stockSistema: number;
 }
 
 /*

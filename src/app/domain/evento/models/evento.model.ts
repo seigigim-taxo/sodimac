@@ -1,6 +1,5 @@
 export interface Evento {
     id: number;
-    agendaId: number | null;
     sucursalId: number;
     nombre: string;
     fechaProgramada: string;

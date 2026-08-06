@@ -82,9 +82,9 @@ export class CountingPageComponent implements ViewWillEnter {
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
-  zonaActual   = computed<{ codigo: string; nombre: string } | null>(() => {
+  zonaActual   = computed<{ nombre: string; descripcion: string | null } | null>(() => {
     const z = this.zonaFacade.selectedZone();
-    return z ? { codigo: z.codigo, nombre: z.nombre ?? '' } : null;
+    return z ? { nombre: z.nombre, descripcion: z.descripcion } : null;
   });
 
   cantidad    = signal(1);

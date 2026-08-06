@@ -16,12 +16,10 @@ export class SqliteZonaRepository implements ZonaRepository {
   async getBySucursal(sucursalId: number): Promise<Zona[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT z.id, z.sucursal_id, z.zona_tipo_id, z.codigo, z.nombre, z.fecha_registro,
-              zt.nombre AS zona_tipo_nombre
+      `SELECT z.id, z.sucursal_id, z.nombre, z.descripcion
        FROM sod_zona z
-       INNER JOIN sod_zona_tipo zt ON zt.id = z.zona_tipo_id
        WHERE z.sucursal_id = ?
-       ORDER BY z.codigo ASC`,
+       ORDER BY z.nombre ASC`,
       [sucursalId]
     );
     const zonas = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
@@ -31,41 +29,46 @@ export class SqliteZonaRepository implements ZonaRepository {
   }
 
   /*
-   * Reemplazo completo: se borran las ubicaciones y zonas existentes de la
-   * sucursal y se insertan las nuevas. El orden importa: sod_ubicacion tiene
-   * FK a sod_zona(id), así que hay que limpiar ubicaciones antes que zonas.
+   * Guarda/actualiza zonas de forma idempotente: no borra zonas existentes
+   * porque sod_conteo_detalle puede estar referenciando ubicaciones de esas zonas.
+   * Si la zona ya existe (por sucursal_id + nombre), actualiza la descripción.
+   * Si no existe, la inserta.
    */
   async reemplazarDeSucursal(sucursalId: number, zonas: ZonaParaGuardar[]): Promise<void> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 
-    await db.run(
-      `DELETE FROM sod_ubicacion WHERE zona_id IN (SELECT id FROM sod_zona WHERE sucursal_id = ?)`,
-      [sucursalId]
-    );
-    await db.run(`DELETE FROM sod_zona WHERE sucursal_id = ?`, [sucursalId]);
-
     for (const z of zonas) {
-      await db.run(
-        `INSERT INTO sod_zona (sucursal_id, zona_tipo_id, codigo, nombre)
-         VALUES (?, ?, ?, ?)`,
-        [sucursalId, z.zonaTipoId, z.codigo, z.nombre]
+      const existing = await db.query(
+        `SELECT id FROM sod_zona WHERE sucursal_id = ? AND nombre = ? LIMIT 1`,
+        [sucursalId, z.nombre]
       );
+      const id = existing.values?.[0]?.['id'] as number | undefined;
+
+      if (id !== undefined) {
+        await db.run(
+          `UPDATE sod_zona SET descripcion = ? WHERE id = ?`,
+          [z.descripcion, id]
+        );
+      } else {
+        await db.run(
+          `INSERT INTO sod_zona (sucursal_id, nombre, descripcion)
+           VALUES (?, ?, ?)`,
+          [sucursalId, z.nombre, z.descripcion]
+        );
+      }
     }
-    
-    const tablaZona = await db.query(`SELECT * FROM sod_zona`, []);
-    console.log('[DB] Tabla sod_zona completa:');
+
+    const tablaZona = await db.query(`SELECT * FROM sod_zona WHERE sucursal_id = ?`, [sucursalId]);
+    console.log('[DB] Tabla sod_zona (sucursal', sucursalId, '):');
     console.table(tablaZona.values);
   }
 
   private map(row: Record<string, unknown>): Zona {
     return {
-      id:             row['id']               as number,
-      sucursalId:     row['sucursal_id']      as number,
-      zonaTipoId:     row['zona_tipo_id']     as number,
-      zonaTipoNombre: row['zona_tipo_nombre'] as string,
-      codigo:         row['codigo']           as string,
-      nombre:         row['nombre']           as string | null,
-      fechaRegistro:  row['fecha_registro']   as string,
+      id:          row['id']          as number,
+      sucursalId:  row['sucursal_id'] as number,
+      nombre:      row['nombre']      as string,
+      descripcion: row['descripcion'] as string | null,
     };
   }
 }

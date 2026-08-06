@@ -89,7 +89,7 @@
           }
         </h2>
         @if (zonaActual(); as zona) {
-        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
+        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.nombre }}{{ zona.descripcion ? ' — ' + zona.descripcion : '' }}</p>
         }
       </div>
       <div class="session-badge">

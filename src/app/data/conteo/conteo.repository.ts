@@ -250,7 +250,7 @@ export class SqliteConteoRepository implements ConteoRepository {
     const result = await db.query(
       `SELECT d.conteo_id, c.evento_id, c.iteracion,
               d.ubicacion_id, d.operador_id, d.pda_id, d.estado,
-              u.tag, z.codigo AS zona_codigo, z.nombre AS zona_nombre,
+              u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre,
               COUNT(*)               AS total_productos,
               SUM(d.cantidad_fisica) AS total_unidades,
               MAX(d.fecha_hora)      AS fecha_ultima
@@ -304,7 +304,7 @@ export class SqliteConteoRepository implements ConteoRepository {
   async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT u.tag, z.codigo AS zona_codigo, z.nombre AS zona_nombre, d.cantidad_fisica
+      `SELECT u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
        JOIN sod_producto p       ON p.id = d.producto_id
