@@ -245,10 +245,12 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     // pantalla seguirían tratándolo como ABIERTO (y Home no ofrecería
     // "Sincronizar" para abrir la iteración siguiente).
     await this.eventoFacade.refreshSelected();
+    /*
+     * No se informa si faltaron SKUs: el evento queda en análisis y es el SGO
+     * quien evalúa el resultado y decide si hay otra iteración.
+     */
     await this.avisar(
-      resultado.faltantes > 0
-        ? `Conteo finalizado — evento en análisis (${resultado.faltantes} SKU(s) sin contar)`
-        : 'Conteo finalizado — evento cerrado',
+      `Conteo finalizado — ${resultado.contados} SKU(s) contados, evento en análisis`,
       'success'
     );
     this.router.navigate(['/home']);

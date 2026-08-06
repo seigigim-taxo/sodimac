@@ -13,7 +13,7 @@ function evento(id: number, estado: Evento['estado']): Evento {
 }
 
 const RESUMEN: ResumenEvento = {
-  totalMuestra: 10, contados: 8, faltantes: 2,
+  totalMuestra: 10, contados: 8,
   tagsFinalizados: 3, iteracion: 1, qContado: 42,
 };
 
@@ -62,11 +62,11 @@ describe('ResumenEventoFacade', () => {
   });
 
   it('devuelve el resultado al finalizar el conteo', async () => {
-    finalizar.execute.and.resolveTo({ estado: 'CERRADO', totalMuestra: 10, contados: 10, faltantes: 0 });
+    finalizar.execute.and.resolveTo({ estado: 'EN_ANALISIS', totalMuestra: 10, contados: 10 });
 
     const resultado = await facade.finalizarEvento(1, 1, 1);
 
-    expect(resultado?.estado).toBe('CERRADO');
+    expect(resultado?.estado).toBe('EN_ANALISIS');
     expect(facade.finalizando()).toBeFalse();
   });
 

@@ -36,7 +36,7 @@ describe('FinalizarEventoUseCase', () => {
   let eventoRepo: jasmine.SpyObj<EventoRepository>;
 
   beforeEach(() => {
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getResumenes', 'getSkusContadosPorEvento']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getResumenes', 'getSkusContadosPorEvento', 'getRondaAbierta', 'cerrarRonda']);
     muestraRepo = jasmine.createSpyObj('MuestraRepository', ['getByEvento']);
     detalleRepo = jasmine.createSpyObj('MuestraDetalleRepository', ['getByMuestra']);
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById', 'updateEstado', 'getBySucursal']);
@@ -47,6 +47,11 @@ describe('FinalizarEventoUseCase', () => {
     muestraRepo.getByEvento.and.resolveTo({ id: 1, codigoMuestra: null, eventoId: 1, sucursalId: 1, nombre: null, nombreArchivo: null });
     detalleRepo.getByMuestra.and.resolveTo([detalle('AF001'), detalle('AF002')]);
     conteoRepo.getSkusContadosPorEvento.and.resolveTo(['AF001', 'AF002']);
+    conteoRepo.getRondaAbierta.and.resolveTo({
+      id: 5, eventoId: 1, iteracion: 1, estado: 'ABIERTO',
+      fechaApertura: '2026-08-06 10:00:00', fechaCierre: null,
+    });
+    conteoRepo.cerrarRonda.and.resolveTo();
 
     TestBed.configureTestingModule({
       providers: [
@@ -60,21 +65,35 @@ describe('FinalizarEventoUseCase', () => {
     useCase = TestBed.inject(FinalizarEventoUseCase);
   });
 
-  it('cierra el evento cuando se contó toda la muestra', async () => {
+  it('deja el evento EN_ANALISIS: el resultado lo decide el SGO', async () => {
     const resultado = await useCase.execute(1, 1, 1);
 
-    expect(resultado.estado).toBe('CERRADO');
-    expect(resultado.faltantes).toBe(0);
-    expect(eventoRepo.updateEstado).toHaveBeenCalledWith(1, 'CERRADO');
+    expect(resultado.estado).toBe('EN_ANALISIS');
+    expect(eventoRepo.updateEstado).toHaveBeenCalledWith(1, 'EN_ANALISIS');
   });
 
-  it('deja el evento EN_ANALISIS si quedaron SKUs sin contar', async () => {
+  it('tampoco evalúa los SKUs sin contar', async () => {
     conteoRepo.getSkusContadosPorEvento.and.resolveTo(['AF001']);
 
     const resultado = await useCase.execute(1, 1, 1);
 
     expect(resultado.estado).toBe('EN_ANALISIS');
-    expect(resultado.faltantes).toBe(1);
+    expect(resultado.contados).toBe(1);
+  });
+
+  it('cierra la ronda al finalizar el conteo', async () => {
+    await useCase.execute(1, 1, 1);
+
+    // Si quedara abierta, al abrir el reconteo habría dos rondas abiertas.
+    expect(conteoRepo.cerrarRonda).toHaveBeenCalledWith(5);
+  });
+
+  it('no cierra el evento aunque se haya contado toda la muestra', async () => {
+    // Muestra completa (AF001 y AF002): la app igual NO decide CERRADO.
+    const resultado = await useCase.execute(1, 1, 1);
+
+    expect(resultado.contados).toBe(2);
+    expect(eventoRepo.updateEstado).not.toHaveBeenCalledWith(1, 'CERRADO');
   });
 
   it('no permite cerrar con TAGs todavía en curso', async () => {

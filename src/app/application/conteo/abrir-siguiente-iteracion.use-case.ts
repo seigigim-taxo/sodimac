@@ -70,6 +70,17 @@ export class AbrirSiguienteIteracionUseCase {
     const muestraId = await this.planMuestraRepo.prepararMuestraDeIteracion(eventoId, siguiente);
 
     /*
+     * Cerrar la anterior ANTES de abrir la nueva: dos rondas abiertas en el
+     * mismo evento harían que "la ronda activa" dependa del orden de la
+     * consulta en vez de un hecho. Normalmente ya la cerró
+     * FinalizarEventoUseCase; esto cubre los casos en que el evento llegó a
+     * EN_ANALISIS por otra vía.
+     */
+    if (ultima?.estado === 'ABIERTO') {
+      await this.conteoRepo.cerrarRonda(ultima.id);
+    }
+
+    /*
      * La ronda se crea antes de habilitar el reconteo: si el operador entrara a
      * contar y la ronda no existiera, sus líneas no tendrían de qué colgar.
      */

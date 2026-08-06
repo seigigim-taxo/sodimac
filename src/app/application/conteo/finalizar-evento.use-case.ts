@@ -9,7 +9,6 @@ export interface ResultadoFinalizarEvento {
   estado:       Evento['estado'];
   totalMuestra: number;
   contados:     number;
-  faltantes:    number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -20,10 +19,15 @@ export class FinalizarEventoUseCase {
   private eventoRepo  = inject(EVENTO_REPOSITORY_TOKEN);
 
   /*
-   * Cierra el conteo a nivel de evento (no de un TAG puntual): exige que no
-   * quede ninguna ubicación EN_CURSO, calcula faltantes contra la muestra
-   * completa y deja el evento en CERRADO (sin faltantes) o EN_ANALISIS
-   * (quedó algo sin contar — backoffice deberá armar el reconteo).
+   * Cierra el conteo a nivel de evento (no de un TAG puntual) y lo deja SIEMPRE
+   * en EN_ANALISIS.
+   *
+   * La app no evalúa si el conteo estuvo completo: eso lo decide el SGO, que
+   * analiza las diferencias y determina si el evento se cierra o si hay una
+   * iteración más. Acá solo se declara "terminé de contar" — comparar contra la
+   * muestra sería adelantarse a una decisión que no es de la PDA.
+   *
+   * Los totales que devuelve son informativos, para el mensaje al operador.
    */
   async execute(eventoId: number, operadorId: number, pdaId: number): Promise<ResultadoFinalizarEvento> {
     // Cerrar dos veces el mismo conteo volvería a mover el estado del evento y
@@ -43,11 +47,21 @@ export class FinalizarEventoUseCase {
     const muestra      = await this.muestraRepo.getByEvento(eventoId);
     const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
     const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
-    const faltantes    = Math.max(0, totalMuestra - skusContados.length);
-    const estado: Evento['estado'] = faltantes > 0 ? 'EN_ANALISIS' : 'CERRADO';
+    const estado: Evento['estado'] = 'EN_ANALISIS';
+
+    /*
+     * Terminar de contar cierra la ronda: es el momento en que deja de admitir
+     * líneas. Si quedara ABIERTA, al abrir la siguiente iteración el evento
+     * tendría dos rondas abiertas y "cuál es la activa" dejaría de tener una
+     * sola respuesta.
+     */
+    const ronda = await this.conteoRepo.getRondaAbierta(eventoId);
+    if (ronda) {
+      await this.conteoRepo.cerrarRonda(ronda.id);
+    }
 
     await this.eventoRepo.updateEstado(eventoId, estado);
 
-    return { estado, totalMuestra, contados: skusContados.length, faltantes };
+    return { estado, totalMuestra, contados: skusContados.length };
   }
 }

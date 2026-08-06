@@ -187,13 +187,6 @@
             <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs contados</span>
             <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ item.resumen.contados }}</span>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs faltantes</span>
-            <span class="text-[13px] font-semibold num"
-              [style.color]="item.resumen.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
-              {{ item.resumen.faltantes }}
-            </span>
-          </div>
         </div>
       </div>
       }

@@ -3,10 +3,13 @@ import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 
+/*
+ * Avance del conteo, no evaluación de su resultado: no lleva "faltantes" porque
+ * juzgar si el conteo estuvo completo es del SGO, no de la PDA.
+ */
 export interface ResumenEvento {
   totalMuestra: number;
   contados: number;
-  faltantes: number;
   tagsFinalizados: number;
   iteracion: number;
   qContado: number;
@@ -35,10 +38,8 @@ export class GetResumenEventoUseCase {
     const muestra = await this.muestraRepo.getByEvento(eventoId);
     const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
     const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
-    const faltantes = Math.max(0, totalMuestra - skusContados.length);
-
     const qContado = await this.conteoRepo.getUnidadesContadasPorEvento(eventoId, operadorId, pdaId);
 
-    return { totalMuestra, contados: skusContados.length, faltantes, tagsFinalizados, iteracion, qContado };
+    return { totalMuestra, contados: skusContados.length, tagsFinalizados, iteracion, qContado };
   }
 }

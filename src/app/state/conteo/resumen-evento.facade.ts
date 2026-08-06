@@ -30,7 +30,7 @@ export class ResumenEventoFacade {
   readonly finalizando = this.finalizandoSig.asReadonly();
   readonly error       = this.errorSignal.asReadonly();
 
-  /* Avance de la ronda activa del evento (Q contado, SKUs, faltantes). */
+  /* Avance de la ronda activa del evento (Q contado, SKUs, TAGs). */
   async cargarAvance(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
     this.errorSignal.set(null);
     try {

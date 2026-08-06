@@ -38,11 +38,12 @@ describe('AbrirSiguienteIteracionUseCase', () => {
 
   beforeEach(() => {
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById', 'updateEstado', 'getBySucursal']);
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getUltimaRonda', 'abrirRonda']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getUltimaRonda', 'abrirRonda', 'cerrarRonda']);
     planRepo = jasmine.createSpyObj('PlanMuestraRepository', ['prepararMuestraDeIteracion']);
 
     eventoRepo.updateEstado.and.resolveTo();
-    conteoRepo.getUltimaRonda.and.resolveTo(ronda(1));
+    conteoRepo.getUltimaRonda.and.resolveTo({ ...ronda(1), estado: 'FINALIZADO' as const });
+    conteoRepo.cerrarRonda.and.resolveTo();
     conteoRepo.abrirRonda.and.callFake((_e: number, i: number) => Promise.resolve(ronda(i)));
     planRepo.prepararMuestraDeIteracion.and.resolveTo(99);
 
@@ -130,6 +131,25 @@ describe('AbrirSiguienteIteracionUseCase', () => {
     await expectAsync(useCase.execute(1, 2)).toBeRejected();
 
     expect(conteoRepo.abrirRonda).not.toHaveBeenCalled();
+  });
+
+  it('cierra la ronda anterior si quedó abierta, antes de abrir la nueva', async () => {
+    eventoRepo.getById.and.resolveTo(evento());
+    conteoRepo.getUltimaRonda.and.resolveTo(ronda(1));   // estado ABIERTO
+
+    await useCase.execute(1);
+
+    // Dos rondas abiertas harían que "la ronda activa" dependa del ORDER BY.
+    expect(conteoRepo.cerrarRonda).toHaveBeenCalledWith(101);
+    expect(conteoRepo.cerrarRonda).toHaveBeenCalledBefore(conteoRepo.abrirRonda);
+  });
+
+  it('no intenta cerrar una ronda que ya estaba cerrada', async () => {
+    eventoRepo.getById.and.resolveTo(evento());
+
+    await useCase.execute(1);
+
+    expect(conteoRepo.cerrarRonda).not.toHaveBeenCalled();
   });
 
   it('falla si el evento no existe', async () => {
