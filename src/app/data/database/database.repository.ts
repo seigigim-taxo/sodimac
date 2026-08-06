@@ -18,6 +18,34 @@ const VERSION_KEY = 'sodimac_db_version_aplicada';
 export class SqliteDatabaseRepository implements DatabaseRepository {
   private connection = inject(SqliteConnectionService);
 
+  async resetLocalDatabase(): Promise<void> {
+    if (!this.connection.isSupported) {
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: plataforma no nativa — nada que borrar`);
+      return;
+    }
+
+    try {
+      const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: borrando todas las tablas...`);
+      await db.execute('PRAGMA foreign_keys = OFF;');
+
+      const activasReversa = [...SODIMAC_TABLE_NAMES].reverse()
+        .map((t) => `DROP TABLE IF EXISTS ${t};`).join('\n');
+      await db.execute(activasReversa);
+
+      await db.execute('PRAGMA foreign_keys = ON;');
+
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: recreando esquema...`);
+      await db.execute(SODIMAC_SCHEMA_SQL);
+
+      await Preferences.set({ key: VERSION_KEY, value: String(SODIMAC_DB_VERSION) });
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: base reiniciada correctamente`);
+    } catch (err) {
+      console.error(`${TAG} fallo al reiniciar la base local:`, err);
+    }
+  }
+
   async initialize(): Promise<void> {
     if (!this.connection.isSupported) {
       if (isDevMode()) console.log(`${TAG} plataforma no nativa (web) - se omite la inicializacion de SQLite`);

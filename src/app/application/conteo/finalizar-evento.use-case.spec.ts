@@ -10,7 +10,7 @@ import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.mode
 
 function evento(parcial: Partial<Evento> = {}): Evento {
   return {
-    id: 1, agendaId: null, sucursalId: 1, nombre: 'Inventario test',
+    id: 1, sucursalId: 1, nombre: 'Inventario test',
     fechaProgramada: '2026-08-03', fechaEjecucion: null, estado: 'ABIERTO',
     fechaRegistro: '2026-08-03 10:00:00', ...parcial,
   };

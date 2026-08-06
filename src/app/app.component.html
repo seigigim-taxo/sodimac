@@ -53,6 +53,14 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Reiniciar base local -->
+        <ion-menu-toggle>
+          <ion-item button (click)="confirmResetLocalDatabase()" class="menu-logout-item">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            <ion-label>Reiniciar base local</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Logout -->
         <ion-menu-toggle>
           <ion-item button (click)="logout()" class="menu-logout-item">

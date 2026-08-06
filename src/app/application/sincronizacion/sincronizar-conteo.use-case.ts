@@ -20,7 +20,7 @@ export class SincronizarConteoUseCase {
     await new Promise((resolve) => setTimeout(resolve, DELAY_SIMULADO_MS));
 
     await this.conteoRepo.marcarSincronizado(
-      conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId
+      conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId
     );
     await this.sincronizacionRepo.registrarCarga(
       conteo.eventoId, conteo.pdaId, conteo.totalProductos

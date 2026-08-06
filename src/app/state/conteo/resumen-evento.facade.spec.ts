@@ -6,7 +6,7 @@ import { Evento } from '../../domain/evento/models/evento.model';
 
 function evento(id: number, estado: Evento['estado']): Evento {
   return {
-    id, agendaId: null, sucursalId: 1, nombre: `Evento ${id}`,
+    id, sucursalId: 1, nombre: `Evento ${id}`,
     fechaProgramada: '2026-08-03', fechaEjecucion: null, estado,
     fechaRegistro: '2026-08-03 10:00:00',
   };

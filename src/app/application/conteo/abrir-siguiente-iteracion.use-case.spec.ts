@@ -8,7 +8,6 @@ import { Evento } from '../../domain/evento/models/evento.model';
 function evento(parcial: Partial<Evento> = {}): Evento {
   return {
     id: 1,
-    agendaId: null,
     sucursalId: 1,
     nombre: 'Inventario test',
     fechaProgramada: '2026-08-03',
