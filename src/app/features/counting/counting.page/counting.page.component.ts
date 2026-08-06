@@ -190,6 +190,10 @@ export class CountingPageComponent implements ViewWillEnter {
     const operadorId  = this.auth.session()?.operadorId;
     const pdaId       = this.pda.pdaId();
 
+    console.log('[CountingPage] ionViewWillEnter - evento:', evento);
+    console.log('[CountingPage] ionViewWillEnter - evento.id:', evento?.id);
+    console.log('[CountingPage] ionViewWillEnter - ubicacionId:', ubicacionId);
+
     // Si el evento cambió a EN_ANALISIS (ej: desde otra PDA), redirigir a home
     if (evento?.estado === 'EN_ANALISIS') {
       this.router.navigate(['/home']);

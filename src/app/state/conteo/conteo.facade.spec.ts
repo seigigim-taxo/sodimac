@@ -10,6 +10,14 @@ import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
  * son los repositorios (SQLite). Así se cubre la cadena completa scan → muestra
  * → persistencia, que es donde vivían los bugs de cantidad 0.
  */
+function ronda(iteracion: number) {
+  return {
+    id: 7, eventoId: 1, iteracion,
+    estado: 'ABIERTO' as const,
+    fechaApertura: '2026-08-05 10:00:00', fechaCierre: null,
+  };
+}
+
 function item(parcial: Partial<ConteoItem> = {}): ConteoItem {
   return {
     id: 1, conteoId: 7, ubicacionId: 1, productoId: 100, sku: 'AF001',
@@ -24,16 +32,16 @@ describe('ConteoFacade', () => {
 
   beforeEach(async () => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', [
-      'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag', 'getRondaAbierta',
+      'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag',
+      'getRondaAbierta', 'getUltimaRonda', 'abrirRonda',
     ]);
     conteoRepo.getBySesion.and.resolveTo([]);
     conteoRepo.upsert.and.resolveTo(item());
     conteoRepo.cerrarTag.and.resolveTo();
     // La ronda abierta es lo que ConteoFacade.init() resuelve antes de dejar contar.
-    conteoRepo.getRondaAbierta.and.resolveTo({
-      id: 7, eventoId: 1, iteracion: 1, estado: 'ABIERTO',
-      fechaApertura: '2026-08-05 10:00:00', fechaCierre: null,
-    });
+    conteoRepo.getRondaAbierta.and.resolveTo(ronda(1));
+    conteoRepo.getUltimaRonda.and.resolveTo(null);
+    conteoRepo.abrirRonda.and.callFake((_e: number, i: number) => Promise.resolve(ronda(i)));
 
     const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEvento']);
     muestraRepo.getByEvento.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, nombre: null, nombreArchivo: null });
@@ -105,12 +113,25 @@ describe('ConteoFacade', () => {
     expect(facade.sesion()?.conteoId).toBe(7);
   });
 
-  it('no deja contar si el evento no tiene ronda abierta', async () => {
+  it('abre la primera ronda si el evento no tiene ninguna', async () => {
     conteoRepo.getRondaAbierta.and.resolveTo(null);
+    conteoRepo.getUltimaRonda.and.resolveTo(null);
 
     await facade.init(1, 1, 1, 1);
 
-    expect(facade.error()).toMatch(/ronda de conteo abierta/);
+    expect(conteoRepo.abrirRonda).toHaveBeenCalledWith(1, 1);
+    expect(facade.sesion()?.conteoId).toBe(7);
+    expect(facade.error()).toBeNull();
+  });
+
+  it('no abre una ronda nueva si la anterior está cerrada', async () => {
+    conteoRepo.getRondaAbierta.and.resolveTo(null);
+    conteoRepo.getUltimaRonda.and.resolveTo({ ...ronda(2), estado: 'FINALIZADO' as const });
+
+    await facade.init(1, 1, 1, 1);
+
+    expect(conteoRepo.abrirRonda).not.toHaveBeenCalled();
+    expect(facade.error()).toMatch(/análisis/);
     expect(facade.sesion()).toBeNull();
   });
 

@@ -32,6 +32,8 @@ export class LoadMuestraSetUseCase {
     
     console.log('[LoadMuestraSet] Mapa final con', skuMap.size, 'SKUs');
     console.log('[LoadMuestraSet] SKUs en mapa:', Array.from(skuMap.keys()));
+    console.log('[LoadMuestraSet] Mapa completo (SKU → productoId):');
+    console.table(Array.from(skuMap.entries()).map(([sku, productoId]) => ({ sku, productoId })));
     
     return { skuMap };
   }

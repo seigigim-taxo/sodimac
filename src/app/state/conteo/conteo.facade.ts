@@ -5,7 +5,7 @@ import { UpsertConteoItemUseCase } from '../../application/conteo/upsert-conteo-
 import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-item.use-case';
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
 import { FinalizarSesionConteoUseCase } from '../../application/conteo/finalizar-sesion-conteo.use-case';
-import { GetRondaActivaUseCase } from '../../application/conteo/get-ronda-activa.use-case';
+import { AsegurarRondaAbiertaUseCase } from '../../application/conteo/asegurar-ronda-abierta.use-case';
 import { WriteQueue } from '../../core/utils/write-queue';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { SesionConteo } from '../../domain/conteo/models/sesion-conteo.model';
@@ -19,7 +19,7 @@ export class ConteoFacade {
   private adjustItem    = inject(AdjustConteoItemUseCase);
   private deleteItem    = inject(DeleteConteoItemUseCase);
   private finalizarUC   = inject(FinalizarSesionConteoUseCase);
-  private getRonda      = inject(GetRondaActivaUseCase);
+  private asegurarRonda = inject(AsegurarRondaAbiertaUseCase);
 
   private sesionSignal     = signal<SesionConteo | null>(null);
   private itemsSignal      = signal<ConteoItem[]>([]);
@@ -45,18 +45,21 @@ export class ConteoFacade {
 
   /*
    * La ronda se resuelve UNA vez acá y viaja en la sesión: de ahí en más, cada
-   * línea sabe a qué ronda pertenece sin volver a preguntarlo. Si el evento no
-   * tiene ronda abierta no se puede contar — es un estado real (evento en
-   * análisis o cerrado), así que se informa en vez de escribir en el vacío.
+   * línea sabe a qué ronda pertenece sin volver a preguntarlo.
+   *
+   * Si el evento todavía no tiene ninguna, se abre la primera: contar es
+   * justamente lo que la inicia. Lo que no se abre solo es una ronda posterior
+   * —eso pasa por el análisis del SGO—, y ahí init() falla con el motivo.
    */
   async init(eventoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void> {
+    console.log('[ConteoFacade.init] eventoId:', eventoId, 'ubicacionId:', ubicacionId, 'operadorId:', operadorId, 'pdaId:', pdaId);
+    
     this.reset();
     this.loadingSignal.set(true);
     try {
-      const ronda = await this.getRonda.execute(eventoId);
-      if (!ronda) {
-        throw new Error('El evento no tiene una ronda de conteo abierta.');
-      }
+      const ronda = await this.asegurarRonda.execute(eventoId);
+
+      console.log('[ConteoFacade.init] Ronda encontrada:', ronda.id, 'iteracion:', ronda.iteracion);
 
       const [muestraSet, resultado] = await Promise.all([
         this.loadMuestra.execute(eventoId),
@@ -66,6 +69,9 @@ export class ConteoFacade {
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
+      
+      console.log('[ConteoFacade.init] MuestraSet asignado con', this.muestraSet.skuMap.size, 'SKUs');
+      console.log('[ConteoFacade.init] SKUs en el set:', Array.from(this.muestraSet.skuMap.keys()));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
     } finally {
