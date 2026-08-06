@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 35;
+export const SODIMAC_DB_VERSION = 34;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -149,22 +149,6 @@ const TABLES: readonly string[] = [
 
 ];
 
-/*
- * Índice único PARCIAL: un evento no puede tener dos rondas abiertas a la vez.
- *
- * "La ronda activa" tiene que tener una sola respuesta. Si hubiera dos, volvería
- * el problema que motivó separar sod_conteo de sod_conteo_detalle: un estado que
- * se resuelve por el ORDER BY de la consulta y no por un hecho registrado.
- *
- * El código ya cierra la anterior antes de abrir la siguiente; esto lo vuelve
- * imposible de romper por olvido. Solo restringe las filas ABIERTO, así que
- * quedan tantas cerradas como haga falta.
- */
-const INDICES: readonly string[] = [
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_sod_conteo_ronda_abierta
-     ON sod_conteo (evento_id) WHERE estado = 'ABIERTO'`,
-];
-
 const SEED = `
   INSERT OR IGNORE INTO sod_rol (nombre, descripcion) VALUES
     ('Operador de Inventario', 'Realiza conteos con PDA');
@@ -190,7 +174,4 @@ export const SODIMAC_TABLE_NAMES = [
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];
 
-export const SODIMAC_SCHEMA_SQL =
-  TABLES.map((s) => `${s};`).join('\n') + '\n' +
-  INDICES.map((s) => `${s};`).join('\n') + '\n' +
-  SEED;
+export const SODIMAC_SCHEMA_SQL = TABLES.map((s) => `${s};`).join('\n') + '\n' + SEED;
