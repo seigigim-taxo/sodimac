@@ -49,10 +49,42 @@ export class SqliteEventoRepository implements EventoRepository {
         return id;
     }
 
+    /*
+     * Sin condición: acá el duplicado no es un riesgo sino el objetivo. Quien
+     * evita llamarla de más es el flujo — solo se abre una ronda sobre un evento
+     * EN_ANALISIS, y ese estado deja de ser seleccionable en Home apenas nace el
+     * evento siguiente.
+     */
+    async crearEvento(evento: EventoParaGuardar): Promise<number> {
+        const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+        await db.run(
+            `INSERT INTO sod_evento_inventario (sucursal_id, nombre, fecha_programada, estado)
+             VALUES (?, ?, ?, ?)`,
+            [evento.sucursalId, evento.nombre, evento.fechaProgramada, evento.estado]
+        );
+
+        const row = await db.query(`SELECT last_insert_rowid() AS id`, []);
+        const id = row.values?.[0]?.['id'] as number | undefined;
+        if (id === undefined) {
+            throw new Error(
+                `No se pudo crear el evento de la sucursal ${evento.sucursalId} para ${evento.fechaProgramada}`
+            );
+        }
+        return id;
+    }
+
     async getBySucursal(sucursalId: number): Promise<Evento[]> {
         const db = await this.connection.getConnection(SODIMAC_DB_NAME);
         const result = await db.query(
-            `SELECT * FROM sod_evento_inventario WHERE sucursal_id = ? ORDER BY fecha_programada DESC`,
+            /*
+             * El desempate por id importa desde que cada ronda de reconteo crea
+             * su propio evento: varios comparten fecha, y sin esto "cuál es el
+             * activo" quedaría a merced del orden que devuelva el motor.
+             */
+            `SELECT * FROM sod_evento_inventario
+             WHERE sucursal_id = ?
+             ORDER BY fecha_programada DESC, id DESC`,
             [sucursalId]
         );
         return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));

@@ -40,6 +40,17 @@ export class EventoFacade {
   }
 
   /*
+   * Suelta el evento seleccionado y la lista. Para cuando las filas que estos
+   * objetos representan dejan de existir —reiniciar la base local—: si el signal
+   * las siguiera reteniendo, la app trabajaría contra ids muertos.
+   */
+  reset(): void {
+    this.eventsSignal.set([]);
+    this.selectedEventSignal.set(null);
+    this.errorSignal.set(null);
+  }
+
+  /*
    * Relee el evento seleccionado desde la base. Necesario después de cualquier
    * acción que cambie su estado (finalizar el conteo, abrir una iteración): el
    * caso de uso escribe en SQLite, pero el objeto que quedó en el signal es el
@@ -58,13 +69,15 @@ export class EventoFacade {
   }
 
   /*
-   * Abre la ronda siguiente del evento seleccionado y recarga desde la base para
-   * que `selectedEvent` quede con la iteración y el estado nuevos — el resto de
-   * la app lee la iteración de acá, no la calcula por su cuenta.
+   * Abre la ronda siguiente y pasa a trabajar sobre el evento NUEVO que crea.
    *
-   * `iteracionSgo` queda disponible para cuando el análisis del SGO devuelva el
-   * número; sin ese dato, la app usa la ronda registrada + 1. Ese número es
-   * informativo: no se persiste en ninguna parte (ver AbrirSiguienteIteracionUseCase).
+   * No alcanza con refrescar el seleccionado: la ronda ya no cuelga del evento
+   * que se venía trabajando —ese queda EN_ANALISIS como historial— sino de uno
+   * recién creado. Si el signal siguiera apuntando al viejo, el operador
+   * contaría contra el evento equivocado y su muestra anterior.
+   *
+   * `iteracionSgo` permite forzar el número; sin él manda el que trae el
+   * análisis.
    */
   async abrirSiguienteIteracion(iteracionSgo?: number): Promise<ResultadoAbrirIteracion | null> {
     const evento = this.selectedEventSignal();
@@ -73,7 +86,13 @@ export class EventoFacade {
     this.errorSignal.set(null);
     try {
       const resultado = await this.abrirIteracionUC.execute(evento.id, iteracionSgo);
-      await this.refreshSelected();
+
+      // La lista primero: Home pinta desde ahí y el evento nuevo todavía no está.
+      await this.loadEventos(evento.sucursalId);
+
+      const nuevo = await this.getEventoById.execute(resultado.eventoId);
+      if (nuevo) this.selectedEventSignal.set(nuevo);
+
       return resultado;
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al abrir la iteración siguiente');

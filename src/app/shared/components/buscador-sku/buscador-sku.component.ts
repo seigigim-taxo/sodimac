@@ -4,10 +4,12 @@ import { addIcons } from 'ionicons';
 import { searchOutline } from 'ionicons/icons';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { BuscarSkuUseCase } from '../../../application/conteo/buscar-sku.use-case';
+import { BusquedaSkuResultado } from '../../../domain/conteo/models/busqueda-sku.model';
 
 /*
- * Buscador SKU → TAG. Responde "¿dónde se contó este SKU?" para el evento
- * seleccionado, y un mismo SKU puede aparecer en varios TAG.
+ * Buscador SKU → TAG. Responde "¿dónde se contó este SKU?" para la jornada de
+ * inventario completa —todas las rondas, no solo la activa—, y un mismo SKU
+ * puede aparecer en varios TAG.
  *
  * Vive en el menú lateral de la app (app.component), no en cada pantalla: tiene
  * que estar disponible en TODAS las etapas del proceso — elegir TAG, contar,
@@ -50,11 +52,13 @@ export class BuscadorSkuComponent {
     try {
       const resultados = await this.buscarSkuUC.execute(evento.id, sku);
 
+      /*
+       * Texto plano con saltos de línea: Ionic escapa el HTML del `message`, así
+       * que un <br> se vería literal en pantalla.
+       */
       const message = resultados.length === 0
-        ? `No se ha registrado el SKU ${sku} en este evento.`
-        : resultados
-            .map((r) => `TAG ${r.tag ?? '—'} · ${r.zonaCodigo}${r.zonaNombre ? ' (' + r.zonaNombre + ')' : ''} · ${r.cantidad} unidad(es)`)
-            .join('<br>');
+        ? `No se ha registrado el SKU ${sku} en este inventario.`
+        : resultados.map((r) => this.formatearResultado(r)).join('\n');
 
       // Cierra el menú antes de mostrar el resultado: si no, el alert queda
       // encima del menú abierto y al cerrarlo se vuelve al menú, no a la pantalla.
@@ -70,5 +74,17 @@ export class BuscadorSkuComponent {
     } finally {
       this.buscando.set(false);
     }
+  }
+
+  /*
+   * "Iteración 1 · TAG 038 · A3 (Pasillo herramientas) · 12 unidad(es)".
+   *
+   * La iteración va primero porque es lo que ordena la lista: al recontar, lo
+   * primero que necesita saber el operador es si ese TAG es de la ronda en la
+   * que está o de una anterior.
+   */
+  private formatearResultado(r: BusquedaSkuResultado): string {
+    const zona = r.zonaNombre ? `${r.zonaCodigo} (${r.zonaNombre})` : r.zonaCodigo;
+    return `Iteración ${r.iteracion} · TAG ${r.tag ?? '—'} · ${zona} · ${r.cantidad} unidad(es)`;
   }
 }

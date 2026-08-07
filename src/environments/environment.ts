@@ -4,7 +4,12 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://50.16.13.230/app/ws/sodimac/api'
+  apiUrl: 'http://50.16.13.230/app/ws/sodimac/api',
+  /*
+   * Simula el análisis del SGO —qué recontar en cada iteración— mientras no
+   * exista el endpoint. Ver MockPlanMuestraRepository y el registro en main.ts.
+   */
+  mockSgo: true
 };
 
 /*

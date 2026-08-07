@@ -27,6 +27,25 @@ const SELECT_RONDA = `
   FROM sod_conteo
 `;
 
+/*
+ * Los eventos de la MISMA jornada de inventario, a partir del id de cualquiera
+ * de ellos. Toma un solo parámetro: el evento de referencia.
+ *
+ * Existe porque las rondas de un inventario no comparten evento —cada reconteo
+ * crea el suyo— y no hay columna que las encadene. Lo que sí comparten es
+ * tienda y fecha programada: el evento de reconteo hereda la fecha del anterior
+ * justamente porque en terreno el reconteo ocurre el mismo día. Ese par es la
+ * clave de la jornada, y es más ajustado que filtrar por tienda sola, que
+ * mezclaría inventarios de otras fechas.
+ */
+const EVENTOS_DE_LA_JORNADA = `
+  SELECT e.id
+  FROM sod_evento_inventario e
+  JOIN sod_evento_inventario ref ON ref.id = ?
+  WHERE e.sucursal_id      = ref.sucursal_id
+    AND e.fecha_programada = ref.fecha_programada
+`;
+
 @Injectable({ providedIn: 'root' })
 export class SqliteConteoRepository implements ConteoRepository {
   private connection = inject(SqliteConnectionService);
@@ -301,27 +320,40 @@ export class SqliteConteoRepository implements ConteoRepository {
     return (row?.['total'] as number) ?? 0;
   }
 
+  /*
+   * Se agrupa por ronda + ubicación y se suman las cantidades: un mismo TAG puede
+   * tener varias líneas del mismo SKU (una por operador/PDA), y devolverlas
+   * sueltas haría que el operador leyera "TAG 12 · 3 unidades" dos veces en vez
+   * de las 6 que hay contadas ahí.
+   */
   async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
+      `SELECT c.iteracion                     AS iteracion,
+              u.tag                           AS tag,
+              z.nombre                        AS zona_codigo,
+              z.descripcion                   AS zona_nombre,
+              SUM(d.cantidad_fisica)          AS cantidad
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
        JOIN sod_producto p       ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
-       WHERE c.evento_id = ? AND p.sku = ?
+       WHERE c.evento_id IN (${EVENTOS_DE_LA_JORNADA})
+         AND p.sku = ?
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
-       ORDER BY d.fecha_hora DESC`,
+       GROUP BY c.iteracion, d.ubicacion_id
+       ORDER BY c.iteracion DESC, u.tag`,
       [eventoId, sku]
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
+        iteracion: row['iteracion'] as number,
         tag: row['tag'] as string | null,
         zonaCodigo: (row['zona_codigo'] as string | null) ?? '—',
         zonaNombre: row['zona_nombre'] as string | null,
-        cantidad: row['cantidad_fisica'] as number,
+        cantidad: row['cantidad'] as number,
       };
     });
   }
@@ -333,7 +365,14 @@ export class SqliteConteoRepository implements ConteoRepository {
        FROM sod_conteo_detalle d
        JOIN sod_conteo c         ON c.id = d.conteo_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
-       WHERE c.evento_id = ?
+       /*
+        * Por jornada y no por evento: cada ronda de reconteo crea su propio
+        * evento, así que filtrar por c.evento_id dejaría fuera justamente las
+        * rondas anteriores, que es lo único que esta consulta busca. Los TAGs
+        * siguen en base colgando de su conteo; lo que había que soltar era el
+        * supuesto de que todas las rondas comparten evento.
+        */
+       WHERE c.evento_id IN (${EVENTOS_DE_LA_JORNADA})
          AND c.iteracion < ?
          AND u.tag IS NOT NULL
          AND u.tag != ''

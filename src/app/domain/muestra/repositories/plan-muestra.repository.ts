@@ -1,30 +1,24 @@
 import { InjectionToken } from '@angular/core';
+import { AnalisisIteracion } from '../models/analisis-iteracion.model';
 
 /*
- * PUERTO — de dónde sale la muestra de una iteración.
+ * PUERTO — el análisis del SGO sobre una ronda terminada.
  *
  * La iteración 1 es la muestra completa que baja con el evento. Las siguientes
- * son el recorte acotado que backoffice/SGO decide recontar, y ese dato hoy no
- * existe en ninguna parte: no hay endpoint de análisis todavía.
+ * son el recorte acotado que el SGO decide recontar, y llega junto con la fecha
+ * y el estado de un evento NUEVO: cada ronda es su propio registro de evento,
+ * así la muestra acotada no pisa la de la ronda anterior y queda el historial.
  *
- * Este puerto aísla exactamente esa incógnita. HOY NO TIENE IMPLEMENTACIÓN:
- * el token no está registrado en main.ts, así que abrir una iteración de
- * reconteo falla con NullInjectorError. Es deliberado — se prefiere el fallo
- * visible antes que datos inventados.
- *
- * La implementación definitiva baja la muestra del SGO y la materializa en
- * sod_muestra + sod_muestra_detalle, de modo que el resto de la app —conteo,
- * validaciones, resúmenes— siga leyendo de las tablas reales sin enterarse.
- *
- * Para habilitarlo: registrar un HttpPlanMuestraRepository en main.ts.
+ * Devuelve datos, no efectos: la implementación no escribe en base. Persistir
+ * es de AbrirSiguienteIteracionUseCase. Por eso reemplazar el mock por la
+ * llamada HTTP real es cambiar la clase registrada en main.ts y nada más.
  */
 export interface PlanMuestraRepository {
   /*
-   * Deja lista la muestra de `iteracion` para el evento y devuelve su id.
-   * Debe ser idempotente: si esa muestra ya existe, la devuelve sin duplicarla
-   * (abrir dos veces la misma ronda no puede generar dos muestras).
+   * El análisis de la ronda `iteracionActual` del evento. Null = el SGO no pide
+   * otra ronda: el ciclo terminó.
    */
-  prepararMuestraDeIteracion(eventoId: number, iteracion: number): Promise<number | null>;
+  obtenerAnalisis(eventoId: number, iteracionActual: number): Promise<AnalisisIteracion | null>;
 }
 
 export const PLAN_MUESTRA_REPOSITORY_TOKEN =

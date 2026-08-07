@@ -25,6 +25,12 @@ import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { PLAN_MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/plan-muestra.repository';
+import { MockPlanMuestraRepository } from './app/data/muestra/mock/mock-plan-muestra.repository';
+import { SGO_SYNC_REPOSITORY_TOKEN } from './app/domain/sgo/repositories/sgo-sync.repository';
+import { MockSgoSyncRepository } from './app/data/sgo/mock/mock-sgo-sync.repository';
+import { HttpSgoSyncRepository } from './app/data/sgo/http-sgo-sync.repository';
+import { environment } from './environments/environment';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
@@ -94,11 +100,21 @@ bootstrapApplication(AppComponent, {
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
 
     /*
-     * PLAN_MUESTRA_REPOSITORY_TOKEN quedó SIN implementación a propósito: la
-     * muestra de las iteraciones de reconteo la decide el SGO y ese endpoint
-     * todavía no existe. Abrir una iteración nueva falla con NullInjectorError
-     * hasta que se registre acá un HttpPlanMuestraRepository.
+     * De dónde sale la muestra de un reconteo. Hoy la simula el mock; cuando
+     * exista el endpoint del SGO, esto pasa a ser un HttpPlanMuestraRepository
+     * y no cambia nada más — el puerto devuelve datos, y persistirlos es de
+     * AbrirSiguienteIteracionUseCase.
      */
+    {
+      provide:    PLAN_MUESTRA_REPOSITORY_TOKEN,
+      useClass:   MockPlanMuestraRepository,
+    },
+
+    {
+      provide:    SGO_SYNC_REPOSITORY_TOKEN,
+      useClass:   MockSgoSyncRepository,
+    },
+
     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },

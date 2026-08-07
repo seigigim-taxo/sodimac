@@ -72,7 +72,29 @@ export class HomePage implements ViewWillEnter {
   storeError    = this.sucursalFacade.error;
   noStores      = this.sucursalFacade.noStores;
 
-  events        = this.eventoFacade.events;
+  private todosLosEventos = this.eventoFacade.events;
+
+  /*
+   * Un inventario con reconteo deja varios eventos con la misma fecha —uno por
+   * ronda—, y al operador solo le sirve el último: los anteriores quedaron
+   * EN_ANALISIS y ni siquiera son seleccionables. Se muestra el más reciente de
+   * cada fecha.
+   *
+   * Se agrupa por fecha y no "el último de todos" porque dos fechas distintas
+   * son dos inventarios distintos, y esos sí tienen que verse los dos.
+   */
+  events = computed(() => {
+    const vistas = new Set<string>();
+    // La lista ya viene ordenada por fecha DESC, id DESC: el primero de cada
+    // fecha es el activo.
+    return this.todosLosEventos().filter((e) => {
+      const fecha = e.fechaProgramada.slice(0, 10);
+      if (vistas.has(fecha)) return false;
+      vistas.add(fecha);
+      return true;
+    });
+  });
+
   selectedEvent = this.eventoFacade.selectedEvent;
   // El rótulo del botón sale del estado del evento, no de la iteración: RECONTEO
   // es exactamente "este evento va en una ronda posterior a la primera".

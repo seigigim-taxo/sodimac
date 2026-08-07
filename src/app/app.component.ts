@@ -22,6 +22,10 @@ import { addIcons } from 'ionicons';
 import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
+import { PdaFacade } from './state/pda/pda.facade';
+import { EventoFacade } from './state/evento/evento.facade';
+import { ZonaFacade } from './state/zona/zona.facade';
+import { ConteoFacade } from './state/conteo/conteo.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { BuscadorSkuComponent } from './shared/components/buscador-sku/buscador-sku.component';
@@ -50,6 +54,10 @@ import { BuscadorSkuComponent } from './shared/components/buscador-sku/buscador-
 export class AppComponent {
   private auth     = inject(AuthFacade);
   private theme    = inject(ThemeFacade);
+  private pda      = inject(PdaFacade);
+  private evento   = inject(EventoFacade);
+  private zona     = inject(ZonaFacade);
+  private conteo   = inject(ConteoFacade);
   private router   = inject(Router);
   private location = inject(Location);
   private alertController = inject(AlertController);
@@ -100,8 +108,32 @@ export class AppComponent {
     await alert.present();
   }
 
+  /*
+   * Borrar la base no borra lo que la app tiene en memoria: los ids que quedan
+   * en los facades apuntan a filas que ya no existen, y el primer INSERT que los
+   * use muere con FOREIGN KEY constraint failed (787).
+   *
+   * El caso que siempre se daba es la PDA: se registra una única vez en el
+   * APP_INITIALIZER, y reiniciar la base no reinicia la app — así que había que
+   * volver a registrarla acá. Los demás facades se sueltan por lo mismo, aunque
+   * el login posterior vuelva a poblarlos: nada garantiza que lo hagan antes de
+   * que alguien navegue con la selección vieja todavía puesta.
+   */
   private async resetLocalDatabase(): Promise<void> {
     await this.database.resetLocalDatabase();
+
+    this.conteo.reset();
+    this.zona.reset();
+    this.evento.reset();
+
+    try {
+      await this.pda.init();
+    } catch (err) {
+      // Mismo criterio que el bootstrap: no dejar al operador atrapado en el
+      // menú por esto. El detalle queda en consola y el login sigue adelante.
+      console.error('[AppComponent] no se pudo re-registrar la PDA tras reiniciar la base:', err);
+    }
+
     await this.auth.logout();
     this.router.navigate(['/login']);
   }
