@@ -43,8 +43,8 @@ describe('ConteoFacade', () => {
     conteoRepo.getUltimaRonda.and.resolveTo(null);
     conteoRepo.abrirRonda.and.callFake((_e: number, i: number) => Promise.resolve(ronda(i)));
 
-    const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEvento']);
-    muestraRepo.getByEvento.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, nombre: null, nombreArchivo: null });
+    const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEventoIteracion']);
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
 
     const detalleRepo = jasmine.createSpyObj<MuestraDetalleRepository>('MuestraDetalleRepository', ['getByMuestra']);
     detalleRepo.getByMuestra.and.resolveTo([

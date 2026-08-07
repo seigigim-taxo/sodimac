@@ -18,6 +18,7 @@ import { PDA_REPOSITORY_TOKEN } from './app/domain/pda/repositories/pda.reposito
 import { EVENTO_REPOSITORY_TOKEN } from './app/domain/evento/repositories/evento.repository';
 import { MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra-detalle.repository';
+import { PLAN_MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/plan-muestra.repository';
 import { OPERADOR_REPOSITORY_TOKEN } from './app/domain/auth/repositories/operador.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/sucursal.repository';
 import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
@@ -35,6 +36,7 @@ import { SqliteUbicacionRepository } from './app/data/ubicacion/ubicacion.reposi
 import { SqliteEventoRepository } from './app/data/evento/evento.repository';
 import { SqliteMuestraRepository } from './app/data/muestra/muestra.repository';
 import { SqliteMuestraDetalleRepository } from './app/data/muestra/muestra-detalle.repository';
+import { SqlitePlanMuestraRepository } from './app/data/muestra/sqlite-plan-muestra.repository';
 import { AuthService } from './app/data/auth/auth.service';
 import { CapacitorSessionStorageRepository } from './app/data/auth/session-storage.repository';
 import { SqliteOperadorRepository } from './app/data/auth/operador.repository';
@@ -93,12 +95,8 @@ bootstrapApplication(AppComponent, {
     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
 
-    /*
-     * PLAN_MUESTRA_REPOSITORY_TOKEN quedó SIN implementación a propósito: la
-     * muestra de las iteraciones de reconteo la decide el SGO y ese endpoint
-     * todavía no existe. Abrir una iteración nueva falla con NullInjectorError
-     * hasta que se registre acá un HttpPlanMuestraRepository.
-     */
+    // Muestra de reconteo: genera muestra acotada a partir de SKUs contados en iteración anterior.
+    { provide: PLAN_MUESTRA_REPOSITORY_TOKEN,     useClass: SqlitePlanMuestraRepository },
     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },

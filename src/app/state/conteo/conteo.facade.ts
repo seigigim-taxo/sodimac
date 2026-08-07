@@ -62,7 +62,7 @@ export class ConteoFacade {
       console.log('[ConteoFacade.init] Ronda encontrada:', ronda.id, 'iteracion:', ronda.iteracion);
 
       const [muestraSet, resultado] = await Promise.all([
-        this.loadMuestra.execute(eventoId),
+        this.loadMuestra.execute(eventoId, ronda.iteracion),
         this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
       ]);
       this.muestraSet = muestraSet;

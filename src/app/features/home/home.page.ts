@@ -23,6 +23,7 @@ import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
 
+
 @Component({
   selector: 'app-home',
   templateUrl: './home.page.html',
@@ -63,6 +64,11 @@ export class HomePage implements ViewWillEnter {
   sincronizandoTimeout = signal(false);
   private sincronizandoTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
+  // Contador de intentos de sincronización con SGO para el evento seleccionado.
+  // Se resetea al cambiar de evento. Fase 6: solo simulación.
+  private intentosSgo = 0;
+  private ultimoEventoSgoId: number | null = null;
+
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
   // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
   eventosFinalizados = this.resumenFacade.cerrados;
@@ -95,6 +101,15 @@ export class HomePage implements ViewWillEnter {
     // que ya quedaron CERRADO/EN_ANALISIS por el flujo real de conteo.
     effect(() => {
       this.cargarEventosFinalizados(this.events());
+    });
+
+    // Resetea el contador de intentos SGO cuando cambia el evento seleccionado.
+    effect(() => {
+      const ev = this.selectedEvent();
+      if (ev && ev.id !== this.ultimoEventoSgoId) {
+        this.intentosSgo = 0;
+        this.ultimoEventoSgoId = ev.id;
+      }
     });
   }
 
@@ -181,11 +196,7 @@ export class HomePage implements ViewWillEnter {
       // Simula la espera de respuesta del SGO
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // El evento quedó EN_ANALISIS al cerrar el conteo: abrir la ronda siguiente
-      // prepara su muestra y deja el evento en RECONTEO.
-      const resultado = await this.eventoFacade.abrirSiguienteIteracion();
-
-      // Cancela el timeout si ya obtuvo respuesta
+      // Cancela el timeout antes de mostrar alertas
       if (this.sincronizandoTimeoutId) {
         clearTimeout(this.sincronizandoTimeoutId);
         this.sincronizandoTimeoutId = undefined;
@@ -193,9 +204,41 @@ export class HomePage implements ViewWillEnter {
 
       this.sincronizando.set(false);
       this.sincronizandoTimeout.set(false);
-      await this.avisarIteracionAbierta(resultado);
-    } catch (err) {
-      // Si hay error, también cancela el timeout
+
+      this.intentosSgo++;
+
+      if (this.intentosSgo < 3) {
+        // Click 1 y 2: SGO sigue analizando
+        const alert = await this.alertController.create({
+          header:  'SGO sigue analizando',
+          message: 'El SGO aún no entrega una decisión para este evento. Intenta nuevamente más tarde.',
+          buttons: ['Entendido'],
+        });
+        await alert.present();
+      } else {
+        // Click 3: SGO requiere reconteo — abrir iteración siguiente
+        const resultado = await this.eventoFacade.abrirSiguienteIteracion();
+
+        if (resultado) {
+          const message = resultado.conMuestra
+            ? `El SGO determinó que este evento requiere una nueva iteración de reconteo. Se abrió la iteración ${resultado.iteracion}.`
+            : 'El SGO determinó reconteo, pero no hay SKUs disponibles para recontar.';
+          const alert = await this.alertController.create({
+            header: 'Reconteo requerido',
+            message,
+            buttons: ['Entendido'],
+          });
+          await alert.present();
+        } else {
+          const alert = await this.alertController.create({
+            header: 'No se pudo abrir el reconteo',
+            message: this.eventsError() ?? 'No se pudo abrir la iteración de reconteo.',
+            buttons: ['Entendido'],
+          });
+          await alert.present();
+        }
+      }
+    } catch {
       if (this.sincronizandoTimeoutId) {
         clearTimeout(this.sincronizandoTimeoutId);
         this.sincronizandoTimeoutId = undefined;
@@ -206,32 +249,8 @@ export class HomePage implements ViewWillEnter {
   }
 
   reintentarSincronizacion(): void {
-    // Reset del timeout y reintentar
     this.sincronizandoTimeout.set(false);
     void this.sincronizar();
-  }
-
-  private async avisarIteracionAbierta(resultado: ResultadoAbrirIteracion | null): Promise<void> {
-    if (resultado === null) {
-      const alert = await this.alertController.create({
-        header:  'No se pudo abrir la iteración',
-        message: this.eventsError() ?? 'No se pudo abrir la iteración siguiente.',
-        buttons: ['Entendido'],
-      });
-      await alert.present();
-      return;
-    }
-
-    // Sin muestra la ronda queda abierta pero vacía: hay que decirlo, si no el
-    // operador entra a contar y no encuentra ningún SKU válido.
-    const alert = await this.alertController.create({
-      header:  'Iteración abierta',
-      message: resultado.conMuestra
-        ? `Vas a trabajar en la iteración ${resultado.iteracion}.\n\n⚠ Las iteraciones anteriores quedaron cerradas definitivamente.\n\nNo se pueden editar, solo consultar como referencia.`
-        : `Se abrió la iteración ${resultado.iteracion}, pero no hay diferencias que recontar.`,
-      buttons: ['Entendido'],
-    });
-    await alert.present();
   }
 
   async cerrarTienda(): Promise<void> {

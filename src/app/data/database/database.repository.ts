@@ -25,24 +25,21 @@ export class SqliteDatabaseRepository implements DatabaseRepository {
     }
 
     try {
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: borrando base SQLite física...`);
+      await this.connection.deleteDatabase(SODIMAC_DB_NAME);
+
+      await Preferences.remove({ key: VERSION_KEY });
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: preference de versión eliminada`);
+
+      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: recreando esquema limpio...`);
       const db = await this.connection.getConnection(SODIMAC_DB_NAME);
-
-      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: borrando todas las tablas...`);
-      await db.execute('PRAGMA foreign_keys = OFF;');
-
-      const activasReversa = [...SODIMAC_TABLE_NAMES].reverse()
-        .map((t) => `DROP TABLE IF EXISTS ${t};`).join('\n');
-      await db.execute(activasReversa);
-
-      await db.execute('PRAGMA foreign_keys = ON;');
-
-      if (isDevMode()) console.log(`${TAG} resetLocalDatabase: recreando esquema...`);
       await db.execute(SODIMAC_SCHEMA_SQL);
-
       await Preferences.set({ key: VERSION_KEY, value: String(SODIMAC_DB_VERSION) });
+
       if (isDevMode()) console.log(`${TAG} resetLocalDatabase: base reiniciada correctamente`);
     } catch (err) {
       console.error(`${TAG} fallo al reiniciar la base local:`, err);
+      throw err;
     }
   }
 

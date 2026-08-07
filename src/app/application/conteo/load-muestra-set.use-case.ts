@@ -11,14 +11,14 @@ export class LoadMuestraSetUseCase {
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private detalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
 
-  async execute(eventoId: number): Promise<MuestraSet> {
-    const muestra = await this.muestraRepo.getByEvento(eventoId);
+  async execute(eventoId: number, iteracion: number): Promise<MuestraSet> {
+    const muestra = await this.muestraRepo.getByEventoIteracion(eventoId, iteracion);
     if (!muestra) {
-      console.log('[LoadMuestraSet] No hay muestra para evento', eventoId);
+      console.log('[LoadMuestraSet] No hay muestra para evento', eventoId, 'iteración', iteracion);
       return { skuMap: new Map() };
     }
     
-    console.log('[LoadMuestraSet] Muestra encontrada:', muestra.id, muestra.codigoMuestra);
+    console.log('[LoadMuestraSet] Muestra encontrada:', muestra.id, 'iteración', muestra.iteracion);
 
     const detalles = await this.detalleRepo.getByMuestra(muestra.id);
     const skuMap = new Map<string, number>();

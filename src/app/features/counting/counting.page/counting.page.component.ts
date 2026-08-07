@@ -13,6 +13,7 @@ import {
   IonSpinner,
   IonTitle,
   IonToolbar,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -70,15 +71,16 @@ interface ResultadoScan {
   ],
 })
 export class CountingPageComponent implements ViewWillEnter {
-  private router          = inject(Router);
-  private alertController = inject(AlertController);
-  private eventoFacade    = inject(EventoFacade);
-  private auth            = inject(AuthFacade);
-  private pda             = inject(PdaFacade);
-  private zonaFacade      = inject(ZonaFacade);
-  private conteo          = inject(ConteoFacade);
-  private conteoList      = inject(ConteoListFacade);
-  private resumenFacade   = inject(ResumenEventoFacade);
+  private router            = inject(Router);
+  private alertController   = inject(AlertController);
+  private toastController   = inject(ToastController);
+  private eventoFacade      = inject(EventoFacade);
+  private auth              = inject(AuthFacade);
+  private pda               = inject(PdaFacade);
+  private zonaFacade        = inject(ZonaFacade);
+  private conteo            = inject(ConteoFacade);
+  private conteoList        = inject(ConteoListFacade);
+  private resumenFacade     = inject(ResumenEventoFacade);
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
@@ -334,18 +336,55 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   // Cierra la sesión en sod_conteo (EN_CURSO → FINALIZADO) y vuelve a TAG+Zona
-  // para el siguiente.
+  // para el siguiente. Intenta sincronizar automáticamente con el WS.
   private async doFinalizarTag(): Promise<void> {
     this.finalizando.set(true);
     // Cerrada esta sesión, volver a entrar a la misma ubicación debe arrancar de cero.
     this.sesionInicializada = null;
+
+    const sesion  = this.conteo.sesion();
+    const evento  = this.currentEvent();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId      = this.pda.pdaId();
+
     try {
       await this.conteo.finalizar();
+
+      // Intentar sincronización automática con el WS
+      if (sesion && operadorId && pdaId) {
+        try {
+          await this.conteoList.load(operadorId, pdaId);
+          const resumen = this.conteoList.conteos().find((c) =>
+            c.eventoId === evento?.id &&
+            c.ubicacionId === sesion.ubicacionId &&
+            c.operadorId === operadorId &&
+            c.pdaId === pdaId &&
+            c.estado === 'FINALIZADO'
+          );
+          if (resumen) {
+            await this.conteoList.sincronizar(resumen);
+            this.mostrarToast('TAG finalizado y sincronizado.', 'success');
+          }
+        } catch {
+          this.mostrarToast('TAG finalizado localmente. Sincronización pendiente.', 'warning');
+        }
+      }
+
       this.zonaFacade.reset();
       this.conteo.reset();
       this.router.navigate(['/counting-tag']);
     } finally {
       this.finalizando.set(false);
     }
+  }
+
+  private async mostrarToast(message: string, color: 'success' | 'warning'): Promise<void> {
+    const toast = await this.toastController.create({
+      message,
+      duration: 2500,
+      color,
+      position: 'top',
+    });
+    await toast.present();
   }
 }

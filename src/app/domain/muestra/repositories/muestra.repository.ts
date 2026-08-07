@@ -7,16 +7,21 @@ export interface MuestraParaGuardar {
   eventoId: number;
   sucursalId: number;
   nombre: string | null;
+  iteracion?: number;
+  estado?: string;
 }
 
 export interface MuestraRepository {
   /*
-   * La muestra del evento. Hoy hay una sola: sod_muestra no distingue rondas, así
-   * que un reconteo se valida contra esta misma muestra.
+   * Muestra de iteración 1 de un evento. Compatibilidad temporal hasta que
+   * LoadMuestraSetUseCase se ajuste para recibir iteración explícita.
    */
   getByEvento(eventoId: number): Promise<Muestra | null>;
 
-  /* Crea la muestra del evento si todavía no existe; devuelve su id local. */
+  /* Muestra de una iteración específica. */
+  getByEventoIteracion(eventoId: number, iteracion: number): Promise<Muestra | null>;
+
+  /* Crea la muestra si no existe para (evento, iteración); devuelve su id local. */
   asegurarMuestra(muestra: MuestraParaGuardar): Promise<number>;
 }
 

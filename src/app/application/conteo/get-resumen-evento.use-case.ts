@@ -35,7 +35,7 @@ export class GetResumenEventoUseCase {
                ?? await this.conteoRepo.getUltimaRonda(eventoId);
     const iteracion = ronda?.iteracion ?? 1;
 
-    const muestra = await this.muestraRepo.getByEvento(eventoId);
+    const muestra = await this.muestraRepo.getByEventoIteracion(eventoId, iteracion);
     const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
     const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
     const qContado = await this.conteoRepo.getUnidadesContadasPorEvento(eventoId, operadorId, pdaId);

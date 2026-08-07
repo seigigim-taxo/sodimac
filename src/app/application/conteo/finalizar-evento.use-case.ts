@@ -44,18 +44,14 @@ export class FinalizarEventoUseCase {
       throw new Error('Aún quedan TAGs en curso — finalízalos antes de cerrar el conteo del evento.');
     }
 
-    const muestra      = await this.muestraRepo.getByEvento(eventoId);
+    const ronda     = await this.conteoRepo.getRondaAbierta(eventoId);
+    const iteracion = ronda?.iteracion ?? 1;
+
+    const muestra      = await this.muestraRepo.getByEventoIteracion(eventoId, iteracion);
     const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
     const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
     const estado: Evento['estado'] = 'EN_ANALISIS';
 
-    /*
-     * Terminar de contar cierra la ronda: es el momento en que deja de admitir
-     * líneas. Si quedara ABIERTA, al abrir la siguiente iteración el evento
-     * tendría dos rondas abiertas y "cuál es la activa" dejaría de tener una
-     * sola respuesta.
-     */
-    const ronda = await this.conteoRepo.getRondaAbierta(eventoId);
     if (ronda) {
       await this.conteoRepo.cerrarRonda(ronda.id);
     }

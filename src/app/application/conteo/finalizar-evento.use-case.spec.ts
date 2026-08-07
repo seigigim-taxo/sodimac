@@ -37,14 +37,14 @@ describe('FinalizarEventoUseCase', () => {
 
   beforeEach(() => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getResumenes', 'getSkusContadosPorEvento', 'getRondaAbierta', 'cerrarRonda']);
-    muestraRepo = jasmine.createSpyObj('MuestraRepository', ['getByEvento']);
+    muestraRepo = jasmine.createSpyObj('MuestraRepository', ['getByEventoIteracion']);
     detalleRepo = jasmine.createSpyObj('MuestraDetalleRepository', ['getByMuestra']);
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById', 'updateEstado', 'getBySucursal']);
 
     eventoRepo.getById.and.resolveTo(evento());
     eventoRepo.updateEstado.and.resolveTo();
     conteoRepo.getResumenes.and.resolveTo([resumen()]);
-    muestraRepo.getByEvento.and.resolveTo({ id: 1, codigoMuestra: null, eventoId: 1, sucursalId: 1, nombre: null, nombreArchivo: null });
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 1, codigoMuestra: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
     detalleRepo.getByMuestra.and.resolveTo([detalle('AF001'), detalle('AF002')]);
     conteoRepo.getSkusContadosPorEvento.and.resolveTo(['AF001', 'AF002']);
     conteoRepo.getRondaAbierta.and.resolveTo({
@@ -110,9 +110,9 @@ describe('FinalizarEventoUseCase', () => {
     expect(eventoRepo.updateEstado).not.toHaveBeenCalled();
   });
 
-  it('compara contra la muestra del evento', async () => {
+  it('compara contra la muestra de la iteración actual', async () => {
     await useCase.execute(1, 1, 1);
 
-    expect(muestraRepo.getByEvento).toHaveBeenCalledWith(1);
+    expect(muestraRepo.getByEventoIteracion).toHaveBeenCalledWith(1, 1);
   });
 });

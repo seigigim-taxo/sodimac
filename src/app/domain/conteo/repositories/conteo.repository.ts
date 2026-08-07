@@ -4,6 +4,7 @@ import { ConteoItem } from '../models/conteo-item.model';
 import { ConteoResumen } from '../models/conteo-resumen.model';
 import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
+import { TagFinalizadoPayload } from '../../sincronizacion/models/tag-finalizado.model';
 
 export interface ConteoRepository {
   // ─────────────────────────── la ronda ───────────────────────────
@@ -90,6 +91,21 @@ export interface ConteoRepository {
    * repetir los mismos TAGs.
    */
   getTagsContadosEnRondasAnteriores(eventoId: number, iteracion: number): Promise<string[]>;
+
+  // ─────────── sincronización TAG ───────────
+
+  /*
+   * Genera y persiste un carga_uid para la sesión TAG identificada por
+   * conteoId + ubicacionId + operadorId + pdaId. Si ya existe uno, lo reutiliza.
+   */
+  asegurarCargaUid(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<string>;
+
+  /*
+   * Arma el payload completo para enviar a tag-finalizado.php a partir de un
+   * ConteoResumen. Consulta las tablas locales para resolver sucursal, evento,
+   * ubicación, zona, operador, PDA y detalles con stock_sistema.
+   */
+  getPayloadSincronizacion(conteo: ConteoResumen): Promise<TagFinalizadoPayload>;
 }
 
 export const CONTEO_REPOSITORY_TOKEN = new InjectionToken<ConteoRepository>('ConteoRepository');

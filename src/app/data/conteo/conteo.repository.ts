@@ -7,6 +7,7 @@ import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
+import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
 
 /*
  * JOIN reutilizado: la línea trae su sku/descripción del producto y el número
@@ -280,8 +281,7 @@ export class SqliteConteoRepository implements ConteoRepository {
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
        JOIN sod_producto p ON p.id = d.producto_id
-       WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?
-         AND d.estado IN ('EN_CURSO', 'FINALIZADO')`,
+       WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?`,
       [eventoId, operadorId, pdaId]
     );
     return (result.values ?? []).map((r) => (r as Record<string, unknown>)['sku'] as string);
@@ -293,8 +293,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       `SELECT COALESCE(SUM(d.cantidad_fisica), 0) AS total
        FROM sod_conteo_detalle d
        JOIN sod_conteo c ON c.id = d.conteo_id
-       WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?
-         AND d.estado IN ('EN_CURSO', 'FINALIZADO')`,
+       WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?`,
       [eventoId, operadorId, pdaId]
     );
     const row = result.values?.[0] as Record<string, unknown> | undefined;
@@ -343,6 +342,135 @@ export class SqliteConteoRepository implements ConteoRepository {
     return (result.values ?? [])
       .map((r) => (r as Record<string, unknown>)['tag'] as string)
       .filter((t): t is string => !!t);
+  }
+
+  // ─────────── sincronización TAG ───────────
+
+  async asegurarCargaUid(
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
+  ): Promise<string> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    const existing = await db.query(
+      `SELECT carga_uid FROM sod_conteo_detalle
+       WHERE conteo_id = ? AND ubicacion_id = ?
+         AND operador_id = ? AND pda_id = ?
+         AND estado = 'FINALIZADO'
+         AND carga_uid IS NOT NULL
+       LIMIT 1`,
+      [conteoId, ubicacionId, operadorId, pdaId]
+    );
+    const existingUid = (existing.values?.[0] as Record<string, unknown>)?.['carga_uid'] as string | undefined;
+    if (existingUid) {
+      return existingUid;
+    }
+
+    const rondaRow = await db.query(
+      `SELECT c.iteracion, e.fecha_programada AS eventoFecha,
+              s.codigo_tienda, u.tag AS tagCodigo,
+              z.nombre AS zonaNombre, z.descripcion AS zonaDescripcion,
+              pda.codigo AS pdaCodigo
+       FROM sod_conteo c
+       JOIN sod_evento_inventario e ON e.id = c.evento_id
+       JOIN sod_sucursal s          ON s.id = e.sucursal_id
+       JOIN sod_ubicacion u         ON u.id = ?
+       JOIN sod_zona z              ON z.id = u.zona_id
+       JOIN sod_pda pda             ON pda.id = ?
+       WHERE c.id = ?`,
+      [ubicacionId, pdaId, conteoId]
+    );
+    const r = rondaRow.values?.[0] as Record<string, unknown> | undefined;
+    if (!r) {
+      throw new Error(`No se pudo generar carga_uid para conteo=${conteoId}`);
+    }
+
+    const now = new Date();
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
+
+    const iteracion = r['iteracion'] as number;
+    const fechaProg = (r['eventoFecha'] as string ?? '').replace(/-/g, '');
+    const codigoTienda = r['codigo_tienda'] as string;
+    const tagCodigo = (r['tagCodigo'] as string ?? '').replace(/\s+/g, '_');
+    const zonaNombre = (r['zonaNombre'] as string ?? '').replace(/\s+/g, '_');
+    const pdaCodigo = r['pdaCodigo'] as string;
+
+    const cargaUid = `${codigoTienda}-${fechaProg}-ITER${iteracion}-${tagCodigo}-${zonaNombre}-${pdaCodigo}-${ts}`;
+
+    await db.run(
+      `UPDATE sod_conteo_detalle
+       SET carga_uid = ?
+       WHERE conteo_id = ? AND ubicacion_id = ?
+         AND operador_id = ? AND pda_id = ?
+         AND estado = 'FINALIZADO'`,
+      [cargaUid, conteoId, ubicacionId, operadorId, pdaId]
+    );
+
+    if (isDevMode()) console.log('[ConteoRepo] asegurarCargaUid', { cargaUid });
+    return cargaUid;
+  }
+
+  async getPayloadSincronizacion(conteo: ConteoResumen): Promise<TagFinalizadoPayload> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    const cargaUid = await this.asegurarCargaUid(
+      conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId
+    );
+
+    const metaRow = await db.query(
+      `SELECT s.codigo_tienda, e.fecha_programada,
+              z.nombre AS zona_nombre, z.descripcion AS zona_descripcion,
+              op.rut AS operador_rut, op.correo AS operador_login,
+              pda.codigo AS pda_codigo
+       FROM sod_sucursal s
+       JOIN sod_evento_inventario e ON e.id = ?
+       JOIN sod_zona z              ON z.id = (
+         SELECT u.zona_id FROM sod_ubicacion u WHERE u.id = ?
+       )
+       JOIN sod_user op             ON op.id = ?
+       JOIN sod_pda pda             ON pda.id = ?
+       WHERE s.id = e.sucursal_id`,
+      [conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
+    );
+    const meta = metaRow.values?.[0] as Record<string, unknown> | undefined;
+    if (!meta) {
+      throw new Error(`No se pudo armar payload para conteo=${conteo.conteoId}`);
+    }
+
+    const detallesRow = await db.query(
+      `SELECT p.sku, p.codigo_barras, p.descripcion,
+              md.stock_sistema, d.cantidad_fisica, d.fecha_hora
+       FROM sod_conteo_detalle d
+       JOIN sod_producto p ON p.id = d.producto_id
+       LEFT JOIN sod_muestra_detalle md ON md.producto_id = d.producto_id
+       WHERE d.conteo_id = ? AND d.ubicacion_id = ?
+         AND d.operador_id = ? AND d.pda_id = ?
+         AND d.estado = 'FINALIZADO'`,
+      [conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
+    );
+
+    const detalles = (detallesRow.values ?? []).map((row: Record<string, unknown>) => ({
+      sku:            row['sku']            as string,
+      codigo_barras:  row['codigo_barras']  as string | null,
+      descripcion:    row['descripcion']    as string | null,
+      stock_sistema:  row['stock_sistema']  as number | null,
+      cantidad_fisica: row['cantidad_fisica'] as number,
+      fecha_hora:     row['fecha_hora']     as string,
+    }));
+
+    return {
+      carga_uid:         cargaUid,
+      codigo_tienda:     meta['codigo_tienda']     as string,
+      fecha_programada:  meta['fecha_programada']  as string,
+      iteracion:         conteo.iteracion,
+      tag_codigo:        conteo.tag ?? '',
+      zona_nombre:       meta['zona_nombre']       as string,
+      zona_descripcion:  meta['zona_descripcion']  as string | null,
+      operador_rut:      meta['operador_rut']      as string,
+      operador_login:    meta['operador_login']    as string,
+      pda_codigo:        meta['pda_codigo']        as string,
+      detalles,
+    };
   }
 
   // ─────────────────────────── mapeo ───────────────────────────

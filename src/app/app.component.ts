@@ -101,7 +101,16 @@ export class AppComponent {
   }
 
   private async resetLocalDatabase(): Promise<void> {
-    await this.database.resetLocalDatabase();
+    try {
+      await this.database.resetLocalDatabase();
+    } catch {
+      const alert = await this.alertController.create({
+        header: 'Error',
+        message: 'No se pudo reiniciar la base local. La sesión se cerrará igualmente.',
+        buttons: ['OK'],
+      });
+      await alert.present();
+    }
     await this.auth.logout();
     this.router.navigate(['/login']);
   }

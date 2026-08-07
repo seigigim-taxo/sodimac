@@ -48,6 +48,24 @@ export class SqliteConnectionService {
     return db;
   }
 
+  async deleteDatabase(dbName: string): Promise<void> {
+    if (!this.isSupported) {
+      throw new Error(`${TAG} SQLite solo está disponible en plataforma nativa (Android/iOS). En web no hay base local.`);
+    }
+
+    const cached = this.connections.get(dbName);
+    if (cached) {
+      try {
+        await cached.delete();
+      } catch {
+        // ignore delete errors
+      }
+      this.connections.delete(dbName);
+    }
+
+    await this.sqlite.closeConnection(dbName, false);
+  }
+
   /*
    * Ejecuta `fn` dentro de una transacción: o se escribe todo o no se escribe
    * nada. Sin esto, una escritura que toca varias tablas puede fallar a mitad y

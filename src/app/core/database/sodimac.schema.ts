@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 34;
+export const SODIMAC_DB_VERSION = 36;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -58,10 +58,13 @@ const TABLES: readonly string[] = [
 
   `CREATE TABLE IF NOT EXISTS sod_muestra (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    evento_id      INTEGER NOT NULL UNIQUE REFERENCES sod_evento_inventario(id),
+    evento_id      INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
     sucursal_id    INTEGER NOT NULL REFERENCES sod_sucursal(id),
+    iteracion      INTEGER NOT NULL DEFAULT 1,
+    estado         TEXT    NOT NULL DEFAULT 'ACTIVA',
     nombre         TEXT             DEFAULT NULL,
-    nombre_archivo TEXT             DEFAULT NULL
+    nombre_archivo TEXT             DEFAULT NULL,
+    UNIQUE (evento_id, iteracion)
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_muestra_detalle (
@@ -144,6 +147,7 @@ const TABLES: readonly string[] = [
     estado          TEXT    NOT NULL DEFAULT 'EN_CURSO'
                     CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
     fecha_hora      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    carga_uid       TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
   )`
 
