@@ -303,7 +303,7 @@ export class SqliteConteoRepository implements ConteoRepository {
   async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
+      `SELECT c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
        JOIN sod_producto p       ON p.id = d.producto_id
@@ -311,12 +311,13 @@ export class SqliteConteoRepository implements ConteoRepository {
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
        WHERE c.evento_id = ? AND p.sku = ?
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
-       ORDER BY d.fecha_hora DESC`,
+       ORDER BY c.iteracion DESC, d.fecha_hora DESC`,
       [eventoId, sku]
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
+        iteracion: row['iteracion'] as number,
         tag: row['tag'] as string | null,
         zonaCodigo: (row['zona_codigo'] as string | null) ?? '—',
         zonaNombre: row['zona_nombre'] as string | null,

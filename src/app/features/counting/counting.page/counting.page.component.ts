@@ -207,7 +207,12 @@ export class CountingPageComponent implements ViewWillEnter {
     // La ronda se resuelve en cada entrada: la franja de color y el número que ve
     // el operador no pueden depender de que haya pasado antes por otra pantalla.
     void this.conteoList.cargarIteracionActiva(evento.id);
-    if (ubicacionId === this.sesionInicializada) return;
+    /*
+     * Se exige además que la sesión siga viva en el facade: si algo la soltó por
+     * fuera (reiniciar la base local), la ubicación puede volver a tener el mismo
+     * id y este atajo dejaría la pantalla sin sesión, escaneando contra nada.
+     */
+    if (ubicacionId === this.sesionInicializada && this.conteo.enCurso()) return;
 
     this.sesionInicializada = ubicacionId;
     void this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
