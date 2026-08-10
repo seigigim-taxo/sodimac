@@ -866,4 +866,279 @@ ion-title {
     font-family: theme('fontFamily.mono');
     color: var(--app-primary);
   }
+
+  /* ===================================================================
+     DASHBOARD DEL ANALISTA
+     Densidad de escritorio sobre tablet: a diferencia del resto de la app
+     —pensada para una PDA en una mano— acá el ancho útil llega a 1280px y
+     la información se lee en rejilla, no en columna.
+     =================================================================== */
+
+  .dash-inner {
+    @apply flex flex-col gap-4;
+    @apply w-full max-w-[1280px] mx-auto;
+    @apply px-4 py-5 md:px-6 md:py-6;
+  }
+
+  .dash-card-title {
+    @apply text-[15px] font-bold mb-0.5;
+    font-family: 'Sora', var(--ion-font-family);
+    letter-spacing: -0.01em;
+    color: var(--app-text);
+  }
+
+  .dash-store-name {
+    @apply text-2xl font-extrabold leading-tight;
+    font-family: 'Sora', var(--ion-font-family);
+    letter-spacing: -0.02em;
+    color: var(--app-text);
+  }
+
+  /* Píldora informativa — el folio de la jornada, sin carga semántica */
+  .dash-badge-info {
+    background: color-mix(in srgb, var(--app-info) 12%, transparent);
+    border-color: color-mix(in srgb, var(--app-info) 30%, transparent);
+    color: color-mix(in srgb, var(--app-info) 75%, var(--app-text));
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- KPI ---------- */
+  /*
+   * El acento va en una barra superior y no en el número: seis cifras
+   * coloreadas compiten entre sí y ninguna termina destacando.
+   */
+  .kpi-card {
+    @apply rounded-2xl p-4 border;
+    background: var(--app-surface);
+    border-color: var(--app-border);
+    border-top: 3px solid var(--app-border-strong);
+    box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+  }
+
+  .kpi-primary { border-top-color: var(--app-primary); }
+  .kpi-warning { border-top-color: var(--app-warning); }
+  .kpi-error   { border-top-color: var(--app-error); }
+  .kpi-info    { border-top-color: var(--app-info); }
+  .kpi-success { border-top-color: var(--app-success); }
+  .kpi-accent  { border-top-color: var(--app-secondary); }
+
+  .kpi-label {
+    @apply text-[12px] font-semibold leading-snug mb-1;
+    color: var(--app-text-secondary);
+  }
+
+  /*
+   * Tamaño fluido y sin quiebre: "$8,42 MM" en dos líneas descuadra la fila de
+   * seis tarjetas, que es justo la lectura de un vistazo que se busca acá.
+   */
+  .kpi-value {
+    @apply font-extrabold leading-none mb-1.5 whitespace-nowrap;
+    font-size: clamp(20px, 2.1vw, 28px);
+    color: var(--app-text);
+  }
+
+  .kpi-hint {
+    @apply text-[11px] leading-snug;
+    color: var(--app-text-muted);
+  }
+
+  /* ---------- CONTROLES DE FILTRO ---------- */
+  /*
+   * Controles nativos, no ion-*: en un tablero de filtros densos los
+   * componentes de Ionic imponen 56px de alto y overlays a pantalla
+   * completa, que acá estorban más de lo que ayudan.
+   */
+  .dash-select {
+    @apply w-full text-[14px] rounded-2xl px-3 appearance-none cursor-pointer;
+    min-height: 48px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
+    background-image: linear-gradient(45deg, transparent 50%, var(--app-text-muted) 50%),
+                      linear-gradient(135deg, var(--app-text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) calc(50% + 2px), calc(100% - 13px) calc(50% + 2px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-inline-end: 2.25rem;
+
+    &:focus {
+      outline: none;
+      border-color: var(--app-border-focus);
+      box-shadow: 0 0 0 3px var(--app-focus-ring);
+    }
+  }
+
+  .dash-search {
+    @apply flex items-center gap-2 rounded-2xl px-3;
+    min-height: 48px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+
+    ion-icon {
+      @apply text-lg shrink-0;
+      color: var(--app-text-muted);
+    }
+
+    input {
+      @apply w-full bg-transparent text-[14px];
+      color: var(--app-text);
+      outline: none;
+
+      &::placeholder { color: var(--app-placeholder); }
+      &::-webkit-search-cancel-button { filter: grayscale(1); }
+    }
+
+    &:focus-within {
+      border-color: var(--app-border-focus);
+      box-shadow: 0 0 0 3px var(--app-focus-ring);
+    }
+  }
+
+  .btn-limpiar {
+    @apply rounded-2xl px-5 text-[14px] font-semibold transition-colors duration-150;
+    min-height: 48px;
+    background: var(--app-primary);
+    color: #ffffff;
+
+    &:hover:not([disabled]) { background: var(--app-primary-hover); }
+    &:active:not([disabled]) { background: var(--app-primary-active); }
+    &[disabled] { opacity: 0.35; cursor: default; }
+  }
+
+  /* Toggle de filtro rápido — apagado es neutro, encendido es primario */
+  .btn-chip {
+    @apply rounded-full px-4 py-2 text-[13px] font-semibold shrink-0 transition-colors duration-150;
+    background: var(--app-surface-hover);
+    border: 1px solid var(--app-border);
+    color: var(--app-text-secondary);
+
+    &:hover { border-color: var(--app-border-strong); }
+  }
+
+  .btn-chip-active {
+    background: color-mix(in srgb, var(--app-primary) 10%, var(--app-surface));
+    border-color: var(--app-primary);
+    color: var(--app-primary);
+  }
+
+  .btn-recontar {
+    @apply rounded-[10px] px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors duration-150;
+    background: transparent;
+    border: 1px solid var(--app-primary);
+    color: var(--app-primary);
+
+    &:hover {
+      background: var(--app-primary);
+      color: #ffffff;
+    }
+  }
+
+  /* ---------- TABLA DE DIFERENCIAS ---------- */
+  .dash-table-wrap {
+    @apply overflow-x-auto;
+    margin-inline: -0.25rem;
+    padding-inline: 0.25rem;
+  }
+
+  .dash-table {
+    @apply w-full text-[13px];
+    border-collapse: collapse;
+
+    /*
+     * Los encabezados pueden partirse en dos líneas: en tablet, mantenerlos en
+     * una sola obliga a arrastrar la tabla en horizontal para leer el estado y
+     * el botón de reconteo, que son la acción principal de la pantalla.
+     */
+    th {
+      @apply text-left font-medium uppercase leading-tight;
+      @apply text-[10px] pb-2.5 px-1.5;
+      font-family: theme('fontFamily.mono');
+      letter-spacing: 0.06em;
+      color: var(--app-text-muted);
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    td {
+      @apply px-1.5 py-2.5 align-middle;
+      color: var(--app-text-secondary);
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    /* Badges y botón dentro de la tabla: misma identidad, menos aire */
+    .badge {
+      @apply px-2 py-0.5 text-[10px];
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--app-surface-hover); }
+  }
+
+  .dash-cell-strong {
+    @apply text-[13px] font-semibold;
+    color: var(--app-text);
+  }
+
+  .dash-cell-sub {
+    @apply text-[12px];
+    color: var(--app-text-muted);
+  }
+
+  .dash-cell-producto {
+    @apply max-w-[130px] 2xl:max-w-[220px] truncate;
+    color: var(--app-text);
+  }
+
+  .dash-dif {
+    @apply font-bold;
+    color: var(--app-text);
+  }
+
+  /* Un faltante es la señal que el analista busca: se marca, el sobrante no */
+  .dash-dif-neg { color: var(--app-error-text); }
+
+  /* Equivalente en tarjeta de una fila de la tabla, para pantallas angostas */
+  .dash-row-card {
+    @apply rounded-2xl p-3.5 border;
+    background: var(--app-surface);
+    border-color: var(--app-border);
+  }
+
+  /* ---------- BARRAS DE PRIORIDAD POR ZONA ---------- */
+  .priority-track {
+    @apply w-full rounded-full overflow-hidden;
+    height: 8px;
+    background: var(--app-surface-hover);
+    border: 1px solid var(--app-border);
+  }
+
+  .priority-fill {
+    @apply h-full rounded-full;
+    background: var(--app-cta-gradient);
+    transition: width 300ms ease;
+  }
+
+  /* ---------- ACTIVIDAD ---------- */
+  .activity-item {
+    @apply flex items-start gap-3 py-3;
+    border-bottom: 1px solid var(--app-border);
+
+    &:first-of-type { padding-top: 0; }
+
+    &:last-of-type {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+  }
+
+  .activity-dot {
+    @apply rounded-full shrink-0;
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+  }
+
+  .activity-dot-critica { background: var(--app-error); }
+  .activity-dot-exito   { background: var(--app-success); }
+  .activity-dot-info    { background: var(--app-info); }
 }

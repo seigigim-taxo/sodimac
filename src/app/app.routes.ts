@@ -21,6 +21,15 @@ export const routes: Routes = [
     canActivate: [authGuard, noSesionActivaGuard],
   },
   {
+    // Cuadro de mando del analista. Por ahora solo exige sesión: el
+    // perfilamiento por rol —que es lo que debería restringir esta ruta a
+    // ANALISTA— está pendiente.
+    path: 'dashboard',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard.page').then((m) => m.DashboardPageComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: 'counting-tag',
     loadComponent: () => import('./features/counting/tag-zona.page/tag-zona.page.component').then((m) => m.TagZonaPageComponent),
     canActivate: [authGuard, eventoSeleccionadoGuard, pdaBloqueadaGuard],

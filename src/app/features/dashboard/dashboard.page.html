@@ -1,0 +1,295 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Cuadro de mando</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="dash-inner">
+
+    <!-- ===== Encabezado ===== -->
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="page-title">Cuadro de mando</h1>
+        <p class="page-subtitle mt-1">
+          Vista operacional del analista para priorizar diferencias, revisar impacto económico
+          y acceder directamente al reconteo.
+        </p>
+      </div>
+      <span class="badge badge-success shrink-0">Definido en reunión</span>
+    </div>
+
+    <!-- ===== Jornada activa + zona de reconteo ===== -->
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
+
+      <div class="card">
+        <p class="field-label mb-2" style="color: var(--app-primary);">Jornada activa</p>
+        <div class="flex items-center gap-3 flex-wrap">
+          <h2 class="dash-store-name">
+            <span class="num">{{ jornada.codigoTienda }}</span> · {{ jornada.nombreTienda }}
+          </h2>
+          <span class="badge dash-badge-info num">{{ jornada.folio }}</span>
+          <span class="badge badge-error">Reconteo activo</span>
+        </div>
+        <p class="text-[13px] mt-2" style="color: var(--app-text-muted);">
+          {{ jornada.fecha }}
+        </p>
+        <p class="text-[13px] mt-1" style="color: var(--app-text-muted);">
+          Muestra: {{ jornada.muestra }} · Inicio validación:
+          <span class="num">{{ jornada.inicioValidacion }}</span>
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="dash-card-title">Zona activa de reconteo</p>
+        <p class="text-[13px] mb-3" style="color: var(--app-text-muted);">
+          Seleccionar antes de capturar una etiqueta.
+        </p>
+        <select class="dash-select" [ngModel]="zonaActiva()" (ngModelChange)="zonaActiva.set($event)">
+          @for (zona of zonas; track zona) {
+          <option [value]="zona">{{ zona }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <!-- ===== Indicadores ===== -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+      <div class="kpi-card kpi-primary">
+        <p class="kpi-label">Diferencias pendientes</p>
+        <p class="kpi-value num">{{ indicadores.diferenciasPendientes }}</p>
+        <p class="kpi-hint">
+          <span class="num">{{ indicadores.altaPrioridad }}</span> de alta prioridad
+        </p>
+      </div>
+
+      <div class="kpi-card kpi-warning">
+        <p class="kpi-label">Valor diferencias</p>
+        <p class="kpi-value num">${{ enMillones(indicadores.valorDiferencias) }} MM</p>
+        <p class="kpi-hint">Impacto pendiente de validar</p>
+      </div>
+
+      <div class="kpi-card kpi-error">
+        <p class="kpi-label">Diferencias críticas</p>
+        <p class="kpi-value num">{{ indicadores.criticas }}</p>
+        <p class="kpi-hint">Sobre {{ pesos(indicadores.umbralCritica) }}</p>
+      </div>
+
+      <div class="kpi-card kpi-info">
+        <p class="kpi-label">Reconteos realizados</p>
+        <p class="kpi-value num">{{ indicadores.recontosRealizados }}</p>
+        <p class="kpi-hint">Durante esta validación</p>
+      </div>
+
+      <div class="kpi-card kpi-success">
+        <p class="kpi-label">Diferencias resueltas</p>
+        <p class="kpi-value num">{{ indicadores.diferenciasResueltas }}</p>
+        <p class="kpi-hint"><span class="num">{{ porcentajeResueltas }}%</span> de los reconteos</p>
+      </div>
+
+      <div class="kpi-card kpi-accent">
+        <p class="kpi-label">Persisten con diferencia</p>
+        <p class="kpi-value num">{{ indicadores.persistenConDiferencia }}</p>
+        <p class="kpi-hint">Requieren revisión adicional</p>
+      </div>
+    </div>
+
+    <!-- ===== Cola de diferencias + panel lateral ===== -->
+    <!--
+      minmax(0,…) y no 2fr/1fr a secas: la tabla de diferencias impone su
+      min-content y, sin esto, empuja el panel lateral fuera de la pantalla.
+    -->
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 items-start">
+
+      <!-- ---- Cola de diferencias ---- -->
+      <div class="card">
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <p class="dash-card-title">Cola de diferencias</p>
+            <p class="text-[13px]" style="color: var(--app-text-muted);">
+              Priorización por impacto y estado.
+            </p>
+          </div>
+          <button type="button" class="btn-chip" [class.btn-chip-active]="soloCriticas()"
+            (click)="alternarSoloCriticas()">
+            Solo críticas
+          </button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-2 mb-4">
+          <div class="dash-search">
+            <ion-icon name="search-outline"></ion-icon>
+            <input type="search" placeholder="Buscar SKU, producto o TAG…" [ngModel]="busqueda()"
+              (ngModelChange)="busqueda.set($event)" />
+          </div>
+
+          <select class="dash-select" [ngModel]="filtroZona()" (ngModelChange)="filtroZona.set($event)">
+            <option value="TODAS">Todas las zonas</option>
+            @for (zona of zonas; track zona) {
+            <option [value]="zona">{{ zona }}</option>
+            }
+          </select>
+
+          <select class="dash-select" [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event)">
+            <option value="TODOS">Todos los estados</option>
+            <option value="CRITICA">Críticas</option>
+            <option value="PENDIENTE">Pendientes</option>
+            <option value="RESUELTA">Resueltas</option>
+          </select>
+
+          <select class="dash-select" [ngModel]="orden()" (ngModelChange)="orden.set($event)">
+            <option value="IMPACTO">Mayor impacto $</option>
+            <option value="UNIDADES">Mayor diferencia unid.</option>
+            <option value="ZONA">Zona</option>
+          </select>
+
+          <button type="button" class="btn-limpiar" [disabled]="!hayFiltrosActivos()"
+            (click)="limpiarFiltros()">
+            Limpiar
+          </button>
+        </div>
+
+        @if (diferenciasFiltradas().length === 0) {
+        <div class="error-pill">
+          <ion-icon name="search-outline"></ion-icon>
+          <span>Ninguna diferencia coincide con los filtros aplicados.</span>
+        </div>
+        } @else {
+
+        <!-- Tabla — desde md hacia arriba (tablet y superior) -->
+        <div class="dash-table-wrap hidden md:block">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Prioridad</th>
+                <th>Zona / TAG</th>
+                <th>SKU</th>
+                <th>Producto</th>
+                <th class="text-right">1er conteo</th>
+                <th class="text-right">Kárdex</th>
+                <th class="text-right">Dif. unid.</th>
+                <th class="text-right">Dif. $</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of diferenciasFiltradas(); track d.id) {
+              <tr>
+                <td>
+                  <span [class]="'badge ' + claseBadgePrioridad(d.prioridad)">
+                    {{ d.prioridad }}
+                  </span>
+                </td>
+                <td>
+                  <p class="dash-cell-strong">{{ d.zona }}</p>
+                  <p class="dash-cell-sub num">{{ d.tag }}</p>
+                </td>
+                <td class="num dash-cell-strong">{{ d.sku }}</td>
+                <td class="dash-cell-producto">{{ d.producto }}</td>
+                <td class="num text-right">{{ d.primerConteo }}</td>
+                <td class="num text-right">{{ d.kardex }}</td>
+                <td class="num text-right dash-dif" [class.dash-dif-neg]="d.difUnidades < 0">
+                  {{ d.difUnidades > 0 ? '+' : '' }}{{ d.difUnidades }}
+                </td>
+                <td class="num text-right font-bold">{{ pesos(d.difMonto) }}</td>
+                <td>
+                  <span [class]="'badge ' + claseBadgeEstado(d.estado)">
+                    {{ etiquetaEstado(d.estado) }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <button type="button" class="btn-recontar" (click)="recontar(d)">Recontar</button>
+                </td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tarjetas — bajo md (teléfono): una tabla de 10 columnas no es legible -->
+        <div class="flex flex-col gap-3 md:hidden">
+          @for (d of diferenciasFiltradas(); track d.id) {
+          <div class="dash-row-card">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span [class]="'badge ' + claseBadgePrioridad(d.prioridad)">{{ d.prioridad }}</span>
+              <span [class]="'badge ' + claseBadgeEstado(d.estado)">{{ etiquetaEstado(d.estado) }}</span>
+            </div>
+            <p class="dash-cell-strong">{{ d.producto }}</p>
+            <p class="dash-cell-sub num mb-2">SKU {{ d.sku }} · {{ d.tag }}</p>
+            <div class="grid grid-cols-4 gap-2 mb-3">
+              <div>
+                <p class="field-label">1er</p>
+                <p class="num text-sm font-semibold" style="color: var(--app-text);">{{ d.primerConteo }}</p>
+              </div>
+              <div>
+                <p class="field-label">Kárdex</p>
+                <p class="num text-sm font-semibold" style="color: var(--app-text);">{{ d.kardex }}</p>
+              </div>
+              <div>
+                <p class="field-label">Dif.</p>
+                <p class="num text-sm font-semibold dash-dif" [class.dash-dif-neg]="d.difUnidades < 0">
+                  {{ d.difUnidades > 0 ? '+' : '' }}{{ d.difUnidades }}
+                </p>
+              </div>
+              <div>
+                <p class="field-label">Dif. $</p>
+                <p class="num text-sm font-bold" style="color: var(--app-text);">{{ pesos(d.difMonto) }}</p>
+              </div>
+            </div>
+            <button type="button" class="btn-recontar w-full" (click)="recontar(d)">Recontar</button>
+          </div>
+          }
+        </div>
+        }
+      </div>
+
+      <!-- ---- Panel lateral ---- -->
+      <div class="flex flex-col gap-4">
+
+        <div class="card">
+          <p class="dash-card-title">Prioridad por zona</p>
+          <p class="text-[13px] mb-4" style="color: var(--app-text-muted);">
+            Concentración del valor pendiente.
+          </p>
+          @for (z of prioridadZona; track z.zona) {
+          <div class="mb-4 last:mb-0">
+            <div class="flex items-baseline justify-between gap-2 mb-1.5">
+              <span class="text-[13px] font-semibold" style="color: var(--app-text);">{{ z.zona }}</span>
+              <span class="text-[13px] num" style="color: var(--app-text-muted);">
+                ${{ enMillones(z.monto) }} MM
+              </span>
+            </div>
+            <div class="priority-track">
+              <div class="priority-fill" [style.width]="anchoBarra(z.monto)"></div>
+            </div>
+          </div>
+          }
+        </div>
+
+        <div class="card">
+          <p class="dash-card-title">Última actividad</p>
+          <p class="text-[13px] mb-4" style="color: var(--app-text-muted);">
+            Trazabilidad de la validación.
+          </p>
+          @for (a of actividad; track a.descripcion) {
+          <div class="activity-item">
+            <span class="activity-dot" [class]="'activity-dot activity-dot-' + a.tono"></span>
+            <div>
+              <p class="text-[13px] leading-snug" style="color: var(--app-text);">{{ a.descripcion }}</p>
+              <p class="text-[12px] mt-0.5" style="color: var(--app-text-muted);">
+                <span class="num">{{ a.hora }}</span> · {{ a.referencia }}
+              </p>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</ion-content>
