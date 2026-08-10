@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { Conteo } from '../models/conteo.model';
 import { ConteoItem } from '../models/conteo-item.model';
 import { ConteoResumen } from '../models/conteo-resumen.model';
+import { ConteoTrazabilidadItem } from '../models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
 import { TagFinalizadoPayload } from '../../sincronizacion/models/tag-finalizado.model';
@@ -91,6 +92,15 @@ export interface ConteoRepository {
    * repetir los mismos TAGs.
    */
   getTagsContadosEnRondasAnteriores(eventoId: number, iteracion: number): Promise<string[]>;
+
+  // ─────────── trazabilidad (lectura pura) ───────────
+
+  /*
+   * Detalle línea a línea de todo lo contado en el evento, separado por
+   * iteración. stock_sistema viene de sod_muestra_detalle de la misma
+   * iteración del conteo. Solo lectura — no modifica estados.
+   */
+  getTrazabilidadEvento(eventoId: number, operadorId: number, pdaId: number): Promise<ConteoTrazabilidadItem[]>;
 
   // ─────────── sincronización TAG ───────────
 

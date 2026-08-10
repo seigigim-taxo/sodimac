@@ -54,11 +54,12 @@ export class SqlitePlanMuestraRepository implements PlanMuestraRepository {
   ): Promise<string[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT DISTINCT p.sku
+      `SELECT p.sku
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
        JOIN sod_producto p ON p.id = d.producto_id
        WHERE c.evento_id = ? AND c.iteracion = ?
+       GROUP BY p.id, p.sku
        ORDER BY MIN(d.fecha_hora) ASC
        LIMIT 2`,
       [eventoId, iteracionAnterior]

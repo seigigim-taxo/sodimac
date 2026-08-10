@@ -89,11 +89,11 @@ export class TagZonaPageComponent implements ViewWillEnter {
    * puede reutilizar la página, y el evento (o su iteración) pudo cambiar desde
    * la última vez que se estuvo acá.
    */
-  ionViewWillEnter(): void {
-    void this.eventoFacade.refreshSelected();
+  async ionViewWillEnter(): Promise<void> {
+    await this.eventoFacade.refreshSelected();
 
-    // Si el evento cambió a EN_ANALISIS (ej: desde otra PDA), redirigir a home
-    if (this.currentEvent()?.estado === 'EN_ANALISIS') {
+    // Si el evento cambió a EN_ANALISIS o CERRADO (ej: desde otra PDA), redirigir a home
+    if (this.currentEvent()?.estado === 'EN_ANALISIS' || this.currentEvent()?.estado === 'CERRADO') {
       this.router.navigate(['/home']);
       return;
     }

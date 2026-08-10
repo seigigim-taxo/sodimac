@@ -69,6 +69,18 @@
             },
             "ci": {
               "progress": false
+            },
+            "develop_ws": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.develop-ws.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -84,6 +96,9 @@
             },
             "ci": {
               "progress": false
+            },
+            "develop_ws": {
+              "buildTarget": "app:build:develop_ws"
             }
           },
           "defaultConfiguration": "development"

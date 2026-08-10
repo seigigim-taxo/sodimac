@@ -186,18 +186,20 @@ export class CountingPageComponent implements ViewWillEnter {
    * la ubicación anterior. La comparación con `sesionInicializada` evita el otro
    * extremo — volver desde el resumen no puede reiniciar un conteo en curso.
    */
-  ionViewWillEnter(): void {
-    const evento      = this.currentEvent();
+  async ionViewWillEnter(): Promise<void> {
     const ubicacionId = this.zonaFacade.ubicacionId();
     const operadorId  = this.auth.session()?.operadorId;
     const pdaId       = this.pda.pdaId();
+
+    await this.eventoFacade.refreshSelected();
+    const evento = this.currentEvent();
 
     console.log('[CountingPage] ionViewWillEnter - evento:', evento);
     console.log('[CountingPage] ionViewWillEnter - evento.id:', evento?.id);
     console.log('[CountingPage] ionViewWillEnter - ubicacionId:', ubicacionId);
 
-    // Si el evento cambió a EN_ANALISIS (ej: desde otra PDA), redirigir a home
-    if (evento?.estado === 'EN_ANALISIS') {
+    // Si el evento cambió a EN_ANALISIS o CERRADO (ej: desde otra PDA), redirigir a home
+    if (evento?.estado === 'EN_ANALISIS' || evento?.estado === 'CERRADO') {
       this.router.navigate(['/home']);
       return;
     }
@@ -360,7 +362,7 @@ export class CountingPageComponent implements ViewWillEnter {
         try {
           await this.conteoList.load(operadorId, pdaId);
           const resumen = this.conteoList.conteos().find((c) =>
-            c.eventoId === evento?.id &&
+            c.conteoId === sesion.conteoId &&
             c.ubicacionId === sesion.ubicacionId &&
             c.operadorId === operadorId &&
             c.pdaId === pdaId &&

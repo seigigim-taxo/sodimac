@@ -9,10 +9,10 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonLabel,
   IonMenuButton,
   IonSegment,
   IonSegmentButton,
-  IonLabel,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -28,6 +28,7 @@ import { PdaFacade } from '../../../state/pda/pda.facade';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
+import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -148,6 +149,14 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   );
   finalizandoEvento = this.resumenFacade.finalizando;
 
+  // ── trazabilidad (detalle por SKU) ──
+  trazabilidadCompleta = this.resumenFacade.trazabilidad;
+  trazabilidadLoading  = this.resumenFacade.trazabilidadLoading;
+  trazabilidadFiltrada = computed(() => {
+    const it = this.iteracionSeleccionada();
+    return it === null ? [] : this.trazabilidadCompleta().filter((t) => t.iteracion === it);
+  });
+
 
   isSyncing(c: ConteoResumen): boolean {
     return this.conteoList.isSyncing(c);
@@ -180,6 +189,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     if (evento) await this.conteoList.cargarIteracionActiva(evento.id);
     this.cargarResumenReal();
     await this.cargarResumenAvance();
+    await this.cargarTrazabilidad();
   }
 
   private cargarResumenReal(): void {
@@ -196,6 +206,15 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     const pdaId = this.pda.pdaId();
     if (evento && operadorId && pdaId) {
       await this.resumenFacade.cargarAvance(evento.id, operadorId, pdaId);
+    }
+  }
+
+  private async cargarTrazabilidad(): Promise<void> {
+    const evento = this.currentEvent();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (evento && operadorId && pdaId) {
+      await this.resumenFacade.cargarTrazabilidad(evento.id, operadorId, pdaId);
     }
   }
 

@@ -1,6 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { GetResumenEventoUseCase, ResumenEvento } from '../../application/conteo/get-resumen-evento.use-case';
 import { FinalizarEventoUseCase, ResultadoFinalizarEvento } from '../../application/conteo/finalizar-evento.use-case';
+import { GetTrazabilidadEventoUseCase } from '../../application/conteo/get-trazabilidad-evento.use-case';
+import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 export type { ResumenEvento, ResultadoFinalizarEvento };
 
@@ -17,18 +19,23 @@ export interface EventoConResumen {
  */
 @Injectable({ providedIn: 'root' })
 export class ResumenEventoFacade {
-  private getResumenUC   = inject(GetResumenEventoUseCase);
-  private finalizarUC    = inject(FinalizarEventoUseCase);
+  private getResumenUC      = inject(GetResumenEventoUseCase);
+  private finalizarUC       = inject(FinalizarEventoUseCase);
+  private getTrazabilidadUC = inject(GetTrazabilidadEventoUseCase);
 
-  private avanceSignal    = signal<ResumenEvento | null>(null);
-  private cerradosSignal  = signal<EventoConResumen[]>([]);
-  private finalizandoSig  = signal(false);
-  private errorSignal     = signal<string | null>(null);
+  private avanceSignal          = signal<ResumenEvento | null>(null);
+  private cerradosSignal        = signal<EventoConResumen[]>([]);
+  private finalizandoSig        = signal(false);
+  private errorSignal           = signal<string | null>(null);
+  private trazabilidadSignal    = signal<ConteoTrazabilidadItem[]>([]);
+  private trazabilidadLoadingSig = signal(false);
 
-  readonly avance      = this.avanceSignal.asReadonly();
-  readonly cerrados    = this.cerradosSignal.asReadonly();
-  readonly finalizando = this.finalizandoSig.asReadonly();
-  readonly error       = this.errorSignal.asReadonly();
+  readonly avance            = this.avanceSignal.asReadonly();
+  readonly cerrados          = this.cerradosSignal.asReadonly();
+  readonly finalizando       = this.finalizandoSig.asReadonly();
+  readonly error             = this.errorSignal.asReadonly();
+  readonly trazabilidad      = this.trazabilidadSignal.asReadonly();
+  readonly trazabilidadLoading = this.trazabilidadLoadingSig.asReadonly();
 
   /* Avance de la ronda activa del evento (Q contado, SKUs, TAGs). */
   async cargarAvance(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
@@ -37,6 +44,20 @@ export class ResumenEventoFacade {
       this.avanceSignal.set(await this.getResumenUC.execute(eventoId, operadorId, pdaId));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar el resumen del evento');
+    }
+  }
+
+  /* Detalle línea a línea de todo lo contado en el evento, por iteración. */
+  async cargarTrazabilidad(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
+    this.errorSignal.set(null);
+    this.trazabilidadLoadingSig.set(true);
+    try {
+      this.trazabilidadSignal.set(await this.getTrazabilidadUC.execute(eventoId, operadorId, pdaId));
+    } catch (err) {
+      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar la trazabilidad del evento');
+      this.trazabilidadSignal.set([]);
+    } finally {
+      this.trazabilidadLoadingSig.set(false);
     }
   }
 

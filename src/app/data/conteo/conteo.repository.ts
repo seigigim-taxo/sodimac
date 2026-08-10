@@ -5,6 +5,7 @@ import { ConteoRepository } from '../../domain/conteo/repositories/conteo.reposi
 import { Conteo, EstadoRonda } from '../../domain/conteo/models/conteo.model';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
@@ -343,6 +344,53 @@ export class SqliteConteoRepository implements ConteoRepository {
     return (result.values ?? [])
       .map((r) => (r as Record<string, unknown>)['tag'] as string)
       .filter((t): t is string => !!t);
+  }
+
+  // ─────────── trazabilidad (lectura pura) ───────────
+
+  async getTrazabilidadEvento(
+    eventoId: number, operadorId: number, pdaId: number
+  ): Promise<ConteoTrazabilidadItem[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT c.iteracion, c.id AS conteo_id,
+              u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre,
+              p.sku, p.descripcion,
+              md.stock_sistema, d.cantidad_fisica, d.estado, d.fecha_hora
+       FROM sod_conteo_detalle d
+       JOIN sod_conteo   c ON c.id = d.conteo_id
+       JOIN sod_producto p ON p.id = d.producto_id
+       LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
+       LEFT JOIN sod_zona z      ON z.id = u.zona_id
+       LEFT JOIN sod_muestra m
+         ON m.evento_id = c.evento_id AND m.iteracion = c.iteracion
+       LEFT JOIN sod_muestra_detalle md
+         ON md.muestra_id = m.id AND md.producto_id = d.producto_id
+       WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?
+       ORDER BY c.iteracion DESC, u.tag ASC, p.sku ASC`,
+      [eventoId, operadorId, pdaId]
+    );
+    const items = (result.values ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        iteracion:      row['iteracion']      as number,
+        conteoId:       row['conteo_id']      as number,
+        tag:            row['tag']            as string | null,
+        zonaCodigo:     (row['zona_codigo']  as string | null) ?? '—',
+        zonaNombre:     row['zona_nombre']    as string | null,
+        sku:            row['sku']            as string,
+        descripcion:    row['descripcion']    as string | null,
+        stockSistema:   row['stock_sistema']  as number | null,
+        cantidadFisica: row['cantidad_fisica'] as number,
+        estado:         row['estado']         as EstadoConteo,
+        fechaHora:      row['fecha_hora']     as string,
+      };
+    });
+    if (isDevMode()) {
+      console.log('[ConteoRepo] getTrazabilidadEvento', { eventoId });
+      console.table(items);
+    }
+    return items;
   }
 
   // ─────────── sincronización TAG ───────────

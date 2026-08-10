@@ -22,6 +22,7 @@ import { EventoFacade, Evento } from '../../state/evento/evento.facade';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
+import { GetUltimaRondaUseCase } from '../../application/conteo/get-ultima-ronda.use-case';
 
 
 @Component({
@@ -49,6 +50,7 @@ export class HomePage implements ViewWillEnter {
   private alertController = inject(AlertController);
   private pda                = inject(PdaFacade);
   private resumenFacade      = inject(ResumenEventoFacade);
+  private getUltimaRonda     = inject(GetUltimaRondaUseCase);
 
   /*
    * Cerrar la tienda exige que no quede trabajo sin subir: ni conteos abiertos
@@ -205,37 +207,59 @@ export class HomePage implements ViewWillEnter {
       this.sincronizando.set(false);
       this.sincronizandoTimeout.set(false);
 
-      this.intentosSgo++;
+      // Consultar última ronda para decidir si cerrar o abrir reconteo
+      const ultimaRonda = await this.getUltimaRonda.execute(evento.id);
 
-      if (this.intentosSgo < 3) {
-        // Click 1 y 2: SGO sigue analizando
-        const alert = await this.alertController.create({
-          header:  'SGO sigue analizando',
-          message: 'El SGO aún no entrega una decisión para este evento. Intenta nuevamente más tarde.',
-          buttons: ['Entendido'],
-        });
-        await alert.present();
-      } else {
-        // Click 3: SGO requiere reconteo — abrir iteración siguiente
-        const resultado = await this.eventoFacade.abrirSiguienteIteracion();
-
-        if (resultado) {
-          const message = resultado.conMuestra
-            ? `El SGO determinó que este evento requiere una nueva iteración de reconteo. Se abrió la iteración ${resultado.iteracion}.`
-            : 'El SGO determinó reconteo, pero no hay SKUs disponibles para recontar.';
+      if (ultimaRonda && ultimaRonda.iteracion >= 2) {
+        // Ya hubo reconteo: SGO aprueba y cierra el evento
+        const ok = await this.eventoFacade.cerrarSeleccionado();
+        if (ok) {
           const alert = await this.alertController.create({
-            header: 'Reconteo requerido',
-            message,
+            header: 'Evento cerrado',
+            message: 'El SGO aprobó el reconteo y cerró el evento.',
             buttons: ['Entendido'],
           });
           await alert.present();
         } else {
           const alert = await this.alertController.create({
-            header: 'No se pudo abrir el reconteo',
-            message: this.eventsError() ?? 'No se pudo abrir la iteración de reconteo.',
+            header: 'No se pudo cerrar el evento',
+            message: this.eventsError() ?? 'No se pudo cerrar el evento.',
             buttons: ['Entendido'],
           });
           await alert.present();
+        }
+      } else {
+        // Primera iteración: lógica actual de reconteo
+        this.intentosSgo++;
+
+        if (this.intentosSgo < 3) {
+          const alert = await this.alertController.create({
+            header:  'SGO sigue analizando',
+            message: 'El SGO aún no entrega una decisión para este evento. Intenta nuevamente más tarde.',
+            buttons: ['Entendido'],
+          });
+          await alert.present();
+        } else {
+          const resultado = await this.eventoFacade.abrirSiguienteIteracion();
+
+          if (resultado) {
+            const message = resultado.conMuestra
+              ? `El SGO determinó que este evento requiere una nueva iteración de reconteo. Se abrió la iteración ${resultado.iteracion}.`
+              : 'El SGO determinó reconteo, pero no hay SKUs disponibles para recontar.';
+            const alert = await this.alertController.create({
+              header: 'Reconteo requerido',
+              message,
+              buttons: ['Entendido'],
+            });
+            await alert.present();
+          } else {
+            const alert = await this.alertController.create({
+              header: 'No se pudo abrir el reconteo',
+              message: this.eventsError() ?? 'No se pudo abrir la iteración de reconteo.',
+              buttons: ['Entendido'],
+            });
+            await alert.present();
+          }
         }
       }
     } catch {

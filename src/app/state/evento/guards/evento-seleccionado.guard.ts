@@ -3,14 +3,20 @@ import { CanActivateFn, Router } from '@angular/router';
 import { EventoFacade } from '../evento.facade';
 
 /*
- * Bloquea /counting y /tags-resumen si no hay evento seleccionado. Sin esto,
- * un reload en dev (o una navegación directa) deja EventoFacade con
- * selectedEvent = null, y las pantallas de conteo no tienen contra qué evento
- * trabajar: se quedan vacías sin ningún error visible.
+ * Bloquea /counting-tag y /counting si no hay evento seleccionado o si
+ * el evento está en un estado que no permite contar:
+ *  - null: no hay evento seleccionado (reload, navegación directa).
+ *  - EN_ANALISIS: el SGO está analizando.
+ *  - CERRADO: el evento ya terminó.
  */
 export const eventoSeleccionadoGuard: CanActivateFn = () => {
   const eventoFacade = inject(EventoFacade);
   const router       = inject(Router);
 
-  return eventoFacade.selectedEvent() !== null ? true : router.createUrlTree(['/home']);
+  const evento = eventoFacade.selectedEvent();
+  if (!evento) return router.createUrlTree(['/home']);
+  if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') {
+    return router.createUrlTree(['/home']);
+  }
+  return true;
 };

@@ -148,7 +148,7 @@
     </ion-button>
     }
     } @else {
-    <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading()"
+    <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading() || esCerrado(selectedEvent()!)"
       (click)="continue()">
       @if (esReconteo()) {
         Iniciar reconteo

@@ -8,9 +8,10 @@ import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
 export type { ConteoResumen };
 
 // Identidad de un ConteoResumen: sod_ubicacion se reutiliza entre eventos,
-// así que ubicacionId solo no basta para distinguir dos conteos.
+// así que ubicacionId solo no basta para distinguir dos conteos. La iteración
+// tampoco basta sola porque dos TAGs distintos pueden tener la misma iteración.
 function keyOf(conteo: ConteoResumen): string {
-  return `${conteo.eventoId}-${conteo.ubicacionId}-${conteo.estado}`;
+  return `${conteo.eventoId}-${conteo.ubicacionId}-${conteo.iteracion}-${conteo.estado}`;
 }
 
 @Injectable({ providedIn: 'root' })

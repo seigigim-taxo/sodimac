@@ -4,10 +4,11 @@ import { EventoFacade } from '../../evento/evento.facade';
 
 /*
  * Bloquea la navegación a las pantallas de conteo cuando el evento seleccionado
- * está en estado EN_ANALISIS. En ese estado, el SGO está analizando los resultados
- * y la PDA debe permanecer en espera hasta que responda con la siguiente iteración.
+ * no permite contar:
+ *  - EN_ANALISIS: el SGO está analizando y la PDA debe esperar.
+ *  - CERRADO: el evento ya terminó y no acepta nuevas iteraciones.
  *
- * Si el evento está en EN_ANALISIS o no hay evento seleccionado, redirige a /home.
+ * Solo permite la navegación para ABIERTO y RECONTEO.
  */
 export const pdaBloqueadaGuard: CanActivateFn = (route, state) => {
   const eventoFacade = inject(EventoFacade);
@@ -20,8 +21,8 @@ export const pdaBloqueadaGuard: CanActivateFn = (route, state) => {
     return router.createUrlTree(['/home']);
   }
 
-  // Si el evento está en análisis, la PDA debe esperar al SGO
-  if (evento.estado === 'EN_ANALISIS') {
+  // Si el evento está en análisis o cerrado, redirigir a home
+  if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') {
     return router.createUrlTree(['/home']);
   }
 
