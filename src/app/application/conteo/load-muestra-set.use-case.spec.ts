@@ -11,12 +11,12 @@ describe('LoadMuestraSetUseCase', () => {
 
   beforeEach(() => {
     muestraRepo = jasmine.createSpyObj('MuestraRepository', ['getByEventoIteracion']);
-    detalleRepo = jasmine.createSpyObj('MuestraDetalleRepository', ['getByMuestra']);
+    detalleRepo = jasmine.createSpyObj('MuestraDetalleRepository', ['getByMuestra', 'getCodigosByMuestra']);
 
-    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
-    detalleRepo.getByMuestra.and.resolveTo([
-      { id: 1, muestraId: 10, productoId: 100, sku: 'AF001', stockSistema: 5, ubicacionEsperada: null },
-      { id: 2, muestraId: 10, productoId: 200, sku: 'af002', stockSistema: 8, ubicacionEsperada: null },
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
+    detalleRepo.getCodigosByMuestra.and.resolveTo([
+      { codigoLectura: 'AF001', productoId: 100 },
+      { codigoLectura: '7891234567890', productoId: 200 },
     ]);
 
     TestBed.configureTestingModule({
@@ -35,11 +35,11 @@ describe('LoadMuestraSetUseCase', () => {
     expect(muestraRepo.getByEventoIteracion).toHaveBeenCalledWith(1, 1);
   });
 
-  it('indexa los SKUs en mayúsculas para que el scan no falle por caja', async () => {
+  it('indexa los códigos de lectura en mayúsculas para que el scan no falle por caja', async () => {
     const { skuMap } = await useCase.execute(1, 1);
 
     expect(skuMap.get('AF001')).toBe(100);
-    expect(skuMap.get('AF002')).toBe(200);
+    expect(skuMap.get('7891234567890')).toBe(200);
   });
 
   it('devuelve un set vacío si la ronda no tiene muestra', async () => {
@@ -48,6 +48,6 @@ describe('LoadMuestraSetUseCase', () => {
     const { skuMap } = await useCase.execute(1, 1);
 
     expect(skuMap.size).toBe(0);
-    expect(detalleRepo.getByMuestra).not.toHaveBeenCalled();
+    expect(detalleRepo.getCodigosByMuestra).not.toHaveBeenCalled();
   });
 });

@@ -52,15 +52,10 @@ export class ConteoFacade {
    * —eso pasa por el análisis del SGO—, y ahí init() falla con el motivo.
    */
   async init(eventoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void> {
-    console.log('[ConteoFacade.init] eventoId:', eventoId, 'ubicacionId:', ubicacionId, 'operadorId:', operadorId, 'pdaId:', pdaId);
-    
     this.reset();
     this.loadingSignal.set(true);
     try {
       const ronda = await this.asegurarRonda.execute(eventoId);
-
-      console.log('[ConteoFacade.init] Ronda encontrada:', ronda.id, 'iteracion:', ronda.iteracion);
-
       const [muestraSet, resultado] = await Promise.all([
         this.loadMuestra.execute(eventoId, ronda.iteracion),
         this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
@@ -69,9 +64,6 @@ export class ConteoFacade {
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
-      
-      console.log('[ConteoFacade.init] MuestraSet asignado con', this.muestraSet.skuMap.size, 'SKUs');
-      console.log('[ConteoFacade.init] SKUs en el set:', Array.from(this.muestraSet.skuMap.keys()));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
     } finally {
@@ -80,23 +72,18 @@ export class ConteoFacade {
   }
 
   /*
-   * 'valido'    → el SKU está en la muestra y quedó persistido
-   * 'rechazado' → el SKU no está en la muestra (feedback rojo)
-   * 'error'     → el SKU era válido pero la escritura falló (detalle en error())
+   * 'valido'    → el código de lectura está en la muestra y quedó persistido
+   * 'rechazado' → el código de lectura no está en la muestra (feedback rojo)
+   * 'error'     → el código era válido pero la escritura falló (detalle en error())
    */
   async scan(sku: string, cantidad = 1): Promise<'valido' | 'rechazado' | 'error'> {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
-    const skuBuscado = sku.trim().toUpperCase();
-    const productoId = this.muestraSet.skuMap.get(skuBuscado);
-    
-    console.log('[ConteoFacade.scan] SKU buscado:', skuBuscado);
-    console.log('[ConteoFacade.scan] SKUs en mapa:', Array.from(this.muestraSet.skuMap.keys()));
-    console.log('[ConteoFacade.scan] productoId encontrado:', productoId);
+    const codigoBuscado = sku.trim().toUpperCase();
+    const productoId = this.muestraSet.skuMap.get(codigoBuscado);
 
     if (productoId === undefined) {
-      // SKU no está en la muestra — feedback rojo, no persiste
       this.rechazadosSignal.update((prev) =>
         prev.includes(sku) ? prev : [sku, ...prev]
       );

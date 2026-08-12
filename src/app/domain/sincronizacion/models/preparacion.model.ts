@@ -31,7 +31,18 @@ export interface TiendaPreparada {
 }
 
 /*
+ * Código válido para un producto en la muestra.
+ * El backend agrupa múltiples filas (SKU + barras) en codigos[] por producto.
+ */
+export interface CodigoProductoPreparado {
+  codigoLectura: string;
+  tipoCodigo: string | null;
+  codigoBarras: string | null;
+}
+
+/*
  * Una línea de la muestra: el producto que hay que contar.
+ * `codigos[]` es obligatorio desde el servidor real.
  */
 export interface DetalleMuestraPreparado {
   idMuestraDet: number;
@@ -39,6 +50,7 @@ export interface DetalleMuestraPreparado {
   codigoBarras: string | null;
   descripcion: string | null;
   stockSistema: number;
+  codigos: CodigoProductoPreparado[];
 }
 
 /*
@@ -48,6 +60,7 @@ export interface DetalleMuestraPreparado {
 export interface MuestraPreparada {
   idMuestra: number;
   codigoMuestra: string;
+  idAgenda: number | null;
   nombreMuestra: string | null;
   fechaInicioVigencia: string | null;
   fechaFinVigencia: string | null;

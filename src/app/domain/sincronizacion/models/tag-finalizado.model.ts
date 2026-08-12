@@ -18,6 +18,9 @@ export interface TagFinalizadoPayload {
   operador_rut: string;
   operador_login: string;
   pda_codigo: string;
+  codigo_muestra: string | null;
+  id_agenda: number | null;
+  ubicacion_codigo: string;
   detalles: TagFinalizadoDetallePayload[];
 }
 

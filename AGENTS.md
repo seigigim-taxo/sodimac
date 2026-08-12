@@ -68,7 +68,24 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
   - Production: `http://192.168.1.9/api`
 - The PHP web service lives in the Laragon docroot under `C:\laragon\www\ws\api\`. Because Laragon serves `C:\laragon\www\` as the root, the real endpoint is `http://<host>/ws/api/auth/login.php`, not `http://<host>/api/auth/login.php`.
 - `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
+- `auth/login.php` is authentication-only. It must not prepare, mix, or return operational data.
+- Operational PDA data must be downloaded through `preparacion.php`, which returns a SQLite-ready contract.
+- The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
 - CORS is handled server-side; for local dev/Android the backend must be reachable on the LAN IP used in `environment.ts`.
+
+## PDA preparation contract
+
+- The operator flow must always be: `login → preparacion → tienda principal → evento local → muestra → productos`.
+- `auth/login.php` handles only authentication. No operational data is returned on login.
+- `preparacion.php` is the single endpoint responsible for preparing **all** operational data the APK needs after login.
+- The APK/PDA must never receive, build, or know server-side SQL queries. It only consumes a simple API contract and persists the result into local SQLite.
+- The web service layer must clean, adapt, and flatten backend agendas/queries before returning data to the APK.
+- Backend complexity (joins, agendas, legacy table names, query-specific structures) must stay server-side. The API response must expose stable, domain-level payloads ready for SQLite insertion.
+- The APK's operational focus is **samples** (`muestra`), not agendas.
+- The active event is determined by calendar date.
+- Do **not** create a `sod_agenda` table. Only store `id_agenda` as a minimal metadata field if needed for traceability or sync.
+- The WS must support multiple codes per product. The app models this via `sod_producto_detalle`.
+- Any future sync/download work must preserve this separation: backend complexity stays in the WS; the APK works only with the prepared contract.
 
 ## Theme
 

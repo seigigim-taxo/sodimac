@@ -119,6 +119,7 @@ export class SincronizarDatosInicialesUseCase {
       nombre: datos.muestra.nombreMuestra,
       iteracion: 1,
       estado: 'ACTIVA',
+      idAgenda: datos.muestra.idAgenda,
     });
 
     console.log('[Sincronizar] Muestra ID:', muestraId);

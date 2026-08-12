@@ -3,7 +3,7 @@ import { SqliteConnectionService } from '../../core/database/sqlite-connection.s
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { PlanMuestraRepository } from '../../domain/muestra/repositories/plan-muestra.repository';
 import { MUESTRA_REPOSITORY_TOKEN, MuestraRepository } from '../../domain/muestra/repositories/muestra.repository';
-import { MUESTRA_DETALLE_REPOSITORY_TOKEN, MuestraDetalleRepository, LineaMuestraParaGuardar } from '../../domain/muestra/repositories/muestra-detalle.repository';
+import { MUESTRA_DETALLE_REPOSITORY_TOKEN, MuestraDetalleRepository, LineaMuestraParaGuardar, CodigoProductoParaGuardar } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { EVENTO_REPOSITORY_TOKEN, EventoRepository } from '../../domain/evento/repositories/evento.repository';
 
 /*
@@ -33,8 +33,11 @@ export class SqlitePlanMuestraRepository implements PlanMuestraRepository {
     const evento = await this.eventoRepo.getById(eventoId);
     if (!evento) return null;
 
+    const muestraAnterior = await this.muestraRepo.getByEventoIteracion(eventoId, iteracionAnterior);
+
     const muestraId = await this.muestraRepo.asegurarMuestra({
-      codigoMuestra: `RECONTEO-${eventoId}-ITER${iteracion}`,
+      codigoMuestra: muestraAnterior?.codigoMuestra ?? `RECONTEO-${eventoId}-ITER${iteracion}`,
+      idAgenda:     muestraAnterior?.idAgenda ?? null,
       eventoId,
       sucursalId: evento.sucursalId,
       nombre: `Reconteo iteración ${iteracion}`,
@@ -86,9 +89,12 @@ export class SqlitePlanMuestraRepository implements PlanMuestraRepository {
       const prod = prodRow.values?.[0] as Record<string, unknown> | undefined;
       if (!prod) continue;
 
+      const productoId = prod['id'] as number;
       const stock = await this.getStockSistemaAnterior(
-        eventoId, iteracionAnterior, prod['id'] as number
+        eventoId, iteracionAnterior, productoId
       );
+
+      const codigos = await this.getCodigosProducto(productoId);
 
       lineas.push({
         idMuestraDet: 0,
@@ -96,10 +102,27 @@ export class SqlitePlanMuestraRepository implements PlanMuestraRepository {
         codigoBarras: prod['codigo_barras'] as string | null,
         descripcion:  prod['descripcion']  as string | null,
         stockSistema: stock,
+        codigos,
       });
     }
 
     return lineas;
+  }
+
+  private async getCodigosProducto(productoId: number): Promise<CodigoProductoParaGuardar[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT codigo_lectura, tipo_codigo, codigo_barras
+       FROM sod_producto_detalle
+       WHERE producto_id = ?
+       ORDER BY id`,
+      [productoId]
+    );
+    return (result.values ?? []).map((row: Record<string, unknown>) => ({
+      codigoLectura: row['codigo_lectura'] as string,
+      tipoCodigo:    row['tipo_codigo']    as string | null,
+      codigoBarras:  row['codigo_barras']  as string | null,
+    }));
   }
 
   private async getStockSistemaAnterior(

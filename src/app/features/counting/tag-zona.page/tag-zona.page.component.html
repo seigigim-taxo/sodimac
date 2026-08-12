@@ -95,6 +95,18 @@
       }
     </div>
 
+    <!-- ===== Ubicación precisa — bloqueada hasta tener zona ===== -->
+    @if (zonaConfirmada()) {
+    <div class="card mb-4">
+      <p class="field-label mb-2">Ubicación</p>
+      <ion-input [value]="ubicacionPrecisa()" (ionInput)="onUbicacionInput($event)"
+        placeholder="Ej: PASILLO A, PASILLO B, CABECERA 3"
+        class="input-base">
+      </ion-input>
+      <p class="hint-text">Ingresa la ubicación precisa dentro de la zona seleccionada</p>
+    </div>
+    }
+
     @if (errorZona()) {
     <div class="error-pill mb-4">
       <ion-icon name="alert-circle-outline"></ion-icon>
@@ -102,7 +114,8 @@
     </div>
     }
 
-    <ion-button expand="block" class="btn-primary mt-2" [disabled]="!(tagConfirmado() && zonaConfirmada())"
+    <ion-button expand="block" class="btn-primary mt-2"
+      [disabled]="!(tagConfirmado() && zonaConfirmada() && ubicacionPrecisa().trim())"
       (click)="irAContar()">
       <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
       Ir a contar

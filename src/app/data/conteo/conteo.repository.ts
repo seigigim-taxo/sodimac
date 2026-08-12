@@ -470,7 +470,9 @@ export class SqliteConteoRepository implements ConteoRepository {
       `SELECT s.codigo_tienda, e.fecha_programada,
               z.nombre AS zona_nombre, z.descripcion AS zona_descripcion,
               op.rut AS operador_rut, op.correo AS operador_login,
-              pda.codigo AS pda_codigo
+              pda.codigo AS pda_codigo,
+              u.codigo AS ubicacion_codigo, u.tag AS tag_codigo,
+              m.codigo_muestra, m.id_agenda
        FROM sod_sucursal s
        JOIN sod_evento_inventario e ON e.id = ?
        JOIN sod_zona z              ON z.id = (
@@ -478,8 +480,11 @@ export class SqliteConteoRepository implements ConteoRepository {
        )
        JOIN sod_user op             ON op.id = ?
        JOIN sod_pda pda             ON pda.id = ?
+       JOIN sod_ubicacion u         ON u.id = ?
+       LEFT JOIN sod_muestra m      ON m.evento_id = e.id AND m.iteracion = ?
        WHERE s.id = e.sucursal_id`,
-      [conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
+      [conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId,
+       conteo.ubicacionId, conteo.iteracion]
     );
     const meta = metaRow.values?.[0] as Record<string, unknown> | undefined;
     if (!meta) {
@@ -490,8 +495,12 @@ export class SqliteConteoRepository implements ConteoRepository {
       `SELECT p.sku, p.codigo_barras, p.descripcion,
               md.stock_sistema, d.cantidad_fisica, d.fecha_hora
        FROM sod_conteo_detalle d
+       JOIN sod_conteo   c ON c.id = d.conteo_id
        JOIN sod_producto p ON p.id = d.producto_id
-       LEFT JOIN sod_muestra_detalle md ON md.producto_id = d.producto_id
+       LEFT JOIN sod_muestra m
+         ON m.evento_id = c.evento_id AND m.iteracion = c.iteracion
+       LEFT JOIN sod_muestra_detalle md
+         ON md.muestra_id = m.id AND md.producto_id = d.producto_id
        WHERE d.conteo_id = ? AND d.ubicacion_id = ?
          AND d.operador_id = ? AND d.pda_id = ?
          AND d.estado = 'FINALIZADO'`,
@@ -512,12 +521,15 @@ export class SqliteConteoRepository implements ConteoRepository {
       codigo_tienda:     meta['codigo_tienda']     as string,
       fecha_programada:  meta['fecha_programada']  as string,
       iteracion:         conteo.iteracion,
-      tag_codigo:        conteo.tag ?? '',
+      tag_codigo:        (meta['tag_codigo'] as string ?? conteo.tag ?? ''),
       zona_nombre:       meta['zona_nombre']       as string,
       zona_descripcion:  meta['zona_descripcion']  as string | null,
       operador_rut:      meta['operador_rut']      as string,
       operador_login:    meta['operador_login']    as string,
       pda_codigo:        meta['pda_codigo']        as string,
+      codigo_muestra:    (meta['codigo_muestra'] as string | null) ?? null,
+      id_agenda:         (meta['id_agenda'] as number | null) ?? null,
+      ubicacion_codigo:  meta['ubicacion_codigo']  as string,
       detalles,
     };
   }

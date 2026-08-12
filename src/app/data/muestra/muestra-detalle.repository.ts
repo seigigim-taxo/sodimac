@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
-import { LineaMuestraParaGuardar, MuestraDetalleRepository } from '../../domain/muestra/repositories/muestra-detalle.repository';
+import { LineaMuestraParaGuardar, MuestraDetalleRepository, CodigoProductoMuestra } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.model';
 
 @Injectable({ providedIn: 'root' })
@@ -21,12 +21,8 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
        * hechos. Un producto que sale de la muestra simplemente deja de tener
        * línea de detalle.
        */
-      console.log('[MuestraDetalle] Guardando', lineas.length, 'líneas para muestra', muestraId);
-      console.log('[MuestraDetalle] SKUs a guardar:', lineas.map(l => l.sku));
-      
       for (const linea of lineas) {
         const skuNormalizado = linea.sku.trim().toUpperCase();
-        console.log('[MuestraDetalle] Normalizado:', linea.sku, '→', skuNormalizado);
         await db.run(
           `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
            VALUES (?, ?, ?)
@@ -36,11 +32,41 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
           [skuNormalizado, linea.codigoBarras, linea.descripcion],
           false
         );
-      }
 
-      const tablaProductos = await db.query(`SELECT * FROM sod_producto`, []);
-      console.log('[DB] Tabla sod_producto completa:');
-      console.table(tablaProductos.values);
+        /* Recuperar producto_id para vincular códigos y detalle */
+        const prodRow = await db.query(
+          `SELECT id FROM sod_producto WHERE sku = ?`,
+          [skuNormalizado]
+        );
+        const productoId = prodRow.values?.[0]?.['id'] as number | undefined;
+        if (productoId === undefined) {
+          throw new Error(`No se pudo resolver producto para SKU ${skuNormalizado}`);
+        }
+
+        /*
+         * Reemplazo completo de códigos de lectura para este producto.
+         */
+        await db.run(
+          `DELETE FROM sod_producto_detalle WHERE producto_id = ?`,
+          [productoId],
+          false
+        );
+
+        for (const codigo of linea.codigos) {
+          const lectura = codigo.codigoLectura.trim().toUpperCase();
+          if (!lectura) continue;
+          await db.run(
+            `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT (codigo_lectura) DO UPDATE SET
+               producto_id = excluded.producto_id,
+               tipo_codigo = excluded.tipo_codigo,
+               codigo_barras = excluded.codigo_barras`,
+            [productoId, lectura, codigo.tipoCodigo, codigo.codigoBarras],
+            false
+          );
+        }
+      }
 
       /*
        * Reemplazo completo del detalle. Es seguro porque ninguna tabla tiene FK
@@ -57,10 +83,6 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
           false
         );
       }
-      
-      const tablaDetalle = await db.query(`SELECT * FROM sod_muestra_detalle`, []);
-      console.log('[DB] Tabla sod_muestra_detalle completa:');
-      console.table(tablaDetalle.values);
     });
   }
 
@@ -78,6 +100,24 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
     console.log('[MuestraDetalle] getByMuestra(', muestraId, ') devolvió', detalles.length, 'detalles');
     console.log('[MuestraDetalle] SKUs:', detalles.map(d => ({ sku: d.sku, productoId: d.productoId })));
     return detalles;
+  }
+
+  async getCodigosByMuestra(muestraId: number): Promise<CodigoProductoMuestra[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT pd.codigo_lectura, pd.producto_id
+       FROM sod_producto_detalle pd
+       JOIN sod_muestra_detalle md ON md.producto_id = pd.producto_id
+       WHERE md.muestra_id = ?`,
+      [muestraId]
+    );
+    const codigos: CodigoProductoMuestra[] = [];
+    for (const row of (result.values ?? []) as Record<string, unknown>[]) {
+      const lectura = (row['codigo_lectura'] as string)?.trim().toUpperCase();
+      if (!lectura) continue;
+      codigos.push({ codigoLectura: lectura, productoId: row['producto_id'] as number });
+    }
+    return codigos;
   }
 
   private map(row: Record<string, unknown>): MuestraDetalle {

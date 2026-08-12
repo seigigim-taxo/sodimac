@@ -44,11 +44,14 @@ describe('ConteoFacade', () => {
     conteoRepo.abrirRonda.and.callFake((_e: number, i: number) => Promise.resolve(ronda(i)));
 
     const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEventoIteracion']);
-    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
 
-    const detalleRepo = jasmine.createSpyObj<MuestraDetalleRepository>('MuestraDetalleRepository', ['getByMuestra']);
+    const detalleRepo = jasmine.createSpyObj<MuestraDetalleRepository>('MuestraDetalleRepository', ['getByMuestra', 'getCodigosByMuestra']);
     detalleRepo.getByMuestra.and.resolveTo([
       { id: 1, muestraId: 10, productoId: 100, sku: 'AF001', stockSistema: 5, ubicacionEsperada: null },
+    ]);
+    detalleRepo.getCodigosByMuestra.and.resolveTo([
+      { codigoLectura: 'AF001', productoId: 100 },
     ]);
 
     TestBed.configureTestingModule({
@@ -143,5 +146,22 @@ describe('ConteoFacade', () => {
     expect(resultado).toBe('rechazado');
     expect(conteoRepo.upsert).not.toHaveBeenCalled();
     expect(facade.enCurso()).toBeFalse();
+  });
+
+  it('resuelve un código de lectura distinto al SKU (ej: código de barras)', async () => {
+    // Re-init con mapa que incluye código de barras como código de lectura
+    conteoRepo.getRondaAbierta.and.resolveTo(ronda(1));
+
+    const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
+    detalleRepo.getCodigosByMuestra.and.resolveTo([
+      { codigoLectura: '7891234567890', productoId: 100 },
+    ]);
+
+    await facade.init(1, 1, 1, 1);
+
+    const resultado = await facade.scan('7891234567890', 3);
+
+    expect(resultado).toBe('valido');
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3);
   });
 });

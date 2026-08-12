@@ -13,15 +13,18 @@ export class SqliteMuestraRepository implements MuestraRepository {
         const db = await this.connection.getConnection(SODIMAC_DB_NAME);
         const iteracion = muestra.iteracion ?? 1;
         const estado    = muestra.estado ?? 'ACTIVA';
+        const idAgenda  = muestra.idAgenda ?? null;
 
         await db.run(
-            `INSERT INTO sod_muestra (evento_id, sucursal_id, iteracion, estado, nombre)
-             VALUES (?, ?, ?, ?, ?)
+            `INSERT INTO sod_muestra (evento_id, sucursal_id, iteracion, estado, nombre, codigo_muestra, id_agenda)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (evento_id, iteracion) DO UPDATE SET
-               sucursal_id = excluded.sucursal_id,
-               estado      = excluded.estado,
-               nombre      = excluded.nombre`,
-            [muestra.eventoId, muestra.sucursalId, iteracion, estado, muestra.nombre]
+               sucursal_id  = excluded.sucursal_id,
+               estado       = excluded.estado,
+               nombre       = excluded.nombre,
+               codigo_muestra = excluded.codigo_muestra,
+               id_agenda    = excluded.id_agenda`,
+            [muestra.eventoId, muestra.sucursalId, iteracion, estado, muestra.nombre, muestra.codigoMuestra, idAgenda]
         );
 
         const row = await db.query(
@@ -58,7 +61,8 @@ export class SqliteMuestraRepository implements MuestraRepository {
     private map(row: Record<string, unknown>): Muestra {
         return {
             id:            row['id']             as number,
-            codigoMuestra: null,
+            codigoMuestra: row['codigo_muestra'] as string | null,
+            idAgenda:      row['id_agenda']      as number | null,
             eventoId:      row['evento_id']      as number,
             sucursalId:    row['sucursal_id']    as number,
             iteracion:     row['iteracion']      as number,

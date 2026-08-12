@@ -1,6 +1,8 @@
 import { ContractError } from '../../domain/shared/errors/contract.error';
 import {
+  CodigoProductoPreparado,
   DatosPreparacion,
+  DetalleMuestraPreparado,
   EventoPreparado,
   MuestraPreparada,
   TiendaPreparada,
@@ -137,6 +139,19 @@ function parsearTiendas(raw: unknown): TiendaPreparada[] {
 }
 
 /*
+ * Parsea un código de producto desde el array codigos[].
+ * El campo codigo_lectura es obligatorio.
+ */
+function parsearCodigoProducto(codigoRaw: Json, indexProducto: number, indexCodigo: number): CodigoProductoPreparado {
+  const campo = `data.productos[${indexProducto}].codigos[${indexCodigo}]`;
+  return {
+    codigoLectura: texto(codigoRaw, 'codigo_lectura', campo),
+    tipoCodigo: textoOpcional(codigoRaw, 'tipo_codigo'),
+    codigoBarras: textoOpcional(codigoRaw, 'codigo_barras'),
+  };
+}
+
+/*
  * La muestra viene como objeto suelto y los productos como array separado
  * en `data.productos`. Se agrupan los detalles por muestra.
  */
@@ -147,24 +162,44 @@ function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): Mues
   const codigo = texto(muestra, 'codigo_muestra', 'data.muestras');
 
   const productos = comoLista(productosRaw);
-  
-  console.log('[Parser] Productos recibidos:', productos.length);
-  console.log('[Parser] Productos raw:', productos);
 
-  const detalles = productos.map((p, i) => ({
-    sku: texto(p, 'sku', `data.productos[${i}]`),
-    idMuestraDet: enteroOpcional(p, 'id_muestra_det') ?? 0,
-    codigoBarras: textoOpcional(p, 'codigo_barras'),
-    descripcion: textoOpcional(p, 'descripcion'),
-    stockSistema: numeroOpcional(p, 'stock_sistema') ?? 0,
-  }));
-  
-  console.log('[Parser] Detalles parseados:', detalles);
-  console.log('[Parser] SKUs extraídos:', detalles.map(d => d.sku));
+  const detalles: DetalleMuestraPreparado[] = productos.map((p, i) => {
+    const campoProducto = `data.productos[${i}]`;
+
+    /* codigos[] es obligatorio desde el servidor real */
+    const codigosRaw = p['codigos'];
+    if (!Array.isArray(codigosRaw) || codigosRaw.length === 0) {
+      throw new ContractError(
+        `${campoProducto}.codigos`,
+        'se esperaba un array con al menos un código y llegó vacío o no existente'
+      );
+    }
+
+    const codigos = codigosRaw
+      .filter((c): c is Json => esJson(c))
+      .map((c, j) => parsearCodigoProducto(c, i, j));
+
+    if (codigos.length === 0) {
+      throw new ContractError(
+        `${campoProducto}.codigos`,
+        'ninguno de los códigos es válido'
+      );
+    }
+
+    return {
+      sku: texto(p, 'sku', campoProducto),
+      idMuestraDet: enteroOpcional(p, 'id_muestra_det') ?? 0,
+      codigoBarras: textoOpcional(p, 'codigo_barras'),
+      descripcion: textoOpcional(p, 'descripcion'),
+      stockSistema: numeroOpcional(p, 'stock_sistema') ?? 0,
+      codigos,
+    };
+  });
 
   return {
     idMuestra: enteroOpcional(muestra, 'id_muestra') ?? 0,
     codigoMuestra: codigo,
+    idAgenda: enteroOpcional(muestra, 'id_agenda'),
     nombreMuestra: textoOpcional(muestra, 'nombre_muestra'),
     fechaInicioVigencia: aFechaIso(textoOpcional(muestra, 'fecha_inicio_vigencia')),
     fechaFinVigencia: aFechaIso(textoOpcional(muestra, 'fecha_fin_vigencia')),

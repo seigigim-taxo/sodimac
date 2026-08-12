@@ -9,6 +9,7 @@ export interface MuestraParaGuardar {
   nombre: string | null;
   iteracion?: number;
   estado?: string;
+  idAgenda?: number | null;
 }
 
 export interface MuestraRepository {

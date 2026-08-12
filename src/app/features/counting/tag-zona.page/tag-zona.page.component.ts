@@ -75,6 +75,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private tagLocked = signal(false);
   tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
   zonaConfirmada    = this.zonaFacade.selectedZone;
+  ubicacionPrecisa  = this.zonaFacade.ubicacionPrecisa;
   errorZona         = this.zonaFacade.error;
 
   tagsSugeridos       = this.conteoList.tagsReconteo;
@@ -124,6 +125,11 @@ export class TagZonaPageComponent implements ViewWillEnter {
   onTagInput(event: Event): void {
     const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
     this.tagInputValue.set(stripEmojis(value));
+  }
+
+  onUbicacionInput(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+    this.zonaFacade.setUbicacionPrecisa(stripEmojis(value));
   }
 
   // Solo confirma el TAG en memoria — el registro real en sod_ubicacion ocurre
@@ -182,7 +188,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
   }
 
   async irAContar(): Promise<void> {
-    if (!this.tagConfirmado() || !this.zonaConfirmada()) return;
+    if (!this.tagConfirmado() || !this.zonaConfirmada() || !this.ubicacionPrecisa().trim()) return;
     await this.zonaFacade.confirmZona();
     if (this.zonaFacade.error()) return;
     this.router.navigate(['/counting']);
