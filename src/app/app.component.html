@@ -1,4 +1,4 @@
-<ion-app [class.con-navbar]="mostrarNavbar()">
+<ion-app>
   <ion-menu side="start" contentId="main-content" style="--background: var(--app-menu-bg);">
     <ion-header>
       <ion-toolbar style="--background: var(--app-surface); --border-color: var(--app-border);">
@@ -66,11 +66,5 @@
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
 
-  <!--
-    Fuera del router-outlet: la barra es de la app, no de una pantalla, y así
-    no se remonta en cada navegación.
-  -->
-  @if (mostrarNavbar()) {
-  <app-navbar></app-navbar>
-  }
+
 </ion-app>

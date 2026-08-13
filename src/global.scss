@@ -867,54 +867,6 @@ ion-title {
     color: var(--app-primary);
   }
 
-  /* ---------- BARRA DE NAVEGACIÓN ---------- */
-  /*
-   * Fija abajo y por encima del contenido: se usa con una mano mientras la otra
-   * sostiene el lector, así que va donde llega el pulgar.
-   */
-  .app-navbar {
-    @apply fixed inset-x-0 bottom-0 z-40 flex items-stretch;
-    background: var(--app-navbar-gradient);
-    padding-bottom: env(safe-area-inset-bottom);
-    box-shadow: 0 -4px 16px -6px rgba(230, 18, 106, 0.45);
-  }
-
-  /*
-   * flex-1 desde ya: con una sola acción ocupa todo el ancho, y al sumar la
-   * siguiente se reparten solas sin tocar estos estilos.
-   */
-  /*
-   * Blanco fijo y no --app-text-*: la barra lleva el degradado de marca en los
-   * dos temas, así que su texto no depende del tema sino del fondo que tiene
-   * debajo. Es la misma convención de .btn-primary sobre el fucsia.
-   */
-  .navbar-item {
-    @apply flex-1 flex flex-col items-center justify-center gap-1;
-    @apply text-[11px] font-semibold;
-    min-height: 60px;
-    color: #ffffff;
-
-    ion-icon {
-      @apply text-xl;
-    }
-
-    /* Velo blanco: oscurecer no se percibe sobre el degradado. */
-    &:active {
-      background: rgba(255, 255, 255, 0.18);
-    }
-  }
-}
-
-/*
- * Hueco para la barra: sin esto el último elemento de cada pantalla queda
- * debajo de ella. Se aplica solo al contenido de las páginas —no al del menú
- * ni al de los modales— y solo cuando la barra está montada.
- *
- * La clase la pone AppComponent en vez de usar `:has(app-navbar)`: ese selector
- * necesita WebView 105 o superior, y estas PDA no siempre lo tienen.
- */
-ion-app.con-navbar ion-router-outlet ion-content {
-  --padding-bottom: calc(60px + env(safe-area-inset-bottom));
 }
 
 /* ===================================================================
