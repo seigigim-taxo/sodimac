@@ -866,4 +866,173 @@ ion-title {
     font-family: theme('fontFamily.mono');
     color: var(--app-primary);
   }
+
+  /* ---------- BARRA DE NAVEGACIÓN ---------- */
+  /*
+   * Fija abajo y por encima del contenido: se usa con una mano mientras la otra
+   * sostiene el lector, así que va donde llega el pulgar.
+   */
+  .app-navbar {
+    @apply fixed inset-x-0 bottom-0 z-40 flex items-stretch;
+    background: var(--app-navbar-gradient);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -4px 16px -6px rgba(230, 18, 106, 0.45);
+  }
+
+  /*
+   * flex-1 desde ya: con una sola acción ocupa todo el ancho, y al sumar la
+   * siguiente se reparten solas sin tocar estos estilos.
+   */
+  /*
+   * Blanco fijo y no --app-text-*: la barra lleva el degradado de marca en los
+   * dos temas, así que su texto no depende del tema sino del fondo que tiene
+   * debajo. Es la misma convención de .btn-primary sobre el fucsia.
+   */
+  .navbar-item {
+    @apply flex-1 flex flex-col items-center justify-center gap-1;
+    @apply text-[11px] font-semibold;
+    min-height: 60px;
+    color: #ffffff;
+
+    ion-icon {
+      @apply text-xl;
+    }
+
+    /* Velo blanco: oscurecer no se percibe sobre el degradado. */
+    &:active {
+      background: rgba(255, 255, 255, 0.18);
+    }
+  }
+}
+
+/*
+ * Hueco para la barra: sin esto el último elemento de cada pantalla queda
+ * debajo de ella. Se aplica solo al contenido de las páginas —no al del menú
+ * ni al de los modales— y solo cuando la barra está montada.
+ *
+ * La clase la pone AppComponent en vez de usar `:has(app-navbar)`: ese selector
+ * necesita WebView 105 o superior, y estas PDA no siempre lo tienen.
+ */
+ion-app.con-navbar ion-router-outlet ion-content {
+  --padding-bottom: calc(60px + env(safe-area-inset-bottom));
+}
+
+/* ===================================================================
+   SEARCH BAR WITH GRADIENT
+   Wrapper con degradado de marca que actúa como borde.
+   =================================================================== */
+.search-bar-gradient {
+  background: var(--app-cta-gradient);
+  border-radius: 16px;
+  padding: 2px;
+  box-shadow: 0 4px 16px -4px rgba(230, 18, 106, 0.35);
+}
+
+.search-bar-input {
+  color: var(--app-text) !important;
+  --background: var(--app-surface);
+  --border-radius: 14px;
+  --border-width: 0;
+  --highlight-color-focused: transparent;
+  --highlight-color-valid: transparent;
+  --placeholder-color: var(--app-placeholder);
+  --color: var(--app-text);
+  --padding-start: 1rem;
+  --padding-end: 1rem;
+  --padding-top: 14px;
+  --padding-bottom: 14px;
+
+  @apply w-full text-[15px];
+  min-height: 52px;
+
+  ion-icon[slot='start'] {
+    color: var(--app-primary);
+    margin-inline-end: 0.75rem;
+    font-size: 1.15rem;
+  }
+
+  &:focus-within {
+    box-shadow: none;
+  }
+}
+
+/* ===================================================================
+   BUSCADOR FLOTANTE
+   Tarjeta centrada sobre un velo morado de marca. Va fuera de @layer
+   components porque ajusta variables y partes internas de ion-modal.
+   =================================================================== */
+ion-modal.buscador-modal {
+  --width: 92%;
+  --max-width: 460px;
+  --height: auto;
+  --max-height: 80vh;
+  --border-radius: 20px;
+  --background: transparent;
+  --box-shadow: 0 24px 60px -20px rgba(27, 31, 36, 0.55);
+  /*
+   * La opacidad del velo se fija por variable: Ionic aplica la suya (0.32) al
+   * ion-backdrop y pisaría un `opacity` puesto sobre ::part(backdrop).
+   */
+  --backdrop-opacity: 0.6;
+
+  align-items: center;
+  justify-content: center;
+
+  /*
+   * Velo morado en vez del negro por defecto: es el color de marca (--app-accent)
+   * y deja entrever la pantalla de conteo, que sigue siendo el contexto.
+   */
+  &::part(backdrop) {
+    background: #3f2087;
+  }
+}
+
+.buscador-tarjeta {
+  @apply rounded-[20px] p-4 overflow-y-auto;
+  max-height: 80vh;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+}
+
+.buscador-titulo {
+  @apply text-[15px] font-bold;
+  font-family: 'Sora', var(--ion-font-family);
+  letter-spacing: -0.01em;
+  color: var(--app-text);
+}
+
+.buscador-cerrar {
+  @apply flex items-center justify-center rounded-full shrink-0;
+  width: 32px;
+  height: 32px;
+  background: var(--app-surface-hover);
+  color: var(--app-text-muted);
+
+  ion-icon {
+    font-size: 1.1rem;
+  }
+}
+
+/*
+ * Altura mínima reservada: la lista cambia de tamaño con cada tecla y sin esto
+ * la tarjeta salta mientras se escribe.
+ */
+.buscador-resultados {
+  @apply mt-3;
+  min-height: 92px;
+}
+
+.buscador-aviso {
+  @apply text-[13px] text-center py-6;
+  color: var(--app-text-muted);
+}
+
+.buscador-fila {
+  @apply rounded-2xl px-3 py-2.5 mb-2 border;
+  background: var(--app-surface-hover);
+  border-color: var(--app-border);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }

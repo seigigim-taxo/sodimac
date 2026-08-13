@@ -7,6 +7,8 @@
         <domain includeSubdomains="true">10.3.161.6</domain>
         <domain includeSubdomains="true">192.168.1.11</domain>
         <domain includeSubdomains="true">50.16.13.230</domain>
+        <domain includeSubdomains="true">10.254.22.117</domain>
+        <domain includeSubdomains="true">10.54.250.77</domain>
         <domain includeSubdomains="true">ws.code</domain>
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>

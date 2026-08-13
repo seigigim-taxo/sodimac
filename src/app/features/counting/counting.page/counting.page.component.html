@@ -135,10 +135,12 @@
     <div class="mt-6">
       <p class="field-label mb-3">Productos de este TAG</p>
 
-      <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
-        placeholder="Buscar por SKU o descripción" class="input-base mb-3">
-        <ion-icon slot="start" name="search-outline"></ion-icon>
-      </ion-input>
+      <div class="search-bar-gradient mb-3">
+        <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
+          placeholder="Buscar por SKU o descripción" class="search-bar-input">
+          <ion-icon slot="start" name="search-outline"></ion-icon>
+        </ion-input>
+      </div>
 
       @if (itemsFiltrados().length === 0) {
       <p class="text-[13px] text-center py-4" style="color: var(--app-text-muted);">

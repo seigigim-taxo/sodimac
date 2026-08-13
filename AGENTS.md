@@ -15,42 +15,45 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Task | Command |
 |------|---------|
 | Dev server | `npm start` (serves the `development` configuration by default) |
+| Dev server (mock WS) | `ng serve --configuration=develop_ws` (uses `preparacion_ws.php` mock endpoint) |
 | Production build | `npm run build` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
-| Tests once (CI) | `npx ng test --configuration=ci` |
+| Tests once (CI) | `npm run test:ci` |
 | Lint | `npm run lint` |
 | Build + sync native assets | `npm run build` then `npx cap sync` |
 
-- `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
+- `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
+- `angular.json` defines a `develop_ws` configuration that swaps `environment.ts` → `environment.develop-ws.ts` (mock preparacion endpoint).
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error.
 
 ## Architecture
 
 - Entry point: `src/main.ts` bootstraps `AppComponent` via `bootstrapApplication` with `provideHttpClient`, `provideIonicAngular()`, and `PreloadAllModules` routing.
+- **DI pattern**: `main.ts` wires all repository injection tokens (`DATABASE_REPOSITORY_TOKEN`, `AUTH_API_REPOSITORY_TOKEN`, `CONTEO_REPOSITORY_TOKEN`, etc.) to their concrete implementations. Domain interfaces live in `domain/`, concrete SQLite/Capacitor/HTTP implementations in `data/`. Never add a new dependency without registering its token here.
 - `APP_INITIALIZER` wiring (in `main.ts`):
   1. `DatabaseRepository.initialize()` must complete first.
   2. Then `AuthFacade.init()` and `PdaFacade.init()` run in parallel.
   3. `ThemeFacade.init()` runs in a separate initializer (uses Capacitor Preferences, not SQLite).
-- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `sync-loading`, `home`, `counting-tag`, `counting`, `tags-resumen`), all guarded by `authGuard` except `login`. `home` also uses `noSesionActivaGuard`. `counting-tag` and `counting` use `eventoSeleccionadoGuard`; `counting` additionally uses `tagEnSesionGuard`.
+  4. Initializer errors are caught deliberately — a rejected initializer blanks the screen with no feedback.
+- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `sync-loading`, `home`, `counting-tag`, `counting`, `tags-resumen`), all guarded by `authGuard` except `login`. `home` also uses `noSesionActivaGuard`. `counting-tag` and `counting` use `eventoSeleccionadoGuard` + `pdaBloqueadaGuard`; `counting` additionally uses `tagEnSesionGuard`. `tags-resumen` intentionally skips `eventoSeleccionadoGuard` and `pdaBloqueadaGuard` (read-only "close store" flow).
 - Pages are standalone components generated with `styleext: scss`, `standalone: true`.
 - Ionic components imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
 - Clean Architecture scaffold:
-  - `domain/` — models and repository interfaces.
-  - `application/` — use cases (auth, conteo, dev, evento, pda, sincronizacion, sucursal, ubicacion, zona-tipo, zona).
-  - `data/` — concrete implementations (auth, database, conteo, evento, muestra, pda, sincronizacion, sucursal, sync, theme, ubicacion, zona, zona-tipo, dev).
-  - `state/` — Signals-based facades (auth, conteo, counting-mock, evento, pda, sucursal, sync, theme, zona, zona-tipo).
+  - `domain/` — models, repository interfaces, and `shared/errors`.
+  - `application/` — use cases (auth, conteo, evento, pda, sincronizacion, sucursal, ubicacion, zona-tipo, zona).
+  - `data/` — concrete implementations (auth, database, conteo, evento, muestra, pda, sincronizacion, sucursal, theme, ubicacion, zona).
+  - `state/` — Signals-based facades (auth, conteo, evento, pda, sucursal, theme, zona, zona-tipo).
   - `features/` — standalone pages (auth, counting, home, sync-loading).
-  - `core/` — cross-cutting infra (http, database, auth/guards).
+  - `core/` — cross-cutting infra (http, database, auth/guards, utils).
   - `shared/` — utils, components, static data.
 
-## Current counting flow (WIP / mocked)
+## Counting flow
 
-- `counting-tag`, `counting`, and `tags-resumen` are under active development.
-- The tag selection screen (`TagZonaPageComponent`), working screen (`CountingPageComponent`), and summary screen (`TagsResumenPageComponent`) share `TagsMockStore` (`src/app/state/counting-mock/`).
-- Tag state and simulated sync are in-memory only; the real persistence layer is not wired yet.
-- `sync-loading` is currently a simulated progress screen (no real download endpoint).
+- `ConteoFacade` (`src/app/state/conteo/`) owns the counting session: open session → load muestra set → upsert/adjust/delete items → finalize. Backed by real SQLite (`sod_conteo`, `sod_conteo_detalle`).
+- `counting-tag` (tag/zone selection), `counting` (working screen), and `tags-resumen` (summary) are the three counting pages.
+- `WriteQueue` (`src/app/core/utils/`) serializes concurrent SQLite writes from the counting UI.
 
 ## Auth flow
 
@@ -64,14 +67,13 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 ## Backend / API
 
 - Base URL is configured in `src/environments/environment.ts` and `environment.prod.ts` (`apiUrl`).
-  - Development: `http://10.3.104.102/ws/api`
-  - Production: `http://192.168.1.9/api`
-- The PHP web service lives in the Laragon docroot under `C:\laragon\www\ws\api\`. Because Laragon serves `C:\laragon\www\` as the root, the real endpoint is `http://<host>/ws/api/auth/login.php`, not `http://<host>/api/auth/login.php`.
+  - All environments: `http://50.16.13.230/app/ws/sodimac/api`
+  - `develop_ws` config: same base URL but `preparacionEndpoint` points to `preparacion_ws.php` (mock) instead of `preparacion.php`.
 - `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
 - `auth/login.php` is authentication-only. It must not prepare, mix, or return operational data.
-- Operational PDA data must be downloaded through `preparacion.php`, which returns a SQLite-ready contract.
+- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_ws.php` for mock), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
 - The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
-- CORS is handled server-side; for local dev/Android the backend must be reachable on the LAN IP used in `environment.ts`.
+- CORS is handled server-side; for local dev/Android the backend must be reachable on the IP used in `environment.ts`.
 
 ## PDA preparation contract
 
@@ -98,10 +100,11 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `@capacitor-community/sqlite` is wrapped by `SqliteConnectionService` (`src/app/core/database/`).
 - SQLite is only initialized on native platforms (`Capacitor.isNativePlatform()`); on web/Karma it is silently skipped.
-- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `23`).
+- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `39`).
 - The repository drops tables only when the schema version changes; old renamed/legacy tables (`cat_operador`, `cat_zona`, etc.) are also dropped during a version bump.
 - To force a clean database in development, bump `SODIMAC_DB_VERSION` in `sodimac.schema.ts`.
 - Dev data seeding (`SqliteDevSeederRepository`) inserts sample stores, zones, events, products, and sample assignments after login.
+- Key tables: `sod_conteo` (round session, states: ABIERTO/FINALIZADO/SINCRONIZADO), `sod_conteo_detalle` (individual counts, states: EN_CURSO/FINALIZADO/SINCRONIZADO), `sod_muestra`/`sod_muestra_detalle` (sample assignments), `sod_producto_detalle` (multiple barcodes per product).
 
 ## Capacitor / native workflow
 
@@ -130,4 +133,6 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 ## Environment / build
 
-- Environment files in `src/environments/`. Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
+- Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).
+- Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
+- `develop_ws` build replaces `environment.ts` with `environment.develop-ws.ts` (uses `preparacion_ws.php` mock endpoint).
