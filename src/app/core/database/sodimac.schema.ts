@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 39;
+export const SODIMAC_DB_VERSION = 40;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -99,7 +99,9 @@ const TABLES: readonly string[] = [
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     sucursal_id INTEGER NOT NULL REFERENCES sod_sucursal(id),
     nombre      TEXT    NOT NULL,
-    descripcion TEXT    DEFAULT NULL
+    descripcion TEXT    DEFAULT NULL,
+    tag_desde   INTEGER DEFAULT NULL,
+    tag_hasta   INTEGER DEFAULT NULL
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_ubicacion (

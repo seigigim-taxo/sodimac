@@ -4,6 +4,8 @@ import { Zona } from '../models/zona.model';
 export interface ZonaParaGuardar {
   nombre: string;
   descripcion: string | null;
+  tagDesde: number | null;
+  tagHasta: number | null;
 }
 
 export interface ZonaRepository {

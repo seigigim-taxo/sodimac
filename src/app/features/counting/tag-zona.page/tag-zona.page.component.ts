@@ -21,6 +21,7 @@ import { alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, l
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { Zona, ZonaFacade } from '../../../state/zona/zona.facade';
 import { AuthFacade } from '../../../state/auth/auth.facade';
+import { PdaFacade } from '../../../state/pda/pda.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { stripEmojis } from '../../../shared/utils/text.utils';
 
@@ -55,13 +56,14 @@ import { stripEmojis } from '../../../shared/utils/text.utils';
   ],
 })
 export class TagZonaPageComponent implements ViewWillEnter {
-  @ViewChild('zonaSelect') zonaSelect!: IonSelect;
   @ViewChild('tagInputEl') tagInputEl!: ElementRef<HTMLIonInputElement>;
+  @ViewChild('ubicacionInputEl') ubicacionInputEl!: ElementRef<HTMLIonInputElement>;
 
   private router          = inject(Router);
   private alertController = inject(AlertController);
   private eventoFacade    = inject(EventoFacade);
   private auth            = inject(AuthFacade);
+  private pda             = inject(PdaFacade);
   private zonaFacade      = inject(ZonaFacade);
   private conteoList      = inject(ConteoListFacade);
 
@@ -80,6 +82,11 @@ export class TagZonaPageComponent implements ViewWillEnter {
 
   tagsSugeridos       = this.conteoList.tagsReconteo;
   tagsSugeridosLoading = this.conteoList.tagsReconteoLoading;
+
+  hayConteosEvento = computed(() => {
+    const evento = this.currentEvent();
+    return !!evento && this.conteoList.conteos().some((c) => c.eventoId === evento.id);
+  });
 
   constructor() {
     addIcons({ alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline });
@@ -101,6 +108,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
 
     this.cargarZonas();
     void this.cargarTagsSugeridos();
+    void this.cargarConteos();
   }
 
   private async cargarTagsSugeridos(): Promise<void> {
@@ -122,6 +130,13 @@ export class TagZonaPageComponent implements ViewWillEnter {
     }
   }
 
+  private async cargarConteos(): Promise<void> {
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (!operadorId || !pdaId) return;
+    await this.conteoList.load(operadorId, pdaId);
+  }
+
   onTagInput(event: Event): void {
     const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
     this.tagInputValue.set(stripEmojis(value));
@@ -132,13 +147,29 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.zonaFacade.setUbicacionPrecisa(stripEmojis(value));
   }
 
-  // Solo confirma el TAG en memoria — el registro real en sod_ubicacion ocurre
-  // recién al "Ir a contar" (confirmZona), junto con la zona.
-  // Si el TAG no está en la lista de sugeridos (iteraciones anteriores), se
-  // pide confirmación al operador antes de continuar.
+  private validarTag(value: string): string | null {
+    if (!value) return 'Ingresa o escanea un TAG.';
+    if (!/^\d+$/.test(value)) return 'El TAG debe ser numérico.';
+    if (Number(value) === 0) return 'El TAG no puede ser 0.';
+
+    const zona = this.zonaConfirmada();
+    if (zona && zona.tagDesde !== null && zona.tagHasta !== null) {
+      const tagNumero = Number(value);
+      if (tagNumero < zona.tagDesde || tagNumero > zona.tagHasta) {
+        return `El TAG ${value} no corresponde a ${zona.nombre}. Rango permitido: ${zona.tagDesde} a ${zona.tagHasta}.`;
+      }
+    }
+
+    return null;
+  }
+
   async confirmarTag(): Promise<void> {
     const value = this.tagInputValue().trim().toUpperCase();
-    if (!value) return;
+    const error = this.validarTag(value);
+    if (error) {
+      this.tagError.set(error);
+      return;
+    }
 
     // Si es reconteo (iteración > 1) y el TAG no fue contado antes, confirmar
     if (this.iteracionActual() > 1 && !this.conteoList.esTagSugerido(value)) {
@@ -162,28 +193,48 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.tagInputValue.set('');
     this.zonaFacade.setTag(value);
     this.tagLocked.set(true);
-    requestAnimationFrame(() => this.zonaSelect?.open());
   }
 
-  // Atajo: toca un chip de TAG sugerido y lo confirma directamente
   seleccionarTagSugerido(tag: string): void {
     if (this.tagLocked()) return;
-    this.zonaFacade.setTag(tag);
-    this.tagLocked.set(true);
-    requestAnimationFrame(() => this.zonaSelect?.open());
+    const value = tag.trim().toUpperCase();
+    const error = this.validarTag(value);
+    if (error) {
+      this.tagError.set(error);
+      return;
+    }
+    this.confirmarTagSinValidar(value);
   }
 
   onZonaChange(event: Event): void {
     const zona = (event as CustomEvent<{ value: Zona | null }>).detail.value;
-    if (zona) this.zonaFacade.selectZona(zona);
+    if (!zona) return;
+
+    const zonaAnterior = this.zonaConfirmada();
+    this.zonaFacade.selectZona(zona);
+
+    if (zonaAnterior && zonaAnterior.id !== zona.id) {
+      this.tagLocked.set(false);
+      this.tagInputValue.set('');
+      this.tagError.set(null);
+      this.zonaFacade.clearUbicacionYTag();
+    }
+
+    setTimeout(() => this.ubicacionInputEl?.nativeElement?.setFocus?.(), 80);
+  }
+
+  onUbicacionKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
+    }
   }
 
   cancelarTag(): void {
     this.tagLocked.set(false);
-    this.zonaFacade.reset();
+    this.zonaFacade.clearTag();
     this.tagInputValue.set('');
     this.tagError.set(null);
-    this.cargarZonas();
     setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
   }
 

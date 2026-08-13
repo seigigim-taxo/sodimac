@@ -65,6 +65,15 @@ function numeroOpcional(obj: Json, clave: string): number | null {
   return null;
 }
 
+function valorANumeroOpcional(valor: unknown): number | null {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  if (typeof valor === 'string' && valor.trim() !== '') {
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function describir(valor: unknown): string {
   if (valor === null) return 'null';
   if (valor === undefined) return 'nada';
@@ -231,15 +240,18 @@ function parsearEvento(raw: unknown): EventoPreparado | null {
 }
 
 /*
- * Las zonas vienen como tuplas [codigo, descripcion]. Se normalizan a objetos.
+ * Las zonas vienen como tuplas [codigo, descripcion, tag_desde, tag_hasta].
+ * Se normalizan a objetos; los campos de rango son opcionales.
  */
-function parsearZonas(raw: unknown): { codigo: string; descripcion: string | null }[] {
+function parsearZonas(raw: unknown): { codigo: string; descripcion: string | null; tagDesde: number | null; tagHasta: number | null }[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((t): t is [unknown, unknown] => Array.isArray(t) && t.length >= 1)
+    .filter((t): t is unknown[] => Array.isArray(t) && t.length >= 1)
     .map((t) => ({
       codigo: typeof t[0] === 'string' ? t[0] : '',
       descripcion: typeof t[1] === 'string' ? t[1] : null,
+      tagDesde: valorANumeroOpcional(t[2]),
+      tagHasta: valorANumeroOpcional(t[3]),
     }))
     .filter((z) => z.codigo !== '');
 }

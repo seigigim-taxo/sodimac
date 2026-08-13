@@ -147,6 +147,8 @@ export class SincronizarDatosInicialesUseCase {
     const zonasParaGuardar = datos.zonas.map(z => ({
       nombre: z.codigo,
       descripcion: z.descripcion,
+      tagDesde: z.tagDesde,
+      tagHasta: z.tagHasta,
     }));
 
     await this.zonaRepo.reemplazarDeSucursal(sucursalId, zonasParaGuardar);

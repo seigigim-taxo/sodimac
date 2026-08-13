@@ -79,12 +79,14 @@ export interface EventoPreparado {
 }
 
 /*
- * Zona de la tienda. El endpoint las manda como tuplas [codigo, descripcion];
- * acá ya vienen con nombre.
+ * Zona de la tienda. El endpoint las manda como tuplas
+ * [codigo, descripcion, tag_desde, tag_hasta].
  */
 export interface ZonaPreparada {
   codigo: string;
   descripcion: string | null;
+  tagDesde: number | null;
+  tagHasta: number | null;
 }
 
 export interface DatosPreparacion {

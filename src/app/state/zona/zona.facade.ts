@@ -74,6 +74,19 @@ export class ZonaFacade {
     }
   }
 
+  clearTag(): void {
+    this.tagValueSignal.set('');
+    this.ubicacionIdSignal.set(null);
+    this.errorSignal.set(null);
+  }
+
+  clearUbicacionYTag(): void {
+    this.ubicacionPrecisaSignal.set('');
+    this.tagValueSignal.set('');
+    this.ubicacionIdSignal.set(null);
+    this.errorSignal.set(null);
+  }
+
   reset(): void {
     this.zonesSignal.set([]);
     this.selectedZoneSignal.set(null);

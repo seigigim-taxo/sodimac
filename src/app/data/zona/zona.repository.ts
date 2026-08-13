@@ -16,7 +16,7 @@ export class SqliteZonaRepository implements ZonaRepository {
   async getBySucursal(sucursalId: number): Promise<Zona[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT z.id, z.sucursal_id, z.nombre, z.descripcion
+      `SELECT z.id, z.sucursal_id, z.nombre, z.descripcion, z.tag_desde, z.tag_hasta
        FROM sod_zona z
        WHERE z.sucursal_id = ?
        ORDER BY z.nombre ASC`,
@@ -44,14 +44,14 @@ export class SqliteZonaRepository implements ZonaRepository {
 
       if (id !== undefined) {
         await db.run(
-          `UPDATE sod_zona SET descripcion = ? WHERE id = ?`,
-          [z.descripcion, id]
+          `UPDATE sod_zona SET descripcion = ?, tag_desde = ?, tag_hasta = ? WHERE id = ?`,
+          [z.descripcion, z.tagDesde, z.tagHasta, id]
         );
       } else {
         await db.run(
-          `INSERT INTO sod_zona (sucursal_id, nombre, descripcion)
-           VALUES (?, ?, ?)`,
-          [sucursalId, z.nombre, z.descripcion]
+          `INSERT INTO sod_zona (sucursal_id, nombre, descripcion, tag_desde, tag_hasta)
+           VALUES (?, ?, ?, ?, ?)`,
+          [sucursalId, z.nombre, z.descripcion, z.tagDesde, z.tagHasta]
         );
       }
     }
@@ -63,6 +63,8 @@ export class SqliteZonaRepository implements ZonaRepository {
       sucursalId:  row['sucursal_id'] as number,
       nombre:      row['nombre']      as string,
       descripcion: row['descripcion'] as string | null,
+      tagDesde:    row['tag_desde']   as number | null,
+      tagHasta:    row['tag_hasta']   as number | null,
     };
   }
 }
