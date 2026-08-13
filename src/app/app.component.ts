@@ -1,6 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import {
   IonApp,
   IonRouterOutlet,
@@ -24,13 +24,13 @@ import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { formatRutDisplay } from './shared/utils/rut.utils';
-import { BuscadorSkuComponent } from './shared/components/buscador-sku/buscador-sku.component';
+import { NavbarComponent } from './shared/components/navbar/navbar.component';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   imports: [
-    BuscadorSkuComponent,
+    NavbarComponent,
     IonApp,
     IonRouterOutlet,
     IonMenu,
@@ -59,8 +59,26 @@ export class AppComponent {
   isDark           = this.theme.isDark;
   formatRutDisplay = formatRutDisplay;
 
+  /*
+   * Pantallas sin barra: login (no hay sesión ni evento donde buscar) y la
+   * descarga inicial, que es un paso bloqueante — ofrecer una acción ahí
+   * invita a interrumpirla.
+   */
+  private static readonly RUTAS_SIN_NAVBAR = ['/login', '/sync-loading'];
+
+  private rutaActual = signal(this.router.url);
+
+  mostrarNavbar = computed(() =>
+    this.session() !== null &&
+    !AppComponent.RUTAS_SIN_NAVBAR.some((r) => this.rutaActual().startsWith(r))
+  );
+
   constructor() {
     addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline });
+
+    this.router.events.subscribe((evento) => {
+      if (evento instanceof NavigationEnd) this.rutaActual.set(evento.urlAfterRedirects);
+    });
   }
 
   goBack(): void {

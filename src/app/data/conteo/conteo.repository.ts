@@ -301,23 +301,35 @@ export class SqliteConteoRepository implements ConteoRepository {
     return (row?.['total'] as number) ?? 0;
   }
 
+  /*
+   * Coincidencia por PREFIJO, no exacta: el buscador consulta mientras el
+   * operador escribe, y con `=` no habría resultado hasta teclear el último
+   * dígito. Se usa `sku LIKE 'termino%'` y no `%termino%` a propósito — el
+   * comodín al inicio impide usar el índice de sod_producto.sku, y en una
+   * tienda con miles de productos eso se nota en cada tecla.
+   *
+   * El LIMIT acota la lista a lo que cabe en pantalla: un prefijo corto puede
+   * traer cientos de filas y ninguna sirve para decidir dónde ir a contar.
+   */
   async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
+      `SELECT p.sku, c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
        JOIN sod_producto p       ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
-       WHERE c.evento_id = ? AND p.sku = ?
+       WHERE c.evento_id = ? AND p.sku LIKE ? || '%'
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
-       ORDER BY c.iteracion DESC, d.fecha_hora DESC`,
+       ORDER BY p.sku, c.iteracion DESC, d.fecha_hora DESC
+       LIMIT 50`,
       [eventoId, sku]
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
+        sku: row['sku'] as string,
         iteracion: row['iteracion'] as number,
         tag: row['tag'] as string | null,
         zonaCodigo: (row['zona_codigo'] as string | null) ?? '—',

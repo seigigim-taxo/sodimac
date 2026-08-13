@@ -1,4 +1,4 @@
-<ion-app>
+<ion-app [class.con-navbar]="mostrarNavbar()">
   <ion-menu side="start" contentId="main-content" style="--background: var(--app-menu-bg);">
     <ion-header>
       <ion-toolbar style="--background: var(--app-surface); --border-color: var(--app-border);">
@@ -15,14 +15,6 @@
         <p class="menu-user-rut">{{ formatRutDisplay(session()?.rutNormalizado ?? '') }}</p>
         <p class="menu-user-name">{{ session()?.correo }}</p>
       </div>
-
-      <!-- Buscador SKU → TAG: vive acá para estar disponible en todas las etapas
-           del proceso — el menú es el único punto que alcanzan todas las pantallas. -->
-      @if (session()) {
-      <div class="mb-4">
-        <app-buscador-sku></app-buscador-sku>
-      </div>
-      }
 
       <ion-list lines="none" class="menu-list">
         <!-- Inicio -->
@@ -73,4 +65,12 @@
   </ion-menu>
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
+
+  <!--
+    Fuera del router-outlet: la barra es de la app, no de una pantalla, y así
+    no se remonta en cada navegación.
+  -->
+  @if (mostrarNavbar()) {
+  <app-navbar></app-navbar>
+  }
 </ion-app>

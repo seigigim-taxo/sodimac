@@ -1,18 +1,49 @@
-<div class="card">
-  <p class="field-label mb-3">Buscador SKU → TAG</p>
+@if (hayEvento()) {
+<ion-input [value]="valor()" (ionInput)="onInput($event)" aria-label="Buscar SKU en el evento"
+  placeholder="Escribe un SKU" inputmode="search" class="input-base"
+  style="--background: var(--app-surface-hover); --border-color: var(--app-primary); --border-width: 2px;">
+  <ion-icon slot="start" name="search-outline"></ion-icon>
+</ion-input>
 
-  @if (hayEvento()) {
-  <ion-input [value]="valor()" (ionInput)="onInput($event)" (keyup.enter)="buscar()"
-    aria-label="Buscar SKU en el evento" placeholder="SKU a buscar" class="input-base mb-3"
-    style="--background: var(--app-surface-hover); --border-color: var(--app-primary); --border-width: 2px;">
-    <ion-icon slot="start" name="search-outline"></ion-icon>
-  </ion-input>
-  <ion-button expand="block" class="btn-primary" [disabled]="!valor().trim() || buscando()" (click)="buscar()">
-    Buscar
-  </ion-button>
-  } @else {
-  <p class="text-[13px]" style="color: var(--app-text-muted);">
-    Selecciona un evento para buscar dónde se contó un SKU.
+<!-- Alto fijo: la lista crece y se encoge con cada tecla, y sin esto la tarjeta
+     salta de tamaño mientras el operador escribe. -->
+<div class="buscador-resultados">
+  @if (buscando()) {
+  <div class="flex justify-center py-6">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+  </div>
+  } @else if (terminoCorto()) {
+  <p class="buscador-aviso">Escribe al menos 2 caracteres.</p>
+  } @else if (sinResultados()) {
+  <p class="buscador-aviso">Ningún conteo registrado para «{{ valor().trim() }}».</p>
+  } @else if (resultados().length > 0) {
+  <p class="field-label mb-2">
+    {{ resultados().length }} registro(s)
   </p>
+
+  @for (r of resultados(); track $index) {
+  <div class="buscador-fila">
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="num text-[13px] font-bold" style="color: var(--app-text);">{{ r.sku }}</span>
+      <span class="badge">Iteración {{ r.iteracion }}</span>
+    </div>
+    <p class="text-[13px] mt-1" style="color: var(--app-text);">
+      TAG {{ r.tag ?? '—' }}
+    </p>
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="text-[12px]" style="color: var(--app-text-muted);">{{ zonaTexto(r) }}</span>
+      <span class="num text-[13px] font-bold" style="color: var(--app-primary);">
+        {{ r.cantidad }} unidad(es)
+      </span>
+    </div>
+  </div>
+  }
+  } @else {
+  <p class="buscador-aviso">Los resultados aparecen a medida que escribes.</p>
   }
 </div>
+} @else {
+<p class="text-[13px]" style="color: var(--app-text-muted);">
+  Selecciona un evento para buscar dónde se contó un SKU.
+</p>
+}
