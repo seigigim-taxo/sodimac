@@ -4,6 +4,16 @@ import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { LineaMuestraParaGuardar, MuestraDetalleRepository, CodigoProductoMuestra } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.model';
 
+const SQLITE_PARAM_LIMIT = 900;
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository {
   private connection = inject(SqliteConnectionService);
@@ -15,46 +25,66 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
    */
   async reemplazarDetalles(muestraId: number, lineas: LineaMuestraParaGuardar[]): Promise<void> {
     await this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
-      /*
-       * Los productos se dan de alta o se actualizan, pero NUNCA se borran:
-       * sod_conteo.producto_id los referencia y borrar uno rompería conteos ya
-       * hechos. Un producto que sale de la muestra simplemente deja de tener
-       * línea de detalle.
-       */
-      for (const linea of lineas) {
-        const skuNormalizado = linea.sku.trim().toUpperCase();
+      /* 1. Normalizar líneas una sola vez */
+      const normalizadas = lineas.map((l) => ({
+        sku: l.sku.trim().toUpperCase(),
+        codigos: l.codigos
+          .map((c) => ({ ...c, codigoLectura: c.codigoLectura.trim().toUpperCase() }))
+          .filter((c) => c.codigoLectura),
+        stockSistema: l.stockSistema,
+        descripcion: l.descripcion,
+        codigoBarras: l.codigoBarras,
+      }));
+
+      /* 2. Insertar/actualizar productos (sin borrar: sod_conteo.producto_id los referencia) */
+      for (const linea of normalizadas) {
         await db.run(
           `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
            VALUES (?, ?, ?)
            ON CONFLICT (sku) DO UPDATE SET
              codigo_barras = excluded.codigo_barras,
              descripcion   = excluded.descripcion`,
-          [skuNormalizado, linea.codigoBarras, linea.descripcion],
+          [linea.sku, linea.codigoBarras, linea.descripcion],
           false
         );
+      }
 
-        /* Recuperar producto_id para vincular códigos y detalle */
-        const prodRow = await db.query(
-          `SELECT id FROM sod_producto WHERE sku = ?`,
-          [skuNormalizado]
+      /* 3. Resolver todos los producto_id en bloque */
+      const skus = normalizadas.map((l) => l.sku);
+      const productoIdPorSku = new Map<string, number>();
+
+      for (const chunk of chunks(skus, SQLITE_PARAM_LIMIT)) {
+        const placeholders = chunk.map(() => '?').join(', ');
+        const result = await db.query(
+          `SELECT id, sku FROM sod_producto WHERE sku IN (${placeholders})`,
+          chunk
         );
-        const productoId = prodRow.values?.[0]?.['id'] as number | undefined;
-        if (productoId === undefined) {
-          throw new Error(`No se pudo resolver producto para SKU ${skuNormalizado}`);
+        for (const row of (result.values ?? []) as Record<string, unknown>[]) {
+          productoIdPorSku.set(row['sku'] as string, row['id'] as number);
         }
+      }
 
-        /*
-         * Reemplazo completo de códigos de lectura para este producto.
-         */
+      for (const sku of skus) {
+        if (!productoIdPorSku.has(sku)) {
+          throw new Error(`No se pudo resolver producto para SKU ${sku}`);
+        }
+      }
+
+      /* 4. Borrar códigos anteriores en bloque */
+      const allIds = [...productoIdPorSku.values()];
+      for (const chunk of chunks(allIds, SQLITE_PARAM_LIMIT)) {
+        const placeholders = chunk.map(() => '?').join(', ');
         await db.run(
-          `DELETE FROM sod_producto_detalle WHERE producto_id = ?`,
-          [productoId],
+          `DELETE FROM sod_producto_detalle WHERE producto_id IN (${placeholders})`,
+          chunk,
           false
         );
+      }
 
+      /* 5. Insertar códigos nuevos usando el mapa de IDs */
+      for (const linea of normalizadas) {
+        const productoId = productoIdPorSku.get(linea.sku)!;
         for (const codigo of linea.codigos) {
-          const lectura = codigo.codigoLectura.trim().toUpperCase();
-          if (!lectura) continue;
           await db.run(
             `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
              VALUES (?, ?, ?, ?)
@@ -62,24 +92,21 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
                producto_id = excluded.producto_id,
                tipo_codigo = excluded.tipo_codigo,
                codigo_barras = excluded.codigo_barras`,
-            [productoId, lectura, codigo.tipoCodigo, codigo.codigoBarras],
+            [productoId, codigo.codigoLectura, codigo.tipoCodigo, codigo.codigoBarras],
             false
           );
         }
       }
 
-      /*
-       * Reemplazo completo del detalle. Es seguro porque ninguna tabla tiene FK
-       * contra sod_muestra_detalle: son datos derivados de la muestra.
-       */
+      /* 6. Reemplazar detalle de muestra completo (sin FK contra sod_muestra_detalle) */
       await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId], false);
 
-      for (const linea of lineas) {
-        const skuNormalizado = linea.sku.trim().toUpperCase();
+      for (const linea of normalizadas) {
+        const productoId = productoIdPorSku.get(linea.sku)!;
         await db.run(
           `INSERT INTO sod_muestra_detalle (muestra_id, producto_id, stock_sistema)
-           SELECT ?, id, ? FROM sod_producto WHERE sku = ?`,
-          [muestraId, linea.stockSistema, skuNormalizado],
+           VALUES (?, ?, ?)`,
+          [muestraId, productoId, linea.stockSistema],
           false
         );
       }
@@ -97,8 +124,6 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
       [muestraId]
     );
     const detalles = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
-    console.log('[MuestraDetalle] getByMuestra(', muestraId, ') devolvió', detalles.length, 'detalles');
-    console.log('[MuestraDetalle] SKUs:', detalles.map(d => ({ sku: d.sku, productoId: d.productoId })));
     return detalles;
   }
 

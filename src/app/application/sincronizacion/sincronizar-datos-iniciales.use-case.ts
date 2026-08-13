@@ -1,4 +1,5 @@
 import { Injectable, inject, isDevMode } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
 import { PREPARACION_API_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/preparacion-api.repository';
 import { OPERADOR_REPOSITORY_TOKEN } from '../../domain/auth/repositories/operador.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
@@ -108,7 +109,7 @@ export class SincronizarDatosInicialesUseCase {
     });
 
     console.log('[Sincronizar] Evento ID:', eventoId);
-    console.log('[Sincronizar] Muestra datos:', datos.muestra);
+    console.log('[Sincronizar] Detalles a guardar:', datos.muestra?.detalles?.length ?? 0);
 
     if (!datos.muestra) return;
 
@@ -152,7 +153,7 @@ export class SincronizarDatosInicialesUseCase {
   }
 
   private async logDatabase(): Promise<void> {
-    if (!isDevMode() || !this.sqlite.isSupported) return;
+    if (!isDevMode() || !this.sqlite.isSupported || Capacitor.isNativePlatform()) return;
 
     console.log('[DB] === Inicio log completo de base de datos ===');
     try {

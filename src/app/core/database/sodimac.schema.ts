@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 38;
+export const SODIMAC_DB_VERSION = 39;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -165,6 +165,15 @@ const TABLES: readonly string[] = [
 
 ];
 
+// Índices para mejorar performance de consultas, joins y deletes frecuentes.
+const INDEXES: readonly string[] = [
+  `CREATE INDEX IF NOT EXISTS idx_producto_detalle_producto ON sod_producto_detalle(producto_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_muestra_detalle_muestra ON sod_muestra_detalle(muestra_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_muestra_detalle_producto ON sod_muestra_detalle(producto_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_zona_sucursal_nombre ON sod_zona(sucursal_id, nombre)`,
+  `CREATE INDEX IF NOT EXISTS idx_evento_sucursal_fecha ON sod_evento_inventario(sucursal_id, fecha_programada)`,
+];
+
 const SEED = `
   INSERT OR IGNORE INTO sod_rol (nombre, descripcion) VALUES
     ('Operador de Inventario', 'Realiza conteos con PDA');
@@ -191,4 +200,4 @@ export const SODIMAC_TABLE_NAMES = [
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];
 
-export const SODIMAC_SCHEMA_SQL = TABLES.map((s) => `${s};`).join('\n') + '\n' + SEED;
+export const SODIMAC_SCHEMA_SQL = TABLES.map((s) => `${s};`).join('\n') + '\n' + INDEXES.map((i) => `${i};`).join('\n') + '\n' + SEED;

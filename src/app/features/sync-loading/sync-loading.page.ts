@@ -39,12 +39,14 @@ const TECHOS: Record<EtapaSincronizacion, number> = {
 
 const ETIQUETAS: Record<EtapaSincronizacion, string> = {
   DESCARGANDO: 'Descargando datos para trabajar…',
-  GUARDANDO: 'Preparando la información en el dispositivo…',
+  GUARDANDO: 'Guardando productos en el dispositivo…',
   LISTO: 'Todo listo',
 };
 
 const INTERVALO_MS = 100;
 const INCREMENTO = 1.5;
+const INCREMENTO_LENTO = 0.3;
+const TOPE_ESPERA = 99;
 
 @Component({
   selector: 'app-sync-loading',
@@ -62,7 +64,12 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
   etapa = signal<EtapaSincronizacion>('DESCARGANDO');
   error = signal<string | null>(null);
 
-  etiqueta = () => ETIQUETAS[this.etapa()];
+  etiqueta = () => {
+    if (this.progress() >= TECHOS[this.etapa()] && this.etapa() !== 'LISTO') {
+      return 'Finalizando carga de productos…';
+    }
+    return ETIQUETAS[this.etapa()];
+  };
 
   ngOnInit(): void {
     void this.ejecutar();
@@ -86,6 +93,7 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
     }
 
     this.etapa.set('DESCARGANDO');
+    this.progress.set(0);
     this.iniciarAvance();
 
     try {
@@ -103,7 +111,10 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
     this.detenerAvance();
     this.intervalId = setInterval(() => {
       const techo = TECHOS[this.etapa()];
-      this.progress.set(Math.min(techo, this.progress() + INCREMENTO));
+      const actual = this.progress();
+      if (actual >= TOPE_ESPERA) return;
+      const incremento = actual >= techo ? INCREMENTO_LENTO : INCREMENTO;
+      this.progress.set(Math.min(TOPE_ESPERA, actual + incremento));
     }, INTERVALO_MS);
   }
 

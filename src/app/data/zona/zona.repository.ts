@@ -23,8 +23,6 @@ export class SqliteZonaRepository implements ZonaRepository {
       [sucursalId]
     );
     const zonas = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
-    console.log('[ZonaRepo] getBySucursal', { sucursalId, total: zonas.length });
-    console.table(zonas);
     return zonas;
   }
 
@@ -57,10 +55,6 @@ export class SqliteZonaRepository implements ZonaRepository {
         );
       }
     }
-
-    const tablaZona = await db.query(`SELECT * FROM sod_zona WHERE sucursal_id = ?`, [sucursalId]);
-    console.log('[DB] Tabla sod_zona (sucursal', sucursalId, '):');
-    console.table(tablaZona.values);
   }
 
   private map(row: Record<string, unknown>): Zona {

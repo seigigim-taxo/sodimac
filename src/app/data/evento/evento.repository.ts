@@ -41,11 +41,7 @@ export class SqliteEventoRepository implements EventoRepository {
                 `No se pudo recuperar el evento de la sucursal ${evento.sucursalId} para ${evento.fechaProgramada}`
             );
         }
-        
-        const tablaCompleta = await db.query(`SELECT * FROM sod_evento_inventario`, []);
-        console.log('[DB] Tabla sod_evento_inventario completa:');
-        console.table(tablaCompleta.values);
-        
+
         return id;
     }
 
