@@ -874,10 +874,9 @@ ion-title {
    */
   .app-navbar {
     @apply fixed inset-x-0 bottom-0 z-40 flex items-stretch;
-    background: var(--app-surface);
-    border-top: 1px solid var(--app-border);
+    background: var(--app-navbar-gradient);
     padding-bottom: env(safe-area-inset-bottom);
-    box-shadow: 0 -2px 12px -6px rgba(27, 31, 36, 0.25);
+    box-shadow: 0 -4px 16px -6px rgba(230, 18, 106, 0.45);
   }
 
   /*
@@ -885,24 +884,23 @@ ion-title {
    * siguiente se reparten solas sin tocar estos estilos.
    */
   /*
-   * Sin `transition-colors`: al cambiar de tema, el navegador NO reevalúa un
-   * `color` que viene de var() si hay una transición declarada sobre él — se
-   * queda con el color del tema anterior y el texto termina oscuro sobre fondo
-   * oscuro. Verificado: con `transition: none` el mismo cambio sí se aplica.
+   * Blanco fijo y no --app-text-*: la barra lleva el degradado de marca en los
+   * dos temas, así que su texto no depende del tema sino del fondo que tiene
+   * debajo. Es la misma convención de .btn-primary sobre el fucsia.
    */
   .navbar-item {
     @apply flex-1 flex flex-col items-center justify-center gap-1;
     @apply text-[11px] font-semibold;
     min-height: 60px;
-    color: var(--app-text-secondary);
+    color: #ffffff;
 
     ion-icon {
       @apply text-xl;
     }
 
+    /* Velo blanco: oscurecer no se percibe sobre el degradado. */
     &:active {
-      background: var(--app-surface-hover);
-      color: var(--app-primary);
+      background: rgba(255, 255, 255, 0.18);
     }
   }
 }

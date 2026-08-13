@@ -34,6 +34,14 @@
   --app-cta-gradient-hover: linear-gradient(135deg, #C90E5B 0%, #A81E8A 100%);
   --app-cta-gradient-active: linear-gradient(135deg, #AD0C4C 0%, #8E1972 100%);
 
+  /*
+   * Barra de navegación: fucsia de marca con una caída leve al mismo fucsia un
+   * punto más oscuro. Los hex van explícitos y no con --app-primary-hover
+   * porque ese token es MÁS CLARO en el tema oscuro (#F0378E), y el degradado
+   * se invertiría; la barra debe verse igual en los dos temas.
+   */
+  --app-navbar-gradient: linear-gradient(90deg, #E6126A 0%, #C90E5B 100%);
+
   /* Text — all ≥4.5:1 on #ffffff surface */
   --app-text: #1B1F24;               /* 15.9:1 */
   --app-text-secondary: rgba(27, 31, 36, 0.80); /* 8.1:1 */
@@ -87,6 +95,14 @@
   --app-cta-gradient: linear-gradient(135deg, #E6126A 0%, #BF24A0 100%);
   --app-cta-gradient-hover: linear-gradient(135deg, #F0378E 0%, #CF3AAE 100%);
   --app-cta-gradient-active: linear-gradient(135deg, #AD0C4C 0%, #8E1972 100%);
+
+  /*
+   * Barra de navegación: fucsia de marca con una caída leve al mismo fucsia un
+   * punto más oscuro. Los hex van explícitos y no con --app-primary-hover
+   * porque ese token es MÁS CLARO en el tema oscuro (#F0378E), y el degradado
+   * se invertiría; la barra debe verse igual en los dos temas.
+   */
+  --app-navbar-gradient: linear-gradient(90deg, #E6126A 0%, #C90E5B 100%);
 
   /* Text — all ≥4.5:1 on #241A3D surface */
   --app-text: #ffffff;               /* 15.5:1 */
