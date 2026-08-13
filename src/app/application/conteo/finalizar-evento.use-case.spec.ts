@@ -44,7 +44,7 @@ describe('FinalizarEventoUseCase', () => {
     eventoRepo.getById.and.resolveTo(evento());
     eventoRepo.updateEstado.and.resolveTo();
     conteoRepo.getResumenes.and.resolveTo([resumen()]);
-    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 1, codigoMuestra: null, idAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 1, codigoMuestra: null, idAgenda: null, numeroAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
     detalleRepo.getByMuestra.and.resolveTo([detalle('AF001'), detalle('AF002')]);
     conteoRepo.getSkusContadosPorEvento.and.resolveTo(['AF001', 'AF002']);
     conteoRepo.getRondaAbierta.and.resolveTo({

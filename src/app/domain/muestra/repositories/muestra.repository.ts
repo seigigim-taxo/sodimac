@@ -10,6 +10,7 @@ export interface MuestraParaGuardar {
   iteracion?: number;
   estado?: string;
   idAgenda?: number | null;
+  numeroAgenda?: string | null;
 }
 
 export interface MuestraRepository {

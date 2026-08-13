@@ -13,7 +13,7 @@ describe('LoadMuestraSetUseCase', () => {
     muestraRepo = jasmine.createSpyObj('MuestraRepository', ['getByEventoIteracion']);
     detalleRepo = jasmine.createSpyObj('MuestraDetalleRepository', ['getByMuestra', 'getCodigosByMuestra']);
 
-    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
+    muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, numeroAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
     detalleRepo.getCodigosByMuestra.and.resolveTo([
       { codigoLectura: 'AF001', productoId: 100 },
       { codigoLectura: '7891234567890', productoId: 200 },

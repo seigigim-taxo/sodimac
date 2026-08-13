@@ -200,6 +200,7 @@ function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): Mues
     idMuestra: enteroOpcional(muestra, 'id_muestra') ?? 0,
     codigoMuestra: codigo,
     idAgenda: enteroOpcional(muestra, 'id_agenda'),
+    numeroAgenda: textoOpcional(muestra, 'numero_agenda'),
     nombreMuestra: textoOpcional(muestra, 'nombre_muestra'),
     fechaInicioVigencia: aFechaIso(textoOpcional(muestra, 'fecha_inicio_vigencia')),
     fechaFinVigencia: aFechaIso(textoOpcional(muestra, 'fecha_fin_vigencia')),

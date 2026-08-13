@@ -472,7 +472,7 @@ export class SqliteConteoRepository implements ConteoRepository {
               op.rut AS operador_rut, op.correo AS operador_login,
               pda.codigo AS pda_codigo,
               u.codigo AS ubicacion_codigo, u.tag AS tag_codigo,
-              m.codigo_muestra, m.id_agenda
+              m.codigo_muestra, m.id_agenda, m.numero_agenda
        FROM sod_sucursal s
        JOIN sod_evento_inventario e ON e.id = ?
        JOIN sod_zona z              ON z.id = (
@@ -492,7 +492,13 @@ export class SqliteConteoRepository implements ConteoRepository {
     }
 
     const detallesRow = await db.query(
-      `SELECT p.sku, p.codigo_barras, p.descripcion,
+      `SELECT d.id AS detalle_id,
+              p.sku, p.codigo_barras, p.descripcion,
+              (
+                SELECT MIN(pd.codigo_lectura)
+                FROM sod_producto_detalle pd
+                WHERE pd.producto_id = d.producto_id
+              ) AS codigo_lectura,
               md.stock_sistema, d.cantidad_fisica, d.fecha_hora
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
@@ -508,6 +514,8 @@ export class SqliteConteoRepository implements ConteoRepository {
     );
 
     const detalles = (detallesRow.values ?? []).map((row: Record<string, unknown>) => ({
+      detalle_uid:     `${cargaUid}-DET-${row['detalle_id']}`,
+      codigo_lectura:  (row['codigo_lectura'] as string | null) ?? null,
       sku:            row['sku']            as string,
       codigo_barras:  row['codigo_barras']  as string | null,
       descripcion:    row['descripcion']    as string | null,
@@ -529,6 +537,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       pda_codigo:        meta['pda_codigo']        as string,
       codigo_muestra:    (meta['codigo_muestra'] as string | null) ?? null,
       id_agenda:         (meta['id_agenda'] as number | null) ?? null,
+      numero_agenda:     (meta['numero_agenda'] as string | null) ?? null,
       ubicacion_codigo:  meta['ubicacion_codigo']  as string,
       detalles,
     };

@@ -38,6 +38,7 @@ export class SqlitePlanMuestraRepository implements PlanMuestraRepository {
     const muestraId = await this.muestraRepo.asegurarMuestra({
       codigoMuestra: muestraAnterior?.codigoMuestra ?? `RECONTEO-${eventoId}-ITER${iteracion}`,
       idAgenda:     muestraAnterior?.idAgenda ?? null,
+      numeroAgenda: muestraAnterior?.numeroAgenda ?? null,
       eventoId,
       sucursalId: evento.sucursalId,
       nombre: `Reconteo iteración ${iteracion}`,

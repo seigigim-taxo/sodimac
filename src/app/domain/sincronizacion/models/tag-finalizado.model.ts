@@ -1,4 +1,6 @@
 export interface TagFinalizadoDetallePayload {
+  detalle_uid: string;
+  codigo_lectura: string | null;
   sku: string;
   codigo_barras: string | null;
   descripcion: string | null;
@@ -20,6 +22,7 @@ export interface TagFinalizadoPayload {
   pda_codigo: string;
   codigo_muestra: string | null;
   id_agenda: number | null;
+  numero_agenda: string | null;
   ubicacion_codigo: string;
   detalles: TagFinalizadoDetallePayload[];
 }

@@ -61,6 +61,7 @@ export interface MuestraPreparada {
   idMuestra: number;
   codigoMuestra: string;
   idAgenda: number | null;
+  numeroAgenda: string | null;
   nombreMuestra: string | null;
   fechaInicioVigencia: string | null;
   fechaFinVigencia: string | null;
