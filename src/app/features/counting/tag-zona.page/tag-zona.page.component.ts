@@ -156,7 +156,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
     if (zona && zona.tagDesde !== null && zona.tagHasta !== null) {
       const tagNumero = Number(value);
       if (tagNumero < zona.tagDesde || tagNumero > zona.tagHasta) {
-        return `El TAG ${value} no corresponde a ${zona.nombre}. Rango permitido: ${zona.tagDesde} a ${zona.tagHasta}.`;
+        return `El TAG ${value} no corresponde a ${zona.descripcion || zona.nombre}. Rango permitido: ${zona.tagDesde} a ${zona.tagHasta}.`;
       }
     }
 

@@ -19,7 +19,7 @@ import {
   AlertController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
@@ -58,7 +58,7 @@ export class AppComponent {
   formatRutDisplay = formatRutDisplay;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline });
+    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline });
   }
 
   goBack(): void {
@@ -71,6 +71,10 @@ export class AppComponent {
 
   goConteos(): void {
     this.router.navigate(['/tags-resumen']);
+  }
+
+  syncDatos(): void {
+    this.router.navigate(['/sync-loading']);
   }
 
   async logout(): Promise<void> {

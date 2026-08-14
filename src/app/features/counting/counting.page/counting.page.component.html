@@ -89,7 +89,7 @@
           }
         </h2>
         @if (zonaActual(); as zona) {
-        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.nombre }}{{ zona.descripcion ? ' — ' + zona.descripcion : '' }}</p>
+        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.descripcion || zona.nombre }}</p>
         }
       </div>
       <div class="session-badge">
@@ -135,12 +135,10 @@
     <div class="mt-6">
       <p class="field-label mb-3">Productos de este TAG</p>
 
-      <div class="search-bar-gradient mb-3">
-        <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
-          placeholder="Buscar por SKU o descripción" class="search-bar-input">
-          <ion-icon slot="start" name="search-outline"></ion-icon>
-        </ion-input>
-      </div>
+      <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
+        placeholder="Buscar por SKU o descripción" class="input-base">
+        <ion-icon slot="start" name="search-outline"></ion-icon>
+      </ion-input>
 
       @if (itemsFiltrados().length === 0) {
       <p class="text-[13px] text-center py-4" style="color: var(--app-text-muted);">

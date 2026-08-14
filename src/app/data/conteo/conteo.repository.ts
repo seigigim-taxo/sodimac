@@ -11,6 +11,31 @@ import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.mo
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
 
 /*
+ * Mapeo de aliases antiguos de zona a los códigos oficiales de
+ * sod_cfg_tipo_ubicacion. Evita que APKs con datos legacy envíen
+ * códigos inexistentes al SP.
+ */
+const ZONA_ALIAS: Record<string, string> = {
+  BODEGA_TRASTIENDA: 'BODEGA',
+  EXHIBICIONES:      'EXHIBICION',
+  PTO_VTA_OTROS:     'OTRO',
+};
+
+const ZONA_OFICIALES = new Set([
+  'PUNTO_VENTA', 'ALTILLO', 'SALA_VENTAS', 'BODEGA',
+  'RECEPCION', 'TRASTIENDA', 'EXHIBICION', 'GANCHERA', 'OTRO',
+]);
+
+function normalizarZonaNombre(nombre: string): string {
+  const upper = nombre.trim().toUpperCase();
+  const normalizado = ZONA_ALIAS[upper] ?? upper;
+  if (!ZONA_OFICIALES.has(normalizado)) {
+    throw new Error(`Tipo de ubicación no válido para SGO: ${nombre}`);
+  }
+  return normalizado;
+}
+
+/*
  * JOIN reutilizado: la línea trae su sku/descripción del producto y el número
  * de ronda de su conteo padre.
  */
@@ -542,7 +567,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       fecha_programada:  meta['fecha_programada']  as string,
       iteracion:         conteo.iteracion,
       tag_codigo:        (meta['tag_codigo'] as string ?? conteo.tag ?? ''),
-      zona_nombre:       meta['zona_nombre']       as string,
+      zona_nombre:       normalizarZonaNombre(meta['zona_nombre'] as string ?? ''),
       zona_descripcion:  meta['zona_descripcion']  as string | null,
       operador_rut:      meta['operador_rut']      as string,
       operador_login:    meta['operador_login']    as string,
