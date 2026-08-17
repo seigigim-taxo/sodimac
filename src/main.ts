@@ -28,6 +28,8 @@ import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
+import { MockAsignacionApiRepository } from './app/data/asignacion/mock-asignacion-api.repository';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
@@ -119,5 +121,11 @@ bootstrapApplication(AppComponent, {
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
+
+    /*
+     * Asignación de conteos: mock mientras el SGO no expone el endpoint. Para
+     * pasar al real basta cambiar esta clase por la implementación HTTP.
+     */
+    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: MockAsignacionApiRepository },
   ],
 });

@@ -110,51 +110,46 @@
     }
 
     @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
-    <!-- Banner de estado: PDA en espera -->
+    <!-- Conteo finalizado: la PDA queda a la espera de que le asignen otro -->
     <div class="status-banner status-banner-warning mt-6">
       <ion-icon name="hourglass-outline"></ion-icon>
-      <span>PDA en espera — SGO está analizando resultados</span>
+      <span>Conteo finalizado — a la espera de un nuevo conteo</span>
     </div>
 
-    <!-- Info adicional -->
     <div class="card mb-4 mt-4">
       <p class="text-sm" style="color: var(--app-text-muted);">
-        El evento <strong>{{ selectedEvent()!.nombre }}</strong> está en análisis.
-        Sincroniza para obtener la muestra de la siguiente iteración.
+        Terminaste el conteo de <strong>{{ selectedEvent()!.nombre }}</strong>.
+        Actualiza para ver si el SGO ya te asignó otro.
       </p>
     </div>
 
-    @if (sincronizandoTimeout()) {
-    <!-- Timeout: mostrar botón de reintentar -->
-    <div class="card mb-4" style="border-color: var(--ion-color-warning);">
-      <p class="text-sm" style="color: var(--ion-color-warning); font-weight: 600;">
-        ⚠ El SGO no ha respondido. ¿Deseas reintentar?
-      </p>
+    @if (sinNovedad()) {
+    <div class="status-banner status-banner-info mb-4">
+      <span>Todavía no hay un conteo nuevo asignado. Vuelve a intentar más tarde.</span>
     </div>
-    <ion-button expand="block" class="btn-primary" (click)="reintentarSincronizacion()">
-      <ion-icon slot="start" name="sync-outline"></ion-icon>
-      Reintentar sincronización
-    </ion-button>
-    } @else {
-    <!-- Sincronización normal -->
-    <ion-button expand="block" class="btn-primary mt-4" [disabled]="sincronizando()" (click)="sincronizar()">
-      @if (sincronizando()) {
+    }
+
+    @if (errorAsignacion(); as error) {
+    <div class="status-banner status-banner-error mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ error }}</span>
+    </div>
+    }
+
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo()"
+      (click)="buscarNuevoConteo()">
+      @if (buscandoConteo()) {
       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
-      Analizando...
+      Consultando…
       } @else {
       <ion-icon slot="start" name="sync-outline"></ion-icon>
-      Sincronizar con SGO
+      Buscar nuevo conteo
       }
     </ion-button>
-    }
     } @else {
     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading() || esCerrado(selectedEvent()!)"
       (click)="continue()">
-      @if (esReconteo()) {
-        Iniciar reconteo
-      } @else {
-        Iniciar conteo
-      }
+      Iniciar conteo
     </ion-button>
     }
 
