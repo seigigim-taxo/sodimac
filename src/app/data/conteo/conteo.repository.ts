@@ -5,6 +5,7 @@ import { ConteoRepository } from '../../domain/conteo/repositories/conteo.reposi
 import { Conteo, EstadoRonda } from '../../domain/conteo/models/conteo.model';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.model';
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
@@ -296,6 +297,42 @@ export class SqliteConteoRepository implements ConteoRepository {
       console.table(resumenes);
     }
     return resumenes;
+  }
+
+  /*
+   * JOIN y no LEFT JOIN a propósito: una sesión que no puede resolver su zona ni
+   * su ubicación no sirve para restaurar nada, y devolverla a medias dejaría a la
+   * app creyendo que puede volver a un TAG que no sabe ubicar.
+   */
+  async getSesionEnCurso(operadorId: number, pdaId: number): Promise<SesionTrabajoEnCurso | null> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT c.evento_id, d.conteo_id, d.ubicacion_id,
+              u.zona_id, u.tag, u.codigo AS ubicacion_precisa,
+              MAX(d.fecha_hora) AS fecha_ultima
+       FROM sod_conteo_detalle d
+       JOIN sod_conteo    c ON c.id = d.conteo_id
+       JOIN sod_ubicacion u ON u.id = d.ubicacion_id
+       WHERE d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
+         AND u.tag IS NOT NULL
+       GROUP BY d.conteo_id, d.ubicacion_id
+       ORDER BY fecha_ultima DESC
+       LIMIT 1`,
+      [operadorId, pdaId]
+    );
+    const row = result.values?.[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+
+    const sesion: SesionTrabajoEnCurso = {
+      eventoId:         row['evento_id']        as number,
+      conteoId:         row['conteo_id']        as number,
+      ubicacionId:      row['ubicacion_id']     as number,
+      zonaId:           row['zona_id']          as number,
+      tag:              row['tag']              as string,
+      ubicacionPrecisa: row['ubicacion_precisa'] as string,
+    };
+    if (isDevMode()) console.log('[ConteoRepo] getSesionEnCurso', sesion);
+    return sesion;
   }
 
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────

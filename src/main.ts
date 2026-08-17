@@ -9,6 +9,7 @@ import { AppComponent } from './app/app.component';
 import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
 import { PdaFacade } from './app/state/pda/pda.facade';
+import { SesionTrabajoFacade } from './app/state/sesion-trabajo/sesion-trabajo.facade';
 import { SqliteDatabaseRepository } from './app/data/database/database.repository';
 import { DATABASE_REPOSITORY_TOKEN, DatabaseRepository } from './app/domain/database/repositories/database.repository';
 import { AUTH_API_REPOSITORY_TOKEN } from './app/domain/auth/repositories/auth-api.repository';
@@ -16,6 +17,7 @@ import { SESSION_STORAGE_REPOSITORY_TOKEN } from './app/domain/auth/repositories
 import { THEME_STORAGE_REPOSITORY_TOKEN } from './app/domain/theme/repositories/theme-storage.repository';
 import { PDA_REPOSITORY_TOKEN } from './app/domain/pda/repositories/pda.repository';
 import { EVENTO_REPOSITORY_TOKEN } from './app/domain/evento/repositories/evento.repository';
+import { EVENTO_SELECCIONADO_STORAGE_TOKEN } from './app/domain/evento/repositories/evento-seleccionado-storage.repository';
 import { MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra-detalle.repository';
 import { PLAN_MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/plan-muestra.repository';
@@ -34,6 +36,7 @@ import { SqliteSincronizacionRepository } from './app/data/sincronizacion/sincro
 import { SqliteZonaRepository } from './app/data/zona/zona.repository';
 import { SqliteUbicacionRepository } from './app/data/ubicacion/ubicacion.repository';
 import { SqliteEventoRepository } from './app/data/evento/evento.repository';
+import { CapacitorEventoSeleccionadoStorageRepository } from './app/data/evento/evento-seleccionado-storage.repository';
 import { SqliteMuestraRepository } from './app/data/muestra/muestra.repository';
 import { SqliteMuestraDetalleRepository } from './app/data/muestra/muestra-detalle.repository';
 import { SqlitePlanMuestraRepository } from './app/data/muestra/sqlite-plan-muestra.repository';
@@ -55,10 +58,23 @@ const initializeApp = (
   db:   DatabaseRepository,
   auth: AuthFacade,
   pda:  PdaFacade,
+  sesionTrabajo: SesionTrabajoFacade,
 ) => async () => {
   try {
     await db.initialize();
     await Promise.all([auth.init(), pda.init()]);
+
+    /*
+     * La restauración va acá, antes de que el router evalúe el primer guard: si
+     * corriera después, noSesionActivaGuard ya habría visto el conteo EN_CURSO
+     * en la base sin el evento ni el TAG en memoria, que es exactamente el
+     * estado que produce el ciclo de redirecciones.
+     */
+    const operadorId = auth.session()?.operadorId;
+    const pdaId      = pda.pdaId();
+    if (operadorId && pdaId) {
+      await sesionTrabajo.restaurar(operadorId, pdaId);
+    }
   } catch (err) {
     console.error('[initializeApp] fallo al inicializar la app:', err);
   }
@@ -77,7 +93,7 @@ bootstrapApplication(AppComponent, {
     {
       provide:    APP_INITIALIZER,
       useFactory: initializeApp,
-      deps:       [DATABASE_REPOSITORY_TOKEN, AuthFacade, PdaFacade],
+      deps:       [DATABASE_REPOSITORY_TOKEN, AuthFacade, PdaFacade, SesionTrabajoFacade],
       multi:      true,
     },
     {
@@ -92,6 +108,7 @@ bootstrapApplication(AppComponent, {
     { provide: OPERADOR_REPOSITORY_TOKEN,        useClass: SqliteOperadorRepository },
     { provide: SUCURSAL_REPOSITORY_TOKEN,        useClass: SqliteSucursalRepository },
     { provide: EVENTO_REPOSITORY_TOKEN,          useClass: SqliteEventoRepository },
+    { provide: EVENTO_SELECCIONADO_STORAGE_TOKEN, useClass: CapacitorEventoSeleccionadoStorageRepository },
     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
 

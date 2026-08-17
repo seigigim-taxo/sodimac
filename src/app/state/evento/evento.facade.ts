@@ -3,6 +3,7 @@ import { GetEventosBySucursalUseCase } from '../../application/evento/get-evento
 import { AbrirSiguienteIteracionUseCase, ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
 import { GetEventoByIdUseCase } from '../../application/evento/get-evento-by-id.use-case';
 import { CerrarEventoUseCase } from '../../application/evento/cerrar-evento.use-case';
+import { SeleccionarEventoUseCase } from '../../application/evento/seleccionar-evento.use-case';
 import { Evento } from '../../domain/evento/models/evento.model';
 export type { Evento };
 
@@ -12,6 +13,7 @@ export class EventoFacade {
   private abrirIteracionUC     = inject(AbrirSiguienteIteracionUseCase);
   private getEventoById        = inject(GetEventoByIdUseCase);
   private cerrarEventoUC       = inject(CerrarEventoUseCase);
+  private seleccionarEventoUC  = inject(SeleccionarEventoUseCase);
 
   private eventsSignal         = signal<Evento[]>([]);
   private selectedEventSignal  = signal<Evento | null>(null);
@@ -37,8 +39,29 @@ export class EventoFacade {
     }
   }
 
+  /*
+   * La persistencia va sin await: la UI no puede quedar esperando a Preferences
+   * para pintar el evento elegido. Si falla, se pierde la restauración tras un
+   * reinicio, no la selección en curso — por eso solo se registra el error.
+   */
   selectEvento(evento: Evento): void {
     this.selectedEventSignal.set(evento);
+    this.seleccionarEventoUC.execute(evento.id).catch((err) =>
+      console.error('[EventoFacade] no se pudo persistir el evento seleccionado:', err)
+    );
+  }
+
+  /*
+   * Restaura la selección al arrancar. Separado de selectEvento porque no tiene
+   * que volver a escribir lo que se acaba de leer.
+   */
+  restaurarSeleccion(evento: Evento): void {
+    this.selectedEventSignal.set(evento);
+  }
+
+  async limpiarSeleccion(): Promise<void> {
+    this.selectedEventSignal.set(null);
+    await this.seleccionarEventoUC.limpiar();
   }
 
   /*

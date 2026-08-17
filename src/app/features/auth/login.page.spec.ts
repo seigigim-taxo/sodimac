@@ -10,17 +10,20 @@ import {
 } from '@ionic/angular/standalone';
 import { LoginPage } from './login.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
+import { PdaFacade } from '../../state/pda/pda.facade';
+import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
 
 describe('LoginPage', () => {
   let component: LoginPage;
   let fixture: ComponentFixture<LoginPage>;
   let authFacade: jasmine.SpyObj<AuthFacade>;
   let router: jasmine.SpyObj<Router>;
+  let sesionTrabajo: jasmine.SpyObj<SesionTrabajoFacade>;
 
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
       'AuthFacade',
-      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin'],
+      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin', 'session'],
       {
         loading: () => false,
         error: () => null,
@@ -28,8 +31,19 @@ describe('LoginPage', () => {
     );
     authSpy.isAuthenticated.and.returnValue(false);
     authSpy.wasOfflineLogin.and.returnValue(false);
+    authSpy.session.and.returnValue({ operadorId: 7, rutNormalizado: '123456785', correo: 'op@sodimac.cl' });
 
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+
+    /*
+     * PdaFacade y SesionTrabajoFacade se stubean para no arrastrar SQLite ni
+     * Capacitor al spec: acá se prueba el formulario y la navegación, no la
+     * restauración de la sesión de trabajo.
+     */
+    const pdaSpy = jasmine.createSpyObj('PdaFacade', ['init', 'pdaId']);
+    pdaSpy.pdaId.and.returnValue(1);
+    sesionTrabajo = jasmine.createSpyObj('SesionTrabajoFacade', ['restaurar']);
+    sesionTrabajo.restaurar.and.resolveTo();
 
     await TestBed.configureTestingModule({
       imports: [
@@ -44,6 +58,8 @@ describe('LoginPage', () => {
     })
       .overrideProvider(AuthFacade, { useValue: authSpy })
       .overrideProvider(Router, { useValue: routerSpy })
+      .overrideProvider(PdaFacade, { useValue: pdaSpy })
+      .overrideProvider(SesionTrabajoFacade, { useValue: sesionTrabajo })
       .compileComponents();
 
     fixture = TestBed.createComponent(LoginPage);
@@ -80,5 +96,25 @@ describe('LoginPage', () => {
 
     expect(authFacade.login).toHaveBeenCalledWith({ rut: '123456785', password: '123456' });
     expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
+  });
+
+  /*
+   * El orden importa: si se navega antes de restaurar, los guards de /home
+   * evalúan con el evento y el TAG todavía vacíos y rebotan entre pantallas.
+   */
+  it('restaura la sesión de trabajo antes de navegar', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    let navegoAntesDeRestaurar = false;
+    router.navigate.and.callFake(() => {
+      navegoAntesDeRestaurar = !sesionTrabajo.restaurar.calls.any();
+      return Promise.resolve(true);
+    });
+
+    await component.onSubmit();
+
+    expect(sesionTrabajo.restaurar).toHaveBeenCalledWith(7, 1);
+    expect(navegoAntesDeRestaurar).toBeFalse();
   });
 });

@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { Conteo } from '../models/conteo.model';
 import { ConteoItem } from '../models/conteo-item.model';
 import { ConteoResumen } from '../models/conteo-resumen.model';
+import { SesionTrabajoEnCurso } from '../models/sesion-trabajo.model';
 import { ConteoTrazabilidadItem } from '../models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
@@ -66,6 +67,16 @@ export interface ConteoRepository {
 
   /* Sesiones de TAG del operador en esta PDA, con totales y estado. */
   getResumenes(operadorId: number, pdaId: number): Promise<ConteoResumen[]>;
+
+  /*
+   * La sesión de TAG que quedó abierta (líneas EN_CURSO) para ese operador en
+   * esta PDA, con todo lo necesario para volver a ella: evento, zona, TAG y
+   * ubicación. La más reciente si hubiera más de una.
+   *
+   * Es la fuente para rehidratar el estado en memoria después de un reinicio:
+   * getResumenes no sirve porque no trae zona_id ni la ubicación precisa.
+   */
+  getSesionEnCurso(operadorId: number, pdaId: number): Promise<SesionTrabajoEnCurso | null>;
 
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────
 
