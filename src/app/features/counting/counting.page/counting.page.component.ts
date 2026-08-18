@@ -28,6 +28,7 @@ import { ConteoFacade } from '../../../state/conteo/conteo.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resumen-evento.facade';
 import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
+import { BuscadorService } from '../../../shared/services/buscador.service';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -83,6 +84,7 @@ export class CountingPageComponent implements ViewWillEnter {
   private conteoList        = inject(ConteoListFacade);
   private resumenFacade     = inject(ResumenEventoFacade);
   private ajustes           = inject(AjustesFacade);
+  private buscador          = inject(BuscadorService);
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
@@ -145,6 +147,10 @@ export class CountingPageComponent implements ViewWillEnter {
 
   constructor() {
     addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
+  }
+
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   private sesionInicializada: number | null = null;

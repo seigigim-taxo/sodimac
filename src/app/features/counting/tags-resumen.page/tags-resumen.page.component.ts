@@ -21,7 +21,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-  createOutline, refreshOutline, timeOutline, trashOutline,
+  createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
 } from 'ionicons/icons';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
@@ -30,6 +30,7 @@ import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-li
 import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
 import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
+import { BuscadorService } from '../../../shared/services/buscador.service';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -71,6 +72,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private conteoList = inject(ConteoListFacade);
   private resumenFacade = inject(ResumenEventoFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
+  private buscador = inject(BuscadorService);
 
   currentEvent = this.eventoFacade.selectedEvent;
   // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
@@ -168,9 +170,12 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   constructor() {
     addIcons({
       alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-      createOutline, refreshOutline, timeOutline, trashOutline,
+      createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
     });
+  }
 
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   /*

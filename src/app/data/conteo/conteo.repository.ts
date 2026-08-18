@@ -400,7 +400,7 @@ export class SqliteConteoRepository implements ConteoRepository {
        JOIN sod_producto p       ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
-       WHERE c.evento_id = ? AND p.sku LIKE ? || '%'
+        WHERE c.evento_id = ? AND p.sku LIKE '%' || ? || '%'
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
        ORDER BY p.sku, c.iteracion DESC, d.fecha_hora DESC
        LIMIT 50`,

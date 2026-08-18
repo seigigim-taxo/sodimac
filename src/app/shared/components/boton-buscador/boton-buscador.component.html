@@ -1,15 +1,9 @@
-<ion-fab class="fab-buscador" vertical="bottom" horizontal="end" slot="fixed">
-  <ion-fab-button (click)="abrirBuscador()" aria-label="Buscar SKU">
-    <ion-icon name="search-outline"></ion-icon>
-  </ion-fab-button>
-</ion-fab>
-
 <!--
   Tarjeta flotante centrada, no una hoja desde abajo: la búsqueda es una
   consulta de paso —mirar dónde se contó algo y volver—, y el centro deja ver
   que la pantalla de conteo sigue detrás.
 -->
-<ion-modal class="buscador-modal" [isOpen]="buscadorAbierto()"
+<ion-modal class="buscador-modal" [isOpen]="abierto()"
   (ionModalDidDismiss)="cerrarBuscador()">
   <ng-template>
     <div class="buscador-tarjeta">

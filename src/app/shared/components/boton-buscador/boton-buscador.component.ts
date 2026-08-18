@@ -1,36 +1,32 @@
-import { Component, signal } from '@angular/core';
-import { IonFab, IonFabButton, IonIcon, IonModal } from '@ionic/angular/standalone';
+import { Component, inject } from '@angular/core';
+import { IonIcon, IonModal } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, searchOutline } from 'ionicons/icons';
+import { closeOutline } from 'ionicons/icons';
 import { BuscadorSkuComponent } from '../buscador-sku/buscador-sku.component';
+import { BuscadorService } from '../../services/buscador.service';
 
 /*
- * Acceso al buscador SKU desde cualquier pantalla del proceso.
+ * Modal del buscador SKU. Vive una sola vez en AppComponent, fuera del
+ * router-outlet, así que no se remonta en cada navegación.
  *
- * Vive una sola vez en AppComponent, fuera del router-outlet, así que no se
- * remonta en cada navegación y acompaña al operador todo el recorrido.
- *
- * Es un botón flotante y no una barra: la barra reservaba una franja fija al
- * pie, y cada pantalla tenía que compensarla con padding para no quedar tapada.
- * El flotante se superpone y no le quita alto a nada.
+ * El botón que lo abre está en la toolbar de cada página (icono de lupa a la
+ * izquierda del menú hamburguesa). La comunicación es vía BuscadorService.
  */
 @Component({
   selector: 'app-boton-buscador',
   templateUrl: './boton-buscador.component.html',
-  imports: [BuscadorSkuComponent, IonFab, IonFabButton, IonIcon, IonModal],
+  imports: [BuscadorSkuComponent, IonIcon, IonModal],
 })
 export class BotonBuscadorComponent {
-  buscadorAbierto = signal(false);
+  private buscador = inject(BuscadorService);
+
+  readonly abierto = this.buscador.abierto;
 
   constructor() {
-    addIcons({ closeOutline, searchOutline });
-  }
-
-  abrirBuscador(): void {
-    this.buscadorAbierto.set(true);
+    addIcons({ closeOutline });
   }
 
   cerrarBuscador(): void {
-    this.buscadorAbierto.set(false);
+    this.buscador.cerrar();
   }
 }

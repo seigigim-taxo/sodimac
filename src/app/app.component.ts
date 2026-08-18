@@ -72,12 +72,7 @@ export class AppComponent {
     !AppComponent.RUTAS_SIN_BUSCADOR.some((r) => this.rutaActual().startsWith(r))
   );
 
-  /*
-   * En el conteo el botón sube: "Finalizar TAG" es de ancho completo y queda al
-   * final del scroll, así que un flotante a la altura de siempre se le montaría
-   * encima justo cuando el operador va a cerrar el TAG.
-   */
-  enPantallaDeConteo = computed(() => this.rutaActual().startsWith('/counting'));
+
 
   constructor() {
     addIcons({

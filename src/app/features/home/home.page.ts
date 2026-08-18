@@ -14,7 +14,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -22,6 +22,7 @@ import { EventoFacade, Evento } from '../../state/evento/evento.facade';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
+import { BuscadorService } from '../../shared/services/buscador.service';
 
 
 @Component({
@@ -50,6 +51,7 @@ export class HomePage implements ViewWillEnter {
   private pda                = inject(PdaFacade);
   private resumenFacade      = inject(ResumenEventoFacade);
   private nuevoConteo        = inject(NuevoConteoFacade);
+  private buscador           = inject(BuscadorService);
 
   /*
    * Cerrar la tienda exige que no quede trabajo sin subir: ni conteos abiertos
@@ -103,7 +105,7 @@ export class HomePage implements ViewWillEnter {
   noEvents      = this.eventoFacade.noEvents;
 
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline });
+    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
@@ -122,6 +124,10 @@ export class HomePage implements ViewWillEnter {
       this.selectedEvent();
       this.nuevoConteo.limpiar();
     });
+  }
+
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   private cargarEventosFinalizados(eventos: Evento[]): void {
