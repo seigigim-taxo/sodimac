@@ -244,6 +244,24 @@ export class SqliteConteoRepository implements ConteoRepository {
     if (isDevMode()) console.log('[ConteoRepo] cerrarTag', { conteoId, ubicacionId, operadorId });
   }
 
+  /*
+   * El filtro por estado hace la operación segura e idempotente: una línea ya
+   * SINCRONIZADA no se toca —es inmutable— y reabrir dos veces no cambia nada.
+   */
+  async reabrirTag(
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
+  ): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_conteo_detalle
+       SET estado = 'EN_CURSO'
+       WHERE conteo_id = ? AND ubicacion_id = ?
+         AND operador_id = ? AND pda_id = ? AND estado = 'FINALIZADO'`,
+      [conteoId, ubicacionId, operadorId, pdaId]
+    );
+    if (isDevMode()) console.log('[ConteoRepo] reabrirTag', { conteoId, ubicacionId, operadorId, pdaId });
+  }
+
   async marcarSincronizado(
     conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
   ): Promise<void> {

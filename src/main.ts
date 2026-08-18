@@ -8,6 +8,7 @@ import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
 import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
+import { AjustesFacade } from './app/state/ajustes/ajustes.facade';
 import { PdaFacade } from './app/state/pda/pda.facade';
 import { SesionTrabajoFacade } from './app/state/sesion-trabajo/sesion-trabajo.facade';
 import { SqliteDatabaseRepository } from './app/data/database/database.repository';
@@ -15,6 +16,7 @@ import { DATABASE_REPOSITORY_TOKEN, DatabaseRepository } from './app/domain/data
 import { AUTH_API_REPOSITORY_TOKEN } from './app/domain/auth/repositories/auth-api.repository';
 import { SESSION_STORAGE_REPOSITORY_TOKEN } from './app/domain/auth/repositories/session-storage.repository';
 import { THEME_STORAGE_REPOSITORY_TOKEN } from './app/domain/theme/repositories/theme-storage.repository';
+import { AJUSTES_STORAGE_REPOSITORY_TOKEN } from './app/domain/ajustes/repositories/ajustes-storage.repository';
 import { PDA_REPOSITORY_TOKEN } from './app/domain/pda/repositories/pda.repository';
 import { EVENTO_REPOSITORY_TOKEN } from './app/domain/evento/repositories/evento.repository';
 import { EVENTO_SELECCIONADO_STORAGE_TOKEN } from './app/domain/evento/repositories/evento-seleccionado-storage.repository';
@@ -32,6 +34,7 @@ import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/reposit
 import { MockAsignacionApiRepository } from './app/data/asignacion/mock-asignacion-api.repository';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
+import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
 import { SqliteConteoRepository } from './app/data/conteo/conteo.repository';
 import { SqliteSincronizacionRepository } from './app/data/sincronizacion/sincronizacion.repository';
@@ -84,6 +87,12 @@ const initializeApp = (
 
 const initializeTheme = (theme: ThemeFacade) => () => theme.init();
 
+/*
+ * Los ajustes usan Preferences, no SQLite: van por su cuenta y no esperan a la
+ * base. Tienen que estar cargados antes del primer TAG finalizado.
+ */
+const initializeAjustes = (ajustes: AjustesFacade) => () => ajustes.init();
+
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
@@ -104,9 +113,16 @@ bootstrapApplication(AppComponent, {
       deps:       [ThemeFacade],
       multi:      true,
     },
+    {
+      provide:    APP_INITIALIZER,
+      useFactory: initializeAjustes,
+      deps:       [AjustesFacade],
+      multi:      true,
+    },
     { provide: AUTH_API_REPOSITORY_TOKEN,        useClass: AuthService },
     { provide: SESSION_STORAGE_REPOSITORY_TOKEN, useClass: CapacitorSessionStorageRepository },
     { provide: THEME_STORAGE_REPOSITORY_TOKEN,   useClass: CapacitorThemeStorageRepository },
+    { provide: AJUSTES_STORAGE_REPOSITORY_TOKEN, useClass: CapacitorAjustesStorageRepository },
     { provide: OPERADOR_REPOSITORY_TOKEN,        useClass: SqliteOperadorRepository },
     { provide: SUCURSAL_REPOSITORY_TOKEN,        useClass: SqliteSucursalRepository },
     { provide: EVENTO_REPOSITORY_TOKEN,          useClass: SqliteEventoRepository },

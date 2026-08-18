@@ -19,9 +19,10 @@ import {
   AlertController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, cloudUploadOutline, cloudOfflineOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
+import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 
@@ -48,6 +49,7 @@ import { formatRutDisplay } from './shared/utils/rut.utils';
 export class AppComponent {
   private auth     = inject(AuthFacade);
   private theme    = inject(ThemeFacade);
+  private ajustes  = inject(AjustesFacade);
   private router   = inject(Router);
   private location = inject(Location);
   private alertController = inject(AlertController);
@@ -56,9 +58,17 @@ export class AppComponent {
   session          = this.auth.session;
   isDark           = this.theme.isDark;
   formatRutDisplay = formatRutDisplay;
+  sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline });
+    addIcons({
+      arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
+      homeOutline, trashOutline, syncOutline, cloudUploadOutline, cloudOfflineOutline,
+    });
+  }
+
+  async toggleSincronizacionAutomatica(): Promise<void> {
+    await this.ajustes.toggleSincronizacionAutomatica();
   }
 
   goBack(): void {

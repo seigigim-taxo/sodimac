@@ -101,12 +101,32 @@
 
       <!-- Acciones según estado -->
       @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && !modoSoloLectura()) {
-      <div class="flex items-center gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
-        <ion-button expand="block" fill="outline" size="small" (click)="sincronizarReal(conteo)">
+      <div class="mt-4 pt-4 flex flex-col gap-2" style="border-top: 1px solid var(--app-border);">
+        <!-- Fila 1: Editar + Eliminar -->
+        <div class="flex gap-2">
+          <ion-button fill="outline" size="small" style="flex: 1; justify-content: center;" (click)="editarReal(conteo)">
+            <ion-icon slot="start" name="create-outline"></ion-icon>
+            Editar
+          </ion-button>
+          <ion-button fill="outline" size="small" color="danger" style="flex: 1; justify-content: center;" (click)="eliminarReal(conteo)">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            Eliminar
+          </ion-button>
+        </div>
+        <!-- Fila 2: Sincronizar -->
+        <ion-button fill="outline" size="small" style="justify-content: center;" (click)="sincronizarReal(conteo)">
           <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
           Sincronizar
         </ion-button>
-        <ion-button expand="block" fill="outline" size="small" color="danger" (click)="eliminarReal(conteo)">
+      </div>
+      }
+      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && modoSoloLectura()) {
+      <div class="flex gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+        <ion-button fill="outline" size="small" style="flex: 1; justify-content: center;" (click)="sincronizarReal(conteo)">
+          <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+          Sincronizar
+        </ion-button>
+        <ion-button fill="outline" size="small" color="danger" style="flex: 1; justify-content: center;" (click)="eliminarReal(conteo)">
           <ion-icon slot="start" name="trash-outline"></ion-icon>
           Eliminar
         </ion-button>

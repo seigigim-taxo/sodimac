@@ -61,6 +61,16 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Sincronización automática del TAG al finalizarlo -->
+        <ion-menu-toggle>
+          <ion-item button (click)="toggleSincronizacionAutomatica()" class="menu-theme-item">
+            <ion-icon slot="start" [name]="sincronizacionAutomatica() ? 'cloud-upload-outline' : 'cloud-offline-outline'"></ion-icon>
+            <ion-label>
+              {{ sincronizacionAutomatica() ? 'Sincronizar TAG al finalizar' : 'No sincronizar al finalizar' }}
+            </ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Logout -->
         <ion-menu-toggle>
           <ion-item button (click)="logout()" class="menu-logout-item">

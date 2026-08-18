@@ -59,6 +59,20 @@ export interface ConteoRepository {
    */
   cerrarTag(conteoId: number, ubicacionId: number, operadorId: number): Promise<void>;
 
+  /*
+   * Reabre el TAG: FINALIZADO → EN_CURSO. Es el inverso de cerrarTag, para
+   * seguir contando un TAG que se cerró antes de tiempo.
+   *
+   * Devolver las líneas a EN_CURSO no es un detalle de estado: es lo que hace
+   * que la sesión se recupere al entrar a la pantalla y que upsert vuelva a
+   * encontrar sus filas. Sin eso, reescanear un SKU ya contado chocaría con el
+   * UNIQUE de la tabla, que no distingue por estado.
+   *
+   * Lleva pdaId, a diferencia de cerrarTag: reabrir habilita a escribir, y esa
+   * puerta se abre solo para la PDA que hizo el trabajo.
+   */
+  reabrirTag(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void>;
+
   /* Confirma la sincronización: FINALIZADO → SINCRONIZADO para toda la tupla. */
   marcarSincronizado(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void>;
 
