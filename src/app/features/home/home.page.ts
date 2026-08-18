@@ -2,7 +2,6 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
-  AlertController,
   IonButton,
   IonContent,
   IonHeader,
@@ -14,7 +13,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -47,20 +46,11 @@ export class HomePage implements ViewWillEnter {
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);
-  private alertController = inject(AlertController);
   private pda                = inject(PdaFacade);
   private resumenFacade      = inject(ResumenEventoFacade);
   private nuevoConteo        = inject(NuevoConteoFacade);
   private buscador           = inject(BuscadorService);
 
-  /*
-   * Cerrar la tienda exige que no quede trabajo sin subir: ni conteos abiertos
-   * ni finalizados pendientes de sincronizar. Se deriva de sod_conteo, no de un
-   * estado aparte.
-   */
-  puedeCerrarTienda = computed(() =>
-    this.conteoList.conteos().every((c) => c.estado === 'SINCRONIZADO')
-  );
   /*
    * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no
    * lo selecciona sola: elegir el evento es del operador.
@@ -85,27 +75,23 @@ export class HomePage implements ViewWillEnter {
   selectedEvent = this.eventoFacade.selectedEvent;
 
   /*
-   * La lista se acota a dos: el conteo que se acaba de terminar y el que sigue.
-   * Es lo único que el operador necesita decidir, y sin este corte los conteos
-   * se acumulan jornada tras jornada hasta volver la pantalla inútil.
+   * Solo el conteo abierto. Es el único sobre el que el operador puede actuar:
+   * los terminados quedan EN_ANALISIS y los vencidos no son seleccionables, así
+   * que mostrarlos solo agrega ruido y tarjetas atenuadas que no responden.
    *
-   * Se ordenan por id y se toman los últimos: el más nuevo es siempre el de id
-   * mayor, y ese orden deja al anterior arriba y al nuevo abajo, que es como se
-   * leen.
+   * Si hubiera más de uno abierto, manda el más nuevo — el de id mayor.
    */
-  private static readonly MAX_EVENTOS_VISIBLES = 2;
-  eventosVisibles = computed(() =>
-    [...this.events()]
-      .sort((a, b) => a.id - b.id)
-      .slice(-HomePage.MAX_EVENTOS_VISIBLES)
-  );
+  eventosVisibles = computed<Evento[]>(() => {
+    const abiertos = this.events().filter((e) => e.estado === 'ABIERTO');
+    if (abiertos.length === 0) return [];
+    return [abiertos.reduce((masNuevo, e) => (e.id > masNuevo.id ? e : masNuevo))];
+  });
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;
-  hasEvents     = this.eventoFacade.hasEvents;
   noEvents      = this.eventoFacade.noEvents;
 
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline, searchOutline });
+    addIcons({ alertCircleOutline, businessOutline, hourglassOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
@@ -228,22 +214,4 @@ export class HomePage implements ViewWillEnter {
     this.avisoNuevoConteo.set(asignacion.nombre);
   }
 
-  async cerrarTienda(): Promise<void> {
-    if (!this.puedeCerrarTienda()) return;
-
-    const alert = await this.alertController.create({
-      header:  'Cerrar tienda',
-      message: 'Esto finalizará tu jornada en esta tienda y cerrará tu sesión. ¿Confirmas?',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Cerrar tienda', role: 'destructive', handler: () => { void this.doCerrarTienda(); } },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async doCerrarTienda(): Promise<void> {
-    await this.auth.logout();
-    this.router.navigate(['/login']);
-  }
 }

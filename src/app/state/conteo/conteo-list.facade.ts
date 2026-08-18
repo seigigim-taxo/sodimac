@@ -83,15 +83,21 @@ export class ConteoListFacade {
     return conteo;
   }
 
+  /*
+   * Las líneas cuelgan de la RONDA, no del evento: el borrado va por conteoId.
+   * Con eventoId el DELETE no encontraba nada —o peor, encontraba la ronda de
+   * otro evento que casualmente tuviera ese id— mientras la lista en memoria sí
+   * quitaba la fila, así que el TAG parecía borrado hasta la siguiente recarga.
+   */
   async delete(conteo: ConteoResumen): Promise<void> {
     this.errorSignal.set(null);
     try {
       await this.deleteSesion.execute(
-        conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId, conteo.estado
+        conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId, conteo.estado
       );
-      this.conteosSignal.update((prev) => prev.filter((c) =>
-        !(c.eventoId === conteo.eventoId && c.ubicacionId === conteo.ubicacionId && c.estado === conteo.estado)
-      ));
+      // keyOf incluye la iteración: sin ella se quitaban de la vista las dos
+      // rondas del mismo TAG aunque en la base solo desapareciera una.
+      this.conteosSignal.update((prev) => prev.filter((c) => keyOf(c) !== keyOf(conteo)));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al eliminar conteo');
     }

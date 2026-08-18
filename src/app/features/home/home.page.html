@@ -83,7 +83,7 @@
     </div>
     }
 
-    @if (hasEvents()) {
+    @if (eventosVisibles().length > 0) {
     <div class="flex flex-col gap-4">
       @for (evento of eventosVisibles(); track evento.id) {
       <div class="card" [class.card-interactive]="puedeSeleccionar(evento)"
@@ -196,19 +196,6 @@
       </div>
       }
     </div>
-    }
-    }
-
-    @if (currentStore()) {
-    <ion-button expand="block" class="btn-outline mt-6" style="--color: var(--ion-color-danger);"
-      [disabled]="!puedeCerrarTienda()" (click)="cerrarTienda()">
-      <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
-      Cerrar tienda
-    </ion-button>
-    @if (!puedeCerrarTienda()) {
-    <p class="hint-text text-center">
-      Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
-    </p>
     }
     }
 

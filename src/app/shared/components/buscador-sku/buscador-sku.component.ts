@@ -47,10 +47,6 @@ export class BuscadorSkuComponent {
   /* Solo tras una búsqueda real: evita decir "sin resultados" antes de buscar. */
   hayBusqueda = signal(false);
 
-  // Sin evento seleccionado no hay dónde buscar: se muestra la razón en vez de
-  // un formulario que no haría nada al apretarlo.
-  hayEvento = computed(() => this.eventoFacade.selectedEvent() !== null);
-
   terminoCorto = computed(
     () => this.valor().trim().length > 0 && this.valor().trim().length < MINIMO_CARACTERES
   );
@@ -73,9 +69,15 @@ export class BuscadorSkuComponent {
         distinctUntilChanged(),
         tap(() => this.buscando.set(true)),
         switchMap((termino) => {
+          if (termino.length < MINIMO_CARACTERES) return of([]);
+          /*
+           * Con evento en curso la búsqueda se acota a él, que es lo que el
+           * operador tiene entre manos. Sin evento —recién terminado un conteo,
+           * antes de tomar el siguiente— se busca en todo lo contado en la PDA
+           * en vez de no responder nada.
+           */
           const evento = this.eventoFacade.selectedEvent();
-          if (!evento || termino.length < MINIMO_CARACTERES) return of([]);
-          return from(this.buscarSkuUC.execute(evento.id, termino));
+          return from(this.buscarSkuUC.execute(termino, evento?.id));
         }),
         takeUntilDestroyed()
       )

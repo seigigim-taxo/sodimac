@@ -104,12 +104,16 @@ export interface ConteoRepository {
   getUnidadesContadasPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<number>;
 
   /*
-   * En qué TAG(s)/zona(s) del evento hay líneas para ese SKU — un SKU puede
-   * estar en varios TAG. No se filtra por operador ni por PDA: la pregunta es
-   * "¿dónde se contó esto?", y una PDA se pasa entre turnos, así que acotarla
-   * al operador actual escondería conteos que sí están en esta base.
+   * En qué TAG(s)/zona(s) hay líneas para ese SKU — un SKU puede estar en
+   * varios TAG. No se filtra por operador ni por PDA: la pregunta es "¿dónde se
+   * contó esto?", y una PDA se pasa entre turnos, así que acotarla al operador
+   * actual escondería conteos que sí están en esta base.
+   *
+   * `eventoId` es opcional a propósito: sin evento seleccionado —recién
+   * terminado un conteo, antes de tomar el siguiente— la pregunta sigue siendo
+   * válida y se responde sobre todo lo contado en la PDA.
    */
-  buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]>;
+  buscarPorSku(sku: string, eventoId?: number): Promise<BusquedaSkuResultado[]>;
 
   /*
    * TAGs únicos ya contados en rondas anteriores a `iteracion`. Sirve en

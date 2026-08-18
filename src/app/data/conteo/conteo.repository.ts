@@ -391,24 +391,38 @@ export class SqliteConteoRepository implements ConteoRepository {
    * El LIMIT acota la lista a lo que cabe en pantalla: un prefijo corto puede
    * traer cientos de filas y ninguna sirve para decidir dónde ir a contar.
    */
-  async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
+  async buscarPorSku(sku: string, eventoId?: number): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    /*
+     * Sin evento la consulta abarca toda la base local, y por eso ordena
+     * primero por evento descendente: lo más reciente es lo que el operador
+     * está buscando, y el LIMIT no puede dejarlo fuera por culpa de conteos
+     * viejos.
+     */
+    const filtroEvento = eventoId !== undefined ? 'AND c.evento_id = ?' : '';
+    const params = eventoId !== undefined ? [sku, eventoId] : [sku];
+
     const result = await db.query(
-      `SELECT p.sku, c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
+      `SELECT p.sku, c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre,
+              d.cantidad_fisica, e.nombre AS evento_nombre
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
+       JOIN sod_evento_inventario e ON e.id = c.evento_id
        JOIN sod_producto p       ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
-        WHERE c.evento_id = ? AND p.sku LIKE '%' || ? || '%'
+       WHERE p.sku LIKE '%' || ? || '%'
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
-       ORDER BY p.sku, c.iteracion DESC, d.fecha_hora DESC
+         ${filtroEvento}
+       ORDER BY c.evento_id DESC, p.sku, c.iteracion DESC, d.fecha_hora DESC
        LIMIT 50`,
-      [eventoId, sku]
+      params
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
+        eventoNombre: (row['evento_nombre'] as string | null) ?? '—',
         sku: row['sku'] as string,
         iteracion: row['iteracion'] as number,
         tag: row['tag'] as string | null,
