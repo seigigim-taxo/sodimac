@@ -41,6 +41,7 @@ export class AuthFacade {
       this.offlineLoginSignal.set(fueOffline);
       await this.saveSession(session);
     } catch (err: unknown) {
+      this.offlineLoginSignal.set(false);
       this.errorSignal.set(extractMessage(err));
     } finally {
       this.loadingSignal.set(false);
@@ -55,6 +56,7 @@ export class AuthFacade {
   async logout(): Promise<void> {
     await this.logoutUC.execute();
     this.sessionSignal.set(null);
+    this.offlineLoginSignal.set(false);
   }
 }
 

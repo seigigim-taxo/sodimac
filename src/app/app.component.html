@@ -68,5 +68,13 @@
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
 
+  <!--
+    Fuera del router-outlet: el buscador es de la app, no de una pantalla, y así
+    no se remonta en cada navegación.
+  -->
+  @if (mostrarBuscador()) {
+  <app-boton-buscador [class.fab-sobre-cta]="enPantallaDeConteo()"></app-boton-buscador>
+  }
+
 
 </ion-app>

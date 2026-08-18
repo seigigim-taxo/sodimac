@@ -1,6 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import {
   IonApp,
   IonRouterOutlet,
@@ -22,6 +22,7 @@ import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
+import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 
 @Component({
@@ -42,6 +43,7 @@ import { formatRutDisplay } from './shared/utils/rut.utils';
     IonToolbar,
     IonTitle,
     IonContent,
+    BotonBuscadorComponent,
   ],
 })
 export class AppComponent {
@@ -51,15 +53,40 @@ export class AppComponent {
   private router   = inject(Router);
   private location = inject(Location);
 
+  /*
+   * Pantallas sin buscador: login, donde no hay sesión ni evento donde buscar,
+   * y la descarga inicial, que es un paso bloqueante — ofrecer una acción ahí
+   * invita a interrumpirla.
+   */
+  private static readonly RUTAS_SIN_BUSCADOR = ['/login', '/sync-loading'];
+
+  private rutaActual = signal(this.router.url);
+
   session          = this.auth.session;
   isDark           = this.theme.isDark;
   formatRutDisplay = formatRutDisplay;
   sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
 
+  mostrarBuscador = computed(() =>
+    this.session() !== null &&
+    !AppComponent.RUTAS_SIN_BUSCADOR.some((r) => this.rutaActual().startsWith(r))
+  );
+
+  /*
+   * En el conteo el botón sube: "Finalizar TAG" es de ancho completo y queda al
+   * final del scroll, así que un flotante a la altura de siempre se le montaría
+   * encima justo cuando el operador va a cerrar el TAG.
+   */
+  enPantallaDeConteo = computed(() => this.rutaActual().startsWith('/counting'));
+
   constructor() {
     addIcons({
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline,
+    });
+
+    this.router.events.subscribe((evento) => {
+      if (evento instanceof NavigationEnd) this.rutaActual.set(evento.urlAfterRedirects);
     });
   }
 

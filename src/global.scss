@@ -909,6 +909,36 @@ ion-title {
 }
 
 /* ===================================================================
+   BOTÓN FLOTANTE DEL BUSCADOR
+   Se superpone al contenido en vez de reservarle una franja al pie,
+   que es lo que obligaba a compensar con padding en cada pantalla.
+   =================================================================== */
+ion-fab.fab-buscador {
+  /* Sobre el área segura del dispositivo, no sobre el borde físico. */
+  margin-bottom: calc(8px + env(safe-area-inset-bottom));
+  margin-right: 4px;
+
+  ion-fab-button {
+    --background:       var(--app-primary);
+    --background-hover: var(--app-primary-hover);
+    --background-activated: var(--app-primary-hover);
+    --color: #ffffff;
+    --box-shadow: 0 6px 18px -4px rgba(230, 18, 106, 0.45);
+    --border-radius: 50%;
+    width:  52px;
+    height: 52px;
+  }
+}
+
+/*
+ * En el conteo, "Finalizar TAG" es de ancho completo y cierra el scroll: el
+ * botón sube para no montársele encima justo al cerrar el TAG.
+ */
+app-boton-buscador.fab-sobre-cta ion-fab.fab-buscador {
+  margin-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+/* ===================================================================
    BUSCADOR FLOTANTE
    Tarjeta centrada sobre un velo morado de marca. Va fuera de @layer
    components porque ajusta variables y partes internas de ion-modal.
