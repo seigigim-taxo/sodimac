@@ -13,7 +13,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -66,6 +66,33 @@ export class HomePage implements ViewWillEnter {
   // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
   eventosFinalizados = this.resumenFacade.cerrados;
 
+  /*
+   * Paginado del historial: crece una jornada tras otra y no cabe entero en la
+   * pantalla de una PDA.
+   *
+   * Se ordena por id descendente, no por fecha: varios conteos del mismo día
+   * comparten fecha programada, y sin este criterio "los 5 primeros" dependería
+   * del orden en que la base los devuelva.
+   */
+  private static readonly FINALIZADOS_POR_PAGINA = 5;
+  private finalizadosVisibles = signal(HomePage.FINALIZADOS_POR_PAGINA);
+
+  private finalizadosOrdenados = computed(() =>
+    [...this.eventosFinalizados()].sort((a, b) => b.evento.id - a.evento.id)
+  );
+
+  finalizadosPaginados = computed(() =>
+    this.finalizadosOrdenados().slice(0, this.finalizadosVisibles())
+  );
+
+  hayMasFinalizados = computed(() =>
+    this.finalizadosOrdenados().length > this.finalizadosVisibles()
+  );
+
+  verMasFinalizados(): void {
+    this.finalizadosVisibles.update((v) => v + HomePage.FINALIZADOS_POR_PAGINA);
+  }
+
   currentStore  = this.sucursalFacade.currentStore;
   storeLoading  = this.sucursalFacade.loading;
   storeError    = this.sucursalFacade.error;
@@ -91,7 +118,7 @@ export class HomePage implements ViewWillEnter {
   noEvents      = this.eventoFacade.noEvents;
 
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, hourglassOutline, syncOutline, searchOutline });
+    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
