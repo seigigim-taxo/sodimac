@@ -31,7 +31,7 @@ import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
 import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
-import { MockAsignacionApiRepository } from './app/data/asignacion/mock-asignacion-api.repository';
+import { AsignacionSimuladaRepository } from './app/data/asignacion/asignacion-simulada.repository';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
@@ -139,9 +139,11 @@ bootstrapApplication(AppComponent, {
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
 
     /*
-     * Asignación de conteos: mock mientras el SGO no expone el endpoint. Para
-     * pasar al real basta cambiar esta clase por la implementación HTTP.
+     * Asignación de conteos: simulada mientras el SGO no expone el endpoint,
+     * para poder maquetar y probar el ciclo completo en terreno. Cambiar esta
+     * clase por la implementación HTTP es todo lo que hace falta para pasar al
+     * flujo real.
      */
-    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: MockAsignacionApiRepository },
+    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionSimuladaRepository },
   ],
 });

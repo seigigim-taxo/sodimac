@@ -59,6 +59,12 @@ export class HomePage implements ViewWillEnter {
   puedeCerrarTienda = computed(() =>
     this.conteoList.conteos().every((c) => c.estado === 'SINCRONIZADO')
   );
+  /*
+   * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no
+   * lo selecciona sola: elegir el evento es del operador.
+   */
+  avisoNuevoConteo = signal<string | null>(null);
+
   // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
   buscandoConteo = this.nuevoConteo.buscando;
   sinNovedad     = this.nuevoConteo.sinNovedad;
@@ -75,6 +81,22 @@ export class HomePage implements ViewWillEnter {
 
   events        = this.eventoFacade.events;
   selectedEvent = this.eventoFacade.selectedEvent;
+
+  /*
+   * La lista se acota a dos: el conteo que se acaba de terminar y el que sigue.
+   * Es lo único que el operador necesita decidir, y sin este corte los conteos
+   * se acumulan jornada tras jornada hasta volver la pantalla inútil.
+   *
+   * Se ordenan por id y se toman los últimos: el más nuevo es siempre el de id
+   * mayor, y ese orden deja al anterior arriba y al nuevo abajo, que es como se
+   * leen.
+   */
+  private static readonly MAX_EVENTOS_VISIBLES = 2;
+  eventosVisibles = computed(() =>
+    [...this.events()]
+      .sort((a, b) => a.id - b.id)
+      .slice(-HomePage.MAX_EVENTOS_VISIBLES)
+  );
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;
   hasEvents     = this.eventoFacade.hasEvents;
@@ -161,6 +183,8 @@ export class HomePage implements ViewWillEnter {
   selectEvento(evento: Evento): void {
     if (!this.puedeSeleccionar(evento)) return;
     this.eventoFacade.selectEvento(evento);
+    // Ya eligió: el aviso cumplió su función.
+    this.avisoNuevoConteo.set(null);
   }
 
   continue(): void {
@@ -183,16 +207,19 @@ export class HomePage implements ViewWillEnter {
     if (!asignacion) return;
 
     /*
-     * La lista se recarga antes de seleccionar: el evento asignado tiene que
-     * salir de la base local, no del DTO del SGO — es el objeto con el que
-     * después deciden los guards del conteo.
+     * Se suelta el evento terminado antes de recargar. Sin esto el operador no
+     * podría elegir el nuevo: puedeSeleccionar bloquea el cambio mientras haya
+     * otro evento seleccionado.
      */
+    await this.eventoFacade.limpiarSeleccion();
     await this.eventoFacade.loadEventos(tienda.id);
-    const evento = this.events().find((e) => e.id === asignacion.eventoId);
-    if (!evento) return;
 
-    this.eventoFacade.selectEvento(evento);
-    this.router.navigate(['/counting-tag']);
+    /*
+     * No se selecciona ni se navega: el operador elige su evento y decide
+     * cuándo entrar a contar, igual que al empezar la jornada. El aviso está
+     * para que no tenga que adivinar cuál de la lista es el nuevo.
+     */
+    this.avisoNuevoConteo.set(asignacion.nombre);
   }
 
   async cerrarTienda(): Promise<void> {

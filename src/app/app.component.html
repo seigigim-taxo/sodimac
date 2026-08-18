@@ -33,14 +33,6 @@
           </ion-item>
         </ion-menu-toggle>
 
-        <!-- Sincronizar datos -->
-        <ion-menu-toggle>
-          <ion-item button (click)="syncDatos()" class="menu-theme-item">
-            <ion-icon slot="start" name="sync-outline"></ion-icon>
-            <ion-label>Sincronizar datos</ion-label>
-          </ion-item>
-        </ion-menu-toggle>
-
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item
@@ -50,14 +42,6 @@
           >
             <ion-icon slot="start" [name]="isDark() ? 'sunny-outline' : 'moon-outline'"></ion-icon>
             <ion-label>{{ isDark() ? 'Modo claro' : 'Modo oscuro' }}</ion-label>
-          </ion-item>
-        </ion-menu-toggle>
-
-        <!-- Reiniciar base local -->
-        <ion-menu-toggle>
-          <ion-item button (click)="confirmResetLocalDatabase()" class="menu-logout-item">
-            <ion-icon slot="start" name="trash-outline"></ion-icon>
-            <ion-label>Reiniciar base local</ion-label>
           </ion-item>
         </ion-menu-toggle>
 
