@@ -4,6 +4,7 @@ import { GetRondaActivaUseCase } from '../../application/conteo/get-ronda-activa
 import { DeleteConteoSesionUseCase } from '../../application/conteo/delete-conteo-sesion.use-case';
 import { SincronizarConteoUseCase } from '../../application/sincronizacion/sincronizar-conteo.use-case';
 import { GetTagsReconteoUseCase } from '../../application/conteo/get-tags-reconteo.use-case';
+import { ReabrirTagUseCase } from '../../application/conteo/reabrir-tag.use-case';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
 export type { ConteoResumen };
 
@@ -21,6 +22,7 @@ export class ConteoListFacade {
   private deleteSesion  = inject(DeleteConteoSesionUseCase);
   private sincronizarUC = inject(SincronizarConteoUseCase);
   private getTagsUC     = inject(GetTagsReconteoUseCase);
+  private reabrirTagUC  = inject(ReabrirTagUseCase);
 
   private conteosSignal      = signal<ConteoResumen[]>([]);
   private seleccionadoSignal = signal<ConteoResumen | null>(null);
@@ -81,17 +83,41 @@ export class ConteoListFacade {
     return conteo;
   }
 
+  /*
+   * Las líneas cuelgan de la RONDA, no del evento: el borrado va por conteoId.
+   * Con eventoId el DELETE no encontraba nada —o peor, encontraba la ronda de
+   * otro evento que casualmente tuviera ese id— mientras la lista en memoria sí
+   * quitaba la fila, así que el TAG parecía borrado hasta la siguiente recarga.
+   */
   async delete(conteo: ConteoResumen): Promise<void> {
     this.errorSignal.set(null);
     try {
       await this.deleteSesion.execute(
-        conteo.eventoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId, conteo.estado
+        conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId, conteo.estado
       );
-      this.conteosSignal.update((prev) => prev.filter((c) =>
-        !(c.eventoId === conteo.eventoId && c.ubicacionId === conteo.ubicacionId && c.estado === conteo.estado)
-      ));
+      // keyOf incluye la iteración: sin ella se quitaban de la vista las dos
+      // rondas del mismo TAG aunque en la base solo desapareciera una.
+      this.conteosSignal.update((prev) => prev.filter((c) => keyOf(c) !== keyOf(conteo)));
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al eliminar conteo');
+    }
+  }
+
+  /*
+   * Devuelve true solo si el TAG quedó reabierto: la pantalla navega al conteo
+   * con ese dato, y navegar tras un fallo la dejaría sin sesión que mostrar.
+   */
+  async reabrir(conteo: ConteoResumen): Promise<boolean> {
+    this.errorSignal.set(null);
+    try {
+      await this.reabrirTagUC.execute(conteo);
+      this.conteosSignal.update((prev) => prev.map((c) =>
+        keyOf(c) === keyOf(conteo) ? { ...c, estado: 'EN_CURSO' } : c
+      ));
+      return true;
+    } catch (err) {
+      this.errorSignal.set(err instanceof Error ? err.message : 'Error al reabrir el TAG');
+      return false;
     }
   }
 

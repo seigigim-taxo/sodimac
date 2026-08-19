@@ -1,33 +1,22 @@
 <ion-header>
-<<<<<<< HEAD
-  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
-    <ion-buttons slot="start">
-      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
-    </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Tienda</ion-title>
-=======
   <ion-toolbar>
     <ion-title>Inicio</ion-title>
     <ion-buttons slot="end">
+      <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
+        <ion-icon slot="icon-only" name="search-outline"></ion-icon>
+      </ion-button>
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
->>>>>>> feat/modo-analista-maqueta
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
   <div class="page-inner py-6">
 
-<<<<<<< HEAD
-    <div class="flex flex-col gap-2">
-      <h2 class="page-title">Tienda asignada</h2>
-      <p class="page-subtitle">Revisa los datos de la tienda antes de continuar</p>
-=======
     <!-- Tienda: solo informativa, no se selecciona -->
     @if (storeLoading()) {
     <div class="flex justify-center py-6">
       <ion-spinner name="crescent" color="primary"></ion-spinner>
->>>>>>> feat/modo-analista-maqueta
     </div>
     }
 
@@ -60,35 +49,6 @@
     </div>
     }
 
-<<<<<<< HEAD
-    @if (sessions().length > 0) {
-    <div class="card">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-base font-bold" style="color: var(--app-text);">Tus conteos</h3>
-        <ion-button fill="clear" size="small" class="m-0 p-0 min-h-0" style="--color: var(--app-primary);"
-          (click)="openSession()">
-          Ver todos
-        </ion-button>
-      </div>
-
-      @for (session of recentSessions(); track session.id) {
-      <div class="flex justify-between items-start py-3 border-b cursor-pointer"
-        style="border-color: var(--app-border);"
-        [style.border-bottom]="session.id !== recentSessions()[recentSessions().length - 1].id ? '1px solid var(--app-border)' : 'none'"
-        (click)="openSession(session)">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-sm font-bold" style="color: var(--app-text);">{{ session.zone }}</span>
-            <span class="badge" [class]="getStatusBadgeClass(session)">{{ getStatusLabel(session) }}</span>
-          </div>
-          <p class="text-xs" style="color: var(--app-text-muted);">
-            Tag: {{ session.tag }} · {{ formatDate(session.updatedAt) }}
-          </p>
-        </div>
-        <div class="text-right ml-3">
-          <p class="text-lg font-bold" style="color: var(--app-primary);">{{ session.totalQuantity }}</p>
-          <p class="text-xs" style="color: var(--app-text-muted);">unidades</p>
-=======
     <!-- Evento: se selecciona aquí mismo -->
     @if (currentStore()) {
     <div class="flex flex-col gap-2 mb-4">
@@ -116,9 +76,16 @@
     </div>
     }
 
-    @if (hasEvents()) {
+    @if (avisoNuevoConteo(); as nombre) {
+    <div class="status-banner status-banner-info mb-4">
+      <ion-icon name="sync-outline"></ion-icon>
+      <span>Tienes un conteo nuevo: <strong>{{ nombre }}</strong>. Selecciónalo para empezar.</span>
+    </div>
+    }
+
+    @if (eventosVisibles().length > 0) {
     <div class="flex flex-col gap-4">
-      @for (evento of events(); track evento.id) {
+      @for (evento of eventosVisibles(); track evento.id) {
       <div class="card" [class.card-interactive]="puedeSeleccionar(evento)"
         [class.card-selected]="selectedEvent()?.id === evento.id" [style.opacity]="puedeSeleccionar(evento) ? 1 : 0.55"
         (click)="selectEvento(evento)">
@@ -146,71 +113,60 @@
             <span class="badge badge-error">No disponible</span>
             }
           </span>
->>>>>>> feat/modo-analista-maqueta
         </div>
       </div>
       }
     </div>
     }
 
-<<<<<<< HEAD
-    <ion-button expand="block" class="btn-primary" (click)="continue()">
-      Nuevo conteo
-=======
     @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
-    <!-- Banner de estado: PDA en espera -->
+    <!-- Conteo finalizado: la PDA queda a la espera de que le asignen otro -->
     <div class="status-banner status-banner-warning mt-6">
       <ion-icon name="hourglass-outline"></ion-icon>
-      <span>PDA en espera — SGO está analizando resultados</span>
+      <span>Conteo finalizado — a la espera de un nuevo conteo</span>
     </div>
 
-    <!-- Info adicional -->
     <div class="card mb-4 mt-4">
       <p class="text-sm" style="color: var(--app-text-muted);">
-        El evento <strong>{{ selectedEvent()!.nombre }}</strong> está en análisis.
-        Sincroniza para obtener la muestra de la siguiente iteración.
+        Terminaste el conteo de <strong>{{ selectedEvent()!.nombre }}</strong>.
+        Actualiza para ver si el SGO ya te asignó otro.
       </p>
     </div>
 
-    @if (sincronizandoTimeout()) {
-    <!-- Timeout: mostrar botón de reintentar -->
-    <div class="card mb-4" style="border-color: var(--ion-color-warning);">
-      <p class="text-sm" style="color: var(--ion-color-warning); font-weight: 600;">
-        ⚠ El SGO no ha respondido. ¿Deseas reintentar?
-      </p>
+    @if (sinNovedad()) {
+    <div class="status-banner status-banner-info mb-4">
+      <span>Todavía no hay un conteo nuevo asignado. Vuelve a intentar más tarde.</span>
     </div>
-    <ion-button expand="block" class="btn-primary" (click)="reintentarSincronizacion()">
-      <ion-icon slot="start" name="sync-outline"></ion-icon>
-      Reintentar sincronización
->>>>>>> feat/modo-analista-maqueta
-    </ion-button>
-    } @else {
-    <!-- Sincronización normal -->
-    <ion-button expand="block" class="btn-primary mt-4" [disabled]="sincronizando()" (click)="sincronizar()">
-      @if (sincronizando()) {
+    }
+
+    @if (errorAsignacion(); as error) {
+    <div class="status-banner status-banner-error mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ error }}</span>
+    </div>
+    }
+
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo()"
+      (click)="buscarNuevoConteo()">
+      @if (buscandoConteo()) {
       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
-      Analizando...
+      Consultando…
       } @else {
       <ion-icon slot="start" name="sync-outline"></ion-icon>
-      Sincronizar con SGO
+      Buscar nuevo conteo
       }
     </ion-button>
-    }
     } @else {
     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading() || esCerrado(selectedEvent()!)"
       (click)="continue()">
-      @if (esReconteo()) {
-        Iniciar reconteo
-      } @else {
-        Iniciar conteo
-      }
+      Iniciar conteo
     </ion-button>
     }
 
     @if (eventosFinalizados().length > 0) {
     <p class="section-label mt-8">Conteos finalizados</p>
     <div class="flex flex-col gap-2.5">
-      @for (item of eventosFinalizados(); track item.evento.id) {
+      @for (item of finalizadosPaginados(); track item.evento.id) {
       <div class="card">
         <div class="flex items-center justify-between gap-3 mb-3">
           <div class="flex flex-col min-w-0">
@@ -240,19 +196,13 @@
       </div>
       }
     </div>
-    }
-    }
 
-    @if (currentStore()) {
-    <ion-button expand="block" class="btn-outline mt-6" style="--color: var(--ion-color-danger);"
-      [disabled]="!puedeCerrarTienda()" (click)="cerrarTienda()">
-      <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
-      Cerrar tienda
+    @if (hayMasFinalizados()) {
+    <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasFinalizados()">
+      Ver más
+      <ion-icon slot="end" name="chevron-down-outline"></ion-icon>
     </ion-button>
-    @if (!puedeCerrarTienda()) {
-    <p class="hint-text text-center">
-      Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
-    </p>
+    }
     }
     }
 

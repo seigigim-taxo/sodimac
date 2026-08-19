@@ -8,37 +8,18 @@ import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
 import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
-<<<<<<< HEAD
-import { CountingFacade } from './app/state/counting/counting.facade';
-import { AuthRepository } from './app/domain/auth/repositories/auth.repository';
-import { MockAuthService } from './app/data/auth/mock-auth.service';
-import { CountingRepository } from './app/domain/counting/repositories/counting.repository';
-import { CountingStorageService } from './app/data/counting/counting-storage.service';
-import { SampleSkuRepository } from './app/domain/event/repositories/sample-sku.repository';
-import { MockSampleSkuRepository } from './app/data/event/mock-sample-sku.repository';
-import { MIGRATIONS_TOKEN } from './app/core/database/migrations/migration.model';
-import { countingMigration } from './app/data/counting/counting-migrations';
-
-const safeInit = (name: string, fn: () => Promise<void>) => async () => {
-  try {
-    await fn();
-  } catch (err) {
-    console.error(`[APP_INITIALIZER] ${name} failed:`, err);
-  }
-};
-
-const initializeAuth = (auth: AuthFacade) => safeInit('AuthFacade', () => auth.init());
-const initializeTheme = (theme: ThemeFacade) => safeInit('ThemeFacade', () => theme.init());
-const initializeCounting = (counting: CountingFacade) => safeInit('CountingFacade', () => counting.init());
-=======
+import { AjustesFacade } from './app/state/ajustes/ajustes.facade';
 import { PdaFacade } from './app/state/pda/pda.facade';
+import { SesionTrabajoFacade } from './app/state/sesion-trabajo/sesion-trabajo.facade';
 import { SqliteDatabaseRepository } from './app/data/database/database.repository';
 import { DATABASE_REPOSITORY_TOKEN, DatabaseRepository } from './app/domain/database/repositories/database.repository';
 import { AUTH_API_REPOSITORY_TOKEN } from './app/domain/auth/repositories/auth-api.repository';
 import { SESSION_STORAGE_REPOSITORY_TOKEN } from './app/domain/auth/repositories/session-storage.repository';
 import { THEME_STORAGE_REPOSITORY_TOKEN } from './app/domain/theme/repositories/theme-storage.repository';
+import { AJUSTES_STORAGE_REPOSITORY_TOKEN } from './app/domain/ajustes/repositories/ajustes-storage.repository';
 import { PDA_REPOSITORY_TOKEN } from './app/domain/pda/repositories/pda.repository';
 import { EVENTO_REPOSITORY_TOKEN } from './app/domain/evento/repositories/evento.repository';
+import { EVENTO_SELECCIONADO_STORAGE_TOKEN } from './app/domain/evento/repositories/evento-seleccionado-storage.repository';
 import { MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra-detalle.repository';
 import { PLAN_MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/plan-muestra.repository';
@@ -49,14 +30,18 @@ import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
+import { AsignacionSimuladaRepository } from './app/data/asignacion/asignacion-simulada.repository';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
+import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
 import { SqliteConteoRepository } from './app/data/conteo/conteo.repository';
 import { SqliteSincronizacionRepository } from './app/data/sincronizacion/sincronizacion.repository';
 import { SqliteZonaRepository } from './app/data/zona/zona.repository';
 import { SqliteUbicacionRepository } from './app/data/ubicacion/ubicacion.repository';
 import { SqliteEventoRepository } from './app/data/evento/evento.repository';
+import { CapacitorEventoSeleccionadoStorageRepository } from './app/data/evento/evento-seleccionado-storage.repository';
 import { SqliteMuestraRepository } from './app/data/muestra/muestra.repository';
 import { SqliteMuestraDetalleRepository } from './app/data/muestra/muestra-detalle.repository';
 import { SqlitePlanMuestraRepository } from './app/data/muestra/sqlite-plan-muestra.repository';
@@ -78,17 +63,35 @@ const initializeApp = (
   db:   DatabaseRepository,
   auth: AuthFacade,
   pda:  PdaFacade,
+  sesionTrabajo: SesionTrabajoFacade,
 ) => async () => {
   try {
     await db.initialize();
     await Promise.all([auth.init(), pda.init()]);
+
+    /*
+     * La restauración va acá, antes de que el router evalúe el primer guard: si
+     * corriera después, noSesionActivaGuard ya habría visto el conteo EN_CURSO
+     * en la base sin el evento ni el TAG en memoria, que es exactamente el
+     * estado que produce el ciclo de redirecciones.
+     */
+    const operadorId = auth.session()?.operadorId;
+    const pdaId      = pda.pdaId();
+    if (operadorId && pdaId) {
+      await sesionTrabajo.restaurar(operadorId, pdaId);
+    }
   } catch (err) {
     console.error('[initializeApp] fallo al inicializar la app:', err);
   }
 };
 
 const initializeTheme = (theme: ThemeFacade) => () => theme.init();
->>>>>>> feat/modo-analista-maqueta
+
+/*
+ * Los ajustes usan Preferences, no SQLite: van por su cuenta y no esperan a la
+ * base. Tienen que estar cargados antes del primer TAG finalizado.
+ */
+const initializeAjustes = (ajustes: AjustesFacade) => () => ajustes.init();
 
 bootstrapApplication(AppComponent, {
   providers: [
@@ -96,19 +99,12 @@ bootstrapApplication(AppComponent, {
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
     provideHttpClient(),
-<<<<<<< HEAD
-    { provide: AuthRepository, useClass: MockAuthService },
-    { provide: CountingRepository, useClass: CountingStorageService },
-    { provide: SampleSkuRepository, useClass: MockSampleSkuRepository },
-    { provide: MIGRATIONS_TOKEN, useValue: [countingMigration] },
-=======
     { provide: DATABASE_REPOSITORY_TOKEN, useClass: SqliteDatabaseRepository },
     { provide: PDA_REPOSITORY_TOKEN,      useClass: CapacitorPdaRepository },
->>>>>>> feat/modo-analista-maqueta
     {
       provide:    APP_INITIALIZER,
       useFactory: initializeApp,
-      deps:       [DATABASE_REPOSITORY_TOKEN, AuthFacade, PdaFacade],
+      deps:       [DATABASE_REPOSITORY_TOKEN, AuthFacade, PdaFacade, SesionTrabajoFacade],
       multi:      true,
     },
     {
@@ -117,20 +113,20 @@ bootstrapApplication(AppComponent, {
       deps:       [ThemeFacade],
       multi:      true,
     },
-<<<<<<< HEAD
     {
-      provide: APP_INITIALIZER,
-      useFactory: initializeCounting,
-      deps: [CountingFacade],
-      multi: true,
+      provide:    APP_INITIALIZER,
+      useFactory: initializeAjustes,
+      deps:       [AjustesFacade],
+      multi:      true,
     },
-=======
     { provide: AUTH_API_REPOSITORY_TOKEN,        useClass: AuthService },
     { provide: SESSION_STORAGE_REPOSITORY_TOKEN, useClass: CapacitorSessionStorageRepository },
     { provide: THEME_STORAGE_REPOSITORY_TOKEN,   useClass: CapacitorThemeStorageRepository },
+    { provide: AJUSTES_STORAGE_REPOSITORY_TOKEN, useClass: CapacitorAjustesStorageRepository },
     { provide: OPERADOR_REPOSITORY_TOKEN,        useClass: SqliteOperadorRepository },
     { provide: SUCURSAL_REPOSITORY_TOKEN,        useClass: SqliteSucursalRepository },
     { provide: EVENTO_REPOSITORY_TOKEN,          useClass: SqliteEventoRepository },
+    { provide: EVENTO_SELECCIONADO_STORAGE_TOKEN, useClass: CapacitorEventoSeleccionadoStorageRepository },
     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
 
@@ -141,6 +137,13 @@ bootstrapApplication(AppComponent, {
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
->>>>>>> feat/modo-analista-maqueta
+
+    /*
+     * Asignación de conteos: simulada mientras el SGO no expone el endpoint,
+     * para poder maquetar y probar el ciclo completo en terreno. Cambiar esta
+     * clase por la implementación HTTP es todo lo que hace falta para pasar al
+     * flujo real.
+     */
+    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionSimuladaRepository },
   ],
 });

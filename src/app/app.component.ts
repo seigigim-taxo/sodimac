@@ -1,6 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import {
   IonApp,
   IonRouterOutlet,
@@ -16,18 +16,13 @@ import {
   IonToolbar,
   IonTitle,
   IonContent,
-  AlertController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-<<<<<<< HEAD
-import { arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
-=======
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline } from 'ionicons/icons';
->>>>>>> feat/modo-analista-maqueta
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
-import { AnalystDashboardFacade } from './state/analyst/analyst-dashboard.facade';
-import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
+import { AjustesFacade } from './state/ajustes/ajustes.facade';
+import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 
 @Component({
@@ -48,29 +43,50 @@ import { formatRutDisplay } from './shared/utils/rut.utils';
     IonToolbar,
     IonTitle,
     IonContent,
+    BotonBuscadorComponent,
   ],
 })
 export class AppComponent {
   private auth     = inject(AuthFacade);
   private theme    = inject(ThemeFacade);
+  private ajustes  = inject(AjustesFacade);
   private router   = inject(Router);
   private location = inject(Location);
-  private alertController = inject(AlertController);
-  private database = inject(DATABASE_REPOSITORY_TOKEN);
-  private dashboard = inject(AnalystDashboardFacade);
+
+  /*
+   * Pantallas sin buscador: login, donde no hay sesión ni evento donde buscar,
+   * y la descarga inicial, que es un paso bloqueante — ofrecer una acción ahí
+   * invita a interrumpirla.
+   */
+  private static readonly RUTAS_SIN_BUSCADOR = ['/login', '/sync-loading'];
+
+  private rutaActual = signal(this.router.url);
 
   session          = this.auth.session;
   isDark           = this.theme.isDark;
-  isAnalyst        = this.auth.isAnalyst;
-  isOperator       = this.auth.isOperator;
   formatRutDisplay = formatRutDisplay;
+  sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
+
+  mostrarBuscador = computed(() =>
+    this.session() !== null &&
+    !AppComponent.RUTAS_SIN_BUSCADOR.some((r) => this.rutaActual().startsWith(r))
+  );
+
+
 
   constructor() {
-<<<<<<< HEAD
-    addIcons({ arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline });
-=======
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline });
->>>>>>> feat/modo-analista-maqueta
+    addIcons({
+      arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
+      homeOutline, cloudUploadOutline, cloudOfflineOutline,
+    });
+
+    this.router.events.subscribe((evento) => {
+      if (evento instanceof NavigationEnd) this.rutaActual.set(evento.urlAfterRedirects);
+    });
+  }
+
+  async toggleSincronizacionAutomatica(): Promise<void> {
+    await this.ajustes.toggleSincronizacionAutomatica();
   }
 
   goBack(): void {
@@ -81,62 +97,16 @@ export class AppComponent {
     this.router.navigate(['/home']);
   }
 
-<<<<<<< HEAD
-  goCounts(): void {
-    this.router.navigate(['/counting-list']);
-=======
-  goAnalystDashboard(): void {
-    this.router.navigate(['/analyst-dashboard']);
-  }
-
   goConteos(): void {
     this.router.navigate(['/tags-resumen']);
   }
 
-  syncDatos(): void {
-    this.router.navigate(['/sync-loading']);
->>>>>>> feat/modo-analista-maqueta
-  }
-
   async logout(): Promise<void> {
-    this.dashboard.limpiar();
     await this.auth.logout();
     this.router.navigate(['/login']);
   }
 
   async toggleTheme(): Promise<void> {
     await this.theme.toggle();
-  }
-
-  async confirmResetLocalDatabase(): Promise<void> {
-    const alert = await this.alertController.create({
-      header: 'Reiniciar base local',
-      message: 'Esto borrará toda la base de datos local de esta PDA: usuario, tienda, evento, muestra, productos, zonas y conteos. Luego volverás al login. ¿Confirmas?',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Reiniciar',
-          role: 'destructive',
-          handler: () => { void this.resetLocalDatabase(); },
-        },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async resetLocalDatabase(): Promise<void> {
-    try {
-      await this.database.resetLocalDatabase();
-    } catch {
-      const alert = await this.alertController.create({
-        header: 'Error',
-        message: 'No se pudo reiniciar la base local. La sesión se cerrará igualmente.',
-        buttons: ['OK'],
-      });
-      await alert.present();
-    }
-    this.dashboard.limpiar();
-    await this.auth.logout();
-    this.router.navigate(['/login']);
   }
 }

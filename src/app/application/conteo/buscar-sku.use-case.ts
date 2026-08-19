@@ -6,8 +6,14 @@ import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.mo
 export class BuscarSkuUseCase {
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
 
-  // Lectura pura — dónde (tag/zona) hay filas registradas para ese SKU en el evento.
-  execute(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
-    return this.conteoRepo.buscarPorSku(eventoId, sku.trim().toUpperCase());
+  /*
+   * Lectura pura — dónde (tag/zona) hay filas registradas para ese SKU.
+   *
+   * Sin `eventoId` busca en todo lo contado en la PDA. Es el caso de quien ya
+   * terminó su conteo y todavía no tomó el siguiente: la pregunta "¿dónde conté
+   * esto?" no deja de tener respuesta porque no haya un evento en curso.
+   */
+  execute(sku: string, eventoId?: number): Promise<BusquedaSkuResultado[]> {
+    return this.conteoRepo.buscarPorSku(sku.trim().toUpperCase(), eventoId);
   }
 }

@@ -17,54 +17,19 @@
       </div>
 
       <ion-list lines="none" class="menu-list">
-<<<<<<< HEAD
-        <!-- Home -->
+        <!-- Inicio -->
         <ion-menu-toggle>
-          <ion-item button (click)="goHome()" class="menu-home-item">
+          <ion-item button (click)="goHome()" class="menu-theme-item">
             <ion-icon slot="start" name="home-outline"></ion-icon>
             <ion-label>Inicio</ion-label>
           </ion-item>
         </ion-menu-toggle>
 
-        <!-- Counts -->
+        <!-- Conteos -->
         <ion-menu-toggle>
-          <ion-item button (click)="goCounts()" class="menu-counts-item">
+          <ion-item button (click)="goConteos()" class="menu-theme-item">
             <ion-icon slot="start" name="list-outline"></ion-icon>
             <ion-label>Conteos</ion-label>
-=======
-        <!-- Inicio (solo operador) -->
-        @if (isOperator()) {
-          <ion-menu-toggle>
-            <ion-item button (click)="goHome()" class="menu-theme-item">
-              <ion-icon slot="start" name="home-outline"></ion-icon>
-              <ion-label>Inicio</ion-label>
-            </ion-item>
-          </ion-menu-toggle>
-
-          <ion-menu-toggle>
-            <ion-item button (click)="goConteos()" class="menu-theme-item">
-              <ion-icon slot="start" name="list-outline"></ion-icon>
-              <ion-label>Conteos</ion-label>
-            </ion-item>
-          </ion-menu-toggle>
-        }
-
-        <!-- Dashboard Analista (solo analista) -->
-        @if (isAnalyst()) {
-          <ion-menu-toggle>
-            <ion-item button (click)="goAnalystDashboard()" class="menu-theme-item">
-              <ion-icon slot="start" name="stats-chart-outline"></ion-icon>
-              <ion-label>Dashboard Analista</ion-label>
-            </ion-item>
-          </ion-menu-toggle>
-        }
-
-        <!-- Sincronizar datos -->
-        <ion-menu-toggle>
-          <ion-item button (click)="syncDatos()" class="menu-theme-item">
-            <ion-icon slot="start" name="sync-outline"></ion-icon>
-            <ion-label>Sincronizar datos</ion-label>
->>>>>>> feat/modo-analista-maqueta
           </ion-item>
         </ion-menu-toggle>
 
@@ -80,11 +45,13 @@
           </ion-item>
         </ion-menu-toggle>
 
-        <!-- Reiniciar base local -->
+        <!-- Sincronización automática del TAG al finalizarlo -->
         <ion-menu-toggle>
-          <ion-item button (click)="confirmResetLocalDatabase()" class="menu-logout-item">
-            <ion-icon slot="start" name="trash-outline"></ion-icon>
-            <ion-label>Reiniciar base local</ion-label>
+          <ion-item button (click)="toggleSincronizacionAutomatica()" class="menu-theme-item">
+            <ion-icon slot="start" [name]="sincronizacionAutomatica() ? 'cloud-upload-outline' : 'cloud-offline-outline'"></ion-icon>
+            <ion-label>
+              {{ sincronizacionAutomatica() ? 'Sincronizar TAG al finalizar' : 'No sincronizar al finalizar' }}
+            </ion-label>
           </ion-item>
         </ion-menu-toggle>
 
@@ -100,6 +67,14 @@
   </ion-menu>
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
+
+  <!--
+    Fuera del router-outlet: el buscador es de la app, no de una pantalla, y así
+    no se remonta en cada navegación.
+  -->
+  @if (mostrarBuscador()) {
+  <app-boton-buscador></app-boton-buscador>
+  }
 
 
 </ion-app>

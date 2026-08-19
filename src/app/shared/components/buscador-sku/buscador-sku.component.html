@@ -1,4 +1,3 @@
-@if (hayEvento()) {
 <ion-input [value]="valor()" (ionInput)="onInput($event)" aria-label="Buscar SKU en el evento"
   placeholder="Escribe un SKU" inputmode="search" class="input-base"
   style="--background: var(--app-surface-hover); --border-color: var(--app-primary); --border-width: 2px;">
@@ -36,14 +35,11 @@
         {{ r.cantidad }} unidad(es)
       </span>
     </div>
+    <!-- De qué conteo salió: sin evento en curso, la lista cruza varios. -->
+    <p class="text-[12px] mt-1 truncate" style="color: var(--app-text-muted);">{{ r.eventoNombre }}</p>
   </div>
   }
   } @else {
   <p class="buscador-aviso">Los resultados aparecen a medida que escribes.</p>
   }
 </div>
-} @else {
-<p class="text-[13px]" style="color: var(--app-text-muted);">
-  Selecciona un evento para buscar dónde se contó un SKU.
-</p>
-}

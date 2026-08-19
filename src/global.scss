@@ -32,9 +32,6 @@ h1, h2, h3, .page-title, .sync-title {
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
-<<<<<<< HEAD
-/* Ionic handles light/dark via .dark class on <html> */
-=======
 @import "@ionic/angular/css/palettes/dark.class.css";
 
 /* ===================================================================
@@ -60,7 +57,6 @@ ion-title {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
->>>>>>> feat/modo-analista-maqueta
 
 /* ===================================================================
    Tailwind component classes — design system tokens
@@ -494,19 +490,6 @@ ion-title {
     }
   }
 
-  .menu-home-item {
-    --background: transparent;
-    --color: var(--app-menu-text);
-    --border-radius: 12px;
-    --padding-start: 0.75rem;
-    --padding-end: 0.75rem;
-
-    ion-icon {
-      color: var(--app-menu-text);
-      font-size: 1.4rem;
-    }
-  }
-
   .menu-theme-item {
     --background: transparent;
     --color: var(--app-menu-text);
@@ -520,9 +503,6 @@ ion-title {
     }
   }
 
-<<<<<<< HEAD
-  .menu-counts-item {
-=======
   .menu-section {
     margin-bottom: 0.5rem;
     padding: 0 0.5rem;
@@ -549,7 +529,6 @@ ion-title {
   }
 
   .menu-store-item {
->>>>>>> feat/modo-analista-maqueta
     --background: transparent;
     --color: var(--app-menu-text);
     --border-radius: 12px;
@@ -557,13 +536,6 @@ ion-title {
     --padding-end: 0.75rem;
 
     ion-icon {
-<<<<<<< HEAD
-      color: var(--app-menu-text);
-      font-size: 1.4rem;
-    }
-  }
-
-=======
       color: var(--app-primary);
     }
   }
@@ -574,7 +546,6 @@ ion-title {
     font-weight: 600;
   }
 
->>>>>>> feat/modo-analista-maqueta
   /* ---------- SCANNER ---------- */
   .scan-container {
     @apply flex flex-col gap-4;
@@ -938,7 +909,7 @@ ion-title {
 }
 
 /* ===================================================================
-   BUSCADOR FLOTANTE
+   MODAL DEL BUSCADOR SKU
    Tarjeta centrada sobre un velo morado de marca. Va fuera de @layer
    components porque ajusta variables y partes internas de ion-modal.
    =================================================================== */
@@ -1015,30 +986,5 @@ ion-modal.buscador-modal {
 
   &:last-child {
     margin-bottom: 0;
-  }
-
-  /* ---------- BADGES ---------- */
-  .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
-  }
-
-  .badge-in-progress {
-    background: rgba(249, 115, 22, 0.12);
-    color: var(--app-primary);
-  }
-
-  .badge-pending {
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--app-warning);
-  }
-
-  .badge-synced {
-    background: rgba(22, 163, 74, 0.12);
-    color: var(--app-success);
-  }
-
-  .badge-edited {
-    background: rgba(167, 139, 250, 0.12);
-    color: var(--app-secondary);
   }
 }

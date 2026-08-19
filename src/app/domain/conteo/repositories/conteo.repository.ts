@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { Conteo } from '../models/conteo.model';
 import { ConteoItem } from '../models/conteo-item.model';
 import { ConteoResumen } from '../models/conteo-resumen.model';
+import { SesionTrabajoEnCurso } from '../models/sesion-trabajo.model';
 import { ConteoTrazabilidadItem } from '../models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
@@ -58,6 +59,20 @@ export interface ConteoRepository {
    */
   cerrarTag(conteoId: number, ubicacionId: number, operadorId: number): Promise<void>;
 
+  /*
+   * Reabre el TAG: FINALIZADO → EN_CURSO. Es el inverso de cerrarTag, para
+   * seguir contando un TAG que se cerró antes de tiempo.
+   *
+   * Devolver las líneas a EN_CURSO no es un detalle de estado: es lo que hace
+   * que la sesión se recupere al entrar a la pantalla y que upsert vuelva a
+   * encontrar sus filas. Sin eso, reescanear un SKU ya contado chocaría con el
+   * UNIQUE de la tabla, que no distingue por estado.
+   *
+   * Lleva pdaId, a diferencia de cerrarTag: reabrir habilita a escribir, y esa
+   * puerta se abre solo para la PDA que hizo el trabajo.
+   */
+  reabrirTag(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void>;
+
   /* Confirma la sincronización: FINALIZADO → SINCRONIZADO para toda la tupla. */
   marcarSincronizado(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void>;
 
@@ -66,6 +81,16 @@ export interface ConteoRepository {
 
   /* Sesiones de TAG del operador en esta PDA, con totales y estado. */
   getResumenes(operadorId: number, pdaId: number): Promise<ConteoResumen[]>;
+
+  /*
+   * La sesión de TAG que quedó abierta (líneas EN_CURSO) para ese operador en
+   * esta PDA, con todo lo necesario para volver a ella: evento, zona, TAG y
+   * ubicación. La más reciente si hubiera más de una.
+   *
+   * Es la fuente para rehidratar el estado en memoria después de un reinicio:
+   * getResumenes no sirve porque no trae zona_id ni la ubicación precisa.
+   */
+  getSesionEnCurso(operadorId: number, pdaId: number): Promise<SesionTrabajoEnCurso | null>;
 
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────
 
@@ -79,12 +104,16 @@ export interface ConteoRepository {
   getUnidadesContadasPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<number>;
 
   /*
-   * En qué TAG(s)/zona(s) del evento hay líneas para ese SKU — un SKU puede
-   * estar en varios TAG. No se filtra por operador ni por PDA: la pregunta es
-   * "¿dónde se contó esto?", y una PDA se pasa entre turnos, así que acotarla
-   * al operador actual escondería conteos que sí están en esta base.
+   * En qué TAG(s)/zona(s) hay líneas para ese SKU — un SKU puede estar en
+   * varios TAG. No se filtra por operador ni por PDA: la pregunta es "¿dónde se
+   * contó esto?", y una PDA se pasa entre turnos, así que acotarla al operador
+   * actual escondería conteos que sí están en esta base.
+   *
+   * `eventoId` es opcional a propósito: sin evento seleccionado —recién
+   * terminado un conteo, antes de tomar el siguiente— la pregunta sigue siendo
+   * válida y se responde sobre todo lo contado en la PDA.
    */
-  buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]>;
+  buscarPorSku(sku: string, eventoId?: number): Promise<BusquedaSkuResultado[]>;
 
   /*
    * TAGs únicos ya contados en rondas anteriores a `iteracion`. Sirve en

@@ -17,13 +17,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline } from 'ionicons/icons';
+import { alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline, searchOutline } from 'ionicons/icons';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { Zona, ZonaFacade } from '../../../state/zona/zona.facade';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { stripEmojis } from '../../../shared/utils/text.utils';
+import { BuscadorService } from '../../../shared/services/buscador.service';
 
 /*
  * Pantalla previa al conteo: se ingresa/escanea el TAG y se elige la zona, y
@@ -66,6 +67,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private pda             = inject(PdaFacade);
   private zonaFacade      = inject(ZonaFacade);
   private conteoList      = inject(ConteoListFacade);
+  private buscador        = inject(BuscadorService);
 
   currentEvent    = this.eventoFacade.selectedEvent;
   iteracionActual = this.conteoList.iteracionActiva;
@@ -89,7 +91,11 @@ export class TagZonaPageComponent implements ViewWillEnter {
   });
 
   constructor() {
-    addIcons({ alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline });
+    addIcons({ alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline, searchOutline });
+  }
+
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   /*

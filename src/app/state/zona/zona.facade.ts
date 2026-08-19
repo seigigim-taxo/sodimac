@@ -74,6 +74,20 @@ export class ZonaFacade {
     }
   }
 
+  /*
+   * Rehidrata la sesión de TAG tras un reinicio. La ubicación ya existe en
+   * sod_ubicacion (por eso llega su id): no hay que registrarla de nuevo, solo
+   * volver a apuntar a ella. Sin esto, tagEnSesionGuard rebota /counting aunque
+   * el conteo siga abierto en la base.
+   */
+  restaurarSesion(zona: Zona, tag: string, ubicacionId: number, ubicacionPrecisa: string): void {
+    this.selectedZoneSignal.set(zona);
+    this.tagValueSignal.set(tag);
+    this.ubicacionIdSignal.set(ubicacionId);
+    this.ubicacionPrecisaSignal.set(ubicacionPrecisa);
+    this.errorSignal.set(null);
+  }
+
   clearTag(): void {
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);

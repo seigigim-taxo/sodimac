@@ -5,6 +5,7 @@ import { ConteoRepository } from '../../domain/conteo/repositories/conteo.reposi
 import { Conteo, EstadoRonda } from '../../domain/conteo/models/conteo.model';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.model';
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
@@ -243,6 +244,24 @@ export class SqliteConteoRepository implements ConteoRepository {
     if (isDevMode()) console.log('[ConteoRepo] cerrarTag', { conteoId, ubicacionId, operadorId });
   }
 
+  /*
+   * El filtro por estado hace la operación segura e idempotente: una línea ya
+   * SINCRONIZADA no se toca —es inmutable— y reabrir dos veces no cambia nada.
+   */
+  async reabrirTag(
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
+  ): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_conteo_detalle
+       SET estado = 'EN_CURSO'
+       WHERE conteo_id = ? AND ubicacion_id = ?
+         AND operador_id = ? AND pda_id = ? AND estado = 'FINALIZADO'`,
+      [conteoId, ubicacionId, operadorId, pdaId]
+    );
+    if (isDevMode()) console.log('[ConteoRepo] reabrirTag', { conteoId, ubicacionId, operadorId, pdaId });
+  }
+
   async marcarSincronizado(
     conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
   ): Promise<void> {
@@ -298,6 +317,42 @@ export class SqliteConteoRepository implements ConteoRepository {
     return resumenes;
   }
 
+  /*
+   * JOIN y no LEFT JOIN a propósito: una sesión que no puede resolver su zona ni
+   * su ubicación no sirve para restaurar nada, y devolverla a medias dejaría a la
+   * app creyendo que puede volver a un TAG que no sabe ubicar.
+   */
+  async getSesionEnCurso(operadorId: number, pdaId: number): Promise<SesionTrabajoEnCurso | null> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT c.evento_id, d.conteo_id, d.ubicacion_id,
+              u.zona_id, u.tag, u.codigo AS ubicacion_precisa,
+              MAX(d.fecha_hora) AS fecha_ultima
+       FROM sod_conteo_detalle d
+       JOIN sod_conteo    c ON c.id = d.conteo_id
+       JOIN sod_ubicacion u ON u.id = d.ubicacion_id
+       WHERE d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
+         AND u.tag IS NOT NULL
+       GROUP BY d.conteo_id, d.ubicacion_id
+       ORDER BY fecha_ultima DESC
+       LIMIT 1`,
+      [operadorId, pdaId]
+    );
+    const row = result.values?.[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+
+    const sesion: SesionTrabajoEnCurso = {
+      eventoId:         row['evento_id']        as number,
+      conteoId:         row['conteo_id']        as number,
+      ubicacionId:      row['ubicacion_id']     as number,
+      zonaId:           row['zona_id']          as number,
+      tag:              row['tag']              as string,
+      ubicacionPrecisa: row['ubicacion_precisa'] as string,
+    };
+    if (isDevMode()) console.log('[ConteoRepo] getSesionEnCurso', sesion);
+    return sesion;
+  }
+
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────
 
   async getSkusContadosPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<string[]> {
@@ -336,24 +391,38 @@ export class SqliteConteoRepository implements ConteoRepository {
    * El LIMIT acota la lista a lo que cabe en pantalla: un prefijo corto puede
    * traer cientos de filas y ninguna sirve para decidir dónde ir a contar.
    */
-  async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
+  async buscarPorSku(sku: string, eventoId?: number): Promise<BusquedaSkuResultado[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    /*
+     * Sin evento la consulta abarca toda la base local, y por eso ordena
+     * primero por evento descendente: lo más reciente es lo que el operador
+     * está buscando, y el LIMIT no puede dejarlo fuera por culpa de conteos
+     * viejos.
+     */
+    const filtroEvento = eventoId !== undefined ? 'AND c.evento_id = ?' : '';
+    const params = eventoId !== undefined ? [sku, eventoId] : [sku];
+
     const result = await db.query(
-      `SELECT p.sku, c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre, d.cantidad_fisica
+      `SELECT p.sku, c.iteracion, u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre,
+              d.cantidad_fisica, e.nombre AS evento_nombre
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c       ON c.id = d.conteo_id
+       JOIN sod_evento_inventario e ON e.id = c.evento_id
        JOIN sod_producto p       ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
        LEFT JOIN sod_zona z      ON z.id = u.zona_id
-       WHERE c.evento_id = ? AND p.sku LIKE ? || '%'
+       WHERE p.sku LIKE '%' || ? || '%'
          AND d.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
-       ORDER BY p.sku, c.iteracion DESC, d.fecha_hora DESC
+         ${filtroEvento}
+       ORDER BY c.evento_id DESC, p.sku, c.iteracion DESC, d.fecha_hora DESC
        LIMIT 50`,
-      [eventoId, sku]
+      params
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
+        eventoNombre: (row['evento_nombre'] as string | null) ?? '—',
         sku: row['sku'] as string,
         iteracion: row['iteracion'] as number,
         tag: row['tag'] as string | null,

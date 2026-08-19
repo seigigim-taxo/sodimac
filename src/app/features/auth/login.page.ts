@@ -13,17 +13,13 @@ import {
   IonIcon,
   IonInput,
   IonSpinner,
-  ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
-<<<<<<< HEAD
-import { cleanRut, formatRut, validateRut } from '../../domain/auth/utils/rut.utils';
-=======
+import { PdaFacade } from '../../state/pda/pda.facade';
+import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
->>>>>>> feat/modo-analista-maqueta
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -38,33 +34,15 @@ import { environment } from '../../../environments/environment';
     IonSpinner,
   ],
 })
-<<<<<<< HEAD
-export class LoginPage implements ViewWillEnter {
-  private fb = inject(FormBuilder);
-  private auth = inject(AuthFacade);
-=======
 export class LoginPage implements OnInit {
   private fb     = inject(FormBuilder);
   private auth   = inject(AuthFacade);
->>>>>>> feat/modo-analista-maqueta
   private router = inject(Router);
+  private pda           = inject(PdaFacade);
+  private sesionTrabajo = inject(SesionTrabajoFacade);
 
   loading = this.auth.loading;
-<<<<<<< HEAD
-  error = this.auth.error;
-  environment = environment;
-
-  constructor() {
-    addIcons({ alertCircleOutline });
-
-    this.form = this.fb.group({
-      rut: ['', [Validators.required, this.rutValidator]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-    });
-  }
-=======
   error   = this.auth.error;
->>>>>>> feat/modo-analista-maqueta
 
   private rutValidator = (control: AbstractControl): ValidationErrors | null => {
     const value = cleanRut(control.value ?? '');
@@ -73,9 +51,6 @@ export class LoginPage implements OnInit {
     return validateRut(value) ? null : { invalidRut: true };
   };
 
-<<<<<<< HEAD
-  ionViewWillEnter(): void {
-=======
   form = this.fb.group({
     rut:      ['', [Validators.required, this.rutValidator]],
     password: ['', [Validators.required, Validators.minLength(6)]],
@@ -86,15 +61,8 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit(): void {
->>>>>>> feat/modo-analista-maqueta
     if (this.auth.isAuthenticated()) {
-      if (!this.auth.hasKnownProfile()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (this.auth.isAnalyst()) {
-        this.router.navigate(['/analyst-dashboard']);
-      } else {
-        this.router.navigate(['/home']);
-      }
+      this.router.navigate(['/home']);
     }
   }
 
@@ -107,7 +75,6 @@ export class LoginPage implements OnInit {
   }
 
   async onSubmit(): Promise<void> {
-    if (this.loading()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -116,15 +83,21 @@ export class LoginPage implements OnInit {
     const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
     if (this.auth.isAuthenticated()) {
-      if (environment.alwaysSyncAfterLogin || !this.auth.wasOfflineLogin()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (!this.auth.hasKnownProfile()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (this.auth.isAnalyst()) {
-        this.router.navigate(['/analyst-dashboard']);
-      } else {
-        this.router.navigate(['/home']);
+      /*
+       * Antes de navegar: si este operador dejó un TAG abierto en esta PDA, los
+       * guards de /home lo van a mandar derecho a /counting, y esa pantalla
+       * necesita el evento y el TAG en memoria. Restaurarlo después sería tarde.
+       */
+      const operadorId = this.auth.session()?.operadorId;
+      const pdaId      = this.pda.pdaId();
+      if (operadorId && pdaId) {
+        await this.sesionTrabajo.restaurar(operadorId, pdaId);
       }
+
+      // Offline: la sesión y los datos mock ya quedaron listos en el login mismo —
+      // no hay nada que "descargar", así que la barra de sincronización sobra.
+      const destino = this.auth.wasOfflineLogin() ? '/home' : '/sync-loading';
+      this.router.navigate([destino]);
     }
   }
 

@@ -27,6 +27,8 @@ import { ZonaFacade } from '../../../state/zona/zona.facade';
 import { ConteoFacade } from '../../../state/conteo/conteo.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resumen-evento.facade';
+import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
+import { BuscadorService } from '../../../shared/services/buscador.service';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -81,6 +83,8 @@ export class CountingPageComponent implements ViewWillEnter {
   private conteo            = inject(ConteoFacade);
   private conteoList        = inject(ConteoListFacade);
   private resumenFacade     = inject(ResumenEventoFacade);
+  private ajustes           = inject(AjustesFacade);
+  private buscador          = inject(BuscadorService);
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
@@ -143,6 +147,10 @@ export class CountingPageComponent implements ViewWillEnter {
 
   constructor() {
     addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
+  }
+
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   private sesionInicializada: number | null = null;
@@ -357,8 +365,14 @@ export class CountingPageComponent implements ViewWillEnter {
     try {
       await this.conteo.finalizar();
 
-      // Intentar sincronización automática con el WS
-      if (sesion && operadorId && pdaId) {
+      /*
+       * Con la sincronización automática apagada el TAG queda en FINALIZADO, no
+       * en SINCRONIZADO: así sigue siendo editable desde el resumen. Subirlo
+       * pasa a ser una acción explícita del operador.
+       */
+      if (!this.ajustes.sincronizacionAutomatica()) {
+        this.mostrarToast('TAG finalizado. Queda pendiente de sincronizar.', 'warning');
+      } else if (sesion && operadorId && pdaId) {
         try {
           await this.conteoList.load(operadorId, pdaId);
           const resumen = this.conteoList.conteos().find((c) =>

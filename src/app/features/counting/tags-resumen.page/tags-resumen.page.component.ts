@@ -21,14 +21,16 @@ import {
 import { addIcons } from 'ionicons';
 import {
   alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-  createOutline, refreshOutline, timeOutline, trashOutline,
+  createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
 } from 'ionicons/icons';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
+import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
+import { BuscadorService } from '../../../shared/services/buscador.service';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -69,6 +71,8 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private eventoFacade = inject(EventoFacade);
   private conteoList = inject(ConteoListFacade);
   private resumenFacade = inject(ResumenEventoFacade);
+  private sesionTrabajo = inject(SesionTrabajoFacade);
+  private buscador = inject(BuscadorService);
 
   currentEvent = this.eventoFacade.selectedEvent;
   // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
@@ -166,9 +170,12 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   constructor() {
     addIcons({
       alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-      createOutline, refreshOutline, timeOutline, trashOutline,
+      createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
     });
+  }
 
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   /*
@@ -220,6 +227,34 @@ export class TagsResumenPageComponent implements ViewWillEnter {
 
   async sincronizarReal(c: ConteoResumen): Promise<void> {
     await this.conteoList.sincronizar(c);
+  }
+
+  /*
+   * Reabre el TAG y lleva al operador de vuelta a la pantalla de conteo, con lo
+   * que ya había contado.
+   *
+   * Se exige que no haya otro TAG en curso: solo se cuenta un TAG a la vez, y
+   * además la restauración de sesión resuelve "el TAG abierto más reciente" —
+   * con dos abiertos podría llevar al que no es.
+   */
+  async editarReal(c: ConteoResumen): Promise<void> {
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId      = this.pda.pdaId();
+    if (!operadorId || !pdaId) return;
+
+    if (this.conteoList.conteos().some((otro) => otro.estado === 'EN_CURSO')) {
+      await this.avisar('Termina el TAG que tienes en curso antes de reabrir otro.', 'danger');
+      return;
+    }
+
+    const reabierto = await this.conteoList.reabrir(c);
+    if (!reabierto) {
+      await this.avisar(this.conteoList.error() ?? 'No se pudo reabrir el TAG.', 'danger');
+      return;
+    }
+
+    await this.sesionTrabajo.restaurar(operadorId, pdaId);
+    this.router.navigate(['/counting']);
   }
 
   async eliminarReal(c: ConteoResumen): Promise<void> {

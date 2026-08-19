@@ -1,40 +1,28 @@
-<<<<<<< HEAD
-import { Component, computed, inject } from '@angular/core';
-=======
 import { Component, computed, effect, inject, signal } from '@angular/core';
->>>>>>> feat/modo-analista-maqueta
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
-  AlertController,
   IonButton,
   IonContent,
   IonHeader,
+  IonIcon,
   IonMenuButton,
   IonButtons,
   IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-<<<<<<< HEAD
-import { ViewWillEnter } from '@ionic/angular';
-import { ThemeFacade } from '../../state/theme/theme.facade';
-import { CountingFacade } from '../../state/counting/counting.facade';
-import { CountingSession } from '../../domain/counting/models/counting-session.model';
-import { getStatusBadgeClass, getStatusLabel, formatDate } from '../../shared/utils/counting-status.utils';
-=======
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { EventoFacade, Evento } from '../../state/evento/evento.facade';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
-import { ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
-import { GetUltimaRondaUseCase } from '../../application/conteo/get-ultima-ronda.use-case';
+import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
+import { BuscadorService } from '../../shared/services/buscador.service';
 
->>>>>>> feat/modo-analista-maqueta
 
 @Component({
   selector: 'app-home',
@@ -45,6 +33,7 @@ import { GetUltimaRondaUseCase } from '../../application/conteo/get-ultima-ronda
     IonButtons,
     IonContent,
     IonHeader,
+    IonIcon,
     IonMenuButton,
     IonSpinner,
     IonTitle,
@@ -52,48 +41,57 @@ import { GetUltimaRondaUseCase } from '../../application/conteo/get-ultima-ronda
   ],
 })
 export class HomePage implements ViewWillEnter {
-<<<<<<< HEAD
-  private router = inject(Router);
-  private theme = inject(ThemeFacade);
-  private countingFacade = inject(CountingFacade);
-
-  isDark = this.theme.isDark;
-  sessions = this.countingFacade.sessions;
-  recentSessions = computed(() => this.sessions().slice(0, 2));
-=======
   private router          = inject(Router);
   private auth             = inject(AuthFacade);
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);
-  private alertController = inject(AlertController);
   private pda                = inject(PdaFacade);
   private resumenFacade      = inject(ResumenEventoFacade);
-  private getUltimaRonda     = inject(GetUltimaRondaUseCase);
+  private nuevoConteo        = inject(NuevoConteoFacade);
+  private buscador           = inject(BuscadorService);
 
   /*
-   * Cerrar la tienda exige que no quede trabajo sin subir: ni conteos abiertos
-   * ni finalizados pendientes de sincronizar. Se deriva de sod_conteo, no de un
-   * estado aparte.
+   * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no
+   * lo selecciona sola: elegir el evento es del operador.
    */
-  puedeCerrarTienda = computed(() =>
-    this.conteoList.conteos().every((c) => c.estado === 'SINCRONIZADO')
-  );
-  sincronizando = signal(false);
-  // Timeout de sincronización: después de 30s sin respuesta del SGO, se activa
-  // para permitir al operador reintentar.
-  sincronizandoTimeout = signal(false);
-  private sincronizandoTimeoutId: ReturnType<typeof setTimeout> | undefined;
->>>>>>> feat/modo-analista-maqueta
+  avisoNuevoConteo = signal<string | null>(null);
 
-  // Contador de intentos de sincronización con SGO para el evento seleccionado.
-  // Se resetea al cambiar de evento. Fase 6: solo simulación.
-  private intentosSgo = 0;
-  private ultimoEventoSgoId: number | null = null;
+  // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
+  buscandoConteo = this.nuevoConteo.buscando;
+  sinNovedad     = this.nuevoConteo.sinNovedad;
+  errorAsignacion = this.nuevoConteo.error;
 
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
   // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
   eventosFinalizados = this.resumenFacade.cerrados;
+
+  /*
+   * Paginado del historial: crece una jornada tras otra y no cabe entero en la
+   * pantalla de una PDA.
+   *
+   * Se ordena por id descendente, no por fecha: varios conteos del mismo día
+   * comparten fecha programada, y sin este criterio "los 5 primeros" dependería
+   * del orden en que la base los devuelva.
+   */
+  private static readonly FINALIZADOS_POR_PAGINA = 5;
+  private finalizadosVisibles = signal(HomePage.FINALIZADOS_POR_PAGINA);
+
+  private finalizadosOrdenados = computed(() =>
+    [...this.eventosFinalizados()].sort((a, b) => b.evento.id - a.evento.id)
+  );
+
+  finalizadosPaginados = computed(() =>
+    this.finalizadosOrdenados().slice(0, this.finalizadosVisibles())
+  );
+
+  hayMasFinalizados = computed(() =>
+    this.finalizadosOrdenados().length > this.finalizadosVisibles()
+  );
+
+  verMasFinalizados(): void {
+    this.finalizadosVisibles.update((v) => v + HomePage.FINALIZADOS_POR_PAGINA);
+  }
 
   currentStore  = this.sucursalFacade.currentStore;
   storeLoading  = this.sucursalFacade.loading;
@@ -102,24 +100,25 @@ export class HomePage implements ViewWillEnter {
 
   events        = this.eventoFacade.events;
   selectedEvent = this.eventoFacade.selectedEvent;
-  // El rótulo del botón sale del estado del evento, no de la iteración: RECONTEO
-  // es exactamente "este evento va en una ronda posterior a la primera".
-  esReconteo = computed(() => this.selectedEvent()?.estado === 'RECONTEO');
+
+  /*
+   * Solo el conteo abierto. Es el único sobre el que el operador puede actuar:
+   * los terminados quedan EN_ANALISIS y los vencidos no son seleccionables, así
+   * que mostrarlos solo agrega ruido y tarjetas atenuadas que no responden.
+   *
+   * Si hubiera más de uno abierto, manda el más nuevo — el de id mayor.
+   */
+  eventosVisibles = computed<Evento[]>(() => {
+    const abiertos = this.events().filter((e) => e.estado === 'ABIERTO');
+    if (abiertos.length === 0) return [];
+    return [abiertos.reduce((masNuevo, e) => (e.id > masNuevo.id ? e : masNuevo))];
+  });
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;
-  hasEvents     = this.eventoFacade.hasEvents;
   noEvents      = this.eventoFacade.noEvents;
 
-<<<<<<< HEAD
-  getStatusBadgeClass = getStatusBadgeClass;
-  getStatusLabel = getStatusLabel;
-  formatDate = formatDate;
-
-  ionViewWillEnter(): void {
-    this.countingFacade.reload();
-=======
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline });
+    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
@@ -133,14 +132,15 @@ export class HomePage implements ViewWillEnter {
       this.cargarEventosFinalizados(this.events());
     });
 
-    // Resetea el contador de intentos SGO cuando cambia el evento seleccionado.
+    // El aviso de "sin novedad" es de un evento concreto: al cambiar, sobra.
     effect(() => {
-      const ev = this.selectedEvent();
-      if (ev && ev.id !== this.ultimoEventoSgoId) {
-        this.intentosSgo = 0;
-        this.ultimoEventoSgoId = ev.id;
-      }
+      this.selectedEvent();
+      this.nuevoConteo.limpiar();
     });
+  }
+
+  abrirBuscador(): void {
+    this.buscador.abrir();
   }
 
   private cargarEventosFinalizados(eventos: Evento[]): void {
@@ -202,7 +202,8 @@ export class HomePage implements ViewWillEnter {
   selectEvento(evento: Evento): void {
     if (!this.puedeSeleccionar(evento)) return;
     this.eventoFacade.selectEvento(evento);
->>>>>>> feat/modo-analista-maqueta
+    // Ya eligió: el aviso cumplió su función.
+    this.avisoNuevoConteo.set(null);
   }
 
   continue(): void {
@@ -210,135 +211,34 @@ export class HomePage implements ViewWillEnter {
     this.router.navigate(['/counting-tag']);
   }
 
-<<<<<<< HEAD
-  openSession(session?: CountingSession): void {
-    if (session) {
-      if (session.status === 'in-progress') {
-        this.router.navigate(['/counting', session.id]);
-        return;
-      }
-      this.router.navigate(['/counting-detail', session.id]);
-    } else {
-      this.router.navigate(['/counting-list']);
-    }
+  /*
+   * El conteo del evento ya se finalizó y la PDA queda a la espera: acá se le
+   * pregunta al SGO si hay trabajo nuevo, que puede ser de otra jornada.
+   *
+   * No reabre el conteo anterior. Un evento finalizado está cerrado; lo que
+   * viene es otro evento con su propia muestra.
+   */
+  async buscarNuevoConteo(): Promise<void> {
+    const tienda = this.currentStore();
+    if (!tienda) return;
+
+    const asignacion = await this.nuevoConteo.buscar(tienda.id, this.selectedEvent()?.id ?? null);
+    if (!asignacion) return;
+
+    /*
+     * Se suelta el evento terminado antes de recargar. Sin esto el operador no
+     * podría elegir el nuevo: puedeSeleccionar bloquea el cambio mientras haya
+     * otro evento seleccionado.
+     */
+    await this.eventoFacade.limpiarSeleccion();
+    await this.eventoFacade.loadEventos(tienda.id);
+
+    /*
+     * No se selecciona ni se navega: el operador elige su evento y decide
+     * cuándo entrar a contar, igual que al empezar la jornada. El aviso está
+     * para que no tenga que adivinar cuál de la lista es el nuevo.
+     */
+    this.avisoNuevoConteo.set(asignacion.nombre);
   }
 
-  async toggleTheme(): Promise<void> {
-    await this.theme.toggle();
-=======
-  async sincronizar(): Promise<void> {
-    const evento = this.selectedEvent();
-    if (!evento) return;
-
-    this.sincronizando.set(true);
-    this.sincronizandoTimeout.set(false);
-
-    // Inicia timeout de 30s: si el SGO no responde, se activa para reintentar
-    this.sincronizandoTimeoutId = setTimeout(() => {
-      this.sincronizandoTimeout.set(true);
-      this.sincronizando.set(false);
-    }, 30000);
-
-    try {
-      // Simula la espera de respuesta del SGO
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Cancela el timeout antes de mostrar alertas
-      if (this.sincronizandoTimeoutId) {
-        clearTimeout(this.sincronizandoTimeoutId);
-        this.sincronizandoTimeoutId = undefined;
-      }
-
-      this.sincronizando.set(false);
-      this.sincronizandoTimeout.set(false);
-
-      // Consultar última ronda para decidir si cerrar o abrir reconteo
-      const ultimaRonda = await this.getUltimaRonda.execute(evento.id);
-
-      if (ultimaRonda && ultimaRonda.iteracion >= 2) {
-        // Ya hubo reconteo: SGO aprueba y cierra el evento
-        const ok = await this.eventoFacade.cerrarSeleccionado();
-        if (ok) {
-          const alert = await this.alertController.create({
-            header: 'Evento cerrado',
-            message: 'El SGO aprobó el reconteo y cerró el evento.',
-            buttons: ['Entendido'],
-          });
-          await alert.present();
-        } else {
-          const alert = await this.alertController.create({
-            header: 'No se pudo cerrar el evento',
-            message: this.eventsError() ?? 'No se pudo cerrar el evento.',
-            buttons: ['Entendido'],
-          });
-          await alert.present();
-        }
-      } else {
-        // Primera iteración: lógica actual de reconteo
-        this.intentosSgo++;
-
-        if (this.intentosSgo < 3) {
-          const alert = await this.alertController.create({
-            header:  'SGO sigue analizando',
-            message: 'El SGO aún no entrega una decisión para este evento. Intenta nuevamente más tarde.',
-            buttons: ['Entendido'],
-          });
-          await alert.present();
-        } else {
-          const resultado = await this.eventoFacade.abrirSiguienteIteracion();
-
-          if (resultado) {
-            const message = resultado.conMuestra
-              ? `El SGO determinó que este evento requiere una nueva iteración de reconteo. Se abrió la iteración ${resultado.iteracion}.`
-              : 'El SGO determinó reconteo, pero no hay SKUs disponibles para recontar.';
-            const alert = await this.alertController.create({
-              header: 'Reconteo requerido',
-              message,
-              buttons: ['Entendido'],
-            });
-            await alert.present();
-          } else {
-            const alert = await this.alertController.create({
-              header: 'No se pudo abrir el reconteo',
-              message: this.eventsError() ?? 'No se pudo abrir la iteración de reconteo.',
-              buttons: ['Entendido'],
-            });
-            await alert.present();
-          }
-        }
-      }
-    } catch {
-      if (this.sincronizandoTimeoutId) {
-        clearTimeout(this.sincronizandoTimeoutId);
-        this.sincronizandoTimeoutId = undefined;
-      }
-      this.sincronizando.set(false);
-      this.sincronizandoTimeout.set(false);
-    }
-  }
-
-  reintentarSincronizacion(): void {
-    this.sincronizandoTimeout.set(false);
-    void this.sincronizar();
-  }
-
-  async cerrarTienda(): Promise<void> {
-    if (!this.puedeCerrarTienda()) return;
-
-    const alert = await this.alertController.create({
-      header:  'Cerrar tienda',
-      message: 'Esto finalizará tu jornada en esta tienda y cerrará tu sesión. ¿Confirmas?',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Cerrar tienda', role: 'destructive', handler: () => { void this.doCerrarTienda(); } },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async doCerrarTienda(): Promise<void> {
-    await this.auth.logout();
-    this.router.navigate(['/login']);
->>>>>>> feat/modo-analista-maqueta
-  }
 }
