@@ -7,58 +7,120 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Ionic Angular **standalone** app (`ionic.config.json` → `"type": "angular-standalone"`).
 - Angular 20 + Ionic 8 + Capacitor 8.
 - Single app workspace (not a monorepo). Project name in `angular.json` is `app`.
+- Tailwind CSS is wired in (`tailwind.config.js`, `postcss.config.js`, `src/global.scss`).
+- `@capacitor-community/sqlite` for local SQLite on native platforms.
 
 ## Everyday commands
 
 | Task | Command |
 |------|---------|
 | Dev server | `npm start` (serves the `development` configuration by default) |
+| Dev server (mock WS) | `ng serve --configuration=develop_ws` (uses `preparacion_ws.php` mock endpoint) |
 | Production build | `npm run build` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
-| Tests once (CI) | `npx ng test --configuration=ci` |
+| Tests once (CI) | `npm run test:ci` |
 | Lint | `npm run lint` |
+<<<<<<< HEAD
 | Android USB single terminal | `npm run android` (levanta dev server y corre app; funciona con VPN) |
 | Android USB live reload | `npm run android:usb` (requiere `npm run start:usb` en otra terminal; funciona con VPN) |
 | Android USB sync only | `npm run android:usb:sync` |
 | Android WiFi live reload | `npm run start:external` + `npm run android:external` (PC y celular sin VPN) |
+=======
+| Build + sync native assets | `npm run build` then `npx cap sync` |
+>>>>>>> feat/modo-analista-maqueta
 
-- `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch.
+- `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
+- `angular.json` defines a `develop_ws` configuration that swaps `environment.ts` → `environment.develop-ws.ts` (mock preparacion endpoint).
 - Build output directory is `www` (used by Capacitor as `webDir`).
-- Component style budgets: `4kb` warning / `8kb` error (raised from defaults to avoid noisy warnings on richer per-page styles).
+- Component style budgets: `4kb` warning / `8kb` error.
 
 ## Architecture
 
 - Entry point: `src/main.ts` bootstraps `AppComponent` via `bootstrapApplication` with `provideHttpClient`, `provideIonicAngular()`, and `PreloadAllModules` routing.
-- `APP_INITIALIZER` calls `AuthFacade.init()` on startup to restore session from `@capacitor/preferences`.
-- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`LoginPage`, `HomePage`), auth guard on `/home`.
+- **DI pattern**: `main.ts` wires all repository injection tokens (`DATABASE_REPOSITORY_TOKEN`, `AUTH_API_REPOSITORY_TOKEN`, `CONTEO_REPOSITORY_TOKEN`, etc.) to their concrete implementations. Domain interfaces live in `domain/`, concrete SQLite/Capacitor/HTTP implementations in `data/`. Never add a new dependency without registering its token here.
+- `APP_INITIALIZER` wiring (in `main.ts`):
+  1. `DatabaseRepository.initialize()` must complete first.
+  2. Then `AuthFacade.init()` and `PdaFacade.init()` run in parallel.
+  3. `ThemeFacade.init()` runs in a separate initializer (uses Capacitor Preferences, not SQLite).
+  4. Initializer errors are caught deliberately — a rejected initializer blanks the screen with no feedback.
+- Routing: `src/app/app.routes.ts` — lazy-loaded pages (`login`, `sync-loading`, `home`, `counting-tag`, `counting`, `tags-resumen`), all guarded by `authGuard` except `login`. `home` also uses `noSesionActivaGuard`. `counting-tag` and `counting` use `eventoSeleccionadoGuard` + `pdaBloqueadaGuard`; `counting` additionally uses `tagEnSesionGuard`. `tags-resumen` intentionally skips `eventoSeleccionadoGuard` and `pdaBloqueadaGuard` (read-only "close store" flow).
 - Pages are standalone components generated with `styleext: scss`, `standalone: true`.
 - Ionic components imported from `@ionic/angular/standalone`, not from `@ionic/angular`.
-- Clean Architecture scaffold (most layers are empty — see below):
-  - `domain/` — models (interfaces only) and planned repository interfaces (empty).
-  - `data/` — concrete implementations. Only `auth/` exists (mock `AuthService`).
-  - `application/` — use cases (empty).
-  - `state/` — Signals-based facades. Only `auth/` exists (`AuthFacade`).
-  - `features/` — standalone pages. Only `auth/login` and `home` exist.
-  - `core/` — cross-cutting infra. Only `auth/guards` has code; `soap/`, `sync/`, `database/` are empty.
-  - `shared/` — only `utils/` has files; `components/`, `directives/`, `pipes/` are empty.
-- **The app is early stage**: only the auth flow (login → home) is built. Branch, Event, SOAP client, SQLite repositories, and sync layer are scaffold directories with no code.
+- Clean Architecture scaffold:
+  - `domain/` — models, repository interfaces, and `shared/errors`.
+  - `application/` — use cases (auth, conteo, evento, pda, sincronizacion, sucursal, ubicacion, zona-tipo, zona).
+  - `data/` — concrete implementations (auth, database, conteo, evento, muestra, pda, sincronizacion, sucursal, theme, ubicacion, zona).
+  - `state/` — Signals-based facades (auth, conteo, evento, pda, sucursal, theme, zona, zona-tipo).
+  - `features/` — standalone pages (auth, counting, home, sync-loading).
+  - `core/` — cross-cutting infra (http, database, auth/guards, utils).
+  - `shared/` — utils, components, static data.
+
+## Counting flow
+
+- `ConteoFacade` (`src/app/state/conteo/`) owns the counting session: open session → load muestra set → upsert/adjust/delete items → finalize. Backed by real SQLite (`sod_conteo`, `sod_conteo_detalle`).
+- `counting-tag` (tag/zone selection), `counting` (working screen), and `tags-resumen` (summary) are the three counting pages.
+- `WriteQueue` (`src/app/core/utils/`) serializes concurrent SQLite writes from the counting UI.
 
 ## Auth flow
 
-- `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error` signals and `isAuthenticated` computed. Persists session to `@capacitor/preferences` under key `session`.
-- `AuthService` (`src/app/data/auth/`) is a **mock** — validates RUT via modulo-11 (`validateRut`), compares password to first 6 digits of cleaned RUT (`getFirstSixDigits`), returns fake token after 300ms delay.
-- `AuthGuard` (`src/app/core/auth/guards/`) checks `AuthFacade.isAuthenticated()`.
+- `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error`, `isAuthenticated`, and `wasOfflineLogin` signals.
+- `AuthService` (`src/app/data/auth/`) calls the backend via `ApiService.post('auth/login.php', request)`. It expects the server wrapper `{ status, msg, data }` and maps `data.user` fields.
+- Offline fallback: if the HTTP request fails with a network error (`status === 0`), `AuthFacade` falls back to the cached operator in SQLite (`sod_user`). The cached operator can log in using the default password (first 6 digits of the RUT body).
+- `AuthGuard` checks `AuthFacade.isAuthenticated()`.
 - Login password rule: default password = first 6 digits of the RUT body (e.g., RUT `12345678-9` → password `123456`).
+- Dev bypass: `AuthFacade.loginBypass()` creates a local operator (`99800120-K`) without calling the backend. The bypass button is visible only in dev mode.
 
-## RUT utilities
+## Backend / API
 
-RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
-- `cleanRut(rut)` — strip dots, dashes, keep only `[0-9kK]`.
-- `formatRut(rut)` — format as `12345678-9`.
-- `validateRut(rut)` — modulo-11 algorithm.
-- `getFirstSixDigits(rut)` — first 6 digits of RUT body (used as default password).
-- `rut-formatter.ts` exists but is empty.
+- Base URL is configured in `src/environments/environment.ts` and `environment.prod.ts` (`apiUrl`).
+  - All environments: `http://50.16.13.230/app/ws/sodimac/api`
+  - `develop_ws` config: same base URL but `preparacionEndpoint` points to `preparacion_ws.php` (mock) instead of `preparacion.php`.
+- `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
+- `auth/login.php` is authentication-only. It must not prepare, mix, or return operational data.
+- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_ws.php` for mock), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
+- The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
+- CORS is handled server-side; for local dev/Android the backend must be reachable on the IP used in `environment.ts`.
+
+## PDA preparation contract
+
+- The operator flow must always be: `login → preparacion → tienda principal → evento local → muestra → productos`.
+- `auth/login.php` handles only authentication. No operational data is returned on login.
+- `preparacion.php` is the single endpoint responsible for preparing **all** operational data the APK needs after login.
+- The APK/PDA must never receive, build, or know server-side SQL queries. It only consumes a simple API contract and persists the result into local SQLite.
+- The web service layer must clean, adapt, and flatten backend agendas/queries before returning data to the APK.
+- Backend complexity (joins, agendas, legacy table names, query-specific structures) must stay server-side. The API response must expose stable, domain-level payloads ready for SQLite insertion.
+- The APK's operational focus is **samples** (`muestra`), not agendas.
+- The active event is determined by calendar date.
+- Do **not** create a `sod_agenda` table. Only store `id_agenda` as a minimal metadata field if needed for traceability or sync.
+- The WS must support multiple codes per product. The app models this via `sod_producto_detalle`.
+- Any future sync/download work must preserve this separation: backend complexity stays in the WS; the APK works only with the prepared contract.
+
+## Theme
+
+- `ThemeFacade` supports light/dark toggle, persisted under key `theme` in `@capacitor/preferences`.
+- `src/global.scss` imports `@ionic/angular/css/palettes/dark.class.css` (class-based dark mode).
+- `src/theme/variables.scss` defines both light and `:root.dark` tokens. The active theme is driven by the `.dark` class on `<html>`.
+- `StatusBar` style/background is updated on native platforms when the theme changes.
+
+## SQLite / offline
+
+- `@capacitor-community/sqlite` is wrapped by `SqliteConnectionService` (`src/app/core/database/`).
+- SQLite is only initialized on native platforms (`Capacitor.isNativePlatform()`); on web/Karma it is silently skipped.
+- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `39`).
+- The repository drops tables only when the schema version changes; old renamed/legacy tables (`cat_operador`, `cat_zona`, etc.) are also dropped during a version bump.
+- To force a clean database in development, bump `SODIMAC_DB_VERSION` in `sodimac.schema.ts`.
+- Dev data seeding (`SqliteDevSeederRepository`) inserts sample stores, zones, events, products, and sample assignments after login.
+- Key tables: `sod_conteo` (round session, states: ABIERTO/FINALIZADO/SINCRONIZADO), `sod_conteo_detalle` (individual counts, states: EN_CURSO/FINALIZADO/SINCRONIZADO), `sod_muestra`/`sod_muestra_detalle` (sample assignments), `sod_producto_detalle` (multiple barcodes per product).
+
+## Capacitor / native workflow
+
+- Capacitor config: `capacitor.config.ts`. `appId` is still placeholder `io.ionic.starter`.
+- Android project exists under `android/` and is tracked in Git (build artifacts and IDE files are gitignored).
+- `capacitor.config.ts` sets `server.androidScheme: 'http'` to avoid mixed-content blocks when the backend is HTTP.
+- `AndroidManifest.xml` has `android:usesCleartextTraffic="true"` and references `network_security_config.xml`, which permits cleartext traffic for `192.168.1.9`, `ws.code`, `localhost`, and `127.0.0.1`.
+- Always build before syncing: `npm run build; npx cap sync`.
+- No iOS platform committed yet. Add with `npx cap add ios` if needed.
 
 ## Tests
 
@@ -66,7 +128,8 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 - Karma config: `karma.conf.js`; test bootstrap: `src/test.ts`.
 - Coverage written to `coverage/app`.
 - Run a single spec file: `npx ng test --include='src/app/home/home.page.spec.ts'`.
-- Mock `@capacitor/preferences` in tests (real Capacitor plugins unavailable in browser).
+- Mock `@capacitor/preferences` and other Capacitor plugins in tests (real plugins are unavailable in the browser).
+- No CI workflows are currently committed under `.github/workflows/`.
 
 ## Code style / lint
 
@@ -75,6 +138,7 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 - Allowed component suffixes: `Page` and `Component`.
 - EditorConfig: 2-space indentation, UTF-8, final newline, single quotes for `*.ts`.
 
+<<<<<<< HEAD
 ## Capacitor / native workflow
 
 - Capacitor config: `capacitor.config.ts`. `appId` is still placeholder `io.ionic.starter`.
@@ -83,14 +147,38 @@ RUT handling lives in `src/app/shared/utils/rut.utils.ts`:
 - No `android`/`ios` platforms committed yet. Add with `npx cap add android` / `npx cap add ios`.
 - Native project dirs and `www` are gitignored.
 
+=======
+>>>>>>> feat/modo-analista-maqueta
 ## Environment / build
 
-- Environment files in `src/environments/`. Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
-- Only `production: boolean` is defined; no `useMockSoap` toggle exists yet.
+- Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).
+- Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
+- `develop_ws` build replaces `environment.ts` with `environment.develop-ws.ts` (uses `preparacion_ws.php` mock endpoint).
 
-## Theming / UI
+## Mockup analista / operador
 
-- Design system documented in `docs/ui-theme.md` (dark glassmorphism, large 64px touch targets, indigo-violet-pink accents).
-- CSS custom properties and Ionic overrides in `src/theme/variables.scss`.
-- Reusable utility classes defined in `variables.scss`: `.glass-card`, `.app-button`, `.app-input`, `.error-pill`, `.page-title`, `.page-subtitle`.
-- `src/global.scss` imports `dark.always.css` — app is always dark, no theme toggle.
+Para probar el flujo mockup usar:
+
+```bash
+ng serve --configuration=mockup
+```
+
+Este environment apunta a:
+
+- `api/sincronizaciones/preparacion_mockup.php`
+
+El login sigue usando el endpoint normal configurado en la APK. La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
+
+- `OPERADOR` → `/home`
+- `ANALISTA_CLIENTE` → `/analyst-dashboard`
+
+Usuarios mockup disponibles en `sodimac-ws/api/sincronizaciones/preparacion_mockup.php`:
+
+| Perfil | Correo | RUT | Password |
+|--------|--------|-----|----------|
+| OPERADOR | rodrigo.rodriguez@sodimac.cl | 17534077-7 | 175340 |
+| OPERADOR | operador@taxo.cl | 11111111-1 | 111111 |
+| OPERADOR | seigi.gim@taxo.cl | 99800002-5 | 998000 |
+| ANALISTA_CLIENTE | analista@taxo.cl | 22222222-2 | 222222 |
+
+La password por defecto son los primeros 6 dígitos del cuerpo del RUT.

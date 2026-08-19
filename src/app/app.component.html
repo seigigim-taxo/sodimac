@@ -12,11 +12,12 @@
     </ion-header>
     <ion-content style="--background: var(--app-menu-bg); --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem;">
       <div class="menu-user-info">
-        <p class="menu-user-name">{{ session()?.name }}</p>
-        <p class="menu-user-rut">{{ session()?.rut }}</p>
+        <p class="menu-user-rut">{{ formatRutDisplay(session()?.rutNormalizado ?? '') }}</p>
+        <p class="menu-user-name">{{ session()?.correo }}</p>
       </div>
 
       <ion-list lines="none" class="menu-list">
+<<<<<<< HEAD
         <!-- Home -->
         <ion-menu-toggle>
           <ion-item button (click)="goHome()" class="menu-home-item">
@@ -30,6 +31,40 @@
           <ion-item button (click)="goCounts()" class="menu-counts-item">
             <ion-icon slot="start" name="list-outline"></ion-icon>
             <ion-label>Conteos</ion-label>
+=======
+        <!-- Inicio (solo operador) -->
+        @if (isOperator()) {
+          <ion-menu-toggle>
+            <ion-item button (click)="goHome()" class="menu-theme-item">
+              <ion-icon slot="start" name="home-outline"></ion-icon>
+              <ion-label>Inicio</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+
+          <ion-menu-toggle>
+            <ion-item button (click)="goConteos()" class="menu-theme-item">
+              <ion-icon slot="start" name="list-outline"></ion-icon>
+              <ion-label>Conteos</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        }
+
+        <!-- Dashboard Analista (solo analista) -->
+        @if (isAnalyst()) {
+          <ion-menu-toggle>
+            <ion-item button (click)="goAnalystDashboard()" class="menu-theme-item">
+              <ion-icon slot="start" name="stats-chart-outline"></ion-icon>
+              <ion-label>Dashboard Analista</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        }
+
+        <!-- Sincronizar datos -->
+        <ion-menu-toggle>
+          <ion-item button (click)="syncDatos()" class="menu-theme-item">
+            <ion-icon slot="start" name="sync-outline"></ion-icon>
+            <ion-label>Sincronizar datos</ion-label>
+>>>>>>> feat/modo-analista-maqueta
           </ion-item>
         </ion-menu-toggle>
 
@@ -45,6 +80,14 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Reiniciar base local -->
+        <ion-menu-toggle>
+          <ion-item button (click)="confirmResetLocalDatabase()" class="menu-logout-item">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            <ion-label>Reiniciar base local</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Logout -->
         <ion-menu-toggle>
           <ion-item button (click)="logout()" class="menu-logout-item">
@@ -57,4 +100,6 @@
   </ion-menu>
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
+
+
 </ion-app>

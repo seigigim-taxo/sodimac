@@ -1,0 +1,234 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Conteos</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <h2 class="page-title mb-6">Resumen de conteos</h2>
+
+    <!-- ===== CONTEO (real): resumen por ubicación desde sod_conteo ===== -->
+
+    @if (resumenesEvento().length === 0) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>Aún no has finalizado ningún TAG en este evento</span>
+    </div>
+    } @else {
+
+    @if (resumenAvanceGlobal(); as avance) {
+    <p class="section-label">Resumen de avance</p>
+    <div class="card mb-6">
+      <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[12px]" style="color: var(--app-text-muted);">Q contado</span>
+          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ avance.qContado }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs únicos</span>
+          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ avance.contados }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-[12px]" style="color: var(--app-text-muted);">Tags distintos usados</span>
+          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ resumenesEvento().length }}</span>
+        </div>
+      </div>
+    </div>
+    }
+
+    @if (iteracionesReales().length > 1) {
+    <ion-segment [value]="iteracionSeleccionada()" (ionChange)="onIteracionChange($event)" class="mb-6">
+      @for (it of iteracionesReales(); track it) {
+      <ion-segment-button [value]="it">
+        <ion-label>Iteración {{ it }}</ion-label>
+      </ion-segment-button>
+      }
+    </ion-segment>
+    }
+
+    <!-- Pestañas por conteo individual (TAG) -->
+    @if (conteosComoPestanas().length > 0) {
+    <p class="section-label mb-2">Conteos por TAG</p>
+    <ion-segment [value]="conteoSeleccionado()?.ubicacionId" (ionChange)="onConteoChange($event)" class="mb-4" scrollable="true">
+      @for (conteo of conteosComoPestanas(); track conteo.ubicacionId) {
+      <ion-segment-button [value]="conteo.ubicacionId">
+        <ion-label>TAG {{ conteo.tag }}</ion-label>
+      </ion-segment-button>
+      }
+    </ion-segment>
+
+    <!-- Resumen del conteo seleccionado -->
+    @if (conteoSeleccionado(); as conteo) {
+    <div class="card mb-6">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">TAG {{ conteo.tag }}</p>
+        <span class="badge shrink-0"
+          [class.badge-warning]="conteo.estado === 'EN_CURSO'"
+          [class.badge-success]="conteo.estado === 'FINALIZADO' || conteo.estado === 'SINCRONIZADO'">
+          @if (conteo.estado === 'EN_CURSO') {
+            <ion-icon name="time-outline"></ion-icon>
+            <span>En curso</span>
+          } @else if (conteo.estado === 'FINALIZADO') {
+            <ion-icon name="checkmark-done-outline"></ion-icon>
+            <span>Finalizado</span>
+          } @else {
+            <ion-icon name="cloud-done-outline"></ion-icon>
+            <span>Sincronizado</span>
+          }
+        </span>
+      </div>
+      <p class="text-[12px] mb-4" style="color: var(--app-text-muted);">{{ conteo.zonaCodigo }}</p>
+
+      <!-- Métricas del conteo (pedido por Patricio) -->
+      <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
+          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ conteo.totalUnidades }}</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">SKUs únicos</span>
+          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ conteo.totalProductos }}</span>
+        </div>
+      </div>
+
+      <!-- Acciones según estado -->
+      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && !modoSoloLectura()) {
+      <div class="flex items-center gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+        <ion-button expand="block" fill="outline" size="small" (click)="sincronizarReal(conteo)">
+          <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+          Sincronizar
+        </ion-button>
+        <ion-button expand="block" fill="outline" size="small" color="danger" (click)="eliminarReal(conteo)">
+          <ion-icon slot="start" name="trash-outline"></ion-icon>
+          Eliminar
+        </ion-button>
+      </div>
+      }
+      @if (modoSoloLectura() && conteo.estado === 'FINALIZADO') {
+      <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+        <p class="text-xs text-center" style="color: var(--app-text-muted);">
+          Evento en análisis — acciones no disponibles
+        </p>
+      </div>
+      }
+      @if (isSyncing(conteo)) {
+      <div class="flex items-center justify-center gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+        <ion-spinner name="crescent" style="width: 16px; height: 16px;"></ion-spinner>
+        <span class="text-xs" style="color: var(--app-text-muted);">Sincronizando...</span>
+      </div>
+      }
+    </div>
+    }
+    }
+
+    <!-- Resumen global de la iteración -->
+    @if (resumenGlobalIteracion(); as resumen) {
+    <p class="section-label mb-2">Resumen global — Iteración {{ iteracionSeleccionada() }}</p>
+    <div class="card mb-6">
+      <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">Q contado total</span>
+          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalUnidades }}</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
+          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalProductos }}</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
+          <span class="text-lg font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs" style="color: var(--app-text-muted);">Total de tags</span>
+          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalTags }}</span>
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- ===== DETALLE POR SKU (trazabilidad) ===== -->
+    @if (trazabilidadFiltrada().length > 0) {
+    <p class="section-label mb-2">Detalle por SKU — Iteración {{ iteracionSeleccionada() }}</p>
+    <div class="card mb-6">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left" style="border-collapse: collapse; min-width: 480px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--app-border);">
+              <th class="text-[11px] py-1.5 px-2" style="color: var(--app-text-muted);">TAG</th>
+              <th class="text-[11px] py-1.5 px-2" style="color: var(--app-text-muted);">SKU</th>
+              <th class="text-[11px] py-1.5 px-2" style="color: var(--app-text-muted);">Descripción</th>
+              <th class="text-[11px] py-1.5 px-2 text-right" style="color: var(--app-text-muted);">Stock sis.</th>
+              <th class="text-[11px] py-1.5 px-2 text-right" style="color: var(--app-text-muted);">Q contado</th>
+              <th class="text-[11px] py-1.5 px-2 text-center" style="color: var(--app-text-muted);">Estado</th>
+              <th class="text-[11px] py-1.5 px-2" style="color: var(--app-text-muted);">Fecha/Hora</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of trazabilidadFiltrada(); track item.conteoId + '-' + item.sku) {
+            <tr style="border-bottom: 1px solid var(--app-border);">
+              <td class="text-[12px] py-1.5 px-2 num" style="color: var(--app-text);">{{ item.tag ?? '—' }}</td>
+              <td class="text-[12px] py-1.5 px-2 num font-semibold" style="color: var(--app-text);">{{ item.sku }}</td>
+              <td class="text-[12px] py-1.5 px-2 truncate max-w-[120px]" style="color: var(--app-text);">{{ item.descripcion ?? '—' }}</td>
+              <td class="text-[12px] py-1.5 px-2 text-right num" style="color: var(--app-text-muted);">{{ item.stockSistema ?? '—' }}</td>
+              <td class="text-[12px] py-1.5 px-2 text-right num font-semibold" style="color: var(--app-text);">{{ item.cantidadFisica }}</td>
+              <td class="text-[12px] py-1.5 px-2 text-center">
+                @if (item.estado === 'EN_CURSO') {
+                  <span class="badge badge-warning text-[10px]">En curso</span>
+                } @else if (item.estado === 'FINALIZADO') {
+                  <span class="badge badge-success text-[10px]">Finalizado</span>
+                } @else {
+                  <span class="badge badge-success text-[10px]">Sincronizado</span>
+                }
+              </td>
+              <td class="text-[11px] py-1.5 px-2" style="color: var(--app-text-muted);">{{ item.fechaHora }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    } @else if (trazabilidadLoading()) {
+    <div class="flex items-center justify-center gap-2 py-4">
+      <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>
+      <span class="text-xs" style="color: var(--app-text-muted);">Cargando detalle...</span>
+    </div>
+    } @else if (resumenesEvento().length > 0 && !trazabilidadLoading()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No hay detalle de SKU para la iteración {{ iteracionSeleccionada() }}</span>
+    </div>
+    }
+
+    <div class="mb-8">
+      @if (conteoCerrado()) {
+      <!-- Ya finalizado: la pantalla queda de solo lectura y lo dice explícitamente. -->
+      <div class="status-banner status-banner-success">
+        <ion-icon name="checkmark-done-outline"></ion-icon>
+        <span>{{ estadoEventoLabel() }} · iteración {{ iteracionActual() }}</span>
+      </div>
+      } @else {
+      <ion-button expand="block" class="btn-accent" [disabled]="!puedeFinalizarEvento() || finalizandoEvento()"
+        (click)="finalizarEventoReal()">
+        <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+        Finalizar conteo
+      </ion-button>
+      @if (enCursoReal().length > 0) {
+      <p class="hint-text text-center">
+        Quedan {{ enCursoReal().length }} TAG(s) en curso — finalízalos antes de cerrar el conteo
+      </p>
+      }
+      }
+    </div>
+
+    }
+
+  </div>
+</ion-content>

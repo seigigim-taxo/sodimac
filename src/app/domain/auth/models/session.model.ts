@@ -1,6 +1,7 @@
 export interface Session {
-  token: string;
-  userId: number;
-  name: string;
-  rut: string;
+  operadorId: number;
+  rutNormalizado: string;
+  correo: string;
+  tipoUsuario?: string;
+  nombreCompleto?: string;
 }

@@ -1,4 +1,5 @@
-import { cleanRut, formatRut, getFirstSixDigits, validateRut } from './rut.utils';
+import { cleanRut, formatRut, validateRut } from './rut.utils';
+import { getFirstSixDigits } from '../../domain/auth/utils/rut.utils';
 
 describe('RUT utilities', () => {
   describe('cleanRut', () => {

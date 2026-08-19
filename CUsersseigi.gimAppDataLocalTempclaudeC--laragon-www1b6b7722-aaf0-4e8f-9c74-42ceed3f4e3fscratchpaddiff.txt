@@ -1,0 +1,3663 @@
+diff --git a/android/app/src/main/res/xml/network_security_config.xml b/android/app/src/main/res/xml/network_security_config.xml
+index 5436cf3..d9aed7a 100644
+--- a/android/app/src/main/res/xml/network_security_config.xml
++++ b/android/app/src/main/res/xml/network_security_config.xml
+@@ -4,6 +4,8 @@
+         <domain includeSubdomains="true">192.168.1.9</domain>
+         <domain includeSubdomains="true">10.3.104.102</domain>
+         <domain includeSubdomains="true">172.16.235.77</domain>
++        <domain includeSubdomains="true">10.3.161.6</domain>
++        <domain includeSubdomains="true">192.168.1.11</domain>
+         <domain includeSubdomains="true">ws.code</domain>
+         <domain includeSubdomains="true">localhost</domain>
+         <domain includeSubdomains="true">127.0.0.1</domain>
+diff --git a/angular.json b/angular.json
+index ae7ae9d..f88978a 100644
+--- a/angular.json
++++ b/angular.json
+@@ -115,7 +115,8 @@
+           "configurations": {
+             "ci": {
+               "progress": false,
+-              "watch": false
++              "watch": false,
++              "browsers": "ChromeHeadless"
+             }
+           }
+         },
+diff --git a/package.json b/package.json
+index 57d2bd5..b581114 100644
+--- a/package.json
++++ b/package.json
+@@ -9,6 +9,7 @@
+     "build": "ng build",
+     "watch": "ng build --watch --configuration development",
+     "test": "ng test",
++    "test:ci": "ng test --configuration=ci",
+     "lint": "ng lint"
+   },
+   "private": true,
+diff --git a/src/app/app.component.html b/src/app/app.component.html
+index e9c272e..9fc46d4 100644
+--- a/src/app/app.component.html
++++ b/src/app/app.component.html
+@@ -16,6 +16,14 @@
+         <p class="menu-user-name">{{ session()?.cargo }}</p>
+       </div>
+ 
++      <!-- Buscador SKU → TAG: vive acá para estar disponible en todas las etapas
++           del proceso — el menú es el único punto que alcanzan todas las pantallas. -->
++      @if (session()) {
++      <div class="mb-4">
++        <app-buscador-sku></app-buscador-sku>
++      </div>
++      }
++
+       <ion-list lines="none" class="menu-list">
+         <!-- Inicio -->
+         <ion-menu-toggle>
+@@ -25,11 +33,11 @@
+           </ion-item>
+         </ion-menu-toggle>
+ 
+-        <!-- Tags -->
++        <!-- Conteos -->
+         <ion-menu-toggle>
+-          <ion-item button (click)="goTags()" class="menu-theme-item">
++          <ion-item button (click)="goConteos()" class="menu-theme-item">
+             <ion-icon slot="start" name="list-outline"></ion-icon>
+-            <ion-label>Tags</ion-label>
++            <ion-label>Conteos</ion-label>
+           </ion-item>
+         </ion-menu-toggle>
+ 
+diff --git a/src/app/app.component.ts b/src/app/app.component.ts
+index f16d83f..c19c536 100644
+--- a/src/app/app.component.ts
++++ b/src/app/app.component.ts
+@@ -22,11 +22,13 @@ import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline
+ import { AuthFacade } from './state/auth/auth.facade';
+ import { ThemeFacade } from './state/theme/theme.facade';
+ import { formatRutDisplay } from './shared/utils/rut.utils';
++import { BuscadorSkuComponent } from './shared/components/buscador-sku/buscador-sku.component';
+ 
+ @Component({
+   selector: 'app-root',
+   templateUrl: 'app.component.html',
+   imports: [
++    BuscadorSkuComponent,
+     IonApp,
+     IonRouterOutlet,
+     IonMenu,
+@@ -65,7 +67,7 @@ export class AppComponent {
+     this.router.navigate(['/home']);
+   }
+ 
+-  goTags(): void {
++  goConteos(): void {
+     this.router.navigate(['/tags-resumen']);
+   }
+ 
+diff --git a/src/app/app.routes.ts b/src/app/app.routes.ts
+index bd7f000..6e36733 100644
+--- a/src/app/app.routes.ts
++++ b/src/app/app.routes.ts
+@@ -2,7 +2,8 @@ import { Routes } from '@angular/router';
+ import { authGuard } from './state/auth/guards/auth.guard';
+ import { noSesionActivaGuard } from './state/conteo/guards/no-sesion-activa.guard';
+ import { eventoSeleccionadoGuard } from './state/evento/guards/evento-seleccionado.guard';
+-import { tagEnSesionGuard } from './state/counting-mock/guards/tag-en-sesion.guard';
++import { tagEnSesionGuard } from './state/conteo/guards/tag-en-sesion.guard';
++import { pdaBloqueadaGuard } from './state/conteo/guards/pda-bloqueada.guard';
+ 
+ export const routes: Routes = [
+   {
+@@ -22,17 +23,18 @@ export const routes: Routes = [
+   {
+     path: 'counting-tag',
+     loadComponent: () => import('./features/counting/tag-zona.page/tag-zona.page.component').then((m) => m.TagZonaPageComponent),
+-    canActivate: [authGuard, eventoSeleccionadoGuard],
++    canActivate: [authGuard, eventoSeleccionadoGuard, pdaBloqueadaGuard],
+   },
+   {
+     path: 'counting',
+     loadComponent: () => import('./features/counting/counting.page/counting.page.component').then((m) => m.CountingPageComponent),
+-    canActivate: [authGuard, eventoSeleccionadoGuard, tagEnSesionGuard],
++    canActivate: [authGuard, eventoSeleccionadoGuard, tagEnSesionGuard, pdaBloqueadaGuard],
+   },
+   {
+     // Sin eventoSeleccionadoGuard a propósito: "Cerrar tienda" debe poder
+     // llegar aquí incluso si el operador nunca llegó a seleccionar un
+     // evento (ej. no hay eventos disponibles hoy).
++    // Sin pdaBloqueadaGuard: tags-resumen es de solo lectura cuando evento = EN_ANALISIS.
+     path: 'tags-resumen',
+     loadComponent: () => import('./features/counting/tags-resumen.page/tags-resumen.page.component').then((m) => m.TagsResumenPageComponent),
+     canActivate: [authGuard],
+diff --git a/src/app/application/conteo/upsert-conteo-item.use-case.ts b/src/app/application/conteo/upsert-conteo-item.use-case.ts
+index 6202c7a..be33f6a 100644
+--- a/src/app/application/conteo/upsert-conteo-item.use-case.ts
++++ b/src/app/application/conteo/upsert-conteo-item.use-case.ts
+@@ -11,8 +11,14 @@ export class UpsertConteoItemUseCase {
+     productoId: number, operadorId: number, pdaId: number,
+     cantidad: number
+   ): Promise<ConteoItem> {
+-    if (cantidad < 1 || !Number.isFinite(cantidad)) {
+-      throw new Error('La cantidad debe ser mayor o igual a 1');
++    /*
++     * Cero es una cantidad válida: el operador declara que del SKU no hay
++     * unidades (vendido, despachado, o corrección de un conteo anterior).
++     * La confirmación de que no fue un error de digitación la pide la UI
++     * antes de llegar acá; lo que se rechaza son negativos y no-números.
++     */
++    if (cantidad < 0 || !Number.isFinite(cantidad)) {
++      throw new Error('La cantidad no puede ser negativa');
+     }
+     return this.conteoRepo.upsert(eventoId, ubicacionId, productoId, operadorId, pdaId, cantidad);
+   }
+diff --git a/src/app/core/database/sodimac.schema.ts b/src/app/core/database/sodimac.schema.ts
+index 35e2401..00fe833 100644
+--- a/src/app/core/database/sodimac.schema.ts
++++ b/src/app/core/database/sodimac.schema.ts
+@@ -1,5 +1,5 @@
+ export const SODIMAC_DB_NAME = 'sodimac';
+-export const SODIMAC_DB_VERSION = 23;
++export const SODIMAC_DB_VERSION = 28;
+ 
+ // Orden de creación respeta dependencias FK de arriba hacia abajo.
+ const TABLES: readonly string[] = [
+@@ -139,6 +139,7 @@ const TABLES: readonly string[] = [
+     pda_id           INTEGER NOT NULL REFERENCES sod_pda(id),
+     cantidad_fisica  REAL    NOT NULL,
+     estado           TEXT    NOT NULL DEFAULT 'EN_CURSO' CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
++    iteracion        INTEGER NOT NULL DEFAULT 1,
+     fecha_hora       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+   )`
+ 
+diff --git a/src/app/core/database/sqlite-connection.service.ts b/src/app/core/database/sqlite-connection.service.ts
+index 3012674..da49b2d 100644
+--- a/src/app/core/database/sqlite-connection.service.ts
++++ b/src/app/core/database/sqlite-connection.service.ts
+@@ -21,6 +21,16 @@ export class SqliteConnectionService {
+   }
+ 
+   async getConnection(dbName: string): Promise<SQLiteDBConnection> {
++    /*
++     * En web el plugin exige el elemento jeep-sqlite en el DOM y falla con un
++     * error que no dice nada del contexto. Se corta antes con un mensaje que sí
++     * explica qué pasa: sin esto, cualquier consulta desde `ng serve` terminaba
++     * en una pantalla en blanco.
++     */
++    if (!this.isSupported) {
++      throw new Error(`${TAG} SQLite solo está disponible en plataforma nativa (Android/iOS). En web no hay base local.`);
++    }
++
+     const cached = this.connections.get(dbName);
+     if (cached) {
+       return cached;
+diff --git a/src/app/data/auth/auth.service.spec.ts b/src/app/data/auth/auth.service.spec.ts
+index cef6163..6666a63 100644
+--- a/src/app/data/auth/auth.service.spec.ts
++++ b/src/app/data/auth/auth.service.spec.ts
+@@ -21,7 +21,7 @@ describe('AuthService', () => {
+     httpMock.verify();
+   });
+ 
+-  it('should login successfully and map API fields', (done) => {
++  it('should login successfully and map API fields', async () => {
+     const request = { rut: '12345678-5', password: '123456' };
+     const mockResponse = {
+       status: 'OK',
+@@ -39,38 +39,34 @@ describe('AuthService', () => {
+       },
+     };
+ 
+-    service.login(request).subscribe((response) => {
+-      expect(response.token).toBe('abc123');
+-      expect(response.user.nombreCompleto).toBe('Juan Perez');
+-      expect(response.user.rut).toBe('12345678-5');
+-      expect(response.user.rutNormalizado).toBe('123456785');
+-      expect(response.user.cargo).toBe('Operador de Inventario');
+-      expect(response.user.correo).toBe('juan.perez@ejemplo.cl');
+-      done();
+-    });
++    const promesa = service.login(request);
+ 
+     const req = httpMock.expectOne(`${environment.apiUrl}/auth/login.php`);
+     expect(req.request.method).toBe('POST');
+     expect(req.request.body).toEqual(request);
+     req.flush(mockResponse);
++
++    const response = await promesa;
++    expect(response.token).toBe('abc123');
++    expect(response.user.nombreCompleto).toBe('Juan Perez');
++    expect(response.user.rut).toBe('12345678-5');
++    expect(response.user.rutNormalizado).toBe('123456785');
++    expect(response.user.cargo).toBe('Operador de Inventario');
++    expect(response.user.correo).toBe('juan.perez@ejemplo.cl');
+   });
+ 
+-  it('should throw on failed login', (done) => {
++  it('should throw on failed login', async () => {
+     const request = { rut: '12345678-5', password: 'wrong' };
+     const mockResponse = {
+       status: 'ERROR',
+       msg: 'Contraseña incorrecta',
+     };
+ 
+-    service.login(request).subscribe({
+-      next: () => fail('Expected an error'),
+-      error: (err: Error) => {
+-        expect(err.message).toBe('Contraseña incorrecta');
+-        done();
+-      },
+-    });
++    const promesa = service.login(request);
+ 
+     const req = httpMock.expectOne(`${environment.apiUrl}/auth/login.php`);
+     req.flush(mockResponse);
++
++    await expectAsync(promesa).toBeRejectedWithError('Contraseña incorrecta');
+   });
+ });
+diff --git a/src/app/data/conteo/conteo.repository.ts b/src/app/data/conteo/conteo.repository.ts
+index f732060..1f68e8d 100644
+--- a/src/app/data/conteo/conteo.repository.ts
++++ b/src/app/data/conteo/conteo.repository.ts
+@@ -1,15 +1,17 @@
+ import { Injectable, inject, isDevMode } from '@angular/core';
++import type { SQLiteDBConnection } from '@capacitor-community/sqlite';
+ import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
+ import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
+ import { ConteoRepository } from '../../domain/conteo/repositories/conteo.repository';
+ import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
+ import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+ import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
++import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
+ 
+ // JOIN reutilizado en fetchOne y getBySesion
+ const SELECT_ITEM = `
+   SELECT c.id, c.evento_id, c.ubicacion_id, c.producto_id,
+-         c.operador_id, c.pda_id, c.cantidad_fisica, c.estado, c.fecha_hora,
++         c.operador_id, c.pda_id, c.cantidad_fisica, c.estado, c.iteracion, c.fecha_hora,
+          p.sku, p.descripcion
+   FROM sod_conteo c
+   JOIN sod_producto p ON p.id = c.producto_id
+@@ -41,21 +43,40 @@ export class SqliteConteoRepository implements ConteoRepository {
+ 
+     if (existing.values?.length) {
+       // cantidad_fisica + cantidad se evalúa en SQLite sobre el valor real de la DB.
++      //
++      // Cero es la excepción: no es "sumar nada" (un no-op silencioso), es la
++      // declaración de que del SKU no hay unidades — típicamente corrigiendo un
++      // conteo previo del mismo SKU. Por eso reemplaza el valor en vez de sumarse.
+       const id = (existing.values[0] as Record<string, unknown>)['id'] as number;
+       await db.run(
+-        `UPDATE sod_conteo
+-         SET cantidad_fisica = cantidad_fisica + ?,
+-             fecha_hora      = CURRENT_TIMESTAMP
+-         WHERE id = ?`,
+-        [cantidad, id]
++        cantidad === 0
++          ? `UPDATE sod_conteo
++             SET cantidad_fisica = 0,
++                 fecha_hora      = CURRENT_TIMESTAMP
++             WHERE id = ?`
++          : `UPDATE sod_conteo
++             SET cantidad_fisica = cantidad_fisica + ?,
++                 fecha_hora      = CURRENT_TIMESTAMP
++             WHERE id = ?`,
++        cantidad === 0 ? [id] : [cantidad, id]
+       );
+     } else {
+-      // estado toma el DEFAULT 'EN_CURSO' del schema.
++      /*
++       * estado toma el DEFAULT 'EN_CURSO' del schema. La iteración se deriva del
++       * propio conteo: la ronda es el mayor número ya registrado en el evento, o 1
++       * si es la primera fila.
++       *
++       * LIMITACIÓN CONOCIDA: una ronda recién abierta todavía no tiene filas
++       * propias, así que MAX() sigue devolviendo la anterior. Mientras la ronda
++       * activa no se guarde en ninguna parte, no hay forma de distinguir "la ronda
++       * N está cerrada" de "la ronda N+1 está abierta y vacía".
++       */
+       await db.run(
+         `INSERT INTO sod_conteo
+-           (evento_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica)
+-         VALUES (?, ?, ?, ?, ?, ?)`,
+-        [eventoId, ubicacionId, productoId, operadorId, pdaId, cantidad]
++           (evento_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, iteracion)
++         VALUES (?, ?, ?, ?, ?, ?,
++                 COALESCE((SELECT MAX(iteracion) FROM sod_conteo WHERE evento_id = ?), 1))`,
++        [eventoId, ubicacionId, productoId, operadorId, pdaId, cantidad, eventoId]
+       );
+     }
+ 
+@@ -68,11 +89,15 @@ export class SqliteConteoRepository implements ConteoRepository {
+     delta: number, estado: EstadoConteo
+   ): Promise<ConteoItem> {
+     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    await this.assertIteracionActiva(db, eventoId, ubicacionId, productoId, operadorId, pdaId, estado);
+ 
+-    // MAX(1, ...) impide bajar de 1; para quitar el item se usa delete().
++    // MAX(0, ...) impide cantidades negativas, pero sí permite llegar a 0:
++    // dejar un SKU en cero es un dato válido (no hay unidades) y es distinto de
++    // borrarlo del conteo, que sigue siendo delete(). La confirmación de que el
++    // cero es intencional la pide la UI antes de llamar acá.
+     await db.run(
+       `UPDATE sod_conteo
+-       SET cantidad_fisica = MAX(1, cantidad_fisica + ?),
++       SET cantidad_fisica = MAX(0, cantidad_fisica + ?),
+            fecha_hora      = CURRENT_TIMESTAMP
+        WHERE evento_id = ? AND ubicacion_id = ? AND producto_id = ?
+          AND operador_id = ? AND pda_id = ? AND estado = ?`,
+@@ -88,6 +113,8 @@ export class SqliteConteoRepository implements ConteoRepository {
+     estado: EstadoConteo
+   ): Promise<void> {
+     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    await this.assertIteracionActiva(db, eventoId, ubicacionId, productoId, operadorId, pdaId, estado);
++
+     await db.run(
+       `DELETE FROM sod_conteo
+        WHERE evento_id = ? AND ubicacion_id = ? AND producto_id = ?
+@@ -159,6 +186,7 @@ export class SqliteConteoRepository implements ConteoRepository {
+               u.tag, z.codigo AS zona_codigo, z.nombre AS zona_nombre,
+               COUNT(*)               AS total_productos,
+               SUM(c.cantidad_fisica) AS total_unidades,
++              MAX(c.iteracion)       AS iteracion,
+               MAX(c.fecha_hora)      AS fecha_ultima
+        FROM sod_conteo c
+        LEFT JOIN sod_ubicacion u ON u.id = c.ubicacion_id
+@@ -176,10 +204,25 @@ export class SqliteConteoRepository implements ConteoRepository {
+     return resumenes;
+   }
+ 
++  async getSkusContadosPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<string[]> {
++    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    const result = await db.query(
++      `SELECT DISTINCT p.sku
++       FROM sod_conteo c
++       JOIN sod_producto p ON p.id = c.producto_id
++       WHERE c.evento_id = ? AND c.operador_id = ? AND c.pda_id = ?
++         AND c.estado IN ('EN_CURSO', 'FINALIZADO')`,
++      [eventoId, operadorId, pdaId]
++    );
++    return (result.values ?? []).map((r) => (r as Record<string, unknown>)['sku'] as string);
++  }
++
+   async deleteSesion(
+     eventoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo
+   ): Promise<void> {
+     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    await this.assertIteracionActivaSesion(db, eventoId, ubicacionId, operadorId, pdaId, estado);
++
+     await db.run(
+       `DELETE FROM sod_conteo
+        WHERE evento_id = ? AND ubicacion_id = ?
+@@ -191,6 +234,72 @@ export class SqliteConteoRepository implements ConteoRepository {
+     }
+   }
+ 
++  async buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]> {
++    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    const result = await db.query(
++      `SELECT u.tag, z.codigo AS zona_codigo, z.nombre AS zona_nombre, c.cantidad_fisica
++       FROM sod_conteo c
++       JOIN sod_producto p       ON p.id = c.producto_id
++       LEFT JOIN sod_ubicacion u ON u.id = c.ubicacion_id
++       LEFT JOIN sod_zona z      ON z.id = u.zona_id
++       WHERE c.evento_id = ? AND p.sku = ?
++         AND c.estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')
++       ORDER BY c.fecha_hora DESC`,
++      [eventoId, sku]
++    );
++    return (result.values ?? []).map((r) => {
++      const row = r as Record<string, unknown>;
++      return {
++        tag: row['tag'] as string | null,
++        zonaCodigo: (row['zona_codigo'] as string | null) ?? '—',
++        zonaNombre: row['zona_nombre'] as string | null,
++        cantidad: row['cantidad_fisica'] as number,
++      };
++    });
++  }
++
++  /*
++   * Una iteración se cierra en forma definitiva al abrirse la siguiente: sus filas
++   * dejan de ser editables aunque queden en estado FINALIZADO (no sincronizado).
++   * Ambos helpers comparan contra MAX(sod_conteo.iteracion) del evento — la ronda
++   * más avanzada registrada — y cortan la escritura ANTES del UPDATE/DELETE,
++   * con un error explícito en vez de un no-op silencioso (mismo criterio que
++   * evitó el bug de "Ir a contar").
++   */
++  private async assertIteracionActiva(
++    db: SQLiteDBConnection, eventoId: number, ubicacionId: number,
++    productoId: number, operadorId: number, pdaId: number, estado: EstadoConteo
++  ): Promise<void> {
++    const result = await db.query(
++      `SELECT c.iteracion, (SELECT MAX(iteracion) FROM sod_conteo WHERE evento_id = ?) AS activa
++       FROM sod_conteo c
++       WHERE c.evento_id = ? AND c.ubicacion_id = ? AND c.producto_id = ?
++         AND c.operador_id = ? AND c.pda_id = ? AND c.estado = ?`,
++      [eventoId, eventoId, ubicacionId, productoId, operadorId, pdaId, estado]
++    );
++    const row = result.values?.[0] as Record<string, unknown> | undefined;
++    if (row && row['iteracion'] !== row['activa']) {
++      throw new Error('No se puede modificar un conteo de una iteración ya cerrada');
++    }
++  }
++
++  private async assertIteracionActivaSesion(
++    db: SQLiteDBConnection, eventoId: number, ubicacionId: number,
++    operadorId: number, pdaId: number, estado: EstadoConteo
++  ): Promise<void> {
++    const result = await db.query(
++      `SELECT MIN(c.iteracion) AS iteracion, (SELECT MAX(iteracion) FROM sod_conteo WHERE evento_id = ?) AS activa
++       FROM sod_conteo c
++       WHERE c.evento_id = ? AND c.ubicacion_id = ?
++         AND c.operador_id = ? AND c.pda_id = ? AND c.estado = ?`,
++      [eventoId, eventoId, ubicacionId, operadorId, pdaId, estado]
++    );
++    const row = result.values?.[0] as Record<string, unknown> | undefined;
++    if (row && row['iteracion'] !== null && row['iteracion'] !== row['activa']) {
++      throw new Error('No se puede modificar un conteo de una iteración ya cerrada');
++    }
++  }
++
+   private async fetchOne(
+     eventoId: number, ubicacionId: number,
+     productoId: number, operadorId: number, pdaId: number,
+@@ -212,32 +321,75 @@ export class SqliteConteoRepository implements ConteoRepository {
+ 
+   private map(row: Record<string, unknown>): ConteoItem {
+     return {
+-      id:             row['id']              as number,
+-      eventoId:       row['evento_id']       as number,
+-      ubicacionId:    row['ubicacion_id']    as number,
+-      productoId:     row['producto_id']     as number,
+-      sku:            row['sku']             as string,
+-      descripcion:    row['descripcion']     as string | null,
++      id: row['id'] as number,
++      eventoId: row['evento_id'] as number,
++      ubicacionId: row['ubicacion_id'] as number,
++      productoId: row['producto_id'] as number,
++      sku: row['sku'] as string,
++      descripcion: row['descripcion'] as string | null,
+       cantidadFisica: row['cantidad_fisica'] as number,
+-      estado:         row['estado']          as EstadoConteo,
+-      fechaHora:      row['fecha_hora']      as string,
++      estado: row['estado'] as EstadoConteo,
++      iteracion: row['iteracion'] as number,
++      fechaHora: row['fecha_hora'] as string,
+     };
+   }
+ 
+   private mapResumen(row: Record<string, unknown>): ConteoResumen {
+     return {
+-      eventoId:       row['evento_id']       as number,
+-      ubicacionId:    row['ubicacion_id']    as number,
+-      operadorId:     row['operador_id']     as number,
+-      pdaId:          row['pda_id']          as number,
+-      estado:         row['estado']          as EstadoConteo,
+-      tag:            row['tag']             as string | null,
++      eventoId: row['evento_id'] as number,
++      ubicacionId: row['ubicacion_id'] as number,
++      operadorId: row['operador_id'] as number,
++      pdaId: row['pda_id'] as number,
++      estado: row['estado'] as EstadoConteo,
++      tag: row['tag'] as string | null,
+       // ubicacion_id es nullable en el schema: si falta el JOIN, mostrar '—' en vez de ocultar el conteo
+-      zonaCodigo:     (row['zona_codigo']    as string | null) ?? '—',
+-      zonaNombre:     row['zona_nombre']     as string | null,
++      zonaCodigo: (row['zona_codigo'] as string | null) ?? '—',
++      zonaNombre: row['zona_nombre'] as string | null,
+       totalProductos: row['total_productos'] as number,
+-      totalUnidades:  row['total_unidades']  as number,
+-      fechaUltima:    row['fecha_ultima']    as string,
++      totalUnidades: row['total_unidades'] as number,
++      iteracion: row['iteracion'] as number,
++      fechaUltima: row['fecha_ultima'] as string,
+     };
+   }
+-}
++
++  async getIteracionActiva(eventoId: number): Promise<number> {
++    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    const result = await db.query(
++      `SELECT COALESCE(MAX(iteracion), 1) AS iteracion FROM sod_conteo WHERE evento_id = ?`,
++      [eventoId]
++    );
++    const row = result.values?.[0] as Record<string, unknown> | undefined;
++    return (row?.['iteracion'] as number) ?? 1;
++  }
++
++  async getUnidadesContadasPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<number> {
++    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    const result = await db.query(
++      `SELECT COALESCE(SUM(c.cantidad_fisica), 0) AS total
++     FROM sod_conteo c
++     WHERE c.evento_id = ? AND c.operador_id = ? AND c.pda_id = ?
++       AND c.estado IN ('EN_CURSO', 'FINALIZADO')`,
++      [eventoId, operadorId, pdaId]
++    );
++    const row = result.values?.[0] as Record<string, unknown> | undefined;
++    return (row?.['total'] as number) ?? 0;
++  }
++
++  async getTagsContadosEnIteracionesAnteriores(eventoId: number, iteracionActual: number): Promise<string[]> {
++    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++    const result = await db.query(
++      `SELECT DISTINCT u.tag
++       FROM sod_conteo c
++       LEFT JOIN sod_ubicacion u ON u.id = c.ubicacion_id
++       WHERE c.evento_id = ?
++         AND c.iteracion < ?
++         AND u.tag IS NOT NULL
++         AND u.tag != ''
++       ORDER BY u.tag`,
++      [eventoId, iteracionActual]
++    );
++    return (result.values ?? [])
++      .map((r) => (r as Record<string, unknown>)['tag'] as string)
++      .filter((t): t is string => !!t);
++  }
++}
+\ No newline at end of file
+diff --git a/src/app/data/evento/evento.repository.ts b/src/app/data/evento/evento.repository.ts
+index 7bac7be..73ec0fc 100644
+--- a/src/app/data/evento/evento.repository.ts
++++ b/src/app/data/evento/evento.repository.ts
+@@ -27,6 +27,14 @@ export class SqliteEventoRepository implements EventoRepository {
+         return row ? this.map(row) : null;
+     }
+ 
++    async updateEstado(id: number, estado: Evento['estado']): Promise<void> {
++        const db = await this.connection.getConnection(SODIMAC_DB_NAME);
++        await db.run(
++            `UPDATE sod_evento_inventario SET estado = ? WHERE id = ?`,
++            [estado, id]
++        );
++    }
++
+     private map(row: Record<string, unknown>): Evento {
+         return {
+             id:              row['id']               as number,
+diff --git a/src/app/domain/conteo/models/conteo-item.model.ts b/src/app/domain/conteo/models/conteo-item.model.ts
+index a218763..807d5e5 100644
+--- a/src/app/domain/conteo/models/conteo-item.model.ts
++++ b/src/app/domain/conteo/models/conteo-item.model.ts
+@@ -9,5 +9,6 @@ export interface ConteoItem {
+   descripcion:    string | null;
+   cantidadFisica: number;
+   estado:         EstadoConteo;
++  iteracion:      number;
+   fechaHora:      string;
+ }
+diff --git a/src/app/domain/conteo/models/conteo-resumen.model.ts b/src/app/domain/conteo/models/conteo-resumen.model.ts
+index f8c5aa3..17fa528 100644
+--- a/src/app/domain/conteo/models/conteo-resumen.model.ts
++++ b/src/app/domain/conteo/models/conteo-resumen.model.ts
+@@ -16,5 +16,6 @@ export interface ConteoResumen {
+   zonaNombre:     string | null;
+   totalProductos: number;
+   totalUnidades:  number;
++  iteracion:      number;
+   fechaUltima:    string;
+ }
+diff --git a/src/app/domain/conteo/repositories/conteo.repository.ts b/src/app/domain/conteo/repositories/conteo.repository.ts
+index e0b92a6..5c619d3 100644
+--- a/src/app/domain/conteo/repositories/conteo.repository.ts
++++ b/src/app/domain/conteo/repositories/conteo.repository.ts
+@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
+ import { ConteoItem } from '../models/conteo-item.model';
+ import { ConteoResumen } from '../models/conteo-resumen.model';
+ import { EstadoConteo } from '../models/estado-conteo.model';
++import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
+ 
+ export interface ConteoRepository {
+   /*
+@@ -26,8 +27,39 @@ export interface ConteoRepository {
+   /* Conteos agrupados del operador en esta PDA, con totales y estado. */
+   getResumenes(operadorId: number, pdaId: number): Promise<ConteoResumen[]>;
+ 
++  /*
++   * SKUs distintos con al menos una fila en el evento (en cualquier ubicación,
++   * EN_CURSO o FINALIZADO) — para calcular faltantes contra la muestra completa
++   * al cerrar el conteo del evento.
++   */
++  getSkusContadosPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<string[]>;
++
+   /* Elimina todas las filas del conteo identificado por la tupla + estado. */
+   deleteSesion(eventoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<void>;
++
++  /*
++   * En qué TAG(s)/zona(s) del evento hay filas registradas para ese SKU — un SKU
++   * puede estar en varios TAG. No se filtra por operador ni por PDA: la pregunta
++   * es "¿dónde se contó esto?", y una PDA se pasa entre turnos, así que acotarla
++   * al operador actual escondería conteos que sí están en esta base.
++   */
++  buscarPorSku(eventoId: number, sku: string): Promise<BusquedaSkuResultado[]>;
++
++  /*
++   * Ronda de conteo del evento: el mayor número registrado en sod_conteo, o 1 si
++   * el evento todavía no tiene ninguna fila. Es la única fuente de la iteración —
++   * no se guarda en ninguna otra tabla.
++   */
++  getIteracionActiva(eventoId: number): Promise<number>;
++
++  getUnidadesContadasPorEvento(eventoId: number, operadorId: number, pdaId: number): Promise<number>;
++
++  /*
++   * TAGs únicos que ya se contaron en iteraciones anteriores a la activa.
++   * Sirve en reconteo para sugerir al operador dónde contó antes, sin
++   * obligarlo a repetir los mismos TAGs.
++   */
++  getTagsContadosEnIteracionesAnteriores(eventoId: number, iteracionActual: number): Promise<string[]>;
+ }
+ 
+ export const CONTEO_REPOSITORY_TOKEN = new InjectionToken<ConteoRepository>('ConteoRepository');
+diff --git a/src/app/domain/evento/models/evento.model.ts b/src/app/domain/evento/models/evento.model.ts
+index d30b148..b698f9f 100644
+--- a/src/app/domain/evento/models/evento.model.ts
++++ b/src/app/domain/evento/models/evento.model.ts
+@@ -5,6 +5,6 @@ export interface Evento {
+     nombre: string;
+     fechaProgramada: string;
+     fechaEjecucion: string | null;
+-    estado: 'ABIERTO' | 'CERRADO' | 'EN_PROCESO' | 'CANCELADO' | 'EN_ANALISIS' | 'RECONTEO';
++    estado: 'ABIERTO' | 'EN_ANALISIS' | 'RECONTEO' | 'CERRADO';
+     fechaRegistro: string;
+ }
+diff --git a/src/app/domain/evento/repositories/evento.repository.ts b/src/app/domain/evento/repositories/evento.repository.ts
+index ad398ed..9b73455 100644
+--- a/src/app/domain/evento/repositories/evento.repository.ts
++++ b/src/app/domain/evento/repositories/evento.repository.ts
+@@ -4,6 +4,8 @@ import { Evento } from '../models/evento.model';
+ export interface EventoRepository {
+   getBySucursal(sucursalId: number): Promise<Evento[]>;
+   getById(id: number): Promise<Evento | null>;
++  updateEstado(id: number, estado: Evento['estado']): Promise<void>;
++
+ }
+ 
+ export const EVENTO_REPOSITORY_TOKEN = new InjectionToken<EventoRepository>('EventoRepository');
+diff --git a/src/app/domain/muestra/repositories/muestra.repository.ts b/src/app/domain/muestra/repositories/muestra.repository.ts
+index f8747e7..2b9dbec 100644
+--- a/src/app/domain/muestra/repositories/muestra.repository.ts
++++ b/src/app/domain/muestra/repositories/muestra.repository.ts
+@@ -2,6 +2,10 @@ import { InjectionToken } from '@angular/core';
+ import { Muestra } from '../models/muestra.model';
+ 
+ export interface MuestraRepository {
++  /*
++   * La muestra del evento. Hoy hay una sola: sod_muestra no distingue rondas, así
++   * que un reconteo se valida contra esta misma muestra.
++   */
+   getByEvento(eventoId: number): Promise<Muestra | null>;
+ }
+ 
+diff --git a/src/app/features/auth/login.page.spec.ts b/src/app/features/auth/login.page.spec.ts
+index 99e8145..875c202 100644
+--- a/src/app/features/auth/login.page.spec.ts
++++ b/src/app/features/auth/login.page.spec.ts
+@@ -20,13 +20,14 @@ describe('LoginPage', () => {
+   beforeEach(async () => {
+     const authSpy = jasmine.createSpyObj(
+       'AuthFacade',
+-      ['login', 'logout', 'isAuthenticated'],
++      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin'],
+       {
+         loading: () => false,
+         error: () => null,
+       }
+     );
+     authSpy.isAuthenticated.and.returnValue(false);
++    authSpy.wasOfflineLogin.and.returnValue(false);
+ 
+     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+ 
+diff --git a/src/app/features/counting/counting.page/counting.page.component.html b/src/app/features/counting/counting.page/counting.page.component.html
+index d9d3554..37eb81b 100644
+--- a/src/app/features/counting/counting.page/counting.page.component.html
++++ b/src/app/features/counting/counting.page/counting.page.component.html
+@@ -14,8 +14,70 @@
+ </ion-header>
+ 
+ <ion-content style="--background: var(--app-bg-gradient);">
++  <!-- Franja de iteración: color + número + modo, siempre visible arriba del conteo -->
++  <div class="flex items-center justify-center gap-2 py-2.5 px-4"
++    [style.background]="colorIteracion()">
++    <span class="text-[15px] font-extrabold uppercase tracking-wide" style="color: white;">
++      @if (iteracionActual() > 1) {
++        Modo RECONTEO · Iteración {{ iteracionActual() }}
++      } @else {
++        Iteración {{ iteracionActual() }}
++      }
++    </span>
++  </div>
++
+   <div class="page-inner py-6">
+ 
++    <!-- Botón de resumen de avance -->
++    <div class="card mb-4">
++      <button class="flex items-center justify-between w-full" (click)="toggleResumen()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
++        <div class="flex items-center gap-2">
++          <ion-icon name="stats-chart-outline" style="color: var(--app-primary); font-size: 1.25rem;"></ion-icon>
++          <span class="text-sm font-semibold" style="color: var(--app-text);">Resumen de avance</span>
++        </div>
++        <ion-icon [name]="resumenVisible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
++      </button>
++
++      @if (resumenVisible()) {
++        <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
++          @if (resumenCargando()) {
++            <div class="flex items-center justify-center py-4">
++              <ion-spinner name="crescent" color="primary" style="width: 24px; height: 24px;"></ion-spinner>
++            </div>
++          } @else if (resumenEvento(); as resumen) {
++            <!-- Métricas globales -->
++            <div class="grid grid-cols-2 gap-3 mb-3">
++              <div class="flex flex-col">
++                <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
++                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.qContado }}</span>
++              </div>
++              <div class="flex flex-col">
++                <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
++                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.contados }}</span>
++              </div>
++            </div>
++
++            <!-- Progreso de muestra -->
++            <div class="mb-3">
++              <div class="flex items-center justify-between mb-1">
++                <span class="text-xs" style="color: var(--app-text-muted);">Avance de muestra</span>
++                <span class="text-sm font-bold num" style="color: var(--app-primary);">{{ porcentajeAvance() }}%</span>
++              </div>
++              <div class="w-full rounded-full" style="height: 8px; background: var(--app-surface);">
++                <div class="rounded-full" style="height: 8px; background: var(--app-primary); transition: width 0.3s ease;" [style.width.%]="porcentajeAvance()"></div>
++              </div>
++            </div>
++
++            <!-- Tags finalizados -->
++            <div class="flex items-center justify-between pt-3" style="border-top: 1px solid var(--app-border);">
++              <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
++              <span class="text-sm font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
++            </div>
++          }
++        </div>
++      }
++    </div>
++
+     <!-- Header: evento + zona + total del tag en curso -->
+     <div class="flex items-start justify-between gap-3 mb-5">
+       <div class="flex flex-col min-w-0">
+@@ -32,57 +94,32 @@
+       </div>
+       <div class="session-badge">
+         <div class="session-badge-icon"></div>
+-        <span>{{ totalItems() }} producto(s)</span>
++        <span>{{ totalItems() }} SKU(s) · <span class="num">{{ totalUnidades() }}</span> producto(s)</span>
+       </div>
+     </div>
+ 
+-    @if (modoActual() === 'RECONTEO') {
+-    <div class="status-banner mb-4"
+-      style="background: var(--app-warning-bg); border-color: var(--app-warning-border); color: var(--app-warning);">
+-      <span>Reconteo de <span class="num font-bold">{{ totalFaltantes() }}</span> producto(s)</span>
+-    </div>
+-    }
+-
+     <!-- ===== Cantidad ===== -->
+     <div class="card mb-4">
+       <div class="flex items-center justify-between gap-3">
+-        <div class="flex flex-col gap-1">
+-          <span class="field-label">Cantidad</span>
+-          @if (cantidadMaxima() !== null) {
+-          <span class="text-[11px]" style="color: var(--app-text-muted);">
+-            Máximo <span class="num font-semibold">{{ cantidadMaxima() }}</span>
+-          </span>
+-          }
+-        </div>
+-        <ion-input type="number" inputmode="numeric" min="1" [attr.max]="cantidadMaxima()" [value]="cantidad()"
+-          (ionInput)="onCantidadInput($event)" aria-label="Cantidad" class="input-base num"
+-          [class.input-invalid]="cantidadExcedida()"
++        <span class="field-label">Cantidad</span>
++        <ion-input type="number" inputmode="numeric" min="0" [value]="cantidad()" (ionInput)="onCantidadInput($event)"
++          aria-label="Cantidad" class="input-base num"
+           style="max-width: 96px; text-align: center; font-weight: 700;"></ion-input>
+       </div>
+-
+-      @if (cantidadExcedida()) {
+-      <div class="warning-pill mt-3">
+-        <ion-icon name="alert-circle-outline"></ion-icon>
+-        @if (cantidadMaxima() === 0) {
+-        <span>No quedan productos por recontar en este evento</span>
+-        } @else {
+-        <span>
+-          No se puede registrar: la cantidad supera los
+-          <span class="num font-bold">{{ cantidadMaxima() }}</span> producto(s) por recontar
+-        </span>
+-        }
+-      </div>
+-      }
+     </div>
+ 
+     <app-scan scanType="sku" placeholder="Escanea o ingresa SKU" confirmLabel="Registrar" [showBanner]="false"
+       (scan)="onScanSku($event)"></app-scan>
+ 
+     @if (lastScan(); as scan) {
+-    @if (scan.valido) {
++    @if (scan.estado === 'OK') {
+     <div class="status-banner status-banner-success mt-4">
+       <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
+     </div>
++    } @else if (scan.estado === 'ERROR') {
++    <div class="status-banner status-banner-error mt-4">
++      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> — {{ scan.mensaje }}</span>
++    </div>
+     } @else {
+     <div class="status-banner status-banner-error mt-4">
+       <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
+@@ -94,7 +131,7 @@
+     </div>
+     }
+ 
+-    @if (items().length > 0) {
++    @if (itemsView().length > 0) {
+     <div class="mt-6">
+       <p class="field-label mb-3">Productos de este TAG</p>
+ 
+@@ -110,7 +147,7 @@
+       }
+ 
+       <div class="flex flex-col gap-2.5">
+-        @for (item of itemsFiltrados(); track item.productoId) {
++        @for (item of itemsPaginados(); track item.productoId) {
+         <div class="item-row">
+           <div class="min-w-0">
+             <p class="item-sku">{{ item.sku }}</p>
+@@ -129,20 +166,32 @@
+             </ion-button>
+           </div>
+         </div>
++
+         }
+       </div>
++
++      @if (hayMasItems()) {
++      <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasItems()">
++        Ver más
++        <ion-icon slot="end" name="chevron-down-outline"></ion-icon>
++      </ion-button>
++      }
+     </div>
+     }
+ 
+     <!-- Total + CTA, como la barra inferior del canvas -->
+     <div class="mt-6">
+-      @if (items().length > 0) {
+-      <div class="total-row mb-3">
+-        <span class="total-label">Productos registrados</span>
++      @if (itemsView().length > 0) {
++      <div class="total-row mb-1.5">
++        <span class="total-label">SKUs registrados</span>
+         <span class="total-value">{{ totalItems() }}</span>
+       </div>
++      <div class="total-row mb-3">
++        <span class="total-label">Total productos</span>
++        <span class="total-value">{{ totalUnidades() }}</span>
++      </div>
+       }
+-      <ion-button expand="block" class="btn-accent" [disabled]="items().length === 0 || finalizando()"
++      <ion-button expand="block" class="btn-accent" [disabled]="itemsView().length === 0 || finalizando()"
+         (click)="finalizarTag()">
+         <ion-icon slot="start" name="flag-outline"></ion-icon>
+         Finalizar TAG
+diff --git a/src/app/features/counting/counting.page/counting.page.component.ts b/src/app/features/counting/counting.page/counting.page.component.ts
+index d5e3d7f..d505678 100644
+--- a/src/app/features/counting/counting.page/counting.page.component.ts
++++ b/src/app/features/counting/counting.page/counting.page.component.ts
+@@ -1,5 +1,6 @@
+ import { Component, inject, signal, computed } from '@angular/core';
+ import { Router } from '@angular/router';
++import { ViewWillEnter } from '@ionic/angular';
+ import {
+   AlertController,
+   IonButton,
+@@ -15,22 +16,40 @@ import {
+ } from '@ionic/angular/standalone';
+ import { addIcons } from 'ionicons';
+ import {
+-  addOutline, alertCircleOutline, flagOutline, removeOutline, searchOutline, trashOutline,
++  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
+ } from 'ionicons/icons';
+ import { ScanComponent } from '../../../shared/components/scan/scan.component';
+ import { EventoFacade } from '../../../state/evento/evento.facade';
+-import { MUESTRA_MOCK, TagsMockStore } from '../../../state/counting-mock/tags-mock.store';
+-import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
++import { AuthFacade } from '../../../state/auth/auth.facade';
++import { PdaFacade } from '../../../state/pda/pda.facade';
++import { ZonaFacade } from '../../../state/zona/zona.facade';
++import { ConteoFacade } from '../../../state/conteo/conteo.facade';
++import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
++import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resumen-evento.facade';
+ 
+ /*
+- * MOCK — pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la
+- * pantalla anterior (TagZonaPageComponent), que vive en TagSesionStore.
+- * Sin dominio/aplicación/data todavía: la muestra está simulada aquí mismo.
++ * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
++ * anterior. Persiste contra sod_conteo vía ConteoFacade.
++ *
++ * No distingue conteo de reconteo: es el mismo trabajo. Lo que cambia entre
++ * rondas es la MUESTRA (más acotada en un reconteo), y eso es un dato que llega
++ * por sod_muestra de la iteración activa — no una variante de esta pantalla.
+  */
+ 
+-interface ItemMock { productoId: number; sku: string; descripcion: string; cantidad: number; }
++interface ItemVista { productoId: number; sku: string; descripcion: string; cantidad: number; }
+ 
+-let productoIdSeq = 1;
++/*
++ * Resultado del último escaneo, para el banner bajo el escáner:
++ *  - OK                → registrado
++ *  - FUERA_DE_MUESTRA  → el SKU no pertenece a la muestra de esta iteración
++ *  - ERROR             → el SKU era válido pero la escritura falló; `mensaje`
++ *                        trae el detalle real.
++ */
++interface ResultadoScan {
++  sku: string;
++  estado: 'OK' | 'FUERA_DE_MUESTRA' | 'ERROR';
++  mensaje?: string;
++}
+ 
+ @Component({
+   selector: 'app-counting-page',
+@@ -50,166 +69,279 @@ let productoIdSeq = 1;
+     IonToolbar,
+   ],
+ })
+-export class CountingPageComponent {
++export class CountingPageComponent implements ViewWillEnter {
+   private router          = inject(Router);
+   private alertController = inject(AlertController);
+   private eventoFacade    = inject(EventoFacade);
+-  private tagsStore       = inject(TagsMockStore);
+-  private tagSesion       = inject(TagSesionStore);
++  private auth            = inject(AuthFacade);
++  private pda             = inject(PdaFacade);
++  private zonaFacade      = inject(ZonaFacade);
++  private conteo          = inject(ConteoFacade);
++  private conteoList      = inject(ConteoListFacade);
++  private resumenFacade   = inject(ResumenEventoFacade);
+ 
+   currentEvent = this.eventoFacade.selectedEvent;
+-  tagActual    = this.tagSesion.tagActual;
+-  zonaActual   = this.tagSesion.zonaActual;
++  tagActual    = this.zonaFacade.tagValue;
++  zonaActual   = computed<{ codigo: string; nombre: string } | null>(() => {
++    const z = this.zonaFacade.selectedZone();
++    return z ? { codigo: z.codigo, nombre: z.nombre ?? '' } : null;
++  });
+ 
+-  items       = signal<ItemMock[]>([]);
+   cantidad    = signal(1);
+   busquedaSku = signal('');
+-  lastScan    = signal<{ sku: string; valido: boolean } | null>(null);
++  lastScan    = signal<ResultadoScan | null>(null);
+   private lastScanTimeoutId: ReturnType<typeof setTimeout> | undefined;
+ 
+-  totalItems      = computed(() => this.items().length);
+-  finalizando     = signal(false);
+-  iteracionActual = this.tagsStore.iteracionActual;
+-  modoActual      = this.tagsStore.modoActual;
+-  totalFaltantes  = this.tagsStore.totalFaltantes;
+-
+-  // En reconteo la cantidad no puede superar lo que queda por recontar; en conteo
+-  // normal no hay techo (null = sin límite).
+-  cantidadMaxima = computed(() => (this.modoActual() === 'RECONTEO' ? this.totalFaltantes() : null));
+-
+-  // Se deja entrar el valor excedido al signal a propósito: así el operador ve lo que
+-  // escribió junto al aviso, en vez de que el campo lo corrija en silencio.
+-  cantidadExcedida = computed(() => {
+-    const max = this.cantidadMaxima();
+-    return max !== null && this.cantidad() > max;
++  finalizando = signal(false);
++
++  // Resumen de avance del evento: panel expandible que muestra el progreso global
++  resumenVisible = signal(false);
++  resumenEvento = signal<ResumenEvento | null>(null);
++  resumenCargando = signal(false);
++
++  // Ronda en curso: se deriva de sod_conteo, que es la única tabla que la guarda.
++  iteracionActual = this.conteoList.iteracionActiva;
++
++  // Franja de color por iteración: el operador tiene que ver de un vistazo en qué
++  // ronda está. Cicla si hubiera más rondas que colores definidos.
++  private static readonly COLORES_ITERACION = ['--app-success', '--app-warning', '--app-info', '--app-accent'];
++  colorIteracion = computed(() => {
++    const colores = CountingPageComponent.COLORES_ITERACION;
++    return `var(${colores[(this.iteracionActual() - 1) % colores.length]})`;
+   });
+ 
++  itemsView = computed<ItemVista[]>(() => this.conteo.items().map((i) => ({
++    productoId:  i.productoId,
++    sku:         i.sku,
++    descripcion: i.descripcion ?? i.sku,
++    cantidad:    i.cantidadFisica,
++  })));
++
++  totalItems    = computed(() => this.itemsView().length);
++  // Q contado del tag en curso: suma de unidades escaneadas, no cantidad de SKU distintos.
++  totalUnidades = computed(() => this.itemsView().reduce((sum, i) => sum + i.cantidad, 0));
++
+   // Filtra la lista de productos ya escaneados por SKU o descripción — no afecta el conteo, solo la vista.
+   itemsFiltrados = computed(() => {
+     const q = this.busquedaSku().trim().toUpperCase();
+-    if (!q) return this.items();
+-    return this.items().filter((i) => i.sku.includes(q) || i.descripcion.toUpperCase().includes(q));
++    const base = this.itemsView();
++    if (!q) return base;
++    return base.filter((i) => i.sku.includes(q) || i.descripcion.toUpperCase().includes(q));
+   });
+ 
++  // Paginado de la lista visible: arranca en 5 y crece de 5 en 5 con "Ver más".
++  private readonly PAGE_SIZE = 5;
++  visibleCount   = signal(this.PAGE_SIZE);
++  itemsPaginados = computed(() => this.itemsFiltrados().slice(0, this.visibleCount()));
++  hayMasItems    = computed(() => this.itemsFiltrados().length > this.visibleCount());
++
++  verMasItems(): void {
++    this.visibleCount.update((v) => v + this.PAGE_SIZE);
++  }
++
+   constructor() {
+-    addIcons({ addOutline, alertCircleOutline, flagOutline, removeOutline, searchOutline, trashOutline });
+-
+-    // Si se venía de reabrir un TAG Pendiente, precarga sus SKUs para seguir editándolos.
+-    const iniciales = this.tagSesion.consumirItemsIniciales();
+-    if (iniciales.length > 0) {
+-      this.items.set(iniciales.map((i) => ({
+-        productoId:  productoIdSeq++,
+-        sku:         i.sku,
+-        descripcion: MUESTRA_MOCK[i.sku] ?? i.sku,
+-        cantidad:    i.cantidad,
+-      })));
++    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
++  }
++
++  private sesionInicializada: number | null = null;
++
++  // Porcentaje de avance de la muestra: SKUs contados / total de la muestra * 100
++  porcentajeAvance = computed(() => {
++    const resumen = this.resumenEvento();
++    if (!resumen || resumen.totalMuestra === 0) return 0;
++    return Math.round((resumen.contados / resumen.totalMuestra) * 100);
++  });
++
++  async toggleResumen(): Promise<void> {
++    const nuevoEstado = !this.resumenVisible();
++    this.resumenVisible.set(nuevoEstado);
++
++    // Si se está abriendo y no hay datos cargados, cargar el resumen
++    if (nuevoEstado && !this.resumenEvento()) {
++      await this.cargarResumen();
++    }
++  }
++
++  private async cargarResumen(): Promise<void> {
++    const evento = this.currentEvent();
++    const operadorId = this.auth.session()?.operadorId;
++    const pdaId = this.pda.pdaId();
++
++    if (!evento || !operadorId || !pdaId) return;
++
++    this.resumenCargando.set(true);
++    try {
++      await this.resumenFacade.cargarAvance(evento.id, operadorId, pdaId);
++      this.resumenEvento.set(this.resumenFacade.avance());
++    } finally {
++      this.resumenCargando.set(false);
++    }
++  }
++
++  /*
++   * La inicialización va acá y no en el constructor: si Ionic reutiliza la
++   * instancia, el constructor no vuelve a correr y se seguiría contando contra
++   * la ubicación anterior. La comparación con `sesionInicializada` evita el otro
++   * extremo — volver desde el resumen no puede reiniciar un conteo en curso.
++   */
++  ionViewWillEnter(): void {
++    const evento      = this.currentEvent();
++    const ubicacionId = this.zonaFacade.ubicacionId();
++    const operadorId  = this.auth.session()?.operadorId;
++    const pdaId       = this.pda.pdaId();
++
++    // Si el evento cambió a EN_ANALISIS (ej: desde otra PDA), redirigir a home
++    if (evento?.estado === 'EN_ANALISIS') {
++      this.router.navigate(['/home']);
++      return;
++    }
++
++    if (!evento || !ubicacionId || !operadorId || !pdaId) return;
++
++    // La ronda se resuelve en cada entrada: la franja de color y el número que ve
++    // el operador no pueden depender de que haya pasado antes por otra pantalla.
++    void this.conteoList.cargarIteracionActiva(evento.id);
++    if (ubicacionId === this.sesionInicializada) return;
++
++    this.sesionInicializada = ubicacionId;
++    void this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
++
++    // Precargar el resumen de avance si ya está visible
++    if (this.resumenVisible()) {
++      void this.cargarResumen();
+     }
+   }
+ 
+   onBusquedaInput(event: Event): void {
+     const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+     this.busquedaSku.set(value);
++    this.visibleCount.set(this.PAGE_SIZE);
+   }
+ 
+   onCantidadInput(event: Event): void {
+     const value = Number((event as CustomEvent<{ value: string | null }>).detail.value);
+-    this.cantidad.set(Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1);
++    this.cantidad.set(Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1);
+   }
+ 
+-  onScanSku(sku: string): void {
+-    // Sobre el máximo de reconteo no se registra nada — el aviso ya está en pantalla
+-    // y la cantidad se mantiene para que el operador la corrija.
+-    if (this.cantidadExcedida()) return;
+-
+-    const codigo = sku.trim().toUpperCase();
+-    const descripcion = MUESTRA_MOCK[codigo];
++  async onScanSku(sku: string): Promise<void> {
++    const codigo   = sku.trim().toUpperCase();
++    const cantidad = this.cantidad();
+ 
+-    // En reconteo, cada TAG tiene sus propios SKUs esperados (no la muestra completa del
+-    // evento) — un SKU que backoffice espera en OTRO TAG no es válido acá.
+-    const skusValidos = this.modoActual() === 'RECONTEO'
+-      ? this.tagsStore.skusEsperadosDeTag(this.tagActual() ?? '')
+-      : this.tagsStore.muestraSkus();
+-
+-    if (!descripcion || !skusValidos.includes(codigo)) {
+-      this.setLastScan({ sku: codigo, valido: false });
++    // Contar en cero es válido (ej. producto vendido/despachado), pero se confirma
++    // antes de persistir para evitar que sea un error de digitación.
++    if (cantidad === 0 && !(await this.confirmarCantidadCero(codigo))) {
+       this.cantidad.set(1);
+       return;
+     }
+ 
+-    this.items.update((prev) => {
+-      const idx = prev.findIndex((i) => i.sku === codigo);
+-      if (idx >= 0) {
+-        const next = [...prev];
+-        next[idx] = { ...next[idx], cantidad: next[idx].cantidad + this.cantidad() };
+-        return next;
++    const resultado = await this.conteo.scan(codigo, cantidad);
++    if (resultado === 'error') {
++      this.setLastScan({ sku: codigo, estado: 'ERROR', mensaje: this.conteo.error() ?? 'No se pudo registrar el scan' });
++    } else {
++      this.setLastScan({ sku: codigo, estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA' });
++
++      // Si el resumen está visible, recargarlo para actualizar el % de avance
++      if (this.resumenVisible() && resultado === 'valido') {
++        void this.cargarResumen();
+       }
+-      return [{ productoId: productoIdSeq++, sku: codigo, descripcion, cantidad: this.cantidad() }, ...prev];
+-    });
+-    this.setLastScan({ sku: codigo, valido: true });
++    }
+     this.cantidad.set(1);
+   }
+ 
+-  private setLastScan(scan: { sku: string; valido: boolean }): void {
++  private confirmarCantidadCero(codigo: string): Promise<boolean> {
++    return new Promise((resolve) => {
++      this.alertController.create({
++        header:  'Confirmar cantidad',
++        message: `¿Confirmas que ${codigo} tiene 0 unidades?`,
++        buttons: [
++          { text: 'Cancelar', role: 'cancel', handler: () => resolve(false) },
++          { text: 'Confirmar', role: 'confirm', handler: () => resolve(true) },
++        ],
++      }).then((alert) => {
++        // Cerrar tocando fuera del alert no dispara ningún handler: sin esto la
++        // promesa quedaba colgada y el scan no terminaba nunca.
++        void alert.onDidDismiss().then(() => resolve(false));
++        return alert.present();
++      });
++    });
++  }
++
++  private setLastScan(scan: ResultadoScan): void {
+     clearTimeout(this.lastScanTimeoutId);
+     this.lastScan.set(scan);
+     this.lastScanTimeoutId = setTimeout(() => this.lastScan.set(null), 3000);
+   }
+ 
+-  adjust(productoId: number, delta: number): void {
+-    this.items.update((prev) => prev.map((i) =>
+-      i.productoId === productoId ? { ...i, cantidad: Math.max(1, i.cantidad + delta) } : i
+-    ));
++  /*
++   * Los botones +/- de la lista pueden llegar a 0: dejar un SKU en cero es un dato
++   * válido y es distinto de borrarlo del conteo. Como el cero es una declaración
++   * (no hay unidades), se confirma igual que al escanearlo.
++   */
++  async adjust(productoId: number, delta: number): Promise<void> {
++    const item = this.itemsView().find((i) => i.productoId === productoId);
++    if (!item) return;
++
++    const siguiente = Math.max(0, item.cantidad + delta);
++    // Ya está en 0 y se sigue bajando: no hay nada que confirmar ni que escribir.
++    if (siguiente === item.cantidad) return;
++
++    if (siguiente === 0 && !(await this.confirmarCantidadCero(item.sku))) return;
++
++    await this.conteo.adjust(productoId, delta);
++
++    // Si el resumen está visible, recargarlo para actualizar el % de avance
++    if (this.resumenVisible()) {
++      void this.cargarResumen();
++    }
+   }
+ 
+   async delete(productoId: number): Promise<void> {
+-    const item = this.items().find((i) => i.productoId === productoId);
++    const item = this.itemsView().find((i) => i.productoId === productoId);
+     if (!item) return;
+     const alert = await this.alertController.create({
+       header:  'Eliminar producto',
+       message: `¿Eliminar ${item.descripcion} (cantidad ${item.cantidad}) del conteo?`,
+       buttons: [
+         { text: 'Cancelar', role: 'cancel' },
+-        { text: 'Eliminar', role: 'destructive', handler: () => {
+-          this.items.update((prev) => prev.filter((i) => i.productoId !== productoId));
+-        } },
++        { text: 'Eliminar', role: 'destructive', handler: async () => {
++          await this.conteo.delete(productoId);
++          // Si el resumen está visible, recargarlo para actualizar el % de avance
++          if (this.resumenVisible()) {
++            void this.cargarResumen();
++          }
++        }},
+       ],
+     });
+     await alert.present();
+   }
+ 
+   async finalizarTag(): Promise<void> {
+-    const zona = this.zonaActual();
+-    const tag  = this.tagActual();
+-    if (!zona || !tag || this.items().length === 0) return;
++    if (this.itemsView().length === 0) return;
+ 
+     const alert = await this.alertController.create({
+       header:  'Finalizar TAG',
+-      message: `Vas a finalizar el TAG ${tag} con ${this.totalItems()} producto(s). Se intentará sincronizar de inmediato.`,
++      message: `Vas a finalizar el TAG ${this.tagActual()} con ${this.totalItems()} producto(s).`,
+       buttons: [
+         { text: 'Cancelar', role: 'cancel' },
+-        { text: 'Finalizar', role: 'confirm', handler: () => { this.doFinalizarTag(tag, zona.codigo); } },
++        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarTag(); } },
+       ],
+     });
+     await alert.present();
+   }
+ 
+-  private async doFinalizarTag(codigo: string, zonaCodigo: string): Promise<void> {
++  // Cierra la sesión en sod_conteo (EN_CURSO → FINALIZADO) y vuelve a TAG+Zona
++  // para el siguiente.
++  private async doFinalizarTag(): Promise<void> {
+     this.finalizando.set(true);
+-
+-    // Espera al resultado real de la sincronización (una sola fuente de verdad, sin timer duplicado).
+-    await this.tagsStore.agregarPendiente({
+-      codigo,
+-      zona:  zonaCodigo,
+-      items: this.items().map((i) => ({ sku: i.sku, cantidad: i.cantidad })),
+-    });
+-
+-    this.tagSesion.reset();
+-
+-    // En reconteo: si aún quedan TAGs por elegir, vuelve al listado; si no, al resumen.
+-    if (this.modoActual() === 'RECONTEO' && this.tagsStore.tagsPorRecontarPendientes().length === 0) {
+-      this.router.navigate(['/tags-resumen']);
+-    } else {
++    // Cerrada esta sesión, volver a entrar a la misma ubicación debe arrancar de cero.
++    this.sesionInicializada = null;
++    try {
++      await this.conteo.finalizar();
++      this.zonaFacade.reset();
++      this.conteo.reset();
+       this.router.navigate(['/counting-tag']);
++    } finally {
++      this.finalizando.set(false);
+     }
+   }
+ }
+diff --git a/src/app/features/counting/tag-zona.page/tag-zona.page.component.html b/src/app/features/counting/tag-zona.page/tag-zona.page.component.html
+index 29abf32..9cce4a1 100644
+--- a/src/app/features/counting/tag-zona.page/tag-zona.page.component.html
++++ b/src/app/features/counting/tag-zona.page/tag-zona.page.component.html
+@@ -18,123 +18,51 @@
+ 
+     <div class="flex flex-col gap-2 mb-4">
+       <div class="flex items-center justify-between gap-3">
+-        <h2 class="page-title">{{ modoActual() === 'RECONTEO' ? 'Reconteo' : 'Nuevo TAG' }}</h2>
+-        @if (modoActual() === 'RECONTEO') {
+-        <span class="badge badge-warning shrink-0">
+-          {{ totalFaltantes() }} producto(s)
+-        </span>
+-        }
++        <h2 class="page-title">Nuevo TAG</h2>
++        <span class="badge shrink-0">Iteración {{ iteracionActual() }}</span>
+       </div>
+-      <p class="page-subtitle">
+-        @if (modoActual() === 'RECONTEO') {
+-        Seleccione el TAG a recontar, luego ingréselo o escanéelo para validar y finalmente seleccione la zona para
+-        empezar a contar
+-        } @else {
+-        Escanea el TAG y selecciona la zona para empezar a contar
+-        }
+-      </p>
++      <p class="page-subtitle">Escanea el TAG y selecciona la zona para empezar a contar</p>
+     </div>
+ 
+-    @if (modoActual() === 'RECONTEO') {
+-
+-    @if (!tagActual() && !tagRecontarSeleccionado() && tagsPorRecontar().length >= 1) {
+-    <!-- ===== TAG(s) a recontar: hay que elegir cuál ===== -->
+-    <ion-list lines="full" style="background: transparent;">
+-      @for (t of tagsPorRecontar(); track t.ubicacionId) {
+-      <ion-item button class="card card-interactive mb-3" lines="none"
+-        style="--background: transparent; --padding-start: 0; --inner-padding-end: 0;"
+-        (click)="seleccionarTagRecontar(t)">
+-        <div class="icon-badge" slot="start">
+-          <ion-icon name="barcode-outline"></ion-icon>
++    <!-- ===== TAGs sugeridos (reconteo) ===== -->
++    @if (iteracionActual() > 1) {
++    <div class="mb-4">
++      <p class="field-label mb-2">TAGs contados en iteraciones anteriores</p>
++      @if (tagsSugeridosLoading()) {
++        <div class="flex justify-center py-3">
++          <ion-spinner name="crescent" color="primary" style="width: 20px; height: 20px;"></ion-spinner>
+         </div>
+-        <ion-label>
+-          <p class="text-sm font-bold num" style="color: var(--app-text);">TAG {{ codigoDeUbicacion(t.ubicacionId) }}
+-          </p>
+-          <p class="text-[12px]" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(t.ubicacionId) }}</p>
+-        </ion-label>
+-        <ion-icon slot="end" name="arrow-forward-outline" style="color: var(--app-text-muted);"></ion-icon>
+-      </ion-item>
+-      }
+-    </ion-list>
+-    } @else if (!tagActual() && tagRecontarSeleccionado(); as seleccionado) {
+-    <!-- ===== TAG elegido: hay que ingresarlo/escanearlo para validar ===== -->
+-    <div class="card mb-4">
+-      <div class="flex items-center gap-2 mb-3">
+-        <ion-icon name="barcode-outline" style="color: var(--app-text-muted); font-size: 1rem;"></ion-icon>
+-        <p class="field-label">TAG seleccionado</p>
+-      </div>
+-      <p class="text-[15px] font-bold num" style="color: var(--app-text);">TAG {{
+-        codigoDeUbicacion(seleccionado.ubicacionId) }}</p>
+-      <p class="text-[13px]" style="color: var(--app-text-muted);">{{ zonaDeUbicacion(seleccionado.ubicacionId) }}</p>
+-    </div>
+-
+-    <div class="card mb-4">
+-      <p class="section-label">Ingresa o escanea el TAG</p>
+-      <ion-input [value]="tagRecontarInput()" (ionInput)="onTagRecontarInput($event)"
+-        (keyup.enter)="confirmarTagRecontar()"
+-        placeholder="Ingresa el TAG {{ codigoDeUbicacion(seleccionado.ubicacionId) }}" class="input-base" autofocus>
+-        <ion-icon slot="start" name="barcode-outline"></ion-icon>
+-      </ion-input>
+-
+-      @if (tagRecontarError()) {
+-      <div class="error-pill mt-4">
+-        <ion-icon name="alert-circle-outline"></ion-icon>
+-        <span>{{ tagRecontarError() }}</span>
+-      </div>
++      } @else if (tagsSugeridos().length === 0) {
++        <p class="hint-text">No hay TAGs registrados en iteraciones anteriores</p>
++      } @else {
++        <div class="flex flex-wrap gap-2">
++          @for (tag of tagsSugeridos(); track tag) {
++            <ion-button fill="outline" size="small" [disabled]="!!tagConfirmado()"
++              (click)="seleccionarTagSugerido(tag)" class="tag-chip">
++              {{ tag }}
++            </ion-button>
++          }
++        </div>
++        <p class="hint-text mt-2">Toca un TAG para autocompletar, o ingresa uno nuevo</p>
+       }
+     </div>
+-
+-    <ion-button expand="block" class="btn-primary mt-2" (click)="confirmarTagRecontar()">
+-      <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
+-      Validar TAG
+-    </ion-button>
+-
+-    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" (click)="cancelarTagRecontar()">
+-      Volver a la lista
+-    </ion-button>
+-    } @else if (tagActual() && zonaActual(); as zona) {
+-    <!-- ===== TAG + Zona fijos, listos para iniciar ===== -->
+-    <div class="card mb-4">
+-      <div class="flex items-center gap-2 mb-3">
+-        <ion-icon name="lock-closed-outline" style="color: var(--app-text-muted); font-size: 1rem;"></ion-icon>
+-        <p class="field-label">TAG y zona (fijos)</p>
+-      </div>
+-      <p class="text-[15px] font-bold num" style="color: var(--app-text);">TAG {{ tagActual() }}</p>
+-      <p class="text-[13px]" style="color: var(--app-text-muted);">{{ zona.codigo }} — {{ zona.nombre }}</p>
+-    </div>
+-
+-    <ion-button expand="block" class="btn-primary mt-2" (click)="irAContar()">
+-      <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
+-      Iniciar reconteo
+-    </ion-button>
+-
+-    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" (click)="cambiarTagRecontar()">
+-      Cambiar TAG
+-    </ion-button>
+-    } @else {
+-    <div class="error-pill">
+-      <ion-icon name="alert-circle-outline"></ion-icon>
+-      <span>No quedan TAGs pendientes de recontar</span>
+-    </div>
+     }
+ 
+-    } @else {
+-
+     <!-- ===== TAG ===== -->
+     <div class="card mb-4">
+       <div class="flex items-center justify-between gap-2 mb-2">
+         <p class="field-label">Tag de ubicación</p>
+-        @if (tagActual()) {
++        @if (tagConfirmado()) {
+         <span class="badge badge-success">Confirmado</span>
+         }
+       </div>
+-      <ion-input #tagInputEl [value]="tagActual() ?? tagInputValue()" [disabled]="!!tagActual()"
++      <ion-input #tagInputEl [value]="tagConfirmado() ?? tagInputValue()" [disabled]="!!tagConfirmado()"
+         (ionInput)="onTagInput($event)" (keyup.enter)="confirmarTag()" placeholder="Escanea o ingresa el TAG"
+         class="input-base" autofocus>
+         <ion-icon slot="start" name="barcode-outline"></ion-icon>
+       </ion-input>
+ 
+-      @if (tagActual()) {
++      @if (tagConfirmado()) {
+       <ion-button expand="block" class="btn-outline mt-4" (click)="cancelarTag()">
+         Cambiar TAG
+       </ion-button>
+@@ -155,32 +83,36 @@
+     <!-- ===== Zona — bloqueada hasta tener TAG ===== -->
+     <div class="card mb-4">
+       <p class="field-label mb-2">Zona</p>
+-      <ion-select #zonaSelect [disabled]="!tagActual()" [value]="zonaActual()" placeholder="Selecciona una zona"
+-        (ionChange)="onZonaChange($event)" class="zone-select" [style.opacity]="tagActual() ? 1 : 0.5">
+-        @for (zona of zonas; track zona.id) {
++      <ion-select #zonaSelect [disabled]="!tagConfirmado()" [value]="zonaConfirmada()"
++        placeholder="Selecciona una zona" (ionChange)="onZonaChange($event)" class="zone-select"
++        [style.opacity]="tagConfirmado() ? 1 : 0.5">
++        @for (zona of zonas(); track zona.id) {
+         <ion-select-option [value]="zona">{{ zona.codigo }} — {{ zona.nombre }}</ion-select-option>
+         }
+       </ion-select>
+-      @if (!tagActual()) {
++      @if (!tagConfirmado()) {
+       <p class="hint-text">Confirma el TAG para habilitar la zona</p>
+       }
+     </div>
+ 
+-    <ion-button expand="block" class="btn-primary mt-2" [disabled]="!(tagActual() && zonaActual())"
++    @if (errorZona()) {
++    <div class="error-pill mb-4">
++      <ion-icon name="alert-circle-outline"></ion-icon>
++      <span>{{ errorZona() }}</span>
++    </div>
++    }
++
++    <ion-button expand="block" class="btn-primary mt-2" [disabled]="!(tagConfirmado() && zonaConfirmada())"
+       (click)="irAContar()">
+       <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
+       Ir a contar
+     </ion-button>
+ 
+-    }
+-
+     <!-- ===== Navegación al resumen/finalización ===== -->
+-    @if (tagsHoy().length > 0) {
+     <ion-button expand="block" class="btn-outline mt-4" (click)="goToResumen()">
+       <ion-icon slot="start" name="list-outline"></ion-icon>
+       Ver resumen y finalizar
+     </ion-button>
+-    }
+ 
+   </div>
+ </ion-content>
+\ No newline at end of file
+diff --git a/src/app/features/counting/tag-zona.page/tag-zona.page.component.ts b/src/app/features/counting/tag-zona.page/tag-zona.page.component.ts
+index 89c0ff3..ee5e091 100644
+--- a/src/app/features/counting/tag-zona.page/tag-zona.page.component.ts
++++ b/src/app/features/counting/tag-zona.page/tag-zona.page.component.ts
+@@ -1,33 +1,39 @@
+-import { Component, ElementRef, ViewChild, inject, signal } from '@angular/core';
++import { Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
+ import { Router } from '@angular/router';
++import { ViewWillEnter } from '@ionic/angular';
+ import {
++  AlertController,
+   IonButton,
+   IonButtons,
+   IonContent,
+   IonHeader,
+   IonIcon,
+   IonInput,
+-  IonItem,
+-  IonLabel,
+-  IonList,
+   IonMenuButton,
+   IonSelect,
+   IonSelectOption,
++  IonSpinner,
+   IonTitle,
+   IonToolbar,
+ } from '@ionic/angular/standalone';
+ import { addIcons } from 'ionicons';
+ import { alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline } from 'ionicons/icons';
+ import { EventoFacade } from '../../../state/evento/evento.facade';
+-import { TagARecontarMock, TagsMockStore, ZONAS_MOCK, ZonaMock } from '../../../state/counting-mock/tags-mock.store';
+-import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
++import { Zona, ZonaFacade } from '../../../state/zona/zona.facade';
++import { AuthFacade } from '../../../state/auth/auth.facade';
++import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
+ import { stripEmojis } from '../../../shared/utils/text.utils';
+ 
+ /*
+- * MOCK — pantalla previa al conteo: se ingresa el TAG y se elige la zona,
+- * y desde acá se pasa a la pantalla de conteo (SKU + cantidad). Separada
+- * de la pantalla de conteo para que el operador pueda ir al resumen entre
+- * un TAG y el siguiente, sin mezclarse con el escaneo.
++ * Pantalla previa al conteo: se ingresa/escanea el TAG y se elige la zona, y
++ * desde acá se pasa a contar. Separada de la pantalla de conteo para que el
++ * operador pueda ir al resumen entre un TAG y el siguiente, sin mezclarse con
++ * el escaneo.
++ *
++ * No dirige al operador a un TAG concreto, tampoco en reconteo: la muestra de
++ * la iteración define QUÉ SKUs son válidos, pero dónde están se descubre en
++ * terreno (un SKU puede estar en varios TAG, aparecer uno nuevo, caerse una
++ * etiqueta). Para saber dónde se contó algo está el buscador SKU del menú.
+  */
+ @Component({
+   selector: 'app-tag-zona-page',
+@@ -40,99 +46,76 @@ import { stripEmojis } from '../../../shared/utils/text.utils';
+     IonHeader,
+     IonIcon,
+     IonInput,
+-    IonItem,
+-    IonLabel,
+-    IonList,
+     IonMenuButton,
+     IonSelect,
+     IonSelectOption,
++    IonSpinner,
+     IonTitle,
+     IonToolbar,
+   ],
+ })
+-export class TagZonaPageComponent {
++export class TagZonaPageComponent implements ViewWillEnter {
+   @ViewChild('zonaSelect') zonaSelect!: IonSelect;
+   @ViewChild('tagInputEl') tagInputEl!: ElementRef<HTMLIonInputElement>;
+ 
+-  private router       = inject(Router);
+-  private eventoFacade = inject(EventoFacade);
+-  private tagsStore    = inject(TagsMockStore);
+-  private tagSesion    = inject(TagSesionStore);
++  private router          = inject(Router);
++  private alertController = inject(AlertController);
++  private eventoFacade    = inject(EventoFacade);
++  private auth            = inject(AuthFacade);
++  private zonaFacade      = inject(ZonaFacade);
++  private conteoList      = inject(ConteoListFacade);
+ 
+-  currentEvent = this.eventoFacade.selectedEvent;
+-  zonas        = ZONAS_MOCK;
++  currentEvent    = this.eventoFacade.selectedEvent;
++  iteracionActual = this.conteoList.iteracionActiva;
+ 
+   tagInputValue = signal('');
+   tagError      = signal<string | null>(null);
+-  tagActual     = this.tagSesion.tagActual;
+-  zonaActual    = this.tagSesion.zonaActual;
+ 
+-  tagsHoy              = this.tagsStore.tags;
+-  iteracionActual      = this.tagsStore.iteracionActual;
+-  modoActual           = this.tagsStore.modoActual;
+-  totalFaltantes       = this.tagsStore.totalFaltantes;
+-  tagsPorRecontar      = this.tagsStore.tagsPorRecontarPendientes;
++  zonas             = this.zonaFacade.zones;
++  private tagLocked = signal(false);
++  tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
++  zonaConfirmada    = this.zonaFacade.selectedZone;
++  errorZona         = this.zonaFacade.error;
+ 
+-  // TAG elegido desde la lista de reconteo, pendiente de ingresar/validar antes de confirmarlo.
+-  tagRecontarSeleccionado = signal<TagARecontarMock | null>(null);
+-  tagRecontarInput        = signal('');
+-  tagRecontarError        = signal<string | null>(null);
++  tagsSugeridos       = this.conteoList.tagsReconteo;
++  tagsSugeridosLoading = this.conteoList.tagsReconteoLoading;
+ 
+   constructor() {
+     addIcons({ alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline });
+   }
+ 
+-  seleccionarTagRecontar(t: TagARecontarMock): void {
+-    this.tagRecontarSeleccionado.set(t);
+-    this.tagRecontarInput.set('');
+-    this.tagRecontarError.set(null);
+-  }
+-
+-  onTagRecontarInput(event: Event): void {
+-    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+-    this.tagRecontarInput.set(stripEmojis(value));
+-  }
+-
+-  // Resuelven tag/zona desde sod_ubicacion (mock) por id — TagARecontarMock no los lleva propios.
+-  codigoDeUbicacion(ubicacionId: number): string {
+-    return this.tagsStore.obtenerUbicacion(ubicacionId)?.tag ?? '';
+-  }
+-
+-  zonaDeUbicacion(ubicacionId: number): string {
+-    return this.tagsStore.obtenerUbicacion(ubicacionId)?.zonaCodigo ?? '';
+-  }
+-
+-  confirmarTagRecontar(): void {
+-    const seleccionado = this.tagRecontarSeleccionado();
+-    if (!seleccionado) return;
+-    const ubicacion = this.tagsStore.obtenerUbicacion(seleccionado.ubicacionId);
+-    if (!ubicacion) return;
+-
+-    const value = this.tagRecontarInput().trim().toUpperCase();
+-    if (!value) return;
+-
+-    if (value !== ubicacion.tag) {
+-      this.tagRecontarError.set(`Ese TAG no corresponde — se esperaba ${ubicacion.tag}`);
++  /*
++   * Las zonas se cargan en cada entrada, no en el constructor: ion-router-outlet
++   * puede reutilizar la página, y el evento (o su iteración) pudo cambiar desde
++   * la última vez que se estuvo acá.
++   */
++  ionViewWillEnter(): void {
++    void this.eventoFacade.refreshSelected();
++
++    // Si el evento cambió a EN_ANALISIS (ej: desde otra PDA), redirigir a home
++    if (this.currentEvent()?.estado === 'EN_ANALISIS') {
++      this.router.navigate(['/home']);
+       return;
+     }
+ 
+-    const zona = this.zonas.find((z) => z.codigo === ubicacion.zonaCodigo) ?? this.zonas[0];
+-    // Items vacíos a propósito: el reconteo arranca en 0, no reutiliza lo contado antes.
+-    this.tagSesion.iniciar(ubicacion.tag, zona, []);
+-    this.tagRecontarSeleccionado.set(null);
++    this.cargarZonas();
++    void this.cargarTagsSugeridos();
+   }
+ 
+-  // Vuelve a la lista de TAGs a recontar sin haber validado el ingreso — el operador se arrepintió.
+-  cancelarTagRecontar(): void {
+-    this.tagRecontarSeleccionado.set(null);
+-    this.tagRecontarInput.set('');
+-    this.tagRecontarError.set(null);
++  private async cargarTagsSugeridos(): Promise<void> {
++    const evento = this.currentEvent();
++    if (!evento) return;
++    // La ronda hay que resolverla antes: los TAGs sugeridos son los de rondas anteriores.
++    const iteracion = await this.conteoList.cargarIteracionActiva(evento.id);
++    await this.conteoList.cargarTagsReconteo(evento.id, iteracion);
+   }
+ 
+-  // Deshace la selección ya confirmada y vuelve a la lista de TAGs a recontar, aunque sea uno solo —
+-  // el operador debe poder arrepentirse antes de iniciar el reconteo.
+-  cambiarTagRecontar(): void {
+-    this.tagSesion.reset();
++  private cargarZonas(): void {
++    const evento     = this.currentEvent();
++    const operadorId = this.auth.session()?.operadorId;
++    if (evento && operadorId) {
++      void this.zonaFacade.loadZonas(evento.id, operadorId);
++    }
+   }
+ 
+   onTagInput(event: Event): void {
+@@ -140,47 +123,65 @@ export class TagZonaPageComponent {
+     this.tagInputValue.set(stripEmojis(value));
+   }
+ 
+-  confirmarTag(): void {
++  // Solo confirma el TAG en memoria — el registro real en sod_ubicacion ocurre
++  // recién al "Ir a contar" (confirmZona), junto con la zona.
++  // Si el TAG no está en la lista de sugeridos (iteraciones anteriores), se
++  // pide confirmación al operador antes de continuar.
++  async confirmarTag(): Promise<void> {
+     const value = this.tagInputValue().trim().toUpperCase();
+     if (!value) return;
+ 
+-    const estado = this.tagsStore.estadoDe(value);
+-    if (estado === 'ENVIADO') {
+-      this.tagError.set(`El TAG ${value} ya fue enviado — no se puede reabrir`);
++    // Si es reconteo (iteración > 1) y el TAG no fue contado antes, confirmar
++    if (this.iteracionActual() > 1 && !this.conteoList.esTagSugerido(value)) {
++      const confirm = await this.alertController.create({
++        header: 'TAG no registrado en iteraciones anteriores',
++        message: `El TAG ${value} no fue contado en iteraciones anteriores de este evento.\n\n¿Deseas continuar con este TAG?`,
++        buttons: [
++          { text: 'Cancelar', role: 'cancel', handler: () => { this.tagInputValue.set(''); } },
++          { text: 'Continuar', role: 'confirm', handler: () => { this.confirmarTagSinValidar(value); } },
++        ],
++      });
++      await confirm.present();
+       return;
+     }
+ 
++    this.confirmarTagSinValidar(value);
++  }
++
++  private confirmarTagSinValidar(value: string): void {
+     this.tagError.set(null);
+     this.tagInputValue.set('');
++    this.zonaFacade.setTag(value);
++    this.tagLocked.set(true);
++    requestAnimationFrame(() => this.zonaSelect?.open());
++  }
+ 
+-    if (estado === 'PENDIENTE') {
+-      // Se reabre: TAG + zona quedan confirmados con lo ya cargado, listo para "Ir a contar".
+-      const tag       = this.tagsStore.obtenerTagPorCodigo(value);
+-      const ubicacion = tag ? this.tagsStore.obtenerUbicacion(tag.ubicacionId) : undefined;
+-      const zona      = this.zonas.find((z) => z.codigo === ubicacion?.zonaCodigo) ?? this.zonas[0];
+-      this.tagSesion.iniciar(value, zona, tag?.items ?? []);
+-      return;
+-    }
+-
+-    this.tagSesion.tagActual.set(value);
++  // Atajo: toca un chip de TAG sugerido y lo confirma directamente
++  seleccionarTagSugerido(tag: string): void {
++    if (this.tagLocked()) return;
++    this.zonaFacade.setTag(tag);
++    this.tagLocked.set(true);
+     requestAnimationFrame(() => this.zonaSelect?.open());
+   }
+ 
+   onZonaChange(event: Event): void {
+-    const zona = (event as CustomEvent<{ value: ZonaMock | null }>).detail.value;
+-    if (!zona) return;
+-    this.tagSesion.zonaActual.set(zona);
++    const zona = (event as CustomEvent<{ value: Zona | null }>).detail.value;
++    if (zona) this.zonaFacade.selectZona(zona);
+   }
+ 
+   cancelarTag(): void {
+-    this.tagSesion.reset();
++    this.tagLocked.set(false);
++    this.zonaFacade.reset();
+     this.tagInputValue.set('');
+     this.tagError.set(null);
++    this.cargarZonas();
+     setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
+   }
+ 
+-  irAContar(): void {
+-    if (!this.tagActual() || !this.zonaActual()) return;
++  async irAContar(): Promise<void> {
++    if (!this.tagConfirmado() || !this.zonaConfirmada()) return;
++    await this.zonaFacade.confirmZona();
++    if (this.zonaFacade.error()) return;
+     this.router.navigate(['/counting']);
+   }
+ 
+diff --git a/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.html b/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.html
+index 85984b9..b589c60 100644
+--- a/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.html
++++ b/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.html
+@@ -3,7 +3,7 @@
+     <ion-buttons slot="start">
+       <ion-back-button defaultHref="/home"></ion-back-button>
+     </ion-buttons>
+-    <ion-title>Tags</ion-title>
++    <ion-title>Conteos</ion-title>
+     <ion-buttons slot="end">
+       <ion-menu-button></ion-menu-button>
+     </ion-buttons>
+@@ -13,190 +13,169 @@
+ <ion-content style="--background: var(--app-bg-gradient);">
+   <div class="page-inner py-6">
+ 
+-    <h2 class="page-title mb-6">Resumen de tags</h2>
++    <h2 class="page-title mb-6">Resumen de conteos</h2>
+ 
+-    @if (noTags()) {
+-      <div class="error-pill">
+-        <ion-icon name="alert-circle-outline"></ion-icon>
+-        <span>Aún no has finalizado ningún TAG hoy</span>
+-      </div>
+-    }
++    <!-- ===== CONTEO (real): resumen por ubicación desde sod_conteo ===== -->
+ 
+-    @if (hayConteoActivo()) {
+-      <!-- ===== Conteo activo: mismo comportamiento de siempre ===== -->
++    @if (resumenesEvento().length === 0) {
++    <div class="error-pill">
++      <ion-icon name="alert-circle-outline"></ion-icon>
++      <span>Aún no has finalizado ningún TAG en este evento</span>
++    </div>
++    } @else {
+ 
+-      <!-- Resumen del trabajo + Finalizar conteo -->
+-      <p class="section-label">Resumen del trabajo</p>
+-      <div class="card mb-4">
+-        <div class="store-row">
+-          <span class="store-label">Tags pendientes de sincronización</span>
+-          <span class="store-value num" [style.color]="pendientes().length > 0 ? 'var(--app-warning, #D97706)' : 'var(--app-text)'">
+-            {{ pendientes().length }}
+-          </span>
++    @if (resumenAvanceGlobal(); as avance) {
++    <p class="section-label">Resumen de avance</p>
++    <div class="card mb-6">
++      <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
++        <div class="flex items-center justify-between">
++          <span class="text-[12px]" style="color: var(--app-text-muted);">Q contado</span>
++          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ avance.qContado }}</span>
+         </div>
+-        <div class="store-row">
+-          <span class="store-label">Tags finalizados</span>
+-          <span class="store-value num">{{ finalizados().length }}</span>
++        <div class="flex items-center justify-between">
++          <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs únicos</span>
++          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ avance.contados }}</span>
+         </div>
+-        <div class="store-row">
+-          <span class="store-label">Total contados</span>
+-          <span class="store-value num" style="color: var(--app-success);">{{ totalContados() }}</span>
++        <div class="flex items-center justify-between">
++          <span class="text-[12px]" style="color: var(--app-text-muted);">Tags distintos usados</span>
++          <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ resumenesEvento().length }}</span>
+         </div>
+-        <div class="store-row">
+-          <span class="store-label">SKUs sin contar</span>
+-          <span class="store-value num" [style.color]="totalFaltantes() > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+-            {{ totalFaltantes() }}
+-          </span>
++      </div>
++    </div>
++    }
++
++    @if (iteracionesReales().length > 1) {
++    <ion-segment [value]="iteracionSeleccionada()" (ionChange)="onIteracionChange($event)" class="mb-6">
++      @for (it of iteracionesReales(); track it) {
++      <ion-segment-button [value]="it">
++        <ion-label>Iteración {{ it }}</ion-label>
++      </ion-segment-button>
++      }
++    </ion-segment>
++    }
++
++    <!-- Pestañas por conteo individual (TAG) -->
++    @if (conteosComoPestanas().length > 0) {
++    <p class="section-label mb-2">Conteos por TAG</p>
++    <ion-segment [value]="conteoSeleccionado()?.ubicacionId" (ionChange)="onConteoChange($event)" class="mb-4" scrollable="true">
++      @for (conteo of conteosComoPestanas(); track conteo.ubicacionId) {
++      <ion-segment-button [value]="conteo.ubicacionId">
++        <ion-label>TAG {{ conteo.tag }}</ion-label>
++      </ion-segment-button>
++      }
++    </ion-segment>
++
++    <!-- Resumen del conteo seleccionado -->
++    @if (conteoSeleccionado(); as conteo) {
++    <div class="card mb-6">
++      <div class="flex items-center justify-between gap-3 mb-3">
++        <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">TAG {{ conteo.tag }}</p>
++        <span class="badge shrink-0"
++          [class.badge-warning]="conteo.estado === 'EN_CURSO'"
++          [class.badge-success]="conteo.estado === 'FINALIZADO' || conteo.estado === 'SINCRONIZADO'">
++          @if (conteo.estado === 'EN_CURSO') {
++            <ion-icon name="time-outline"></ion-icon>
++            <span>En curso</span>
++          } @else if (conteo.estado === 'FINALIZADO') {
++            <ion-icon name="checkmark-done-outline"></ion-icon>
++            <span>Finalizado</span>
++          } @else {
++            <ion-icon name="cloud-done-outline"></ion-icon>
++            <span>Sincronizado</span>
++          }
++        </span>
++      </div>
++      <p class="text-[12px] mb-4" style="color: var(--app-text-muted);">{{ conteo.zonaCodigo }}</p>
++
++      <!-- Métricas del conteo (pedido por Patricio) -->
++      <div class="grid grid-cols-2 gap-x-4 gap-y-3">
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
++          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ conteo.totalUnidades }}</span>
++        </div>
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">SKUs únicos</span>
++          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ conteo.totalProductos }}</span>
+         </div>
+       </div>
+ 
+-      <div class="mb-8">
+-        <ion-button
+-          expand="block"
+-          class="btn-accent"
+-          [disabled]="!todosEnviados()"
+-          (click)="finalizarConteo()"
+-        >
++      <!-- Acciones según estado -->
++      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && !modoSoloLectura()) {
++      <div class="flex items-center gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
++        <ion-button expand="block" fill="outline" size="small" (click)="sincronizarReal(conteo)">
+           <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+-          {{ modoActual() === 'RECONTEO' ? 'Finalizar reconteo' : 'Finalizar conteo' }}
++          Sincronizar
++        </ion-button>
++        <ion-button expand="block" fill="outline" size="small" color="danger" (click)="eliminarReal(conteo)">
++          <ion-icon slot="start" name="trash-outline"></ion-icon>
++          Eliminar
+         </ion-button>
+-        @if (!todosEnviados()) {
+-          <p class="hint-text text-center">
+-            Todos los TAGs deben quedar "Enviado" para poder finalizar
+-          </p>
+-        }
+       </div>
+-
+-      <!-- Pendientes -->
+-      @if (pendientes().length > 0) {
+-        <p class="section-label" style="color: var(--app-warning, #D97706);">
+-          Pendiente ({{ pendientes().length }})
+-        </p>
+-        <div class="flex flex-col gap-2.5 mb-6">
+-          @for (tag of pendientes(); track tag.ubicacionId) {
+-            <div class="card">
+-              <div class="flex items-center justify-between gap-3 mb-2">
+-                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
+-
+-                @if (sincronizando().has(tag.ubicacionId)) {
+-                  <span class="badge">
+-                    <ion-spinner name="crescent" style="width: 12px; height: 12px;"></ion-spinner>
+-                    Enviando…
+-                  </span>
+-                } @else {
+-                  <span class="badge badge-warning">
+-                    <ion-icon name="time-outline"></ion-icon>
+-                    Pendiente
+-                  </span>
+-                }
+-              </div>
+-
+-              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+-
+-              <div class="flex items-center justify-between gap-3">
+-                <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+-                  {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+-                  <span class="num">{{ tag.hora }}</span>
+-                </p>
+-
+-                @if (!sincronizando().has(tag.ubicacionId)) {
+-                  <div class="flex items-center gap-1 shrink-0">
+-                    <ion-button class="step-btn" (click)="editarTag(tag.ubicacionId)" style="--color: var(--app-primary);">
+-                      <ion-icon slot="icon-only" name="create-outline" style="font-size: 0.95rem;"></ion-icon>
+-                    </ion-button>
+-                    <ion-button class="step-btn" (click)="reintentar(tag.ubicacionId)" style="--color: var(--app-primary);">
+-                      <ion-icon slot="icon-only" name="refresh-outline" style="font-size: 0.95rem;"></ion-icon>
+-                    </ion-button>
+-                  </div>
+-                }
+-              </div>
+-            </div>
+-          }
+-        </div>
+       }
+-
+-      <!-- Finalizados -->
+-      @if (finalizados().length > 0) {
+-        <p class="section-label" style="color: var(--app-success);">
+-          Finalizado ({{ finalizados().length }})
++      @if (modoSoloLectura() && conteo.estado === 'FINALIZADO') {
++      <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
++        <p class="text-xs text-center" style="color: var(--app-text-muted);">
++          Evento en análisis — acciones no disponibles
+         </p>
+-        <div class="flex flex-col gap-3">
+-          @for (tag of finalizados(); track tag.ubicacionId) {
+-            <div class="card">
+-              <div class="flex items-center justify-between gap-3 mb-2">
+-                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
+-                <span class="badge badge-success">
+-                  <ion-icon name="checkmark-done-outline"></ion-icon>
+-                  Enviado
+-                </span>
+-              </div>
+-              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+-              <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+-                {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+-                <span class="num">{{ tag.hora }}</span>
+-              </p>
+-            </div>
+-          }
+-        </div>
++      </div>
+       }
++      @if (isSyncing(conteo)) {
++      <div class="flex items-center justify-center gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
++        <ion-spinner name="crescent" style="width: 16px; height: 16px;"></ion-spinner>
++        <span class="text-xs" style="color: var(--app-text-muted);">Sincronizando...</span>
++      </div>
++      }
++    </div>
++    }
++    }
+ 
+-    } @else if (conteosCerrados().length > 0) {
+-      <!-- ===== Sin conteo activo: pestañas por conteo cerrado, solo lectura ===== -->
+-
+-      <ion-segment [value]="conteoSeleccionado().id" (ionChange)="onSegmentChange($event)" class="mb-6">
+-        @for (conteo of conteosCerrados(); track conteo.id) {
+-          <ion-segment-button [value]="conteo.id">
+-            <ion-label>Iteración {{ conteo.iteracion }}</ion-label>
+-          </ion-segment-button>
+-        }
+-      </ion-segment>
+-
+-      @if (conteoSeleccionado(); as conteo) {
+-        <p class="text-[12px] num mb-4" style="color: var(--app-text-muted);">
+-          Finalizado el {{ conteo.cerradoEn }}
+-        </p>
+-
+-        <p class="section-label">Resumen del trabajo</p>
+-        <div class="card mb-6">
+-          <div class="store-row">
+-            <span class="store-label">Tags finalizados</span>
+-            <span class="store-value num">{{ tagsDelCierre(conteo).length }}</span>
+-          </div>
+-          <div class="store-row">
+-            <span class="store-label">Total contados</span>
+-            <span class="store-value num" style="color: var(--app-success);">{{ contadosDe(conteo) }}</span>
+-          </div>
+-          <div class="store-row">
+-            <span class="store-label">SKUs sin contar</span>
+-            <span class="store-value num" [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+-              {{ conteo.faltantes }}
+-            </span>
+-          </div>
++    <!-- Resumen global de la iteración -->
++    @if (resumenGlobalIteracion(); as resumen) {
++    <p class="section-label mb-2">Resumen global — Iteración {{ iteracionSeleccionada() }}</p>
++    <div class="card mb-6">
++      <div class="grid grid-cols-2 gap-x-4 gap-y-3">
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">Q contado total</span>
++          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalUnidades }}</span>
+         </div>
+-
+-        <p class="section-label" style="color: var(--app-success);">
+-          Finalizado ({{ tagsDelCierre(conteo).length }})
+-        </p>
+-        <div class="flex flex-col gap-3">
+-          @for (tag of tagsDelCierre(conteo); track tag.ubicacionId) {
+-            <div class="card">
+-              <div class="flex items-center justify-between gap-3 mb-2">
+-                <p class="text-[15px] font-bold num truncate" style="color: var(--app-text);">{{ codigoDe(tag) }}</p>
+-                <span class="badge badge-success">
+-                  <ion-icon name="checkmark-done-outline"></ion-icon>
+-                  Enviado
+-                </span>
+-              </div>
+-              <div class="h-px mb-2.5" style="background: var(--app-border);"></div>
+-              <p class="text-[12px] truncate" style="color: var(--app-text-muted);">
+-                {{ zonaDe(tag) }} · <span class="num">{{ tag.cantidadProductos }}</span> producto(s) ·
+-                <span class="num">{{ tag.hora }}</span>
+-              </p>
+-            </div>
+-          }
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
++          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalProductos }}</span>
+         </div>
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
++          <span class="text-lg font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
++        </div>
++        <div class="flex flex-col">
++          <span class="text-xs" style="color: var(--app-text-muted);">Total de tags</span>
++          <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.totalTags }}</span>
++        </div>
++      </div>
++    </div>
++    }
++
++    <div class="mb-8">
++      @if (conteoCerrado()) {
++      <!-- Ya finalizado: la pantalla queda de solo lectura y lo dice explícitamente. -->
++      <div class="status-banner status-banner-success">
++        <ion-icon name="checkmark-done-outline"></ion-icon>
++        <span>{{ estadoEventoLabel() }} · iteración {{ iteracionActual() }}</span>
++      </div>
++      } @else {
++      <ion-button expand="block" class="btn-accent" [disabled]="!puedeFinalizarEvento() || finalizandoEvento()"
++        (click)="finalizarEventoReal()">
++        <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
++        Finalizar conteo
++      </ion-button>
++      @if (enCursoReal().length > 0) {
++      <p class="hint-text text-center">
++        Quedan {{ enCursoReal().length }} TAG(s) en curso — finalízalos antes de cerrar el conteo
++      </p>
+       }
++      }
++    </div>
++
+     }
+ 
+   </div>
+-</ion-content>
++</ion-content>
+\ No newline at end of file
+diff --git a/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.ts b/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.ts
+index ebc2228..fd9f51f 100644
+--- a/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.ts
++++ b/src/app/features/counting/tags-resumen.page/tags-resumen.page.component.ts
+@@ -1,5 +1,6 @@
+ import { Component, inject, computed, signal } from '@angular/core';
+ import { Router } from '@angular/router';
++import { ViewWillEnter } from '@ionic/angular';
+ import {
+   AlertController,
+   IonBackButton,
+@@ -18,19 +19,23 @@ import {
+   ToastController,
+ } from '@ionic/angular/standalone';
+ import { addIcons } from 'ionicons';
+-import { alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline } from 'ionicons/icons';
+-import { TagsMockStore, ZONAS_MOCK } from '../../../state/counting-mock/tags-mock.store';
+-import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
++import {
++  alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
++  createOutline, refreshOutline, timeOutline, trashOutline,
++} from 'ionicons/icons';
++import { AuthFacade } from '../../../state/auth/auth.facade';
++import { PdaFacade } from '../../../state/pda/pda.facade';
++import { EventoFacade } from '../../../state/evento/evento.facade';
++import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
++import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
+ 
+ /*
+- * MOCK — resumen de tags con 2 estados: Pendiente (finalizado localmente,
+- * sync falló, encolado) y Finalizado (sincronizado con éxito). Lee del
+- * mismo TagsMockStore que la pantalla de trabajo, así que refleja en vivo
+- * lo que se va cerrando ahí. El tag EN CURSO (el que se está contando
+- * ahora, antes de "Finalizar TAG") no aparece aquí a propósito: su
+- * recuperación tras un apagón es un problema de persistencia que resuelve
+- * la propia pantalla de trabajo al reabrirse, no algo que este resumen
+- * necesite mostrar.
++ * Resumen de los conteos del evento, agrupados por ubicación y estado
++ * (EN_CURSO / FINALIZADO / SINCRONIZADO), leídos de sod_conteo. Las pestañas
++ * separan las iteraciones cuando hay más de una.
++ *
++ * Desde acá también se cierra el conteo del evento, que es lo que lo deja
++ * EN_ANALISIS o CERRADO.
+  */
+ @Component({
+   selector: 'app-tags-resumen',
+@@ -52,103 +57,219 @@ import { TagSesionStore } from '../../../state/counting-mock/tag-sesion.store';
+     IonToolbar,
+   ],
+ })
+-export class TagsResumenPageComponent {
+-  private tagsStore       = inject(TagsMockStore);
+-  private tagSesion       = inject(TagSesionStore);
+-  private router          = inject(Router);
++export class TagsResumenPageComponent implements ViewWillEnter {
++  private router = inject(Router);
+   private alertController = inject(AlertController);
+   private toastController = inject(ToastController);
+ 
+-  pendientes    = this.tagsStore.pendientes;
+-  finalizados   = this.tagsStore.finalizados;
+-  sincronizando = this.tagsStore.sincronizando;
+-  modoActual    = this.tagsStore.modoActual;
+-  hayConteoActivo = () => this.pendientes().length > 0 || this.finalizados().length > 0;
++  // CONTEO (real)
++  private auth = inject(AuthFacade);
++  private pda = inject(PdaFacade);
++  private eventoFacade = inject(EventoFacade);
++  private conteoList = inject(ConteoListFacade);
++  private resumenFacade = inject(ResumenEventoFacade);
++
++  currentEvent = this.eventoFacade.selectedEvent;
++  // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
++  iteracionActual = this.conteoList.iteracionActiva;
++
++  resumenAvanceGlobal = this.resumenFacade.avance;
++  resumenesEvento = computed(() => {
++    const evento = this.currentEvent();
++    if (!evento) return [];
++    return this.conteoList.conteos().filter((c) => c.eventoId === evento.id);
++  });
++  // Pestañas por iteración — normalmente hay una sola mientras no exista reconteo real.
++  iteracionesReales = computed(() => {
++    const set = new Set(this.resumenesEvento().map((c) => c.iteracion));
++    return [...set].sort((a, b) => b - a);
++  });
++  private iteracionSeleccionadaSignal = signal<number | null>(null);
++  iteracionSeleccionada = computed(() => this.iteracionSeleccionadaSignal() ?? this.iteracionesReales()[0] ?? null);
++  resumenesIteracionActual = computed(() => {
++    const it = this.iteracionSeleccionada();
++    return it === null ? [] : this.resumenesEvento().filter((c) => c.iteracion === it);
++  });
+ 
+-  // Resumen final del conteo activo
+-  totalMuestra    = this.tagsStore.totalMuestra;
+-  totalContados   = this.tagsStore.totalContados;
+-  totalFaltantes  = this.tagsStore.totalFaltantes;
+-  todosEnviados   = this.tagsStore.todosEnviados;
++  // Pestañas por conteo individual (TAG)
++  conteosComoPestanas = computed(() => this.resumenesIteracionActual());
++  private conteoSeleccionadoSignal = signal<ConteoResumen | null>(null);
++  conteoSeleccionado = computed(() => {
++    const explicito = this.conteoSeleccionadoSignal();
++    if (explicito) return explicito;
++    const conteos = this.conteosComoPestanas();
++    return conteos.length > 0 ? conteos[0] : null;
++  });
++
++  // Resumen global de la iteración actual
++  resumenGlobalIteracion = computed(() => {
++    const conteos = this.resumenesIteracionActual();
++    if (conteos.length === 0) return null;
++
++    const totalUnidades = conteos.reduce((sum, c) => sum + c.totalUnidades, 0);
++    const totalProductos = conteos.reduce((sum, c) => sum + c.totalProductos, 0);
++    const tagsFinalizados = conteos.filter((c) => c.estado === 'FINALIZADO' || c.estado === 'SINCRONIZADO').length;
++
++    return {
++      totalUnidades,
++      totalProductos,
++      tagsFinalizados,
++      totalTags: conteos.length,
++    };
++  });
+ 
++  // Modo solo lectura: cuando el evento está en EN_ANALISIS, no se permiten acciones destructivas
++  modoSoloLectura = computed(() => {
++    const estado = this.currentEvent()?.estado;
++    return estado === 'EN_ANALISIS';
++  });
++
++  enCursoReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'EN_CURSO'));
++  finalizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'FINALIZADO'));
++  sincronizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'SINCRONIZADO'));
+   /*
+-   * Sin conteo activo: se muestran pestañas, una por cada conteo ya
+-   * cerrado de este evento (solo lectura), más recientes primero.
++   * El conteo del evento ya se cerró: quedó EN_ANALISIS (faltaron SKUs) o
++   * CERRADO. En ambos casos esta pantalla pasa a ser de solo lectura — no se
++   * puede volver a finalizar lo que ya está finalizado.
+    */
+-  conteosCerrados     = this.tagsStore.conteosCerradosDelEventoActual;
+-  conteoSeleccionadoId = signal<number | null>(null);
+-  conteoSeleccionado   = computed(() => {
+-    const id = this.conteoSeleccionadoId() ?? this.conteosCerrados()[0]?.id ?? null;
+-    return this.conteosCerrados().find((c) => c.id === id) ?? this.conteosCerrados()[0] ?? null;
++  conteoCerrado = computed(() => {
++    const estado = this.currentEvent()?.estado;
++    return estado === 'EN_ANALISIS' || estado === 'CERRADO';
+   });
+-  noTags = () => !this.hayConteoActivo() && this.conteosCerrados().length === 0;
++  estadoEventoLabel = computed(() =>
++    this.currentEvent()?.estado === 'CERRADO' ? 'Conteo cerrado' : 'Conteo cerrado — evento en análisis'
++  );
++
++  // No se puede cerrar el evento con algún TAG todavía en curso.
++  puedeFinalizarEvento = computed(() =>
++    !this.conteoCerrado() &&
++    this.resumenesEvento().length > 0 &&
++    this.resumenesEvento().every((c) => c.estado !== 'EN_CURSO')
++  );
++  finalizandoEvento = this.resumenFacade.finalizando;
+ 
+-  constructor() {
+-    addIcons({ alertCircleOutline, checkmarkDoneOutline, cloudUploadOutline, createOutline, refreshOutline, timeOutline });
+-  }
+ 
+-  // Conteos que pertenecen a un cierre — por relación (cierreId), no por snapshot guardado.
+-  tagsDelCierre(conteo: { id: number }): ReturnType<TagsMockStore['tagsDeCierre']> {
+-    return this.tagsStore.tagsDeCierre(conteo.id);
++  isSyncing(c: ConteoResumen): boolean {
++    return this.conteoList.isSyncing(c);
+   }
+ 
+-  contadosDe(conteo: { id: number }): number {
+-    return this.tagsStore.contadosDeCierre(conteo.id);
++
++  constructor() {
++    addIcons({
++      alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
++      createOutline, refreshOutline, timeOutline, trashOutline,
++    });
++
+   }
+ 
+-  // Resuelven tag/zona desde sod_ubicacion (mock) por id — el conteo no los lleva propios.
+-  codigoDe(tag: { ubicacionId: number }): string {
+-    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.tag ?? '';
++  /*
++   * La carga va acá y no en el constructor: ion-router-outlet mantiene las
++   * páginas vivas en el stack de navegación, así que al volver desde Home el
++   * componente se reutiliza y el constructor NO se vuelve a ejecutar — la
++   * pantalla quedaba mostrando lo que había cargado la primera vez.
++   * ionViewWillEnter sí corre en cada entrada, incluida la primera.
++   */
++  async ionViewWillEnter(): Promise<void> {
++    // El estado del evento pudo cambiar fuera de esta pantalla (se cerró el
++    // conteo, se abrió una iteración): sin releerlo se decide con datos viejos.
++    await this.eventoFacade.refreshSelected();
++
++    // A esta pantalla se puede llegar directo desde el menú, sin pasar por
++    // TAG+zona: la ronda hay que resolverla acá también.
++    const evento = this.currentEvent();
++    if (evento) await this.conteoList.cargarIteracionActiva(evento.id);
++    this.cargarResumenReal();
++    await this.cargarResumenAvance();
+   }
+ 
+-  zonaDe(tag: { ubicacionId: number }): string {
+-    return this.tagsStore.obtenerUbicacion(tag.ubicacionId)?.zonaCodigo ?? '';
++  private cargarResumenReal(): void {
++    const operadorId = this.auth.session()?.operadorId;
++    const pdaId = this.pda.pdaId();
++    if (operadorId && pdaId) {
++      void this.conteoList.load(operadorId, pdaId);
++    }
+   }
+ 
+-  reintentar(ubicacionId: number): void {
+-    this.tagsStore.reintentar(ubicacionId);
++  private async cargarResumenAvance(): Promise<void> {
++    const evento = this.currentEvent();
++    const operadorId = this.auth.session()?.operadorId;
++    const pdaId = this.pda.pdaId();
++    if (evento && operadorId && pdaId) {
++      await this.resumenFacade.cargarAvance(evento.id, operadorId, pdaId);
++    }
+   }
+ 
+-  onSegmentChange(event: Event): void {
+-    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
+-    this.conteoSeleccionadoId.set(Number(value));
++  async sincronizarReal(c: ConteoResumen): Promise<void> {
++    await this.conteoList.sincronizar(c);
+   }
+ 
+-  // Solo disponible para tags Pendiente — un TAG ya Enviado no se puede reabrir.
+-  editarTag(ubicacionId: number): void {
+-    const tag = this.tagsStore.tags().find((t) => t.ubicacionId === ubicacionId);
+-    if (!tag) return;
+-    const ubicacion = this.tagsStore.obtenerUbicacion(ubicacionId);
+-    const zona      = ZONAS_MOCK.find((z) => z.codigo === ubicacion?.zonaCodigo) ?? ZONAS_MOCK[0];
+-    this.tagSesion.iniciar(ubicacion?.tag ?? '', zona, tag.items);
+-    this.router.navigate(['/counting']);
++  async eliminarReal(c: ConteoResumen): Promise<void> {
++    const alert = await this.alertController.create({
++      header: 'Eliminar conteo',
++      message: `¿Eliminar el conteo del TAG ${c.tag} (${c.zonaCodigo})?`,
++      buttons: [
++        { text: 'Cancelar', role: 'cancel' },
++        { text: 'Eliminar', role: 'destructive', handler: () => { void this.conteoList.delete(c); } },
++      ],
++    });
++    await alert.present();
+   }
+ 
+-  async finalizarConteo(): Promise<void> {
+-    if (!this.todosEnviados()) return;
++  async finalizarEventoReal(): Promise<void> {
++    if (!this.puedeFinalizarEvento()) return;
++    const evento = this.currentEvent();
++    const operadorId = this.auth.session()?.operadorId;
++    const pdaId = this.pda.pdaId();
++    if (!evento || !operadorId || !pdaId) return;
+ 
+-    const esReconteo = this.modoActual() === 'RECONTEO';
+     const alert = await this.alertController.create({
+-      header:  esReconteo ? 'Finalizar reconteo' : 'Finalizar conteo',
+-      message: `Contados ${this.totalContados()} de ${this.totalMuestra()} productos${this.totalFaltantes() > 0 ? ` (${this.totalFaltantes()} sin contar)` : ''}. Esta acción no se puede deshacer. ¿Confirmas?`,
++      header: 'Finalizar conteo',
++      message: 'Vas a cerrar el conteo de este evento. Esta acción no se puede deshacer. ¿Confirmas?',
+       buttons: [
+         { text: 'Cancelar', role: 'cancel' },
+-        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarConteo(esReconteo); } },
++        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarEventoReal(evento.id, operadorId, pdaId); } },
+       ],
+     });
+     await alert.present();
+   }
+ 
+-  private async doFinalizarConteo(esReconteo: boolean): Promise<void> {
+-    this.tagsStore.archivarConteoActual();
++  private async doFinalizarEventoReal(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
++    const resultado = await this.resumenFacade.finalizarEvento(eventoId, operadorId, pdaId);
+ 
+-    const toast = await this.toastController.create({
+-      message:  esReconteo ? 'Reconteo finalizado — todos los TAGs sincronizados' : 'Conteo finalizado — todos los TAGs sincronizados',
+-      duration: 2500,
+-      color:    'success',
+-      position: 'top',
+-    });
+-    await toast.present();
++    if (!resultado) {
++      await this.avisar(this.resumenFacade.error() ?? 'Error al finalizar el conteo', 'danger');
++      return;
++    }
++
++    // El evento cambió de estado en base: sin releerlo, Home y esta misma
++    // pantalla seguirían tratándolo como ABIERTO (y Home no ofrecería
++    // "Sincronizar" para abrir la iteración siguiente).
++    await this.eventoFacade.refreshSelected();
++    await this.avisar(
++      resultado.faltantes > 0
++        ? `Conteo finalizado — evento en análisis (${resultado.faltantes} SKU(s) sin contar)`
++        : 'Conteo finalizado — evento cerrado',
++      'success'
++    );
+     this.router.navigate(['/home']);
+   }
++
++  private async avisar(message: string, color: 'success' | 'danger'): Promise<void> {
++    const toast = await this.toastController.create({ message, duration: 3000, color, position: 'top' });
++    await toast.present();
++  }
++
++  onIteracionChange(event: Event): void {
++    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
++    this.iteracionSeleccionadaSignal.set(Number(value));
++    // Al cambiar de iteración, resetear el conteo seleccionado
++    this.conteoSeleccionadoSignal.set(null);
++  }
++
++  onConteoChange(event: Event): void {
++    const value = (event as CustomEvent<{ value: string | number }>).detail.value;
++    const conteoId = Number(value);
++    const conteo = this.conteosComoPestanas().find((c) => c.ubicacionId === conteoId);
++    this.conteoSeleccionadoSignal.set(conteo ?? null);
++  }
+ }
+diff --git a/src/app/features/home/home.page.html b/src/app/features/home/home.page.html
+index 35fb6c8..892fcfb 100644
+--- a/src/app/features/home/home.page.html
++++ b/src/app/features/home/home.page.html
+@@ -110,57 +110,88 @@
+     }
+ 
+     @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
+-    <ion-button expand="block" class="btn-primary mt-6" [disabled]="sincronizando()" (click)="sincronizar()">
++    <!-- Banner de estado: PDA en espera -->
++    <div class="status-banner status-banner-warning mt-6">
++      <ion-icon name="hourglass-outline"></ion-icon>
++      <span>PDA en espera — SGO está analizando resultados</span>
++    </div>
++
++    <!-- Info adicional -->
++    <div class="card mb-4 mt-4">
++      <p class="text-sm" style="color: var(--app-text-muted);">
++        El evento <strong>{{ selectedEvent()!.nombre }}</strong> está en análisis.
++        Sincroniza para obtener la muestra de la siguiente iteración.
++      </p>
++    </div>
++
++    @if (sincronizandoTimeout()) {
++    <!-- Timeout: mostrar botón de reintentar -->
++    <div class="card mb-4" style="border-color: var(--ion-color-warning);">
++      <p class="text-sm" style="color: var(--ion-color-warning); font-weight: 600;">
++        ⚠ El SGO no ha respondido. ¿Deseas reintentar?
++      </p>
++    </div>
++    <ion-button expand="block" class="btn-primary" (click)="reintentarSincronizacion()">
++      <ion-icon slot="start" name="sync-outline"></ion-icon>
++      Reintentar sincronización
++    </ion-button>
++    } @else {
++    <!-- Sincronización normal -->
++    <ion-button expand="block" class="btn-primary mt-4" [disabled]="sincronizando()" (click)="sincronizar()">
+       @if (sincronizando()) {
+       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+-      Sincronizando…
++      Analizando...
+       } @else {
+-      Sincronizar
++      <ion-icon slot="start" name="sync-outline"></ion-icon>
++      Sincronizar con SGO
+       }
+     </ion-button>
+-    <p class="hint-text text-center">
+-      Este evento está en análisis. Sincroniza para descargar la muestra a recontar
+-    </p>
++    }
+     } @else {
+     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading()"
+       (click)="continue()">
+-      {{ modoActual() === 'RECONTEO' ? 'Iniciar reconteo' : 'Iniciar conteo' }}
++      @if (esReconteo()) {
++        Iniciar reconteo
++      } @else {
++        Iniciar conteo
++      }
+     </ion-button>
+     }
+ 
+-    @if (conteosCerrados().length > 0) {
++    @if (eventosFinalizados().length > 0) {
+     <p class="section-label mt-8">Conteos finalizados</p>
+     <div class="flex flex-col gap-2.5">
+-      @for (conteo of conteosCerrados(); track conteo.id) {
++      @for (item of eventosFinalizados(); track item.evento.id) {
+       <div class="card">
+         <div class="flex items-center justify-between gap-3 mb-3">
+           <div class="flex flex-col min-w-0">
+-            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ conteo.eventoNombre }}</span>
+-            <span class="text-[12px] num" style="color: var(--app-text-muted);">{{ conteo.cerradoEn }}</span>
++            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ item.evento.nombre }}</span>
++            <span class="text-[12px]" style="color: var(--app-text-muted);">{{ estadoEfectivoLabel(item.evento) }}</span>
+           </div>
+-          <span class="badge badge-success">Finalizado</span>
++          <span class="badge" [class.badge-success]="item.evento.estado === 'CERRADO'"
++            [class.badge-warning]="item.evento.estado === 'EN_ANALISIS'">
++            {{ item.evento.estado === 'CERRADO' ? 'Cerrado' : 'En análisis' }}
++          </span>
+         </div>
+         <div class="h-px mb-3" style="background: var(--app-border);"></div>
+         <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
+           <div class="flex items-center justify-between">
+             <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
+-            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ conteo.iteracion }}</span>
++            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.iteracion }}</span>
+           </div>
+           <div class="flex items-center justify-between">
+             <span class="text-[12px]" style="color: var(--app-text-muted);">Tags finalizados</span>
+-            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ tagsFinalizadosDe(conteo)
+-              }}</span>
++            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.tagsFinalizados }}</span>
+           </div>
+           <div class="flex items-center justify-between">
+             <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs contados</span>
+-            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ contadosDe(conteo)
+-              }}</span>
++            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ item.resumen.contados }}</span>
+           </div>
+           <div class="flex items-center justify-between">
+             <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs faltantes</span>
+             <span class="text-[13px] font-semibold num"
+-              [style.color]="conteo.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
+-              {{ conteo.faltantes }}
++              [style.color]="item.resumen.faltantes > 0 ? 'var(--ion-color-danger)' : 'var(--app-success)'">
++              {{ item.resumen.faltantes }}
+             </span>
+           </div>
+         </div>
+diff --git a/src/app/features/home/home.page.ts b/src/app/features/home/home.page.ts
+index a183055..a6dfb92 100644
+--- a/src/app/features/home/home.page.ts
++++ b/src/app/features/home/home.page.ts
+@@ -1,4 +1,4 @@
+-import { Component, effect, inject, signal } from '@angular/core';
++import { Component, computed, effect, inject, signal } from '@angular/core';
+ import { Router } from '@angular/router';
+ import { ViewWillEnter } from '@ionic/angular';
+ import {
+@@ -14,11 +14,14 @@ import {
+   IonToolbar,
+ } from '@ionic/angular/standalone';
+ import { addIcons } from 'ionicons';
+-import { alertCircleOutline, businessOutline, lockClosedOutline } from 'ionicons/icons';
++import { alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline } from 'ionicons/icons';
+ import { AuthFacade } from '../../state/auth/auth.facade';
++import { PdaFacade } from '../../state/pda/pda.facade';
+ import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
+ import { EventoFacade, Evento } from '../../state/evento/evento.facade';
+-import { TagsMockStore } from '../../state/counting-mock/tags-mock.store';
++import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
++import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
++import { ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
+ 
+ @Component({
+   selector: 'app-home',
+@@ -41,14 +44,28 @@ export class HomePage implements ViewWillEnter {
+   private auth             = inject(AuthFacade);
+   private sucursalFacade  = inject(SucursalFacade);
+   private eventoFacade    = inject(EventoFacade);
+-  private tagsStore       = inject(TagsMockStore);
++  private conteoList      = inject(ConteoListFacade);
+   private alertController = inject(AlertController);
+-
+-  puedeCerrarTienda = this.tagsStore.puedeCerrarTienda;
+-  conteosCerrados   = this.tagsStore.conteosCerrados;
+-  iteracionActual   = this.tagsStore.iteracionActual;
+-  modoActual        = this.tagsStore.modoActual;
+-  sincronizando     = signal(false);
++  private pda                = inject(PdaFacade);
++  private resumenFacade      = inject(ResumenEventoFacade);
++
++  /*
++   * Cerrar la tienda exige que no quede trabajo sin subir: ni conteos abiertos
++   * ni finalizados pendientes de sincronizar. Se deriva de sod_conteo, no de un
++   * estado aparte.
++   */
++  puedeCerrarTienda = computed(() =>
++    this.conteoList.conteos().every((c) => c.estado === 'SINCRONIZADO')
++  );
++  sincronizando = signal(false);
++  // Timeout de sincronización: después de 30s sin respuesta del SGO, se activa
++  // para permitir al operador reintentar.
++  sincronizandoTimeout = signal(false);
++  private sincronizandoTimeoutId: ReturnType<typeof setTimeout> | undefined;
++
++  // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
++  // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
++  eventosFinalizados = this.resumenFacade.cerrados;
+ 
+   currentStore  = this.sucursalFacade.currentStore;
+   storeLoading  = this.sucursalFacade.loading;
+@@ -57,26 +74,45 @@ export class HomePage implements ViewWillEnter {
+ 
+   events        = this.eventoFacade.events;
+   selectedEvent = this.eventoFacade.selectedEvent;
++  // El rótulo del botón sale del estado del evento, no de la iteración: RECONTEO
++  // es exactamente "este evento va en una ronda posterior a la primera".
++  esReconteo = computed(() => this.selectedEvent()?.estado === 'RECONTEO');
+   eventsLoading = this.eventoFacade.loading;
+   eventsError   = this.eventoFacade.error;
+   hasEvents     = this.eventoFacade.hasEvents;
+   noEvents      = this.eventoFacade.noEvents;
+ 
+   constructor() {
+-    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline });
++    addIcons({ alertCircleOutline, businessOutline, lockClosedOutline, hourglassOutline, syncOutline });
+ 
+     // En cuanto haya tienda cargada, pide sus eventos.
+     effect(() => {
+       const store = this.currentStore();
+       if (store) void this.eventoFacade.loadEventos(store.id);
+     });
++
++    // Cada vez que cambia la lista de eventos, recalcula el resumen de los
++    // que ya quedaron CERRADO/EN_ANALISIS por el flujo real de conteo.
++    effect(() => {
++      this.cargarEventosFinalizados(this.events());
++    });
++  }
++
++  private cargarEventosFinalizados(eventos: Evento[]): void {
++    const operadorId = this.auth.session()?.operadorId;
++    const pdaId      = this.pda.pdaId();
++    if (!operadorId || !pdaId) return;
++
++    void this.resumenFacade.cargarCerrados(eventos, operadorId, pdaId);
+   }
+ 
+   ionViewWillEnter(): void {
+     const session = this.auth.session();
+-    if (session) {
+-      void this.sucursalFacade.loadSucursales(session.operadorId);
+-    }
++    if (!session) return;
++    void this.sucursalFacade.loadSucursales(session.operadorId);
++
++    const pdaId = this.pda.pdaId();
++    if (pdaId) void this.conteoList.load(session.operadorId, pdaId);
+   }
+ 
+   // Compara solo la fecha (YYYY-MM-DD), ignorando la hora — un evento de "hoy" siempre es seleccionable.
+@@ -90,41 +126,32 @@ export class HomePage implements ViewWillEnter {
+   }
+ 
+   puedeSeleccionar(evento: Evento): boolean {
+-    return !this.esVencido(evento) && !this.esCerrado(evento);
+-  }
+-
+-  estadoEfectivo(evento: Evento): Evento['estado'] {
+-    return this.tagsStore.estadoEfectivo(evento);
++    // No se puede seleccionar un evento vencido, cerrado o en análisis
++    // (en análisis = PDA bloqueada esperando respuesta del SGO)
++    if (this.esVencido(evento) || this.esCerrado(evento) || this.enAnalisis(evento)) {
++      return false;
++    }
++    // Si ya hay un evento seleccionado y es diferente, no permitir cambiar
++    const actual = this.selectedEvent();
++    if (actual && actual.id !== evento.id) {
++      return false;
++    }
++    return true;
+   }
+ 
+   private static readonly ESTADO_LABELS: Record<Evento['estado'], string> = {
+     ABIERTO:     'Abierto',
+-    CERRADO:     'Cerrado',
+-    EN_PROCESO:  'En proceso',
+-    CANCELADO:   'Cancelado',
+     EN_ANALISIS: 'En análisis',
+     RECONTEO:    'Reconteo',
++    CERRADO:     'Cerrado',
+   };
+ 
+   estadoEfectivoLabel(evento: Evento): string {
+-    return HomePage.ESTADO_LABELS[this.estadoEfectivo(evento)];
++    return HomePage.ESTADO_LABELS[evento.estado];
+   }
+ 
+   enAnalisis(evento: Evento): boolean {
+-    return this.estadoEfectivo(evento) === 'EN_ANALISIS';
+-  }
+-
+-  skusPendientesAnalisis(evento: Evento): number {
+-    return this.tagsStore.skusPendientesAnalisis(evento.id);
+-  }
+-
+-  // Derivados por relación (cierreId), no guardados en el ConteoCerradoMock.
+-  tagsFinalizadosDe(conteo: { id: number }): number {
+-    return this.tagsStore.tagsFinalizadosDeCierre(conteo.id);
+-  }
+-
+-  contadosDe(conteo: { id: number }): number {
+-    return this.tagsStore.contadosDeCierre(conteo.id);
++    return evento.estado === 'EN_ANALISIS';
+   }
+ 
+   selectEvento(evento: Evento): void {
+@@ -142,12 +169,69 @@ export class HomePage implements ViewWillEnter {
+     if (!evento) return;
+ 
+     this.sincronizando.set(true);
+-    // Espera visible simulando la descarga de la muestra a recontar.
+-    await new Promise((resolve) => setTimeout(resolve, 2000));
+-    this.tagsStore.sincronizarReconteo(evento.id);
+-    this.sincronizando.set(false);
+-    // Se queda en Home con la data ya actualizada — el operador decide cuándo entrar
+-    // al listado de TAGs a recontar con el botón "Iniciar reconteo".
++    this.sincronizandoTimeout.set(false);
++
++    // Inicia timeout de 30s: si el SGO no responde, se activa para reintentar
++    this.sincronizandoTimeoutId = setTimeout(() => {
++      this.sincronizandoTimeout.set(true);
++      this.sincronizando.set(false);
++    }, 30000);
++
++    try {
++      // Simula la espera de respuesta del SGO
++      await new Promise((resolve) => setTimeout(resolve, 2000));
++
++      // El evento quedó EN_ANALISIS al cerrar el conteo: abrir la ronda siguiente
++      // prepara su muestra y deja el evento en RECONTEO.
++      const resultado = await this.eventoFacade.abrirSiguienteIteracion();
++
++      // Cancela el timeout si ya obtuvo respuesta
++      if (this.sincronizandoTimeoutId) {
++        clearTimeout(this.sincronizandoTimeoutId);
++        this.sincronizandoTimeoutId = undefined;
++      }
++
++      this.sincronizando.set(false);
++      this.sincronizandoTimeout.set(false);
++      await this.avisarIteracionAbierta(resultado);
++    } catch (err) {
++      // Si hay error, también cancela el timeout
++      if (this.sincronizandoTimeoutId) {
++        clearTimeout(this.sincronizandoTimeoutId);
++        this.sincronizandoTimeoutId = undefined;
++      }
++      this.sincronizando.set(false);
++      this.sincronizandoTimeout.set(false);
++    }
++  }
++
++  reintentarSincronizacion(): void {
++    // Reset del timeout y reintentar
++    this.sincronizandoTimeout.set(false);
++    void this.sincronizar();
++  }
++
++  private async avisarIteracionAbierta(resultado: ResultadoAbrirIteracion | null): Promise<void> {
++    if (resultado === null) {
++      const alert = await this.alertController.create({
++        header:  'No se pudo abrir la iteración',
++        message: this.eventsError() ?? 'No se pudo abrir la iteración siguiente.',
++        buttons: ['Entendido'],
++      });
++      await alert.present();
++      return;
++    }
++
++    // Sin muestra la ronda queda abierta pero vacía: hay que decirlo, si no el
++    // operador entra a contar y no encuentra ningún SKU válido.
++    const alert = await this.alertController.create({
++      header:  'Iteración abierta',
++      message: resultado.conMuestra
++        ? `Vas a trabajar en la iteración ${resultado.iteracion}.\n\n⚠ Las iteraciones anteriores quedaron cerradas definitivamente.\n\nNo se pueden editar, solo consultar como referencia.`
++        : `Se abrió la iteración ${resultado.iteracion}, pero no hay diferencias que recontar.`,
++      buttons: ['Entendido'],
++    });
++    await alert.present();
+   }
+ 
+   async cerrarTienda(): Promise<void> {
+diff --git a/src/app/shared/utils/rut.utils.spec.ts b/src/app/shared/utils/rut.utils.spec.ts
+index fffb5f1..91dc018 100644
+--- a/src/app/shared/utils/rut.utils.spec.ts
++++ b/src/app/shared/utils/rut.utils.spec.ts
+@@ -1,4 +1,5 @@
+-import { cleanRut, formatRut, getFirstSixDigits, validateRut } from './rut.utils';
++import { cleanRut, formatRut, validateRut } from './rut.utils';
++import { getFirstSixDigits } from '../../domain/auth/utils/rut.utils';
+ 
+ describe('RUT utilities', () => {
+   describe('cleanRut', () => {
+diff --git a/src/app/state/conteo/conteo-list.facade.ts b/src/app/state/conteo/conteo-list.facade.ts
+index fc3ed8b..e3c934e 100644
+--- a/src/app/state/conteo/conteo-list.facade.ts
++++ b/src/app/state/conteo/conteo-list.facade.ts
+@@ -1,7 +1,9 @@
+ import { Injectable, inject, signal, computed } from '@angular/core';
+ import { GetConteosUseCase } from '../../application/conteo/get-conteos.use-case';
++import { GetIteracionActivaUseCase } from '../../application/conteo/get-iteracion-activa.use-case';
+ import { DeleteConteoSesionUseCase } from '../../application/conteo/delete-conteo-sesion.use-case';
+ import { SincronizarConteoUseCase } from '../../application/sincronizacion/sincronizar-conteo.use-case';
++import { GetTagsReconteoUseCase } from '../../application/conteo/get-tags-reconteo.use-case';
+ import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+ export type { ConteoResumen };
+ 
+@@ -14,8 +16,10 @@ function keyOf(conteo: ConteoResumen): string {
+ @Injectable({ providedIn: 'root' })
+ export class ConteoListFacade {
+   private getConteos    = inject(GetConteosUseCase);
++  private getIteracion  = inject(GetIteracionActivaUseCase);
+   private deleteSesion  = inject(DeleteConteoSesionUseCase);
+   private sincronizarUC = inject(SincronizarConteoUseCase);
++  private getTagsUC     = inject(GetTagsReconteoUseCase);
+ 
+   private conteosSignal      = signal<ConteoResumen[]>([]);
+   private seleccionadoSignal = signal<ConteoResumen | null>(null);
+@@ -23,6 +27,16 @@ export class ConteoListFacade {
+   private errorSignal        = signal<string | null>(null);
+   private syncingKeysSignal  = signal<ReadonlySet<string>>(new Set());
+ 
++  // TAGs sugeridos para reconteo: los que ya se contaron en iteraciones anteriores.
++  /*
++   * Ronda en curso del evento seleccionado. Vive acá y no en EventoFacade porque
++   * se deriva de sod_conteo — el evento no guarda la iteración.
++   */
++  private iteracionActivaSignal = signal(1);
++
++  private tagsReconteoSignal = signal<string[]>([]);
++  private tagsReconteoLoadingSignal = signal(false);
++
+   readonly conteos       = this.conteosSignal.asReadonly();
+   readonly seleccionado  = this.seleccionadoSignal.asReadonly();
+   readonly loading       = this.loadingSignal.asReadonly();
+@@ -32,6 +46,10 @@ export class ConteoListFacade {
+   readonly sincronizados = computed(() => this.conteosSignal().filter((c) => c.estado === 'SINCRONIZADO'));
+   readonly noConteos     = computed(() => this.conteosSignal().length === 0 && !this.loadingSignal());
+ 
++  readonly iteracionActiva    = this.iteracionActivaSignal.asReadonly();
++  readonly tagsReconteo       = this.tagsReconteoSignal.asReadonly();
++  readonly tagsReconteoLoading = this.tagsReconteoLoadingSignal.asReadonly();
++
+   isSyncing(conteo: ConteoResumen): boolean {
+     return this.syncingKeysSignal().has(keyOf(conteo));
+   }
+@@ -96,4 +114,35 @@ export class ConteoListFacade {
+       });
+     }
+   }
++
++  /*
++   * Carga los TAGs ya contados en iteraciones anteriores para sugerirlos en
++   * la pantalla de reconteo. Si iteracionActual === 1, no hay reconteo y la
++   * lista queda vacía.
++   */
++  async cargarIteracionActiva(eventoId: number): Promise<number> {
++    const iteracion = await this.getIteracion.execute(eventoId);
++    this.iteracionActivaSignal.set(iteracion);
++    return iteracion;
++  }
++
++  async cargarTagsReconteo(eventoId: number, iteracionActual: number): Promise<void> {
++    this.tagsReconteoLoadingSignal.set(true);
++    try {
++      this.tagsReconteoSignal.set(await this.getTagsUC.execute(eventoId, iteracionActual));
++    } catch (err) {
++      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar TAGs de reconteo');
++      this.tagsReconteoSignal.set([]);
++    } finally {
++      this.tagsReconteoLoadingSignal.set(false);
++    }
++  }
++
++  /*
++   * Indica si un TAG ya fue contado en iteraciones anteriores. Se usa en la
++   * UI para decidir si mostrar confirmación al ingresar un TAG nuevo.
++   */
++  esTagSugerido(tag: string): boolean {
++    return this.tagsReconteoSignal().includes(tag.trim().toUpperCase());
++  }
+ }
+diff --git a/src/app/state/counting-mock/guards/tag-en-sesion.guard.ts b/src/app/state/counting-mock/guards/tag-en-sesion.guard.ts
+deleted file mode 100644
+index 8e8e163..0000000
+--- a/src/app/state/counting-mock/guards/tag-en-sesion.guard.ts
++++ /dev/null
+@@ -1,17 +0,0 @@
+-import { inject } from '@angular/core';
+-import { CanActivateFn, Router } from '@angular/router';
+-import { TagSesionStore } from '../tag-sesion.store';
+-
+-/*
+- * Bloquea /counting (pantalla de conteo) si no hay TAG+zona elegidos en
+- * TagSesionStore — evita entrar en blanco por un reload o navegación
+- * directa; el operador vuelve a /counting-tag a elegir TAG y zona.
+- */
+-export const tagEnSesionGuard: CanActivateFn = () => {
+-  const tagSesion = inject(TagSesionStore);
+-  const router    = inject(Router);
+-
+-  return tagSesion.tagActual() && tagSesion.zonaActual()
+-    ? true
+-    : router.createUrlTree(['/counting-tag']);
+-};
+diff --git a/src/app/state/counting-mock/tag-sesion.store.ts b/src/app/state/counting-mock/tag-sesion.store.ts
+deleted file mode 100644
+index 9e2ff9f..0000000
+--- a/src/app/state/counting-mock/tag-sesion.store.ts
++++ /dev/null
+@@ -1,37 +0,0 @@
+-import { Injectable, signal } from '@angular/core';
+-import { ItemMock, ZonaMock } from './tags-mock.store';
+-
+-/*
+- * MOCK — sesión del TAG en curso, compartida entre la pantalla de TAG+zona
+- * (donde se elige) y la pantalla de conteo (donde se usa y se limpia al
+- * finalizar). Vive aparte de TagsMockStore porque es efímera por-tag, no
+- * data del evento.
+- *
+- * itemsIniciales solo se usa al reabrir un TAG que quedó "Pendiente": trae
+- * los SKUs ya cargados para poder seguir editándolos en la pantalla de
+- * conteo, en vez de partir desde cero.
+- */
+-@Injectable({ providedIn: 'root' })
+-export class TagSesionStore {
+-  readonly tagActual      = signal<string | null>(null);
+-  readonly zonaActual     = signal<ZonaMock | null>(null);
+-  readonly itemsIniciales = signal<ItemMock[]>([]);
+-
+-  iniciar(tag: string, zona: ZonaMock, itemsIniciales: ItemMock[] = []): void {
+-    this.tagActual.set(tag);
+-    this.zonaActual.set(zona);
+-    this.itemsIniciales.set(itemsIniciales);
+-  }
+-
+-  consumirItemsIniciales(): ItemMock[] {
+-    const items = this.itemsIniciales();
+-    this.itemsIniciales.set([]);
+-    return items;
+-  }
+-
+-  reset(): void {
+-    this.tagActual.set(null);
+-    this.zonaActual.set(null);
+-    this.itemsIniciales.set([]);
+-  }
+-}
+diff --git a/src/app/state/counting-mock/tags-mock.store.ts b/src/app/state/counting-mock/tags-mock.store.ts
+deleted file mode 100644
+index 8eed675..0000000
+--- a/src/app/state/counting-mock/tags-mock.store.ts
++++ /dev/null
+@@ -1,401 +0,0 @@
+-import { Injectable, inject, signal, computed } from '@angular/core';
+-import { EventoFacade } from '../evento/evento.facade';
+-import { Evento } from '../../domain/evento/models/evento.model';
+-
+-/*
+- * MOCK — store compartido en memoria para la etapa de maquetación.
+- * Vive en `providedIn: 'root'` para que la pantalla de trabajo (donde se
+- * finalizan tags) y la pantalla de resumen (donde se listan) vean los
+- * mismos datos al navegar entre ellas. Se pierde al recargar la app —
+- * eso es exactamente lo que resuelve la persistencia real en el
+- * siguiente paso (dominio/aplicación/data), no esta etapa.
+- *
+- * Todo queda scopeado por eventoId (evento seleccionado en EventoFacade):
+- * tags de un evento cerrado no deben mezclarse con los del evento actual
+- * si el operador cambia de evento sin recargar la app.
+- */
+-
+-export interface ZonaMock { id: number; codigo: string; nombre: string; }
+-
+-// MOCK — zonas fijas de la tienda mientras se integra la persistencia real.
+-export const ZONAS_MOCK: ZonaMock[] = [
+-  { id: 1, codigo: 'LC01-V01', nombre: 'Venta Principal' },
+-  { id: 2, codigo: 'LC01-A01', nombre: 'Altillo Norte' },
+-];
+-
+-export type EstadoTag = 'PENDIENTE' | 'ENVIADO';
+-
+-// Modo de trabajo del evento actual: CONTEO (primera vuelta) o RECONTEO
+-// (ya se sincronizó al menos una muestra de reconteo). Es un flag explícito,
+-// no se infiere de la iteración — evita ambigüedad en el resto de la app.
+-export type ModoConteo = 'CONTEO' | 'RECONTEO';
+-
+-export interface ItemMock { sku: string; cantidad: number; }
+-
+-// MOCK — simula la tabla sod_ubicacion: tag + zona con su propio id.
+-// El conteo se relaciona con la ubicación por este id, no repitiendo tag/zona en cada fila.
+-export interface UbicacionMock { id: number; tag: string; zonaCodigo: string; }
+-
+-// TAG que backoffice marcó para recontar: solo referencia a la ubicación (no hay
+-// "tag" ni "zona" propios acá) + los SKUs que backoffice espera encontrar ahí —
+-// sin items, el reconteo arranca en 0.
+-export interface TagARecontarMock { ubicacionId: number; skus: string[]; }
+-
+-// No existe una entidad "Tag": esto es un Conteo — se crea cada vez que el operador
+-// elige/escanea una ubicación e inicia a contar. Se relaciona con sod_ubicacion por
+-// id (como sod_conteo → sod_ubicacion); el tag y la zona se leen de ahí, nunca de este objeto.
+-//
+-// cierreId: null mientras el conteo está en curso (ronda activa). Al finalizar, se le
+-// asigna el id del ConteoCerradoMock al que pertenece — el conteo nunca se mueve a otra
+-// estructura, solo se le marca a qué cierre quedó asociado (misma fila, misma relación).
+-export interface TagMock {
+-  eventoId: number;
+-  ubicacionId: number;
+-  cierreId: number | null;
+-  cantidadProductos: number;
+-  skus: string[];
+-  items: ItemMock[];
+-  hora: string;
+-  estado: EstadoTag;
+-}
+-
+-// Un cierre ("Finalizar conteo") — cada finalización queda como su propia entrada,
+-// no se agrega por evento. Permite recontar el mismo evento más de una vez y ver
+-// cada ronda como una card separada. Solo identidad/metadata: los conteos que le
+-// pertenecen se consultan por relación (tagsDeCierre), no se duplican acá.
+-export interface ConteoCerradoMock {
+-  id: number;
+-  eventoId: number;
+-  eventoNombre: string;
+-  iteracion: number;
+-  faltantes: number; // hecho histórico: cuántos SKUs quedaron sin contar en ESTA ronda —
+-                      // no se puede derivar de la muestra actual porque esta cambia entre iteraciones.
+-  cerradoEn: string;
+-}
+-
+-// MOCK — muestra fija usada por las pantallas de conteo mientras se integra
+-// la persistencia real. Define tanto los SKUs esperados como sus descripciones.
+-export const MUESTRA_MOCK: Record<string, string> = {
+-  AF000037001: 'Taladro percutor 500W',
+-  AF000037002: 'Sierra circular 7 1/4"',
+-  AF000037003: 'Martillo carpintero 16oz',
+-  AF000037004: 'Set destornilladores 6 pzs',
+-  AF000037005: 'Cinta métrica 5m',
+-  AF000037006: 'Pintura látex blanco 1gl',
+-  AF000037007: 'Brocha 2" cerda natural',
+-  AF000037008: 'Alargador eléctrico 5m',
+-  AF000037009: 'Candado bronce 40mm',
+-  AF000037010: 'Silicona transparente 280ml',
+-};
+-
+-const MUESTRA_COMPLETA = Object.keys(MUESTRA_MOCK);
+-
+-@Injectable({ providedIn: 'root' })
+-export class TagsMockStore {
+-  private eventoFacade = inject(EventoFacade);
+-
+-  private tagsSignal            = signal<TagMock[]>([]);
+-  private sincronizandoSignal   = signal<Set<number>>(new Set());
+-  private conteosCerradosSignal = signal<ConteoCerradoMock[]>([]);
+-  private conteoIdSeq = 1;
+-
+-  // MOCK de sod_ubicacion — una fila por (tag, zona) con su propio id autoincremental.
+-  private ubicacionesSignal = signal<UbicacionMock[]>([]);
+-  private ubicacionIdSeq = 1;
+-
+-  // Busca la ubicación existente para este tag+zona o la crea — como haría
+-  // UbicacionRepository.insert() contra sod_ubicacion, pero en memoria.
+-  private obtenerOCrearUbicacion(tag: string, zonaCodigo: string): number {
+-    const existente = this.ubicacionesSignal().find((u) => u.tag === tag && u.zonaCodigo === zonaCodigo);
+-    if (existente) return existente.id;
+-
+-    const nueva: UbicacionMock = { id: this.ubicacionIdSeq++, tag, zonaCodigo };
+-    this.ubicacionesSignal.update((prev) => [...prev, nueva]);
+-    return nueva.id;
+-  }
+-
+-  // Resuelve tag/zona de una ubicación por id — así es como la UI muestra el TAG
+-  // de un conteo: nunca leyéndolo del conteo mismo, siempre vía esta relación.
+-  obtenerUbicacion(ubicacionId: number): UbicacionMock | undefined {
+-    return this.ubicacionesSignal().find((u) => u.id === ubicacionId);
+-  }
+-
+-  // El código de tag ingresado/escaneado por el operador no es un id — hay que
+-  // resolverlo contra sod_ubicacion antes de poder buscar el conteo asociado.
+-  private ubicacionIdDeTag(codigoTag: string): number | null {
+-    return this.ubicacionesSignal().find((u) => u.tag === codigoTag)?.id ?? null;
+-  }
+-
+-  /*
+-   * Reconteo (mock del ciclo evento ABIERTO → EN_ANALISIS → reconteo):
+-   * al archivar un conteo con SKUs faltantes, el evento queda "EN_ANALISIS"
+-   * (simulando que backoffice lo revisa) y la muestra faltante queda
+-   * pendiente. "Sincronizar" simula que backoffice ya terminó: activa esa
+-   * muestra reducida como la nueva muestra a contar para ese evento.
+-   */
+-  private estadoOverrideSignal    = signal<Map<number, 'EN_ANALISIS' | 'RECONTEO'>>(new Map());
+-  private muestraPendienteSignal  = signal<Map<number, string[]>>(new Map());
+-  private muestraPorEventoSignal  = signal<Map<number, string[]>>(new Map());
+-  // TAGs que backoffice marcó a recontar: "pendiente" es lo que llegó del análisis
+-  // (aún no descargado), "activa" es lo ya sincronizado y disponible para trabajar.
+-  private tagsARecontarPendienteSignal = signal<Map<number, TagARecontarMock[]>>(new Map());
+-  private tagsARecontarActivaSignal    = signal<Map<number, TagARecontarMock[]>>(new Map());
+-
+-  private eventoActualId = computed(() => this.eventoFacade.selectedEvent()?.id ?? null);
+-
+-  // Todo lo público queda filtrado al evento seleccionado y a la ronda activa
+-  // (cierreId null) — un conteo ya archivado no se cuela en la ronda en curso.
+-  readonly tags = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    return eventoId === null ? [] : this.tagsSignal().filter((t) => t.eventoId === eventoId && t.cierreId === null);
+-  });
+-  readonly sincronizando = this.sincronizandoSignal.asReadonly();
+-
+-  readonly pendientes    = computed(() => this.tags().filter((t) => t.estado === 'PENDIENTE'));
+-  readonly finalizados   = computed(() => this.tags().filter((t) => t.estado === 'ENVIADO'));
+-  // Exige al menos un TAG — usado por "Finalizar conteo" (no tiene sentido cerrar un conteo vacío).
+-  readonly todosEnviados = computed(() => this.tags().length > 0 && this.tags().every((t) => t.estado === 'ENVIADO'));
+-  // Vacío también sirve — usado por "Cerrar tienda", que debe poder ejecutarse aunque no se haya contado nada hoy.
+-  readonly puedeCerrarTienda = computed(() => this.pendientes().length === 0);
+-
+-  // SKUs distintos contados en CUALQUIER tag del evento actual (independiente de si ya sincronizó) — para el resumen final.
+-  readonly skusContadosGlobal = computed(() =>
+-    new Set(this.tags().reduce<string[]>((acc, t) => acc.concat(t.skus), []))
+-  );
+-
+-  // Muestra activa del evento actual: la completa, salvo que esté en modo reconteo (muestra reducida a lo faltante).
+-  readonly muestraSkus = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return MUESTRA_COMPLETA;
+-    return this.muestraPorEventoSignal().get(eventoId) ?? MUESTRA_COMPLETA;
+-  });
+-  readonly totalMuestra    = computed(() => this.muestraSkus().length);
+-  readonly totalContados   = computed(() => this.skusContadosGlobal().size);
+-  readonly totalFaltantes  = computed(() => this.totalMuestra() - this.totalContados());
+-
+-  // Iteración en curso del evento actual: 1 si es el primer conteo, N+1 si ya se cerraron N conteos antes.
+-  readonly iteracionActual = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return 1;
+-    return this.conteosCerradosSignal().filter((c) => c.eventoId === eventoId).length + 1;
+-  });
+-
+-  // Flag explícito de modo, derivado del estado efectivo del evento (única fuente de verdad) —
+-  // CONTEO por defecto, pasa a RECONTEO cuando el evento queda en ese estado tras sincronizar.
+-  readonly modoActual = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return 'CONTEO' as ModoConteo;
+-    return this.estadoOverrideSignal().get(eventoId) === 'RECONTEO' ? 'RECONTEO' : 'CONTEO';
+-  });
+-
+-  // Conteos cerrados — cada "Finalizar conteo" queda como su propia entrada,
+-  // en orden del más reciente al más antiguo.
+-  readonly conteosCerrados = this.conteosCerradosSignal.asReadonly();
+-
+-  // Solo los del evento seleccionado — para las pestañas de /tags-resumen.
+-  readonly conteosCerradosDelEventoActual = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    return eventoId === null ? [] : this.conteosCerradosSignal().filter((c) => c.eventoId === eventoId);
+-  });
+-
+-  // Conteos que pertenecen a un cierre — por relación (cierreId), no por snapshot guardado.
+-  tagsDeCierre(cierreId: number): TagMock[] {
+-    return this.tagsSignal().filter((t) => t.cierreId === cierreId);
+-  }
+-
+-  // Derivados del cierre vía relación — igual que ConteoResumen es una vista agregada
+-  // de filas de sod_conteo, no datos duplicados aparte.
+-  tagsFinalizadosDeCierre(cierreId: number): number {
+-    return this.tagsDeCierre(cierreId).length;
+-  }
+-
+-  contadosDeCierre(cierreId: number): number {
+-    const skus = this.tagsDeCierre(cierreId).reduce<string[]>((acc, t) => acc.concat(t.skus), []);
+-    return new Set(skus).size;
+-  }
+-
+-  // TAGs de reconteo que aún faltan por trabajar: los sincronizados menos los que ya
+-  // se volvieron a agregar (finalizados o no) en esta ronda — para la pantalla TAG+Zona.
+-  readonly tagsPorRecontarPendientes = computed(() => {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return [];
+-    const lista   = this.tagsARecontarActivaSignal().get(eventoId) ?? [];
+-    const yaHecho = new Set(this.tags().map((t) => t.ubicacionId));
+-    return lista.filter((t) => !yaHecho.has(t.ubicacionId));
+-  });
+-
+-  // Estado "efectivo" del evento: el override de reconteo si existe, si no el real.
+-  estadoEfectivo(evento: Evento): Evento['estado'] {
+-    return this.estadoOverrideSignal().get(evento.id) ?? evento.estado;
+-  }
+-
+-  /*
+-   * Archiva el conteo actual del evento seleccionado como una entrada nueva
+-   * de "conteos cerrados", y limpia los tags activos de ese evento para que
+-   * se pueda empezar una ronda nueva (recontar) sin arrastrar los de antes.
+-   * Requiere que ya estén todos "Enviado" — lo valida quien llama (todosEnviados()).
+-   *
+-   * Si quedan SKUs sin contar, el evento pasa a EN_ANALISIS (mock de "se
+-   * manda a revisión de backoffice") y esos SKUs quedan como la muestra
+-   * pendiente para el próximo reconteo.
+-   */
+-  archivarConteoActual(): void {
+-    const eventoId     = this.eventoActualId();
+-    const eventoNombre = this.eventoFacade.selectedEvent()?.nombre;
+-    if (eventoId === null || eventoNombre === undefined) return;
+-
+-    const tagsDelConteo = this.tags();
+-    if (tagsDelConteo.length === 0) return;
+-
+-    const skusFaltantes  = this.muestraSkus().filter((sku) => !this.skusContadosGlobal().has(sku));
+-    const iteracion      = this.conteosCerradosSignal().filter((c) => c.eventoId === eventoId).length + 1;
+-
+-    const nuevo: ConteoCerradoMock = {
+-      id:        this.conteoIdSeq++,
+-      eventoId,
+-      eventoNombre,
+-      iteracion,
+-      faltantes: skusFaltantes.length,
+-      cerradoEn: new Date().toLocaleString('es-CL'),
+-    };
+-    this.conteosCerradosSignal.update((prev) => [nuevo, ...prev]);
+-
+-    // Los conteos de esta ronda quedan marcados con el cierre al que pertenecen —
+-    // nunca se mueven a otra estructura, solo salen de la ronda activa (tags()).
+-    this.tagsSignal.update((prev) =>
+-      prev.map((t) => (t.eventoId === eventoId && t.cierreId === null ? { ...t, cierreId: nuevo.id } : t))
+-    );
+-    // La lista de reconteo activa de la ronda anterior ya se completó — se limpia.
+-    this.tagsARecontarActivaSignal.update((prev) => { const next = new Map(prev); next.delete(eventoId); return next; });
+-
+-    if (skusFaltantes.length > 0) {
+-      this.estadoOverrideSignal.update((prev) => new Map(prev).set(eventoId, 'EN_ANALISIS'));
+-      this.muestraPendienteSignal.update((prev) => new Map(prev).set(eventoId, skusFaltantes));
+-      // Mock: backoffice pide re-verificar todos los TAGs finalizados de este conteo, cada uno
+-      // con los SKUs faltantes que le tocan — dato fijo simulado, sin lógica de asignación real.
+-      this.tagsARecontarPendienteSignal.update((prev) =>
+-        new Map(prev).set(eventoId, tagsDelConteo.map((t) => ({
+-          ubicacionId: t.ubicacionId,
+-          skus:        skusFaltantes,
+-        })))
+-      );
+-    } else {
+-      // Sin faltantes: el evento ya no queda en análisis ni en reconteo — el ciclo se cierra acá.
+-      this.estadoOverrideSignal.update((prev) => { const next = new Map(prev); next.delete(eventoId); return next; });
+-    }
+-  }
+-
+-  // ¿Este evento tiene una muestra de reconteo lista para descargar? (botón "Sincronizar" en Home)
+-  puedeSincronizar(eventoId: number): boolean {
+-    return this.estadoOverrideSignal().get(eventoId) === 'EN_ANALISIS';
+-  }
+-
+-  // Cuántos SKUs quedaron pendientes de este evento mientras está EN_ANALISIS — para mostrarlo en Home.
+-  skusPendientesAnalisis(eventoId: number): number {
+-    return this.muestraPendienteSignal().get(eventoId)?.length ?? 0;
+-  }
+-
+-  // SKUs que backoffice espera encontrar en ESTA ubicación puntual durante el reconteo —
+-  // no la muestra completa del evento. Si la ubicación no está en la lista activa
+-  // (ej. modo CONTEO), cae de vuelta a la muestra general.
+-  skusEsperadosDeTag(codigoTag: string): string[] {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return this.muestraSkus();
+-    const ubicacionId = this.ubicacionIdDeTag(codigoTag);
+-    if (ubicacionId === null) return this.muestraSkus();
+-    const activa = this.tagsARecontarActivaSignal().get(eventoId) ?? [];
+-    const entrada = activa.find((t) => t.ubicacionId === ubicacionId);
+-    return entrada?.skus ?? this.muestraSkus();
+-  }
+-
+-  /*
+-   * Simula que backoffice ya terminó de analizar y define la nueva muestra a
+-   * recontar: la activa para este evento y el evento pasa de EN_ANALISIS a
+-   * RECONTEO — ese estado es lo que habilita recontar, no un flag aparte.
+-   */
+-  sincronizarReconteo(eventoId: number): boolean {
+-    const pendiente = this.muestraPendienteSignal().get(eventoId);
+-    if (!pendiente) return false;
+-
+-    const tagsARecontar = this.tagsARecontarPendienteSignal().get(eventoId) ?? [];
+-
+-    this.muestraPorEventoSignal.update((prev) => new Map(prev).set(eventoId, pendiente));
+-    this.tagsARecontarActivaSignal.update((prev) => new Map(prev).set(eventoId, tagsARecontar));
+-    this.estadoOverrideSignal.update((prev) => new Map(prev).set(eventoId, 'RECONTEO'));
+-    this.muestraPendienteSignal.update((prev) => { const next = new Map(prev); next.delete(eventoId); return next; });
+-    this.tagsARecontarPendienteSignal.update((prev) => { const next = new Map(prev); next.delete(eventoId); return next; });
+-    return true;
+-  }
+-
+-  // Estado del conteo de este TAG en el evento actual, o null si nunca se usó —
+-  // para saber si se puede reabrir (Pendiente) o está bloqueado (Enviado).
+-  // Recibe el código escaneado/ingresado y lo resuelve contra sod_ubicacion primero.
+-  estadoDe(codigoTag: string): EstadoTag | null {
+-    const ubicacionId = this.ubicacionIdDeTag(codigoTag);
+-    if (ubicacionId === null) return null;
+-    return this.tags().find((t) => t.ubicacionId === ubicacionId)?.estado ?? null;
+-  }
+-
+-  obtenerTagPorCodigo(codigoTag: string): TagMock | undefined {
+-    const ubicacionId = this.ubicacionIdDeTag(codigoTag);
+-    if (ubicacionId === null) return undefined;
+-    return this.tags().find((t) => t.ubicacionId === ubicacionId);
+-  }
+-
+-  /*
+-   * Agrega (o reemplaza, si se reabrió un conteo Pendiente) el resultado de un
+-   * TAG finalizado. Upsert por ubicación: reabrir y volver a finalizar
+-   * actualiza la misma entrada en vez de duplicarla.
+-   *
+-   * El conteo se relaciona con su ubicación por id (obtenerOCrearUbicacion),
+-   * igual que sod_conteo se relaciona con sod_ubicacion — el tag/zona que
+-   * ingresa el operador llenan sod_ubicacion, no el conteo mismo.
+-   */
+-  async agregarPendiente(datos: { codigo: string; zona: string; items: ItemMock[] }): Promise<void> {
+-    const eventoId = this.eventoActualId();
+-    if (eventoId === null) return;
+-
+-    const ubicacionId = this.obtenerOCrearUbicacion(datos.codigo, datos.zona);
+-
+-    const nuevo: TagMock = {
+-      eventoId,
+-      ubicacionId,
+-      cierreId:          null,
+-      items:             datos.items,
+-      skus:              datos.items.map((i) => i.sku),
+-      cantidadProductos: datos.items.length,
+-      hora:              new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+-      estado:            'PENDIENTE',
+-    };
+-    // El upsert por ubicación solo reemplaza el conteo ACTIVO (cierreId null) —
+-    // un conteo ya archivado de una ronda anterior con esta misma ubicación queda intacto.
+-    this.tagsSignal.update((prev) => [
+-      nuevo,
+-      ...prev.filter((t) => !(t.eventoId === eventoId && t.ubicacionId === nuevo.ubicacionId && t.cierreId === null)),
+-    ]);
+-    // Se espera acá mismo — quien llama (ej. la pantalla de conteo) queda sincronizado
+-    // con el resultado real, sin duplicar el delay en un segundo timer propio.
+-    await this.intentarSincronizar(nuevo.ubicacionId);
+-  }
+-
+-  reintentar(ubicacionId: number): void {
+-    void this.intentarSincronizar(ubicacionId);
+-  }
+-
+-  private async intentarSincronizar(ubicacionId: number): Promise<void> {
+-    this.sincronizandoSignal.update((prev) => new Set(prev).add(ubicacionId));
+-    await new Promise((resolve) => setTimeout(resolve, 3000));
+-
+-    // Simulado: 50% de error, para poder probar ambos estados en pantalla.
+-    const exito = Math.random() < 0.5;
+-    // Solo el conteo ACTIVO de esta ubicación — uno ya archivado en un cierre anterior no se toca.
+-    this.tagsSignal.update((prev) =>
+-      prev.map((t) => (t.ubicacionId === ubicacionId && t.cierreId === null ? { ...t, estado: exito ? 'ENVIADO' : 'PENDIENTE' } : t))
+-    );
+-    this.sincronizandoSignal.update((prev) => {
+-      const next = new Set(prev);
+-      next.delete(ubicacionId);
+-      return next;
+-    });
+-  }
+-}
+diff --git a/src/app/state/evento/evento.facade.ts b/src/app/state/evento/evento.facade.ts
+index f474429..88d5c17 100644
+--- a/src/app/state/evento/evento.facade.ts
++++ b/src/app/state/evento/evento.facade.ts
+@@ -1,11 +1,15 @@
+ import { Injectable, inject, signal, computed } from '@angular/core';
+ import { GetEventosBySucursalUseCase } from '../../application/evento/get-eventos-by-sucursal.use-case';
++import { AbrirSiguienteIteracionUseCase, ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
++import { GetEventoByIdUseCase } from '../../application/evento/get-evento-by-id.use-case';
+ import { Evento } from '../../domain/evento/models/evento.model';
+ export type { Evento };
+ 
+ @Injectable({ providedIn: 'root' })
+ export class EventoFacade {
+   private getEventosBySucursal = inject(GetEventosBySucursalUseCase);
++  private abrirIteracionUC     = inject(AbrirSiguienteIteracionUseCase);
++  private getEventoById        = inject(GetEventoByIdUseCase);
+ 
+   private eventsSignal         = signal<Evento[]>([]);
+   private selectedEventSignal  = signal<Evento | null>(null);
+@@ -34,4 +38,46 @@ export class EventoFacade {
+   selectEvento(evento: Evento): void {
+     this.selectedEventSignal.set(evento);
+   }
++
++  /*
++   * Relee el evento seleccionado desde la base. Necesario después de cualquier
++   * acción que cambie su estado (finalizar el conteo, abrir una iteración): el
++   * caso de uso escribe en SQLite, pero el objeto que quedó en el signal es el
++   * de antes, y toda la UI que decide por `estado` seguiría viendo el viejo.
++   */
++  async refreshSelected(): Promise<void> {
++    const actual = this.selectedEventSignal();
++    if (!actual) return;
++
++    const actualizado = await this.getEventoById.execute(actual.id);
++    if (!actualizado) return;
++
++    this.selectedEventSignal.set(actualizado);
++    // La lista también: Home pinta el badge de estado desde ahí.
++    this.eventsSignal.update((prev) => prev.map((e) => (e.id === actualizado.id ? actualizado : e)));
++  }
++
++  /*
++   * Abre la ronda siguiente del evento seleccionado y recarga desde la base para
++   * que `selectedEvent` quede con la iteración y el estado nuevos — el resto de
++   * la app lee la iteración de acá, no la calcula por su cuenta.
++   *
++   * `iteracionSgo` queda disponible para cuando el análisis del SGO devuelva el
++   * número; sin ese dato, la app usa la ronda registrada + 1. Ese número es
++   * informativo: no se persiste en ninguna parte (ver AbrirSiguienteIteracionUseCase).
++   */
++  async abrirSiguienteIteracion(iteracionSgo?: number): Promise<ResultadoAbrirIteracion | null> {
++    const evento = this.selectedEventSignal();
++    if (!evento) return null;
++
++    this.errorSignal.set(null);
++    try {
++      const resultado = await this.abrirIteracionUC.execute(evento.id, iteracionSgo);
++      await this.refreshSelected();
++      return resultado;
++    } catch (err) {
++      this.errorSignal.set(err instanceof Error ? err.message : 'Error al abrir la iteración siguiente');
++      return null;
++    }
++  }
+ }
+diff --git a/src/app/state/evento/guards/evento-seleccionado.guard.ts b/src/app/state/evento/guards/evento-seleccionado.guard.ts
+index 00b16ec..5de8849 100644
+--- a/src/app/state/evento/guards/evento-seleccionado.guard.ts
++++ b/src/app/state/evento/guards/evento-seleccionado.guard.ts
+@@ -5,8 +5,8 @@ import { EventoFacade } from '../evento.facade';
+ /*
+  * Bloquea /counting y /tags-resumen si no hay evento seleccionado. Sin esto,
+  * un reload en dev (o una navegación directa) deja EventoFacade con
+- * selectedEvent = null, y TagsMockStore.agregarPendiente() descarta el TAG
+- * en silencio al no poder scopearlo a un evento — sin ningún error visible.
++ * selectedEvent = null, y las pantallas de conteo no tienen contra qué evento
++ * trabajar: se quedan vacías sin ningún error visible.
+  */
+ export const eventoSeleccionadoGuard: CanActivateFn = () => {
+   const eventoFacade = inject(EventoFacade);
+diff --git a/src/environments/environment.prod.ts b/src/environments/environment.prod.ts
+index 8a1c29e..db9e4f8 100644
+--- a/src/environments/environment.prod.ts
++++ b/src/environments/environment.prod.ts
+@@ -1,4 +1,4 @@
+ export const environment = {
+   production: true,
+-  apiUrl: 'http://192.168.1.9/api'
++  apiUrl: 'http://192.168.1.11/app/ws/sodimac/api/auth/login.php'
+ };
+diff --git a/src/environments/environment.ts b/src/environments/environment.ts
+index a6c4d83..abfb6e7 100644
+--- a/src/environments/environment.ts
++++ b/src/environments/environment.ts
+@@ -4,7 +4,7 @@
+ 
+ export const environment = {
+   production: false,
+-  apiUrl: 'http://10.3.104.102/ws/api'
++  apiUrl: 'http://192.168.1.11/ws/api'
+ };
+ 
+ /*
+diff --git a/src/global.scss b/src/global.scss
+index e35711d..fcece8c 100644
+--- a/src/global.scss
++++ b/src/global.scss
+@@ -232,17 +232,6 @@ ion-title {
+     }
+   }
+ 
+-  /* Campo fuera de rango — el aviso lo explica, el borde lo señala */
+-  .input-invalid {
+-    --border-color: var(--app-warning);
+-    --border-width: 2px;
+-
+-    &:focus-within {
+-      --border-color: var(--app-warning);
+-      box-shadow: 0 0 0 3px var(--app-warning-bg);
+-    }
+-  }
+-
+   /* ---------- CARDS ---------- */
+   .card {
+     @apply rounded-2xl p-4 border transition-all duration-200;
+@@ -295,6 +284,20 @@ ion-title {
+     color: var(--app-error-text);
+   }
+ 
++  /* ---------- TAG CHIPS (sugerencias de reconteo) ---------- */
++  .tag-chip {
++    --border-radius: 16px;
++    --border-color: var(--app-primary);
++    --color: var(--app-primary);
++    --background: transparent;
++    text-transform: none;
++    font-size: 0.8rem;
++    font-weight: 600;
++    letter-spacing: 0.02em;
++    height: 32px;
++    min-height: 32px;
++  }
++
+   /* ---------- DATA ROWS ---------- */
+   .store-row {
+     @apply flex justify-between items-center gap-3;
+@@ -571,6 +574,12 @@ ion-title {
+     color: var(--app-error-text);
+   }
+ 
++  .status-banner-warning {
++    background: var(--app-warning-bg);
++    border-color: var(--app-warning-border);
++    color: var(--app-warning);
++  }
++
+   .btn-manual-input {
+     --background: var(--app-primary);
+     --background-hover: var(--app-primary-hover);
+diff --git a/src/main.ts b/src/main.ts
+index f15f994..a7da2c0 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -18,6 +18,7 @@ import { PDA_REPOSITORY_TOKEN } from './app/domain/pda/repositories/pda.reposito
+ import { EVENTO_REPOSITORY_TOKEN } from './app/domain/evento/repositories/evento.repository';
+ import { MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra.repository';
+ import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/muestra-detalle.repository';
++import { PLAN_MUESTRA_REPOSITORY_TOKEN } from './app/domain/muestra/repositories/plan-muestra.repository';
+ import { OPERADOR_REPOSITORY_TOKEN } from './app/domain/auth/repositories/operador.repository';
+ import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/sucursal.repository';
+ import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
+@@ -33,6 +34,7 @@ import { SqliteZonaRepository } from './app/data/zona/zona.repository';
+ import { SqliteUbicacionRepository } from './app/data/ubicacion/ubicacion.repository';
+ import { SqliteEventoRepository } from './app/data/evento/evento.repository';
+ import { SqliteMuestraRepository } from './app/data/muestra/muestra.repository';
++import { MockPlanMuestraRepository } from './app/data/muestra/mock-plan-muestra.repository';
+ import { SqliteMuestraDetalleRepository } from './app/data/muestra/muestra-detalle.repository';
+ import { AuthService } from './app/data/auth/auth.service';
+ import { CapacitorSessionStorageRepository } from './app/data/auth/session-storage.repository';
+@@ -40,15 +42,26 @@ import { SqliteOperadorRepository } from './app/data/auth/operador.repository';
+ import { SqliteSucursalRepository } from './app/data/sucursal/sucursal.repository';
+ import { SqliteDevSeederRepository } from './app/data/dev/dev-seeder.repository';
+ 
+-// DB must complete before Auth or PDA query SQLite.
+-// Theme uses Capacitor Preferences (not SQLite) — runs in parallel.
++/*
++ * DB must complete before Auth or PDA query SQLite.
++ * Theme uses Capacitor Preferences (not SQLite) — runs in parallel.
++ *
++ * El try/catch es deliberado: un APP_INITIALIZER que rechaza aborta el bootstrap
++ * y deja la pantalla EN BLANCO, sin ninguna pista de qué falló. Prefiere arrancar
++ * y que el error se vea al intentar usar la app (login, conteo), que es donde el
++ * operador puede reportarlo. El detalle queda en consola con este tag.
++ */
+ const initializeApp = (
+   db:   DatabaseRepository,
+   auth: AuthFacade,
+   pda:  PdaFacade,
+ ) => async () => {
+-  await db.initialize();
+-  await Promise.all([auth.init(), pda.init()]);
++  try {
++    await db.initialize();
++    await Promise.all([auth.init(), pda.init()]);
++  } catch (err) {
++    console.error('[initializeApp] fallo al inicializar la app:', err);
++  }
+ };
+ 
+ const initializeTheme = (theme: ThemeFacade) => () => theme.init();
+@@ -81,6 +94,17 @@ bootstrapApplication(AppComponent, {
+     { provide: EVENTO_REPOSITORY_TOKEN,          useClass: SqliteEventoRepository },
+     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
+     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
++
++    /*
++     * ÚNICO punto donde queda un dato inventado: de dónde sale la muestra de una
++     * iteración de reconteo. El SGO todavía no la entrega, así que la genera
++     * MockPlanMuestraRepository a partir de las diferencias de la ronda anterior.
++     * Escribe en sod_muestra igual que lo haría la descarga real, de modo que
++     * ninguna otra parte de la app sabe que es simulada.
++     *
++     * Para pasar a datos reales: cambiar useClass por HttpPlanMuestraRepository.
++     */
++    { provide: PLAN_MUESTRA_REPOSITORY_TOKEN,    useClass: MockPlanMuestraRepository },
+     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
+     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
+     { provide: DEV_SEEDER_REPOSITORY_TOKEN,      useClass: SqliteDevSeederRepository },

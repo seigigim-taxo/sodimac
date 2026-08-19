@@ -1,9 +1,18 @@
+<<<<<<< HEAD
 import { Component, HostListener, inject, input, output, signal, viewChild, AfterViewInit } from '@angular/core';
+=======
+import { Component, AfterViewInit, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+>>>>>>> feat/modo-analista-maqueta
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IonButton, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { barcodeOutline } from 'ionicons/icons';
+<<<<<<< HEAD
 import { Keyboard } from '@capacitor/keyboard';
+=======
+import { stripEmojis } from '../../utils/text.utils';
+>>>>>>> feat/modo-analista-maqueta
 
 @Component({
   selector: 'app-scan',
@@ -11,27 +20,69 @@ import { Keyboard } from '@capacitor/keyboard';
   imports: [ReactiveFormsModule, IonIcon, IonInput, IonButton],
 })
 export class ScanComponent implements AfterViewInit {
+<<<<<<< HEAD
   placeholder = input('');
   confirmLabel = input('Confirmar');
   scanType = input<'tag' | 'sku'>('sku');
   scan = output<string>();
   tagReset = output<void>();
   scanInput = viewChild<IonInput>('scanInput');
+=======
+  placeholder    = input('');
+  confirmLabel   = input('Confirmar');
+  scanType       = input<'tag' | 'sku'>('sku');
+  idleMessage    = input('Escaneando tag para iniciar sesión de conteo');
+  confirmedLabel = input('TAG');
+  // false cuando la página dueña muestra su propio feedback (ej: conteo valida contra la muestra)
+  showBanner     = input(true);
+  // true cuando aún no se cumplen las condiciones previas (ej: falta TAG/zona) — input y botón quedan deshabilitados
+  locked         = input(false);
+  scan           = output<string>();
+  scanInput    = viewChild<IonInput>('scanInput');
+>>>>>>> feat/modo-analista-maqueta
 
   private fb = inject(FormBuilder);
   form = this.fb.group({ code: ['', Validators.required] });
 
-  tagConfirmed = signal(false);
-  tagValue = signal('');
+  private _tagConfirmed = signal(false);
+  private _tagValue     = signal('');
+  readonly tagConfirmed = this._tagConfirmed.asReadonly();
+  readonly tagValue     = this._tagValue.asReadonly();
 
   constructor() {
     addIcons({ barcodeOutline });
+
+    /*
+     * No basta con [disabled]="locked()" en el template: al usar
+     * formControlName en el mismo elemento, Angular reactive forms es
+     * dueño del estado disabled y lo revierte en cada detección de
+     * cambios. Hay que deshabilitar/habilitar el FormControl mismo.
+     */
+    effect(() => {
+      const codeControl = this.form.get('code');
+      if (this.locked()) {
+        codeControl?.disable({ emitEvent: false });
+      } else {
+        codeControl?.enable({ emitEvent: false });
+      }
+    });
+
+    // No se permiten emojis en el código de TAG/SKU escaneado o tipeado.
+    this.form.get('code')?.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((value) => {
+        if (typeof value !== 'string') return;
+        const limpio = stripEmojis(value);
+        if (limpio !== value) this.form.get('code')?.setValue(limpio, { emitEvent: false });
+      });
   }
 
   ngAfterViewInit(): void {
+    if (this.locked()) return;
     setTimeout(() => this.scanInput()?.setFocus(), 100);
   }
 
+<<<<<<< HEAD
   @HostListener('document:keydown.enter', ['$event'])
   async onDocumentEnter(event: KeyboardEvent): Promise<void> {
     if (this.scanType() !== 'sku' || this.tagConfirmed()) return;
@@ -39,6 +90,14 @@ export class ScanComponent implements AfterViewInit {
     if (!inputEl || !inputEl.contains(document.activeElement)) return;
     event.preventDefault();
     this.confirm();
+=======
+  onEnter(event: Event): void {
+    event.preventDefault();
+    if (this.locked()) return;
+    if (this.scanType() === 'sku') {
+      this.confirm();
+    }
+>>>>>>> feat/modo-analista-maqueta
   }
 
   async onInputFocus(): Promise<void> {
@@ -49,12 +108,22 @@ export class ScanComponent implements AfterViewInit {
 
 
   confirm(): void {
+    if (this.locked()) return;
     const value = this.form.get('code')?.value?.trim().toUpperCase();
     if (!value) return;
 
+<<<<<<< HEAD
     if (this.scanType() === 'tag') {
       this.tagValue.set(value);
       this.tagConfirmed.set(true);
+=======
+    this._tagValue.set(value);
+    this._tagConfirmed.set(true);
+    this.scan.emit(value);
+
+    if (this.scanType() === 'sku') {
+      this.form.reset();
+>>>>>>> feat/modo-analista-maqueta
     }
 
     this.scan.emit(value);

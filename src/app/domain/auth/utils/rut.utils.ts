@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * Utilidades para manejo y validación de RUT chileno.
  * Formato preferido: 12345678-9 (sin puntos, con guión)
@@ -27,14 +28,14 @@ export function formatRut(rut: string): string {
 }
 
 /**
- * Extrae los primeros 6 dígitos numéricos del RUT (sin dígito verificador).
- * Se usa para comparar con la contraseña.
+ * Formatea un RUT limpio al formato 12.345.678-9 (con puntos y guión).
  */
-export function getFirstSixDigits(rut: string): string {
+export function formatRutDisplay(rut: string): string {
   const clean = cleanRut(rut);
-  // Ignorar el dígito verificador si está presente
-  const body = clean.length > 1 ? clean.slice(0, -1) : clean;
-  return body.slice(0, 6);
+  if (clean.length <= 1) return clean;
+  const body = clean.slice(0, -1);
+  const dv = clean.slice(-1).toUpperCase();
+  return body.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '-' + dv;
 }
 
 /**
@@ -74,4 +75,22 @@ export function validateRut(rut: string): boolean {
   }
 
   return expectedChar === dv;
+=======
+/*
+ * Parte un rut normalizado ('998000025') en las dos columnas con que lo guarda
+ * SQLite: cuerpo numérico y dígito verificador.
+ */
+export function partirRut(rutNormalizado: string): { rut: number; rutDv: string } {
+  return {
+    rut: parseInt(rutNormalizado.slice(0, -1), 10),
+    rutDv: rutNormalizado.slice(-1).toUpperCase(),
+  };
+}
+
+/** Retorna los primeros 6 dígitos del cuerpo del RUT, sin dígito verificador. */
+export function getFirstSixDigits(rut: string): string {
+  const clean = (rut ?? '').replace(/[^0-9kK]/g, '').toUpperCase();
+  const body = clean.length > 1 ? clean.slice(0, -1) : clean;
+  return body.slice(0, 6);
+>>>>>>> feat/modo-analista-maqueta
 }

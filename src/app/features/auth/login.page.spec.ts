@@ -20,13 +20,14 @@ describe('LoginPage', () => {
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
       'AuthFacade',
-      ['login', 'logout', 'isAuthenticated'],
+      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin'],
       {
         loading: () => false,
         error: () => null,
       }
     );
     authSpy.isAuthenticated.and.returnValue(false);
+    authSpy.wasOfflineLogin.and.returnValue(false);
 
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
@@ -78,6 +79,6 @@ describe('LoginPage', () => {
     await component.onSubmit();
 
     expect(authFacade.login).toHaveBeenCalledWith({ rut: '123456785', password: '123456' });
-    expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
   });
 });

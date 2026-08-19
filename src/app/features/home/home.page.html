@@ -1,39 +1,66 @@
 <ion-header>
+<<<<<<< HEAD
   <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
     <ion-buttons slot="start">
       <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
     </ion-buttons>
     <ion-title class="text-[var(--app-text)] font-bold text-lg">Tienda</ion-title>
+=======
+  <ion-toolbar>
+    <ion-title>Inicio</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+>>>>>>> feat/modo-analista-maqueta
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="[&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content>
   <div class="page-inner py-6">
 
+<<<<<<< HEAD
     <div class="flex flex-col gap-2">
       <h2 class="page-title">Tienda asignada</h2>
       <p class="page-subtitle">Revisa los datos de la tienda antes de continuar</p>
+=======
+    <!-- Tienda: solo informativa, no se selecciona -->
+    @if (storeLoading()) {
+    <div class="flex justify-center py-6">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+>>>>>>> feat/modo-analista-maqueta
     </div>
+    }
 
-    <div class="card">
-      <div class="store-row">
-        <span class="store-label">Nombre</span>
-        <span class="store-value">{{ store.name }}</span>
-      </div>
-      <div class="store-row">
-        <span class="store-label">Código</span>
-        <span class="store-value">{{ store.code }}</span>
-      </div>
-      <div class="store-row">
-        <span class="store-label">Dirección</span>
-        <span class="store-value">{{ store.address }}</span>
-      </div>
-      <div class="store-row">
-        <span class="store-label">Ciudad</span>
-        <span class="store-value">{{ store.city }}</span>
+    @if (storeError()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ storeError() }}</span>
+    </div>
+    }
+
+    @if (noStores()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No tienes una tienda asignada</span>
+    </div>
+    }
+
+    @if (!storeLoading() && currentStore(); as store) {
+    <div class="card mb-6">
+      <div class="flex items-center gap-3">
+        <div class="icon-badge">
+          <ion-icon name="business-outline"></ion-icon>
+        </div>
+        <div class="min-w-0">
+          <p class="field-label mb-1">Tienda</p>
+          <p class="text-[15px] font-bold truncate" style="color: var(--app-text);">{{ store.nombre }}</p>
+          <p class="text-[12px] num" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
+        </div>
       </div>
     </div>
+    }
 
+<<<<<<< HEAD
     @if (sessions().length > 0) {
     <div class="card">
       <div class="flex justify-between items-center mb-3">
@@ -61,14 +88,173 @@
         <div class="text-right ml-3">
           <p class="text-lg font-bold" style="color: var(--app-primary);">{{ session.totalQuantity }}</p>
           <p class="text-xs" style="color: var(--app-text-muted);">unidades</p>
+=======
+    <!-- Evento: se selecciona aquí mismo -->
+    @if (currentStore()) {
+    <div class="flex flex-col gap-2 mb-4">
+      <h2 class="page-title">Selecciona un evento</h2>
+      <p class="page-subtitle">Elige el evento de inventario para continuar</p>
+    </div>
+
+    @if (eventsLoading()) {
+    <div class="flex justify-center py-10">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+    </div>
+    }
+
+    @if (eventsError()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ eventsError() }}</span>
+    </div>
+    }
+
+    @if (noEvents()) {
+    <div class="error-pill">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No hay eventos disponibles</span>
+    </div>
+    }
+
+    @if (hasEvents()) {
+    <div class="flex flex-col gap-4">
+      @for (evento of events(); track evento.id) {
+      <div class="card" [class.card-interactive]="puedeSeleccionar(evento)"
+        [class.card-selected]="selectedEvent()?.id === evento.id" [style.opacity]="puedeSeleccionar(evento) ? 1 : 0.55"
+        (click)="selectEvento(evento)">
+        <div class="store-row">
+          <span class="store-label">Evento</span>
+          <span class="store-value font-bold"
+            [style.color]="selectedEvent()?.id === evento.id ? 'var(--app-primary)' : 'var(--app-text)'">
+            {{ evento.nombre }}
+          </span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Fecha programada</span>
+          <span class="store-value num">
+            {{ evento.fechaProgramada }}
+            @if (esVencido(evento)) {
+            <span style="color: var(--ion-color-danger); font-weight: 700;"> · Vencido</span>
+            }
+          </span>
+        </div>
+        <div class="store-row">
+          <span class="store-label">Estado</span>
+          <span class="flex items-center gap-2">
+            <span class="badge" [class.badge-error]="esCerrado(evento)">{{ estadoEfectivoLabel(evento) }}</span>
+            @if (esCerrado(evento)) {
+            <span class="badge badge-error">No disponible</span>
+            }
+          </span>
+>>>>>>> feat/modo-analista-maqueta
         </div>
       </div>
       }
     </div>
     }
 
+<<<<<<< HEAD
     <ion-button expand="block" class="btn-primary" (click)="continue()">
       Nuevo conteo
+=======
+    @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
+    <!-- Banner de estado: PDA en espera -->
+    <div class="status-banner status-banner-warning mt-6">
+      <ion-icon name="hourglass-outline"></ion-icon>
+      <span>PDA en espera — SGO está analizando resultados</span>
+    </div>
+
+    <!-- Info adicional -->
+    <div class="card mb-4 mt-4">
+      <p class="text-sm" style="color: var(--app-text-muted);">
+        El evento <strong>{{ selectedEvent()!.nombre }}</strong> está en análisis.
+        Sincroniza para obtener la muestra de la siguiente iteración.
+      </p>
+    </div>
+
+    @if (sincronizandoTimeout()) {
+    <!-- Timeout: mostrar botón de reintentar -->
+    <div class="card mb-4" style="border-color: var(--ion-color-warning);">
+      <p class="text-sm" style="color: var(--ion-color-warning); font-weight: 600;">
+        ⚠ El SGO no ha respondido. ¿Deseas reintentar?
+      </p>
+    </div>
+    <ion-button expand="block" class="btn-primary" (click)="reintentarSincronizacion()">
+      <ion-icon slot="start" name="sync-outline"></ion-icon>
+      Reintentar sincronización
+>>>>>>> feat/modo-analista-maqueta
     </ion-button>
+    } @else {
+    <!-- Sincronización normal -->
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="sincronizando()" (click)="sincronizar()">
+      @if (sincronizando()) {
+      <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+      Analizando...
+      } @else {
+      <ion-icon slot="start" name="sync-outline"></ion-icon>
+      Sincronizar con SGO
+      }
+    </ion-button>
+    }
+    } @else {
+    <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading() || esCerrado(selectedEvent()!)"
+      (click)="continue()">
+      @if (esReconteo()) {
+        Iniciar reconteo
+      } @else {
+        Iniciar conteo
+      }
+    </ion-button>
+    }
+
+    @if (eventosFinalizados().length > 0) {
+    <p class="section-label mt-8">Conteos finalizados</p>
+    <div class="flex flex-col gap-2.5">
+      @for (item of eventosFinalizados(); track item.evento.id) {
+      <div class="card">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div class="flex flex-col min-w-0">
+            <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ item.evento.nombre }}</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">{{ estadoEfectivoLabel(item.evento) }}</span>
+          </div>
+          <span class="badge" [class.badge-success]="item.evento.estado === 'CERRADO'"
+            [class.badge-warning]="item.evento.estado === 'EN_ANALISIS'">
+            {{ item.evento.estado === 'CERRADO' ? 'Cerrado' : 'En análisis' }}
+          </span>
+        </div>
+        <div class="h-px mb-3" style="background: var(--app-border);"></div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.iteracion }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Tags finalizados</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.tagsFinalizados }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[12px]" style="color: var(--app-text-muted);">SKUs contados</span>
+            <span class="text-[13px] font-semibold num" style="color: var(--app-success);">{{ item.resumen.contados }}</span>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+    }
+    }
+
+    @if (currentStore()) {
+    <ion-button expand="block" class="btn-outline mt-6" style="--color: var(--ion-color-danger);"
+      [disabled]="!puedeCerrarTienda()" (click)="cerrarTienda()">
+      <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
+      Cerrar tienda
+    </ion-button>
+    @if (!puedeCerrarTienda()) {
+    <p class="hint-text text-center">
+      Todos los TAGs deben quedar "Enviado" para poder cerrar la tienda
+    </p>
+    }
+    }
+
   </div>
 </ion-content>

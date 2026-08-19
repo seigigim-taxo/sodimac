@@ -16,11 +16,19 @@ import {
   IonToolbar,
   IonTitle,
   IonContent,
+  AlertController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
+<<<<<<< HEAD
 import { arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
+=======
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline } from 'ionicons/icons';
+>>>>>>> feat/modo-analista-maqueta
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
+import { AnalystDashboardFacade } from './state/analyst/analyst-dashboard.facade';
+import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
+import { formatRutDisplay } from './shared/utils/rut.utils';
 
 @Component({
   selector: 'app-root',
@@ -43,16 +51,26 @@ import { ThemeFacade } from './state/theme/theme.facade';
   ],
 })
 export class AppComponent {
-  private auth = inject(AuthFacade);
-  private theme = inject(ThemeFacade);
-  private router = inject(Router);
+  private auth     = inject(AuthFacade);
+  private theme    = inject(ThemeFacade);
+  private router   = inject(Router);
   private location = inject(Location);
+  private alertController = inject(AlertController);
+  private database = inject(DATABASE_REPOSITORY_TOKEN);
+  private dashboard = inject(AnalystDashboardFacade);
 
-  session = this.auth.session;
-  isDark = this.theme.isDark;
+  session          = this.auth.session;
+  isDark           = this.theme.isDark;
+  isAnalyst        = this.auth.isAnalyst;
+  isOperator       = this.auth.isOperator;
+  formatRutDisplay = formatRutDisplay;
 
   constructor() {
+<<<<<<< HEAD
     addIcons({ arrowBackOutline, homeOutline, listOutline, logOutOutline, sunnyOutline, moonOutline });
+=======
+    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline });
+>>>>>>> feat/modo-analista-maqueta
   }
 
   goBack(): void {
@@ -63,16 +81,62 @@ export class AppComponent {
     this.router.navigate(['/home']);
   }
 
+<<<<<<< HEAD
   goCounts(): void {
     this.router.navigate(['/counting-list']);
+=======
+  goAnalystDashboard(): void {
+    this.router.navigate(['/analyst-dashboard']);
+  }
+
+  goConteos(): void {
+    this.router.navigate(['/tags-resumen']);
+  }
+
+  syncDatos(): void {
+    this.router.navigate(['/sync-loading']);
+>>>>>>> feat/modo-analista-maqueta
   }
 
   async logout(): Promise<void> {
+    this.dashboard.limpiar();
     await this.auth.logout();
     this.router.navigate(['/login']);
   }
 
   async toggleTheme(): Promise<void> {
     await this.theme.toggle();
+  }
+
+  async confirmResetLocalDatabase(): Promise<void> {
+    const alert = await this.alertController.create({
+      header: 'Reiniciar base local',
+      message: 'Esto borrará toda la base de datos local de esta PDA: usuario, tienda, evento, muestra, productos, zonas y conteos. Luego volverás al login. ¿Confirmas?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Reiniciar',
+          role: 'destructive',
+          handler: () => { void this.resetLocalDatabase(); },
+        },
+      ],
+    });
+    await alert.present();
+  }
+
+  private async resetLocalDatabase(): Promise<void> {
+    try {
+      await this.database.resetLocalDatabase();
+    } catch {
+      const alert = await this.alertController.create({
+        header: 'Error',
+        message: 'No se pudo reiniciar la base local. La sesión se cerrará igualmente.',
+        buttons: ['OK'],
+      });
+      await alert.present();
+    }
+    this.dashboard.limpiar();
+    await this.auth.logout();
+    this.router.navigate(['/login']);
   }
 }

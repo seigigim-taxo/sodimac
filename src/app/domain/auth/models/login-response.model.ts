@@ -1,10 +1,7 @@
 export interface LoginResponse {
-  success: boolean;
-  token?: string;
-  user?: {
-    id: number;
-    name: string;
+  user: {
     rut: string;
+    rutNormalizado: string;
+    correo: string;
   };
-  error?: string;
 }

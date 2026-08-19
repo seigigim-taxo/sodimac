@@ -1,0 +1,70 @@
+import { Injectable, inject } from '@angular/core';
+import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
+import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
+import { ZonaParaGuardar, ZonaRepository } from '../../domain/zona/repositories/zona.repository';
+import { Zona } from '../../domain/zona/models/zona.model';
+
+@Injectable({ providedIn: 'root' })
+export class SqliteZonaRepository implements ZonaRepository {
+  private connection = inject(SqliteConnectionService);
+
+  /*
+   * Sin JOIN contra sod_asignacion: la asignación es operador ↔ evento, no
+   * operador ↔ zona. Dentro del evento, el operador elige libremente entre
+   * todas las zonas de su tienda.
+   */
+  async getBySucursal(sucursalId: number): Promise<Zona[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT z.id, z.sucursal_id, z.nombre, z.descripcion, z.tag_desde, z.tag_hasta
+       FROM sod_zona z
+       WHERE z.sucursal_id = ?
+       ORDER BY z.nombre ASC`,
+      [sucursalId]
+    );
+    const zonas = (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
+    return zonas;
+  }
+
+  /*
+   * Guarda/actualiza zonas de forma idempotente: no borra zonas existentes
+   * porque sod_conteo_detalle puede estar referenciando ubicaciones de esas zonas.
+   * Si la zona ya existe (por sucursal_id + nombre), actualiza la descripción.
+   * Si no existe, la inserta.
+   */
+  async reemplazarDeSucursal(sucursalId: number, zonas: ZonaParaGuardar[]): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+    for (const z of zonas) {
+      const existing = await db.query(
+        `SELECT id FROM sod_zona WHERE sucursal_id = ? AND nombre = ? LIMIT 1`,
+        [sucursalId, z.nombre]
+      );
+      const id = existing.values?.[0]?.['id'] as number | undefined;
+
+      if (id !== undefined) {
+        await db.run(
+          `UPDATE sod_zona SET descripcion = ?, tag_desde = ?, tag_hasta = ? WHERE id = ?`,
+          [z.descripcion, z.tagDesde, z.tagHasta, id]
+        );
+      } else {
+        await db.run(
+          `INSERT INTO sod_zona (sucursal_id, nombre, descripcion, tag_desde, tag_hasta)
+           VALUES (?, ?, ?, ?, ?)`,
+          [sucursalId, z.nombre, z.descripcion, z.tagDesde, z.tagHasta]
+        );
+      }
+    }
+  }
+
+  private map(row: Record<string, unknown>): Zona {
+    return {
+      id:          row['id']          as number,
+      sucursalId:  row['sucursal_id'] as number,
+      nombre:      row['nombre']      as string,
+      descripcion: row['descripcion'] as string | null,
+      tagDesde:    row['tag_desde']   as number | null,
+      tagHasta:    row['tag_hasta']   as number | null,
+    };
+  }
+}

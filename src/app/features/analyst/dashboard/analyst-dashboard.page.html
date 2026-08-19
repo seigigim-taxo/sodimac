@@ -1,0 +1,259 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Modo Analista</ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="analyst-container">
+
+    @if (!contexto()) {
+      <section class="empty-state">
+        <p>No hay datos de muestra disponibles. Inicia sincronización desde el menú.</p>
+        <button class="btn btn-primary" (click)="irAHome()">Ir al inicio</button>
+      </section>
+    }
+
+    @if (contexto(); as ctx) {
+      <section class="context-section">
+        <div class="context-card">
+          <div class="eyebrow">Jornada activa</div>
+          <div class="context-row">
+            <div class="context-main">
+              <h2 class="context-store">{{ ctx.codigoTienda }} · {{ ctx.nombreTienda }}</h2>
+              <p class="context-meta">{{ formatearFecha(ctx.fechaJornada) }}</p>
+            </div>
+            <div class="context-badge">
+              <span class="pill pill-blue">{{ ctx.numeroAgenda }}</span>
+              <p class="context-meta">Muestra: {{ ctx.nombreMuestra }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      @if (kpis(); as kpi) {
+        <section class="kpis-section">
+          <div class="kpis-grid">
+            <div class="kpi-card kpi-critical">
+              <div class="kpi-label">Diferencias pendientes</div>
+              <div class="kpi-value">{{ kpi.diferenciasPendientes }}</div>
+              <div class="kpi-hint">de {{ kpi.totalProductos }} productos</div>
+            </div>
+            <div class="kpi-card kpi-money">
+              <div class="kpi-label">Valor diferencias</div>
+              <div class="kpi-value">{{ formatearValor(kpi.valorDiferencias) }}</div>
+              <div class="kpi-hint">Impacto pendiente de validar</div>
+            </div>
+            <div class="kpi-card kpi-critical">
+              <div class="kpi-label">Diferencias críticas</div>
+              <div class="kpi-value">{{ kpi.diferenciasCriticas }}</div>
+              <div class="kpi-hint">Sobre 5 unidades de diferencia</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Reconteos realizados</div>
+              <div class="kpi-value">{{ kpi.reconteosRealizados }}</div>
+              <div class="kpi-hint">Durante esta validación</div>
+            </div>
+            <div class="kpi-card kpi-ok">
+              <div class="kpi-label">Diferencias resueltas</div>
+              <div class="kpi-value">{{ kpi.diferenciasResueltas }}</div>
+              <div class="kpi-hint">{{ kpi.totalProductos > 0 ? ((kpi.diferenciasResueltas * 100 / kpi.totalProductos) | number:'1.0-0') : 0 }}% del total</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Persisten con diferencia</div>
+              <div class="kpi-value">{{ kpi.persistenConDiferencia }}</div>
+              <div class="kpi-hint">Requieren revisión adicional</div>
+            </div>
+          </div>
+        </section>
+      }
+
+      <section class="differences-section">
+        <div class="differences-card">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">Cola de diferencias</h3>
+              <p class="panel-subtitle">{{ filasFiltradas().length }} de {{ filas().length }} productos</p>
+            </div>
+            @if (registros().length > 0) {
+              <div class="sync-badge">
+                <span class="pill pill-green">{{ registrosEnviados().length }} enviados</span>
+                @if (registrosPendientes().length > 0) {
+                  <span class="pill pill-amber">{{ registrosPendientes().length }} pendientes</span>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="filters-bar">
+            <input class="filter-control filter-search"
+                   placeholder="Buscar SKU, producto o TAG…"
+                   [value]="filtroBusqueda()"
+                   (input)="filtroBusqueda.set($any($event.target).value)" />
+            <select class="filter-control"
+                    [value]="filtroZona()"
+                    (change)="filtroZona.set($any($event.target).value)">
+              <option value="TODAS">Todas las zonas</option>
+              @for (z of zonasDisponibles(); track z) {
+                <option [value]="z">{{ z }}</option>
+              }
+            </select>
+            <select class="filter-control"
+                    [value]="filtroEstado()"
+                    (change)="filtroEstado.set($any($event.target).value)">
+              <option value="TODOS">Todos los estados</option>
+              @for (e of estadosDisponibles(); track e) {
+                <option [value]="e">{{ e }}</option>
+              }
+            </select>
+            <button class="btn btn-primary" (click)="limpiarFiltros()">Limpiar</button>
+          </div>
+
+          <div class="table-container">
+            <table class="diff-table">
+              <thead>
+                <tr>
+                  <th>Prioridad</th>
+                  <th>Zona / TAG</th>
+                  <th>SKU</th>
+                  <th>Producto</th>
+                  <th class="num">1er conteo</th>
+                  <th class="num">Kárdex</th>
+                  <th class="num">Dif. unid.</th>
+                  <th class="num">Dif. $</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (fila of filasFiltradas(); track fila.sku) {
+                  <tr>
+                    <td>
+                      <span class="status-badge"
+                            [class.status-critical]="fila.prioridad === 'ALTA'"
+                            [class.status-pending]="fila.prioridad === 'MEDIA'"
+                            [class.status-low]="fila.prioridad === 'BAJA'">
+                        {{ fila.prioridad }}
+                      </span>
+                    </td>
+                    <td>
+                      <strong>{{ fila.zona }}</strong>
+                      <span class="cell-muted">{{ fila.tag }}</span>
+                    </td>
+                    <td class="cell-sku">{{ fila.sku }}</td>
+                    <td class="cell-desc">{{ fila.descripcion }}</td>
+                    <td class="num">{{ fila.cantidadContada }}</td>
+                    <td class="num">{{ fila.stockSistema }}</td>
+                    <td class="num">{{ fila.diferenciaUnidades }}</td>
+                    <td class="num cell-amount">{{ formatearValor(fila.diferenciaValor) }}</td>
+                    <td>
+                      <span class="status-badge"
+                            [class.status-critical]="fila.estado === 'CRITICA'"
+                            [class.status-pending]="fila.estado === 'PENDIENTE'"
+                            [class.status-resolved]="fila.estado === 'SIN_DIFERENCIA'">
+                        {{ fila.estado }}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline" (click)="abrirModal(fila)">Ver</button>
+                    </td>
+                  </tr>
+                }
+                @empty {
+                  <tr>
+                    <td colspan="10" class="empty-row">No se encontraron productos con los filtros seleccionados.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer-note">
+        Mockup funcional · Datos simulados desde el WS para evaluación de interfaz.
+      </footer>
+    }
+
+  </div>
+
+  @if (modalAbierto(); as abierto) {
+    <div class="modal-overlay" (click)="cerrarModal()">
+      <div class="modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Reconteo · Perfil Analista</h3>
+          <button class="btn-close" (click)="cerrarModal()">✕</button>
+        </div>
+        @if (filaSeleccionada(); as fila) {
+          <div class="modal-body">
+            <div class="modal-product-card">
+              <div>
+                <h4>{{ fila.descripcion }}</h4>
+                <p><strong>SKU {{ fila.sku }}</strong> · {{ fila.zona }}</p>
+              </div>
+              <div class="modal-impact">
+                <strong>{{ formatearValor(fila.diferenciaValor) }}</strong>
+                <span>Impacto diferencia</span>
+              </div>
+            </div>
+
+            <div class="modal-metrics">
+              <div class="modal-metric">
+                <label>PRIMER CONTEO</label>
+                <strong>{{ fila.cantidadContada }}</strong>
+              </div>
+              <div class="modal-metric">
+                <label>KÁRDEX / LÓGICO</label>
+                <strong>{{ fila.stockSistema }}</strong>
+              </div>
+              <div class="modal-metric">
+                <label>DIFERENCIA</label>
+                <strong>{{ fila.diferenciaUnidades }}</strong>
+              </div>
+            </div>
+
+            <div class="modal-tags-section">
+              <label class="modal-section-label">TAGs donde fue encontrado</label>
+              @for (tag of fila.tags; track tag.tagCodigo) {
+                <button class="tag-option"
+                        [class.tag-selected]="tagSeleccionado()?.tagCodigo === tag.tagCodigo"
+                        (click)="seleccionarTag(tag)">
+                  <span class="tag-zona">{{ tag.zonaNombre }}</span>
+                  <span class="tag-codigo">{{ tag.ubicacionCodigo }}</span>
+                  <span class="tag-cantidad">Contado: {{ tag.cantidadOperador }}</span>
+                </button>
+              }
+            </div>
+
+            @if (tagSeleccionado(); as tag) {
+              <div class="modal-input-section">
+                <label class="modal-section-label">Cantidad encontrada en {{ tag.ubicacionCodigo }}</label>
+                <input type="number"
+                       class="modal-input"
+                       [value]="cantidadAnalista()"
+                       (input)="onCantidadChange($event)"
+                       placeholder="Nuevo conteo"
+                       min="0" />
+              </div>
+            }
+
+            <div class="modal-note">
+              La captura queda disponible localmente si el dispositivo pierde conexión. Los conflictos de sincronización se resolverán en servidor.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="cerrarModal()">Cancelar</button>
+            <button class="btn btn-primary"
+                    [disabled]="!tagSeleccionado() || cantidadAnalista() <= 0 || enviando()"
+                    (click)="registrarConteo()">
+              {{ enviando() ? 'Enviando...' : 'Registrar conteo' }}
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</ion-content>

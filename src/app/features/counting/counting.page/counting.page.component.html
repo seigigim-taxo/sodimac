@@ -1,173 +1,210 @@
 <ion-header>
-  <ion-toolbar class="bg-[var(--app-surface)] border-b border-[var(--app-border)]">
-    <ion-buttons slot="start">
-      <ion-menu-button class="text-[var(--app-text)]"></ion-menu-button>
-    </ion-buttons>
-    <ion-title class="text-[var(--app-text)] font-bold text-lg">Conteo</ion-title>
+  <ion-toolbar>
+    <ion-title>
+      @if (tagActual(); as tag) {
+      TAG {{ tag }}
+      } @else {
+      Conteo
+      }
+    </ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="goBack()" class="text-[var(--app-text)]">
-        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-      </ion-button>
+      <ion-menu-button></ion-menu-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="ion-padding [&amp;::part(background)]:bg-none" style="--background: var(--app-bg-gradient);">
+<ion-content style="--background: var(--app-bg-gradient);">
+  <!-- Franja de iteración: color + número + modo, siempre visible arriba del conteo -->
+  <div class="flex items-center justify-center gap-2 py-2.5 px-4"
+    [style.background]="colorIteracion()">
+    <span class="text-[15px] font-extrabold uppercase tracking-wide" style="color: white;">
+      @if (iteracionActual() > 1) {
+        Modo RECONTEO · Iteración {{ iteracionActual() }}
+      } @else {
+        Iteración {{ iteracionActual() }}
+      }
+    </span>
+  </div>
+
   <div class="page-inner py-6">
 
-    <!-- Loading state -->
-    @if (isLoading()) {
-      <div class="flex justify-center items-center py-16">
-        <ion-spinner name="crescent" style="color: var(--app-primary); width: 48px; height: 48px;"></ion-spinner>
+    <!-- Botón de resumen de avance -->
+    <div class="card mb-4">
+      <button class="flex items-center justify-between w-full" (click)="toggleResumen()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
+        <div class="flex items-center gap-2">
+          <ion-icon name="stats-chart-outline" style="color: var(--app-primary); font-size: 1.25rem;"></ion-icon>
+          <span class="text-sm font-semibold" style="color: var(--app-text);">Resumen de avance</span>
+        </div>
+        <ion-icon [name]="resumenVisible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
+      </button>
+
+      @if (resumenVisible()) {
+        <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+          @if (resumenCargando()) {
+            <div class="flex items-center justify-center py-4">
+              <ion-spinner name="crescent" color="primary" style="width: 24px; height: 24px;"></ion-spinner>
+            </div>
+          } @else if (resumenEvento(); as resumen) {
+            <!-- Métricas globales -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="flex flex-col">
+                <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
+                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.qContado }}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
+                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.contados }}</span>
+              </div>
+            </div>
+
+            <!-- Progreso de muestra -->
+            <div class="mb-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs" style="color: var(--app-text-muted);">Avance de muestra</span>
+                <span class="text-sm font-bold num" style="color: var(--app-primary);">{{ porcentajeAvance() }}%</span>
+              </div>
+              <div class="w-full rounded-full" style="height: 8px; background: var(--app-surface);">
+                <div class="rounded-full" style="height: 8px; background: var(--app-primary); transition: width 0.3s ease;" [style.width.%]="porcentajeAvance()"></div>
+              </div>
+            </div>
+
+            <!-- Tags finalizados -->
+            <div class="flex items-center justify-between pt-3" style="border-top: 1px solid var(--app-border);">
+              <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
+              <span class="text-sm font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Header: evento + zona + total del tag en curso -->
+    <div class="flex items-start justify-between gap-3 mb-5">
+      <div class="flex flex-col min-w-0">
+        <h2 class="text-xl font-extrabold leading-tight truncate" style="color: var(--app-text);">
+          @if (currentEvent(); as e) {
+          {{ e.nombre }}
+          } @else {
+          Conteo
+          }
+        </h2>
+        @if (zonaActual(); as zona) {
+        <p class="text-[13px] mt-0.5" style="color: var(--app-text-muted);">{{ zona.descripcion || zona.nombre }}</p>
+        }
       </div>
+      <div class="session-badge">
+        <div class="session-badge-icon"></div>
+        <span>{{ totalItems() }} SKU(s) · <span class="num">{{ totalUnidades() }}</span> producto(s)</span>
+      </div>
+    </div>
+
+    <!-- ===== Cantidad ===== -->
+    <div class="card mb-4">
+      <div class="flex items-center justify-between gap-3">
+        <span class="field-label">Cantidad</span>
+        <ion-input type="number" inputmode="numeric" min="0" [value]="cantidad()" (ionInput)="onCantidadInput($event)"
+          aria-label="Cantidad" class="input-base num"
+          style="max-width: 96px; text-align: center; font-weight: 700;"></ion-input>
+      </div>
+    </div>
+
+    <app-scan scanType="sku" placeholder="Escanea o ingresa SKU" confirmLabel="Registrar" [showBanner]="false"
+      (scan)="onScanSku($event)"></app-scan>
+
+    @if (lastScan(); as scan) {
+    @if (scan.estado === 'OK') {
+    <div class="status-banner status-banner-success mt-4">
+      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
+    </div>
+    } @else if (scan.estado === 'ERROR') {
+    <div class="status-banner status-banner-error mt-4">
+      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> — {{ scan.mensaje }}</span>
+    </div>
+    } @else {
+    <div class="status-banner status-banner-error mt-4">
+      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
+    </div>
+    }
+    } @else {
+    <div class="status-banner status-banner-info mt-4">
+      <span>Escanea un SKU para registrar el conteo</span>
+    </div>
     }
 
-    @if (!isLoading()) {
-      <!-- Session info -->
-      <div class="session-badge mb-4">
-        <div class="session-badge-icon"></div>
-        <span>{{ session()?.zone ? 'Zona: ' + session()?.zone + ' • ' : '' }}Tag: {{ session()?.tag || '—' }}</span>
-      </div>
+    @if (itemsView().length > 0) {
+    <div class="mt-6">
+      <p class="field-label mb-3">Productos de este TAG</p>
 
-      <!-- Feedback pill -->
-      @if (feedback()) {
-        <div
-          class="mb-4"
-          [class.success-pill]="feedback()?.type === 'success'"
-          [class.error-pill]="feedback()?.type === 'error'"
-        >
-          <span>{{ feedback()?.text }}</span>
-        </div>
+      <ion-input [value]="busquedaSku()" (ionInput)="onBusquedaInput($event)" aria-label="Buscar producto"
+        placeholder="Buscar por SKU o descripción" class="input-base">
+        <ion-icon slot="start" name="search-outline"></ion-icon>
+      </ion-input>
+
+      @if (itemsFiltrados().length === 0) {
+      <p class="text-[13px] text-center py-4" style="color: var(--app-text-muted);">
+        Sin resultados para "{{ busquedaSku() }}"
+      </p>
       }
 
-      <!-- Quantity + Scanner -->
-      <div class="flex gap-3 items-end mb-2">
-        <div class="w-24 shrink-0">
-          <label class="text-xs font-medium block mb-1" style="color: var(--app-text-muted);">Cantidad</label>
-          <ion-input
-            type="number"
-            class="input-base !w-24"
-            [value]="quantity()"
-            (ionInput)="onQuantityInput($event)"
-            min="1"
-            placeholder="1"
-          ></ion-input>
-        </div>
-        <div class="flex-1 min-w-0">
-          <app-scan
-            scanType="sku"
-            placeholder="Escanea SKU"
-            confirmLabel="Confirmar SKU"
-            (scan)="onSkuScan($event)"
-          ></app-scan>
-        </div>
-      </div>
-
-      <!-- List header -->
-      <div class="flex justify-between items-center mt-6 mb-3">
-        <h3 class="text-base font-bold" style="color: var(--app-text);">SKUs escaneados</h3>
-        <span class="text-sm" style="color: var(--app-text-muted);">Items: {{ totalItems() }}</span>
-      </div>
-
-      <!-- Empty state -->
-      @if (countedItems().length === 0) {
-        <div class="card text-center py-8">
-          <p class="text-base font-medium mb-1" style="color: var(--app-text);">No hay SKUs escaneados</p>
-          <p class="text-sm" style="color: var(--app-text-muted);">Escanea o ingresa un código para comenzar</p>
-        </div>
-      }
-
-      <!-- Items list -->
-      @for (item of currentPageItems(); track item.sku.code) {
-        <div class="card mb-3">
-          <div class="flex justify-between items-center gap-3">
-            <div class="flex-1 min-w-0">
-              <p class="text-base font-bold truncate" style="color: var(--app-text);">{{ item.sku.code }}</p>
-            </div>
-
-            <div class="flex items-center gap-1">
-              <ion-button
-                fill="clear"
-                size="small"
-                class="m-0"
-                (click)="adjustQuantity(item, -1); $event.stopPropagation()"
-              >
-                <ion-icon slot="icon-only" name="remove-outline" class="text-lg" style="color: var(--app-text);"></ion-icon>
-              </ion-button>
-
-              <span
-                class="min-w-[36px] text-center text-base font-bold px-2 py-1 rounded-lg"
-                style="color: var(--app-text); background: var(--app-surface-hover);"
-              >
-                {{ item.quantity }}
-              </span>
-
-              <ion-button
-                fill="clear"
-                size="small"
-                class="m-0"
-                (click)="adjustQuantity(item, 1); $event.stopPropagation()"
-              >
-                <ion-icon slot="icon-only" name="add-outline" class="text-lg" style="color: var(--app-text);"></ion-icon>
-              </ion-button>
-
-              <ion-button
-                fill="clear"
-                size="small"
-                class="m-0"
-                (click)="deleteItem(item); $event.stopPropagation()"
-              >
-                <ion-icon slot="icon-only" name="trash-outline" class="text-lg" style="color: var(--app-error);"></ion-icon>
-              </ion-button>
-            </div>
+      <div class="flex flex-col gap-2.5">
+        @for (item of itemsPaginados(); track item.productoId) {
+        <div class="item-row">
+          <div class="min-w-0">
+            <p class="item-sku">{{ item.sku }}</p>
+            <p class="item-desc">{{ item.descripcion }}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <ion-button class="step-btn" (click)="adjust(item.productoId, -1)">
+              <ion-icon slot="icon-only" name="remove-outline" style="font-size: 0.9rem;"></ion-icon>
+            </ion-button>
+            <span class="qty-chip">{{ item.cantidad }}</span>
+            <ion-button class="step-btn" (click)="adjust(item.productoId, 1)" style="--color: var(--app-primary);">
+              <ion-icon slot="icon-only" name="add-outline" style="font-size: 0.9rem;"></ion-icon>
+            </ion-button>
+            <ion-button class="step-btn step-btn-danger" (click)="delete(item.productoId)">
+              <ion-icon slot="icon-only" name="trash-outline" style="font-size: 0.95rem;"></ion-icon>
+            </ion-button>
           </div>
         </div>
-      }
 
-      <!-- Pagination -->
-      @if (totalPages() > 1) {
-        <div class="flex justify-between items-center mt-4">
-          <ion-button
-            fill="clear"
-            (click)="prevPage()"
-            [disabled]="currentPage() === 1"
-            class="text-[var(--app-text)]"
-          >
-            <ion-icon slot="start" name="chevron-back-outline"></ion-icon>
-            Anterior
-          </ion-button>
-
-          <span class="text-sm font-medium" style="color: var(--app-text);">
-            {{ currentPage() }} de {{ totalPages() }}
-          </span>
-
-          <ion-button
-            fill="clear"
-            (click)="nextPage()"
-            [disabled]="currentPage() === totalPages()"
-            class="text-[var(--app-text)]"
-          >
-            Siguiente
-            <ion-icon slot="end" name="chevron-forward-outline"></ion-icon>
-          </ion-button>
-        </div>
-      }
-
-      <!-- Summary -->
-      <div class="flex justify-between items-center mt-6 mb-2">
-        <span class="text-sm font-medium" style="color: var(--app-text-muted);">Total unidades</span>
-        <span class="text-xl font-bold" style="color: var(--app-primary);">{{ totalQuantity() }}</span>
+        }
       </div>
 
-      <!-- Finalize -->
-      <ion-button expand="block" class="btn-primary" [disabled]="isFinalizing()" (click)="finalize()">
-        @if (isFinalizing()) {
-          <ion-spinner name="crescent" slot="start" style="width: 20px; height: 20px; --color: #ffffff;"></ion-spinner>
-          Finalizando...
-        } @else {
-          Finalizar conteo
-        }
+      @if (hayMasItems()) {
+      <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasItems()">
+        Ver más
+        <ion-icon slot="end" name="chevron-down-outline"></ion-icon>
       </ion-button>
+      }
+    </div>
     }
+
+    <!-- Total + CTA, como la barra inferior del canvas -->
+    <div class="mt-6">
+      @if (itemsView().length > 0) {
+      <div class="total-row mb-1.5">
+        <span class="total-label">SKUs registrados</span>
+        <span class="total-value">{{ totalItems() }}</span>
+      </div>
+      <div class="total-row mb-3">
+        <span class="total-label">Total productos</span>
+        <span class="total-value">{{ totalUnidades() }}</span>
+      </div>
+      }
+      <ion-button expand="block" class="btn-accent" [disabled]="itemsView().length === 0 || finalizando()"
+        (click)="finalizarTag()">
+        <ion-icon slot="start" name="flag-outline"></ion-icon>
+        Finalizar TAG
+      </ion-button>
+    </div>
+
   </div>
+
+  @if (finalizando()) {
+  <div class="flex flex-col items-center justify-center gap-3"
+    style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <ion-spinner name="crescent" color="light" style="width: 48px; height: 48px;"></ion-spinner>
+    <p class="text-base font-semibold" style="color: white;">Sincronizando TAG…</p>
+  </div>
+  }
 </ion-content>

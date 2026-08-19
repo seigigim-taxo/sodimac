@@ -1,0 +1,151 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>
+      @if (currentEvent(); as e) {
+      {{ e.nombre }}
+      } @else {
+      Nuevo TAG
+      }
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <div class="flex flex-col gap-2 mb-4">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="page-title">Nuevo TAG</h2>
+        <span class="badge shrink-0">Iteración {{ iteracionActual() }}</span>
+      </div>
+      <p class="page-subtitle">Selecciona la zona, ingresa la ubicación y escanea el TAG</p>
+    </div>
+
+    <!-- ===== 1. Zona ===== -->
+    <div class="card mb-4">
+      <p class="field-label mb-2">Zona</p>
+      <ion-select #zonaSelect [value]="zonaConfirmada()" placeholder="Selecciona una zona"
+        (ionChange)="onZonaChange($event)" class="zone-select">
+        @for (zona of zonas(); track zona.id) {
+        <ion-select-option [value]="zona">{{ zona.descripcion || zona.nombre }}</ion-select-option>
+        }
+      </ion-select>
+    </div>
+
+    <!-- ===== 2. Ubicación ===== -->
+    <div class="card mb-4">
+      <p class="field-label mb-2">Ubicación</p>
+      <ion-input #ubicacionInputEl [value]="ubicacionPrecisa()" [disabled]="!zonaConfirmada()" (ionInput)="onUbicacionInput($event)"
+        (keydown)="onUbicacionKeydown($event)"
+        placeholder="Ej: PASILLO A, PASILLO B, CABECERA 3"
+        class="input-base">
+      </ion-input>
+      @if (!zonaConfirmada()) {
+      <p class="hint-text">Selecciona una zona para habilitar la ubicación</p>
+      } @else {
+      <p class="hint-text">Ingresa la ubicación precisa dentro de la zona seleccionada</p>
+      }
+    </div>
+
+    <!-- ===== 3. TAG ===== -->
+    <div class="card mb-4">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="field-label">Tag de ubicación</p>
+        @if (tagConfirmado()) {
+        <span class="badge badge-success">Confirmado</span>
+        }
+      </div>
+
+      @if (zonaConfirmada()?.tagDesde !== null && zonaConfirmada()?.tagHasta !== null) {
+      <p class="hint-text mb-3">
+        Rango permitido para {{ zonaConfirmada()?.descripcion || zonaConfirmada()?.nombre }}:
+        {{ zonaConfirmada()?.tagDesde }} a {{ zonaConfirmada()?.tagHasta }}
+      </p>
+      }
+
+      @if (iteracionActual() > 1 && !tagConfirmado()) {
+      <div class="mb-3">
+        <p class="field-label mb-2">TAGs contados en iteraciones anteriores</p>
+        @if (tagsSugeridosLoading()) {
+          <div class="flex justify-center py-3">
+            <ion-spinner name="crescent" color="primary" style="width: 20px; height: 20px;"></ion-spinner>
+          </div>
+        } @else if (tagsSugeridos().length > 0) {
+          <div class="flex flex-wrap gap-2">
+            @for (tag of tagsSugeridos(); track tag) {
+              <ion-button fill="outline" size="small" [disabled]="!!tagConfirmado() || !(zonaConfirmada() && ubicacionPrecisa().trim())"
+                (click)="seleccionarTagSugerido(tag)" class="tag-chip">
+                {{ tag }}
+              </ion-button>
+            }
+          </div>
+          <p class="hint-text mt-2">Toca un TAG para autocompletar, o ingresa uno nuevo</p>
+        } @else {
+          <p class="hint-text">No hay TAGs registrados en iteraciones anteriores</p>
+        }
+      </div>
+      }
+
+      <ion-input #tagInputEl [value]="tagConfirmado() ?? tagInputValue()"
+        [disabled]="!!tagConfirmado() || !(zonaConfirmada() && ubicacionPrecisa().trim())"
+        (ionInput)="onTagInput($event)" (keyup.enter)="confirmarTag()" placeholder="Escanea o ingresa el TAG"
+        class="input-base">
+        <ion-icon slot="start" name="barcode-outline"></ion-icon>
+      </ion-input>
+
+      @if (!tagConfirmado()) {
+      <p class="hint-text mt-2">
+        @if (!zonaConfirmada()) {
+          Selecciona una zona para habilitar el TAG
+        } @else if (!ubicacionPrecisa().trim()) {
+          Ingresa la ubicación para habilitar el TAG
+        }
+      </p>
+      }
+
+      @if (tagConfirmado()) {
+      <ion-button expand="block" class="btn-outline mt-4" (click)="cancelarTag()">
+        Cambiar TAG
+      </ion-button>
+      } @else {
+      <ion-button expand="block" class="btn-primary mt-4" (click)="confirmarTag()"
+        [disabled]="!(zonaConfirmada() && ubicacionPrecisa().trim() && tagInputValue().trim())">
+        Confirmar TAG
+      </ion-button>
+      }
+
+      @if (tagError()) {
+      <div class="error-pill mt-4">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>{{ tagError() }}</span>
+      </div>
+      }
+    </div>
+
+    @if (errorZona()) {
+    <div class="error-pill mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ errorZona() }}</span>
+    </div>
+    }
+
+    <ion-button expand="block" class="btn-primary mt-2"
+      [disabled]="!(tagConfirmado() && zonaConfirmada() && ubicacionPrecisa().trim())"
+      (click)="irAContar()">
+      <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
+      Ir a contar
+    </ion-button>
+
+    <!-- ===== Navegación al resumen/finalización ===== -->
+    @if (hayConteosEvento()) {
+    <ion-button expand="block" class="btn-outline mt-4" (click)="goToResumen()">
+      <ion-icon slot="start" name="list-outline"></ion-icon>
+      Ver resumen y finalizar
+    </ion-button>
+    }
+
+  </div>
+</ion-content>

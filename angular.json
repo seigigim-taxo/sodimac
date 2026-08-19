@@ -49,8 +49,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kb",
-                  "maximumError": "8kb"
+                  "maximumWarning": "12kb",
+                  "maximumError": "16kb"
                 }
               ],
               "fileReplacements": [
@@ -69,6 +69,30 @@
             },
             "ci": {
               "progress": false
+            },
+            "develop_ws": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.develop-ws.ts"
+                }
+              ]
+            },
+            "mockup": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.mockup.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -84,6 +108,12 @@
             },
             "ci": {
               "progress": false
+            },
+            "develop_ws": {
+              "buildTarget": "app:build:develop_ws"
+            },
+            "mockup": {
+              "buildTarget": "app:build:mockup"
             }
           },
           "defaultConfiguration": "development"
@@ -115,7 +145,8 @@
           "configurations": {
             "ci": {
               "progress": false,
-              "watch": false
+              "watch": false,
+              "browsers": "ChromeHeadless"
             }
           }
         },

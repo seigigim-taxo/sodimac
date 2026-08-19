@@ -4,13 +4,20 @@
       #scanInput
       formControlName="code"
       [placeholder]="placeholder()"
+<<<<<<< HEAD
       [inputmode]="scanType() === 'sku' ? 'none' : 'text'"
       [autocapitalize]="scanType() === 'tag' ? 'characters' : 'none'"
       (ionFocus)="onInputFocus()"
+=======
+      [attr.aria-label]="placeholder()"
+      (keyup.enter)="onEnter($event)"
+      autofocus
+>>>>>>> feat/modo-analista-maqueta
       class="input-base"
     >
       <ion-icon slot="start" name="barcode-outline"></ion-icon>
     </ion-input>
+<<<<<<< HEAD
 
     @if (scanType() === 'tag') {
       <ion-button
@@ -32,6 +39,26 @@
     } @else {
       <div class="status-banner status-banner-info">
         <span>Escaneando tag para iniciar sesión de conteo</span>
+=======
+    <ion-button
+      expand="block"
+      (click)="confirm()"
+      [disabled]="form.invalid || locked()"
+      class="btn-primary"
+    >
+      {{ confirmLabel() }}
+    </ion-button>
+  </form>
+
+  @if (showBanner()) {
+    @if (tagConfirmed()) {
+      <div class="status-banner status-banner-success">
+        <span>✓ {{ confirmedLabel() }}: {{ tagValue() }}</span>
+      </div>
+    } @else {
+      <div class="status-banner status-banner-info">
+        <span>{{ idleMessage() }}</span>
+>>>>>>> feat/modo-analista-maqueta
       </div>
     }
   }
