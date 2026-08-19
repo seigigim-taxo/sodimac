@@ -1,10 +1,15 @@
 import { ContractError } from '../../domain/shared/errors/contract.error';
 import {
   CodigoProductoPreparado,
+  ContextoAnalista,
+  DatosAnalista,
   DatosPreparacion,
   DetalleMuestraPreparado,
   EventoPreparado,
+  FilaAnalista,
+  KpisAnalista,
   MuestraPreparada,
+  TagAnalista,
   TiendaPreparada,
   UsuarioPreparado,
 } from '../../domain/sincronizacion/models/preparacion.model';
@@ -265,5 +270,97 @@ export function parsearPreparacion(raw: unknown): DatosPreparacion {
     muestra: parsearPrimeraMuestra(data['muestras'], data['productos']),
     evento: parsearEvento(data['eventos']),
     zonas: parsearZonas(data['zonas_tienda']),
+    analista: parsearAnalista(data['analista']),
   };
+}
+
+/*
+ * Datos del dashboard analista. Opcional: si `data.analista` no existe o es
+ * null, devuelve null. No rompe el flujo del operador.
+ */
+function parsearAnalista(raw: unknown): DatosAnalista | null {
+  if (!esJson(raw)) return null;
+
+  const contexto = parsearContextoAnalista(raw['contexto']);
+  if (!contexto) return null;
+
+  const kpis = parsearKpisAnalista(raw['kpis']);
+  const filas = parsearFilasAnalista(raw['filas']);
+
+  return { contexto, kpis, filas };
+}
+
+function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
+  if (!esJson(raw)) return null;
+  const campo = 'data.analista.contexto';
+
+  return {
+    codigoTienda: texto(raw, 'codigo_tienda', campo),
+    nombreTienda: texto(raw, 'nombre_tienda', campo),
+    codigoMuestra: texto(raw, 'codigo_muestra', campo),
+    nombreMuestra: textoOpcional(raw, 'nombre_muestra') ?? '',
+    fechaJornada: textoOpcional(raw, 'fecha_jornada') ?? '',
+    numeroAgenda: textoOpcional(raw, 'numero_agenda') ?? '',
+  };
+}
+
+function parsearKpisAnalista(raw: unknown): KpisAnalista {
+  if (!esJson(raw)) {
+    return {
+      diferenciasPendientes: 0,
+      valorDiferencias: 0,
+      diferenciasCriticas: 0,
+      reconteosRealizados: 0,
+      diferenciasResueltas: 0,
+      persistenConDiferencia: 0,
+      totalProductos: 0,
+    };
+  }
+
+  return {
+    diferenciasPendientes: numeroOpcional(raw, 'diferencias_pendientes') ?? 0,
+    valorDiferencias: numeroOpcional(raw, 'valor_diferencias') ?? 0,
+    diferenciasCriticas: numeroOpcional(raw, 'diferencias_criticas') ?? 0,
+    reconteosRealizados: numeroOpcional(raw, 'reconteos_realizados') ?? 0,
+    diferenciasResueltas: numeroOpcional(raw, 'diferencias_resueltas') ?? 0,
+    persistenConDiferencia: numeroOpcional(raw, 'persisten_con_diferencia') ?? 0,
+    totalProductos: numeroOpcional(raw, 'total_productos') ?? 0,
+  };
+}
+
+function parsearFilasAnalista(raw: unknown): FilaAnalista[] {
+  const lista = comoLista(raw);
+  if (lista.length === 0) return [];
+
+  return lista.map((f, i) => {
+    const campo = `data.analista.filas[${i}]`;
+    return {
+      sku: texto(f, 'sku', campo),
+      descripcion: textoOpcional(f, 'descripcion'),
+      codigoBarras: textoOpcional(f, 'codigo_barras') ?? '',
+      zona: textoOpcional(f, 'zona') ?? '',
+      tag: textoOpcional(f, 'tag') ?? '',
+      stockSistema: numeroOpcional(f, 'stock_sistema') ?? 0,
+      cantidadContada: numeroOpcional(f, 'cantidad_contada') ?? 0,
+      diferenciaUnidades: numeroOpcional(f, 'diferencia_unidades') ?? 0,
+      diferenciaValor: numeroOpcional(f, 'diferencia_valor') ?? 0,
+      precioUnitario: numeroOpcional(f, 'precio_unitario') ?? 0,
+      prioridad: textoOpcional(f, 'prioridad') ?? 'BAJA',
+      estado: textoOpcional(f, 'estado') ?? 'SIN_DIFERENCIA',
+      tags: parsearTagsAnalista(f['tags']),
+    };
+  });
+}
+
+function parsearTagsAnalista(raw: unknown): TagAnalista[] {
+  const lista = comoLista(raw);
+  if (lista.length === 0) return [];
+
+  return lista.map((t) => ({
+    tagCodigo: textoOpcional(t, 'tag_codigo') ?? '',
+    ubicacionCodigo: textoOpcional(t, 'ubicacion_codigo') ?? '',
+    zonaNombre: textoOpcional(t, 'zona_nombre') ?? '',
+    zonaDescripcion: textoOpcional(t, 'zona_descripcion'),
+    cantidadOperador: numeroOpcional(t, 'cantidad_operador') ?? 0,
+  }));
 }

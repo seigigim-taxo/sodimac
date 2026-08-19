@@ -19,9 +19,10 @@ import {
   AlertController,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
+import { AnalystDashboardFacade } from './state/analyst/analyst-dashboard.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 
@@ -52,13 +53,16 @@ export class AppComponent {
   private location = inject(Location);
   private alertController = inject(AlertController);
   private database = inject(DATABASE_REPOSITORY_TOKEN);
+  private dashboard = inject(AnalystDashboardFacade);
 
   session          = this.auth.session;
   isDark           = this.theme.isDark;
+  isAnalyst        = this.auth.isAnalyst;
+  isOperator       = this.auth.isOperator;
   formatRutDisplay = formatRutDisplay;
 
   constructor() {
-    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline });
+    addIcons({ arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, trashOutline, syncOutline, statsChartOutline });
   }
 
   goBack(): void {
@@ -67,6 +71,10 @@ export class AppComponent {
 
   goHome(): void {
     this.router.navigate(['/home']);
+  }
+
+  goAnalystDashboard(): void {
+    this.router.navigate(['/analyst-dashboard']);
   }
 
   goConteos(): void {
@@ -78,6 +86,7 @@ export class AppComponent {
   }
 
   async logout(): Promise<void> {
+    this.dashboard.limpiar();
     await this.auth.logout();
     this.router.navigate(['/login']);
   }
@@ -113,6 +122,7 @@ export class AppComponent {
       });
       await alert.present();
     }
+    this.dashboard.limpiar();
     await this.auth.logout();
     this.router.navigate(['/login']);
   }

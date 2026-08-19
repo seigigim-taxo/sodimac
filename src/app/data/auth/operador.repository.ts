@@ -29,11 +29,6 @@ export class SqliteOperadorRepository implements OperadorRepository {
 
     const rolId = await this.rolIdPorDefecto(db);
 
-    /*
-     * INSERT condicional: si el operador ya está, esto no escribe nada y el
-     * perfil que dejó la sincronización queda intacto. El rol arranca en el por
-     * defecto y lo corrige guardarPerfil() cuando llega el cargo real.
-     */
     await db.run(
       `INSERT INTO sod_user (rol_id, rut, rut_dv, correo)
        SELECT ?, ?, ?, ?

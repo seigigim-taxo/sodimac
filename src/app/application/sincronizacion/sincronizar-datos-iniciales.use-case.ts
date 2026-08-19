@@ -9,7 +9,7 @@ import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositor
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
-import { DatosPreparacion, EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
+import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, UsuarioPreparado } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
 type EstadoEvento = Evento['estado'];
@@ -39,7 +39,7 @@ export class SincronizarDatosInicialesUseCase {
   async execute(
     session: Session,
     onEtapa?: (etapa: EtapaSincronizacion) => void
-  ): Promise<void> {
+  ): Promise<{ usuario: UsuarioPreparado; analista: DatosAnalista | null }> {
     onEtapa?.('DESCARGANDO');
     const datos = await this.preparacionApi.preparar({
       correo: session.correo,
@@ -50,10 +50,6 @@ export class SincronizarDatosInicialesUseCase {
     const usuario = datos.usuario;
     const { rut, rutDv } = partirRut(usuario.rutNormalizado);
 
-    /*
-     * El operador ya existe desde el login (sin nombre ni cargo): esto completa
-     * el perfil con lo que el login no devuelve.
-     */
     await this.operadorRepo.guardarPerfil({
       cargo: usuario.cargo,
       rut,
@@ -64,10 +60,6 @@ export class SincronizarDatosInicialesUseCase {
       correo: usuario.login,
     });
 
-    /*
-     * Las tiendas van después del perfil porque el vínculo en sod_user_sucursal
-     * apunta al operador: si el usuario no está, la FK falla.
-     */
     await this.sucursalRepo.guardarDeUsuario(
       session.operadorId,
       datos.tiendas.map((t) => ({
@@ -82,6 +74,7 @@ export class SincronizarDatosInicialesUseCase {
     await this.logDatabase();
 
     onEtapa?.('LISTO');
+    return { usuario, analista: datos.analista };
   }
 
   /*

@@ -17,21 +17,32 @@
       </div>
 
       <ion-list lines="none" class="menu-list">
-        <!-- Inicio -->
-        <ion-menu-toggle>
-          <ion-item button (click)="goHome()" class="menu-theme-item">
-            <ion-icon slot="start" name="home-outline"></ion-icon>
-            <ion-label>Inicio</ion-label>
-          </ion-item>
-        </ion-menu-toggle>
+        <!-- Inicio (solo operador) -->
+        @if (isOperator()) {
+          <ion-menu-toggle>
+            <ion-item button (click)="goHome()" class="menu-theme-item">
+              <ion-icon slot="start" name="home-outline"></ion-icon>
+              <ion-label>Inicio</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
 
-        <!-- Conteos -->
-        <ion-menu-toggle>
-          <ion-item button (click)="goConteos()" class="menu-theme-item">
-            <ion-icon slot="start" name="list-outline"></ion-icon>
-            <ion-label>Conteos</ion-label>
-          </ion-item>
-        </ion-menu-toggle>
+          <ion-menu-toggle>
+            <ion-item button (click)="goConteos()" class="menu-theme-item">
+              <ion-icon slot="start" name="list-outline"></ion-icon>
+              <ion-label>Conteos</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        }
+
+        <!-- Dashboard Analista (solo analista) -->
+        @if (isAnalyst()) {
+          <ion-menu-toggle>
+            <ion-item button (click)="goAnalystDashboard()" class="menu-theme-item">
+              <ion-icon slot="start" name="stats-chart-outline"></ion-icon>
+              <ion-label>Dashboard Analista</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        }
 
         <!-- Sincronizar datos -->
         <ion-menu-toggle>

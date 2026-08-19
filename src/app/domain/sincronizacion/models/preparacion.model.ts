@@ -95,6 +95,72 @@ export interface DatosPreparacion {
   muestra: MuestraPreparada | null;
   evento: EventoPreparado | null;
   zonas: ZonaPreparada[];
+  analista: DatosAnalista | null;
+}
+
+/*
+ * Datos específicos para el dashboard del analista.
+ * Viene del WS dentro de `data.analista` solo para ANALISTA_CLIENTE.
+ * Todos los datos se derivan de la muestra recibida.
+ */
+export interface ContextoAnalista {
+  codigoTienda: string;
+  nombreTienda: string;
+  codigoMuestra: string;
+  nombreMuestra: string;
+  fechaJornada: string;
+  numeroAgenda: string;
+}
+
+export interface KpisAnalista {
+  diferenciasPendientes: number;
+  valorDiferencias: number;
+  diferenciasCriticas: number;
+  reconteosRealizados: number;
+  diferenciasResueltas: number;
+  persistenConDiferencia: number;
+  totalProductos: number;
+}
+
+export interface TagAnalista {
+  tagCodigo: string;
+  ubicacionCodigo: string;
+  zonaNombre: string;
+  zonaDescripcion: string | null;
+  cantidadOperador: number;
+}
+
+export interface FilaAnalista {
+  sku: string;
+  descripcion: string | null;
+  codigoBarras: string;
+  zona: string;
+  tag: string;
+  stockSistema: number;
+  cantidadContada: number;
+  diferenciaUnidades: number;
+  diferenciaValor: number;
+  precioUnitario: number;
+  prioridad: string;
+  estado: string;
+  tags: TagAnalista[];
+}
+
+export interface RegistroAnalista {
+  filaSku: string;
+  tagCodigo: string;
+  ubicacionCodigo: string;
+  zonaNombre: string;
+  cantidadAnalista: number;
+  estado: 'PENDIENTE' | 'ENVIADO' | 'ERROR';
+  fechaHora: string;
+  error?: string;
+}
+
+export interface DatosAnalista {
+  contexto: ContextoAnalista;
+  kpis: KpisAnalista;
+  filas: FilaAnalista[];
 }
 
 export interface PreparacionRequest {

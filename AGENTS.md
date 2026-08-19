@@ -136,3 +136,31 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).
 - Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
 - `develop_ws` build replaces `environment.ts` with `environment.develop-ws.ts` (uses `preparacion_ws.php` mock endpoint).
+
+## Mockup analista / operador
+
+Para probar el flujo mockup usar:
+
+```bash
+ng serve --configuration=mockup
+```
+
+Este environment apunta a:
+
+- `api/sincronizaciones/preparacion_mockup.php`
+
+El login sigue usando el endpoint normal configurado en la APK. La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
+
+- `OPERADOR` → `/home`
+- `ANALISTA_CLIENTE` → `/analyst-dashboard`
+
+Usuarios mockup disponibles en `sodimac-ws/api/sincronizaciones/preparacion_mockup.php`:
+
+| Perfil | Correo | RUT | Password |
+|--------|--------|-----|----------|
+| OPERADOR | rodrigo.rodriguez@sodimac.cl | 17534077-7 | 175340 |
+| OPERADOR | operador@taxo.cl | 11111111-1 | 111111 |
+| OPERADOR | seigi.gim@taxo.cl | 99800002-5 | 998000 |
+| ANALISTA_CLIENTE | analista@taxo.cl | 22222222-2 | 222222 |
+
+La password por defecto son los primeros 6 dígitos del cuerpo del RUT.

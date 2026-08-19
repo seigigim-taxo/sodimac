@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { IonButton, IonContent, IonProgressBar } from '@ionic/angular/standalone';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { SincronizarDatosInicialesUseCase } from '../../application/sincronizacion/sincronizar-datos-iniciales.use-case';
+import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
 import { EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
 import { ContractError } from '../../domain/shared/errors/contract.error';
 import { NetworkError } from '../../domain/shared/errors/network.error';
@@ -58,6 +59,7 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private auth = inject(AuthFacade);
   private sincronizar = inject(SincronizarDatosInicialesUseCase);
+  private dashboard = inject(AnalystDashboardFacade);
   private intervalId: ReturnType<typeof setInterval> | undefined;
 
   progress = signal(0);
@@ -97,10 +99,25 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
     this.iniciarAvance();
 
     try {
-      await this.sincronizar.execute(session, (etapa) => this.etapa.set(etapa));
+      const resultado = await this.sincronizar.execute(session, (etapa) => this.etapa.set(etapa));
       this.detenerAvance();
       this.progress.set(100);
-      this.router.navigate(['/home']);
+
+      await this.auth.actualizarPerfilSesion({
+        tipoUsuario: resultado.usuario.tipoUsuario,
+        nombreCompleto: resultado.usuario.nombreCompleto,
+      });
+
+      if (resultado.usuario.tipoUsuario === 'ANALISTA_CLIENTE' && resultado.analista) {
+        this.dashboard.cargarDatos(
+          resultado.analista.contexto,
+          resultado.analista.kpis,
+          resultado.analista.filas
+        );
+      }
+
+      const destino = resultado.usuario.tipoUsuario === 'ANALISTA_CLIENTE' ? '/analyst-dashboard' : '/home';
+      this.router.navigate([destino]);
     } catch (err: unknown) {
       this.detenerAvance();
       this.error.set(mensajeDeError(err));

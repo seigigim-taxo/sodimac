@@ -24,6 +24,9 @@ export class AuthFacade {
   readonly error = this.errorSignal.asReadonly();
   readonly isAuthenticated = computed(() => this.sessionSignal() !== null);
   readonly wasOfflineLogin = this.offlineLoginSignal.asReadonly();
+  readonly hasKnownProfile = computed(() => !!this.sessionSignal()?.tipoUsuario);
+  readonly isAnalyst = computed(() => this.sessionSignal()?.tipoUsuario === 'ANALISTA_CLIENTE');
+  readonly isOperator = computed(() => this.sessionSignal()?.tipoUsuario === 'OPERADOR');
 
   async init(): Promise<void> {
     const session = await this.loadSession.execute();
@@ -45,6 +48,16 @@ export class AuthFacade {
     } finally {
       this.loadingSignal.set(false);
     }
+  }
+
+  async actualizarPerfilSesion(perfil: { tipoUsuario: string; nombreCompleto: string }): Promise<void> {
+    const current = this.sessionSignal();
+    if (!current) return;
+    await this.saveSession({
+      ...current,
+      tipoUsuario: perfil.tipoUsuario,
+      nombreCompleto: perfil.nombreCompleto,
+    });
   }
 
   private async saveSession(session: Session): Promise<void> {

@@ -38,7 +38,6 @@ export class LoginUseCase {
     const cached = await this.operadorRepo.obtenerPorRut(rut, rutDv);
 
     if (cached) {
-      // 3. Operador cacheado → login offline, sin WS
       return {
         session: {
           operadorId:     cached.id,

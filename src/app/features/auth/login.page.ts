@@ -18,6 +18,7 @@ import { addIcons } from 'ionicons';
 import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -58,7 +59,13 @@ export class LoginPage implements OnInit {
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/home']);
+      if (!this.auth.hasKnownProfile()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (this.auth.isAnalyst()) {
+        this.router.navigate(['/analyst-dashboard']);
+      } else {
+        this.router.navigate(['/home']);
+      }
     }
   }
 
@@ -71,6 +78,7 @@ export class LoginPage implements OnInit {
   }
 
   async onSubmit(): Promise<void> {
+    if (this.loading()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -79,10 +87,15 @@ export class LoginPage implements OnInit {
     const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
     if (this.auth.isAuthenticated()) {
-      // Offline: la sesión y los datos mock ya quedaron listos en el login mismo —
-      // no hay nada que "descargar", así que la barra de sincronización sobra.
-      const destino = this.auth.wasOfflineLogin() ? '/home' : '/sync-loading';
-      this.router.navigate([destino]);
+      if (environment.alwaysSyncAfterLogin || !this.auth.wasOfflineLogin()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (!this.auth.hasKnownProfile()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (this.auth.isAnalyst()) {
+        this.router.navigate(['/analyst-dashboard']);
+      } else {
+        this.router.navigate(['/home']);
+      }
     }
   }
 
