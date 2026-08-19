@@ -20,6 +20,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -62,7 +63,13 @@ export class LoginPage implements OnInit {
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
-      this.router.navigate(['/home']);
+      if (!this.auth.hasKnownProfile()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (this.auth.isAnalyst()) {
+        this.router.navigate(['/analyst-dashboard']);
+      } else {
+        this.router.navigate(['/home']);
+      }
     }
   }
 
@@ -75,6 +82,7 @@ export class LoginPage implements OnInit {
   }
 
   async onSubmit(): Promise<void> {
+    if (this.loading()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -83,21 +91,21 @@ export class LoginPage implements OnInit {
     const password = this.form.value.password ?? '';
     await this.auth.login({ rut, password });
     if (this.auth.isAuthenticated()) {
-      /*
-       * Antes de navegar: si este operador dejó un TAG abierto en esta PDA, los
-       * guards de /home lo van a mandar derecho a /counting, y esa pantalla
-       * necesita el evento y el TAG en memoria. Restaurarlo después sería tarde.
-       */
       const operadorId = this.auth.session()?.operadorId;
       const pdaId      = this.pda.pdaId();
       if (operadorId && pdaId) {
         await this.sesionTrabajo.restaurar(operadorId, pdaId);
       }
 
-      // Offline: la sesión y los datos mock ya quedaron listos en el login mismo —
-      // no hay nada que "descargar", así que la barra de sincronización sobra.
-      const destino = this.auth.wasOfflineLogin() ? '/home' : '/sync-loading';
-      this.router.navigate([destino]);
+      if (environment.alwaysSyncAfterLogin || !this.auth.wasOfflineLogin()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (!this.auth.hasKnownProfile()) {
+        this.router.navigate(['/sync-loading']);
+      } else if (this.auth.isAnalyst()) {
+        this.router.navigate(['/analyst-dashboard']);
+      } else {
+        this.router.navigate(['/home']);
+      }
     }
   }
 
