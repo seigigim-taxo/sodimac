@@ -21,14 +21,11 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Tests (watch mode, Chrome) | `npm test` |
 | Tests once (CI) | `npm run test:ci` |
 | Lint | `npm run lint` |
-<<<<<<< HEAD
 | Android USB single terminal | `npm run android` (levanta dev server y corre app; funciona con VPN) |
 | Android USB live reload | `npm run android:usb` (requiere `npm run start:usb` en otra terminal; funciona con VPN) |
 | Android USB sync only | `npm run android:usb:sync` |
 | Android WiFi live reload | `npm run start:external` + `npm run android:external` (PC y celular sin VPN) |
-=======
 | Build + sync native assets | `npm run build` then `npx cap sync` |
->>>>>>> feat/modo-analista-maqueta
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
 - `angular.json` defines a `develop_ws` configuration that swaps `environment.ts` → `environment.develop-ws.ts` (mock preparacion endpoint).
@@ -138,7 +135,6 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Allowed component suffixes: `Page` and `Component`.
 - EditorConfig: 2-space indentation, UTF-8, final newline, single quotes for `*.ts`.
 
-<<<<<<< HEAD
 ## Capacitor / native workflow
 
 - Capacitor config: `capacitor.config.ts`. `appId` is still placeholder `io.ionic.starter`.
@@ -147,8 +143,6 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - No `android`/`ios` platforms committed yet. Add with `npx cap add android` / `npx cap add ios`.
 - Native project dirs and `www` are gitignored.
 
-=======
->>>>>>> feat/modo-analista-maqueta
 ## Environment / build
 
 - Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).

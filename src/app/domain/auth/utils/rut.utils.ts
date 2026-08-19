@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * Utilidades para manejo y validación de RUT chileno.
  * Formato preferido: 12345678-9 (sin puntos, con guión)
@@ -75,7 +74,8 @@ export function validateRut(rut: string): boolean {
   }
 
   return expectedChar === dv;
-=======
+}
+
 /*
  * Parte un rut normalizado ('998000025') en las dos columnas con que lo guarda
  * SQLite: cuerpo numérico y dígito verificador.
@@ -92,5 +92,4 @@ export function getFirstSixDigits(rut: string): string {
   const clean = (rut ?? '').replace(/[^0-9kK]/g, '').toUpperCase();
   const body = clean.length > 1 ? clean.slice(0, -1) : clean;
   return body.slice(0, 6);
->>>>>>> feat/modo-analista-maqueta
 }

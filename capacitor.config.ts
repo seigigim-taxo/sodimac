@@ -4,21 +4,18 @@ const config: CapacitorConfig = {
   appId: 'io.ionic.starter',
   appName: 'sodimac-app',
   webDir: 'www',
-<<<<<<< HEAD
   plugins: {
     StatusBar: {
       style: 'LIGHT',
       backgroundColor: '#ffffff',
     },
   },
-=======
   server: {
     // El backend (ws/api) es HTTP plano en la LAN; servir la app tambien
     // sobre http://localhost evita que el WebView bloquee las llamadas
     // como "mixed content" (https -> http).
     androidScheme: 'http'
   }
->>>>>>> feat/modo-analista-maqueta
 };
 
 // Live reload por USB/WiFi. Se activa con CAPACITOR_LIVE_RELOAD=true.

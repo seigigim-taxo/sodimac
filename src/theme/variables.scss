@@ -7,7 +7,6 @@
 /* ---------- LIGHT THEME (default) ---------- */
 :root,
 :root:not(.dark) {
-  color-scheme: light;
   /* Backgrounds */
   --app-bg-start: #fafafa;
   --app-bg-mid: #f5f3f0;
@@ -70,18 +69,10 @@
 
 /* ---------- DARK THEME ---------- */
 :root.dark {
-<<<<<<< HEAD
-  color-scheme: dark;
-  /* Backgrounds */
-  --app-bg-start: #000000;
-  --app-bg-mid: #0a0a0a;
-  --app-bg-end: #141414;
-=======
   /* Backgrounds — morado profundo en vez de negro neutro */
   --app-bg-start: #170D2B;
   --app-bg-mid: #201138;
   --app-bg-end: #140A24;
->>>>>>> feat/modo-analista-maqueta
   --app-bg-gradient: linear-gradient(135deg, var(--app-bg-start) 0%, var(--app-bg-mid) 40%, var(--app-bg-end) 100%);
 
   /* Surfaces */
