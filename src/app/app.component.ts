@@ -18,7 +18,7 @@ import {
   IonContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
@@ -53,31 +53,27 @@ export class AppComponent {
   private router   = inject(Router);
   private location = inject(Location);
 
-  /*
-   * Pantallas sin buscador: login, donde no hay sesión ni evento donde buscar,
-   * y la descarga inicial, que es un paso bloqueante — ofrecer una acción ahí
-   * invita a interrumpirla.
-   */
   private static readonly RUTAS_SIN_BUSCADOR = ['/login', '/sync-loading'];
 
   private rutaActual = signal(this.router.url);
 
   session          = this.auth.session;
   isDark           = this.theme.isDark;
+  isAnalyst        = this.auth.isAnalyst;
+  isOperator       = this.auth.isOperator;
   formatRutDisplay = formatRutDisplay;
   sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
 
   mostrarBuscador = computed(() =>
     this.session() !== null &&
+    this.auth.isOperator() &&
     !AppComponent.RUTAS_SIN_BUSCADOR.some((r) => this.rutaActual().startsWith(r))
   );
-
-
 
   constructor() {
     addIcons({
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
-      homeOutline, cloudUploadOutline, cloudOfflineOutline,
+      homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
     });
 
     this.router.events.subscribe((evento) => {
@@ -97,8 +93,16 @@ export class AppComponent {
     this.router.navigate(['/home']);
   }
 
+  goAnalystDashboard(): void {
+    this.router.navigate(['/analyst-dashboard']);
+  }
+
   goConteos(): void {
     this.router.navigate(['/tags-resumen']);
+  }
+
+  syncDatos(): void {
+    this.router.navigate(['/sync-loading']);
   }
 
   async logout(): Promise<void> {
