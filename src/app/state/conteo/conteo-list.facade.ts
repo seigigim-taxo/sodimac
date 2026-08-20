@@ -57,6 +57,22 @@ export class ConteoListFacade {
     return this.syncingKeysSignal().has(keyOf(conteo));
   }
 
+  /*
+   * Suelta la lista y todo lo derivado. Los conteos son de un operador
+   * concreto; al cambiar de turno en la misma PDA no le corresponden al que
+   * entra, y estos signals no se van solos con la sesión.
+   */
+  reset(): void {
+    this.conteosSignal.set([]);
+    this.seleccionadoSignal.set(null);
+    this.errorSignal.set(null);
+    this.loadingSignal.set(false);
+    this.syncingKeysSignal.set(new Set());
+    this.iteracionActivaSignal.set(1);
+    this.tagsReconteoSignal.set([]);
+    this.tagsReconteoLoadingSignal.set(false);
+  }
+
   async load(operadorId: number, pdaId: number): Promise<void> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);

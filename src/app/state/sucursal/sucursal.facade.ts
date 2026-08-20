@@ -25,6 +25,20 @@ export class SucursalFacade {
     return this.storesSignal().length === 1 ? this.storesSignal()[0] : null;
   });
 
+  /*
+   * Las tiendas se resuelven por usuario (sod_user_sucursal), así que al
+   * cambiar de operador la selección anterior no vale. Importa además porque
+   * `currentStore` dispara la carga de eventos en Home: si queda la tienda del
+   * turno anterior, el efecto no vuelve a correr y la pantalla se queda con
+   * los datos viejos.
+   */
+  reset(): void {
+    this.storesSignal.set([]);
+    this.selectedStoreSignal.set(null);
+    this.errorSignal.set(null);
+    this.loadingSignal.set(false);
+  }
+
   async loadSucursales(userId: number): Promise<void> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);

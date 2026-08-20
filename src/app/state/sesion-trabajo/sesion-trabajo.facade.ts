@@ -3,6 +3,9 @@ import { RecuperarSesionTrabajoUseCase } from '../../application/conteo/recupera
 import { EventoFacade } from '../evento/evento.facade';
 import { ZonaFacade } from '../zona/zona.facade';
 import { ConteoFacade } from '../conteo/conteo.facade';
+import { ConteoListFacade } from '../conteo/conteo-list.facade';
+import { ResumenEventoFacade } from '../conteo/resumen-evento.facade';
+import { SucursalFacade } from '../sucursal/sucursal.facade';
 
 /*
  * Devuelve al operador donde estaba después de que la app dejó de correr
@@ -19,10 +22,13 @@ import { ConteoFacade } from '../conteo/conteo.facade';
  */
 @Injectable({ providedIn: 'root' })
 export class SesionTrabajoFacade {
-  private recuperar    = inject(RecuperarSesionTrabajoUseCase);
-  private eventoFacade = inject(EventoFacade);
-  private zonaFacade   = inject(ZonaFacade);
-  private conteoFacade = inject(ConteoFacade);
+  private recuperar     = inject(RecuperarSesionTrabajoUseCase);
+  private eventoFacade  = inject(EventoFacade);
+  private zonaFacade    = inject(ZonaFacade);
+  private conteoFacade  = inject(ConteoFacade);
+  private conteoList    = inject(ConteoListFacade);
+  private resumenFacade = inject(ResumenEventoFacade);
+  private sucursalFacade = inject(SucursalFacade);
 
   private restaurandoSignal = signal(false);
   readonly restaurando = this.restaurandoSignal.asReadonly();
@@ -30,12 +36,20 @@ export class SesionTrabajoFacade {
   /*
    * Suelta TODO el estado de trabajo que vive en memoria. Se llama al cerrar
    * sesión: las señales son singletons y sobreviven al logout, así que sin esto
-   * el evento, el TAG y los ítems del turno anterior siguen ahí para quien entre
-   * después. Lo contado no se toca — eso está en SQLite y pertenece al evento.
+   * el evento, el TAG, los ítems y los conteos del turno anterior siguen ahí
+   * para quien entre después. Lo contado no se toca — eso está en SQLite y
+   * pertenece al evento, no a la sesión.
+   *
+   * Están TODAS las facades que guardan datos de un operador. Las consultas ya
+   * filtran por operador_id, así que el problema nunca fue la base: era que
+   * nadie vaciaba lo que había quedado cargado en pantalla.
    */
   async limpiar(): Promise<void> {
     this.conteoFacade.reset();
     this.zonaFacade.reset();
+    this.conteoList.reset();
+    this.resumenFacade.reset();
+    this.sucursalFacade.reset();
     await this.eventoFacade.limpiarSeleccion();
   }
 
