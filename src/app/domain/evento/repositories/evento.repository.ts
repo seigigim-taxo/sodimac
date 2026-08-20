@@ -19,7 +19,16 @@ export interface EventoRepository {
   updateEstado(id: number, estado: Evento['estado']): Promise<void>;
 
   /* Crea el evento si no existe para esa tienda y fecha; devuelve su id local. */
+  /*
+   * Reutiliza el evento de (sucursal, fecha) si ya existe. Solo sirve cuando la
+   * preparación no trae muestra: con muestra, la identidad es su código y la
+   * resuelve el caso de uso — dos operadores en la misma tienda y el mismo día
+   * reciben asignaciones distintas y cada una necesita su propio evento.
+   */
   asegurarEvento(evento: EventoParaGuardar): Promise<number>;
+
+  /* Crea un evento nuevo siempre, sin buscar uno previo que reutilizar. */
+  crearEvento(evento: EventoParaGuardar): Promise<number>;
 }
 
 export const EVENTO_REPOSITORY_TOKEN = new InjectionToken<EventoRepository>('EventoRepository');

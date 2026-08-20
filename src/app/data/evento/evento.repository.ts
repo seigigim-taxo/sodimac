@@ -14,6 +14,31 @@ export class SqliteEventoRepository implements EventoRepository {
      * en cada sincronización. No actualiza el estado — ese lo maneja el flujo
      * de conteo, y pisarlo desde acá revertiría un evento ya en curso.
      */
+    async crearEvento(evento: EventoParaGuardar): Promise<number> {
+        const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+        await db.run(
+            `INSERT INTO sod_evento_inventario (sucursal_id, nombre, fecha_programada, estado)
+             VALUES (?, ?, ?, ?)`,
+            [evento.sucursalId, evento.nombre, evento.fechaProgramada, evento.estado]
+        );
+
+        const row = await db.query(
+            `SELECT id FROM sod_evento_inventario
+             WHERE sucursal_id = ? AND fecha_programada = ?
+             ORDER BY id DESC LIMIT 1`,
+            [evento.sucursalId, evento.fechaProgramada]
+        );
+        const id = row.values?.[0]?.['id'] as number | undefined;
+        if (id === undefined) {
+            throw new Error(
+                `No se pudo crear el evento de la sucursal ${evento.sucursalId} para ${evento.fechaProgramada}`
+            );
+        }
+
+        return id;
+    }
+
     async asegurarEvento(evento: EventoParaGuardar): Promise<number> {
         const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 

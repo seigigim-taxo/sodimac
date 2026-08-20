@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { PREPARACION_API_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/preparacion-api.repository';
 import { OPERADOR_REPOSITORY_TOKEN } from '../../domain/auth/repositories/operador.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
-import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
+import { EVENTO_REPOSITORY_TOKEN, EventoParaGuardar } from '../../domain/evento/repositories/evento.repository';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
@@ -82,6 +82,40 @@ export class SincronizarDatosInicialesUseCase {
    * siguiente. Si falta alguno de los datos, se corta sin escribir nada: es
    * preferible una tienda sin evento a un evento con fecha inventada.
    */
+  /*
+   * Qué evento local le corresponde a esta preparación.
+   *
+   * La identidad es la MUESTRA, no el día: una tienda puede tener varias
+   * asignaciones el mismo día y cada operador recibe la suya. Identificando el
+   * evento por (sucursal, fecha) —como se hacía antes— la asignación del
+   * segundo operador caía sobre el evento del primero: no veía evento para
+   * contar, porque el del otro ya estaba EN_ANALISIS, y su muestra sobrescribía
+   * la anterior vía el ON CONFLICT de asegurarMuestra.
+   *
+   * El backend no manda id de evento, así que la identidad se toma del código
+   * de muestra, que ya queda guardado en sod_muestra junto a su evento_id. Por
+   * eso no hace falta ninguna columna nueva.
+   *
+   * Sin muestra en la preparación no hay identidad que usar y se conserva el
+   * comportamiento anterior.
+   */
+  private async resolverEvento(
+    datos: DatosPreparacion, sucursalId: number, evento: EventoParaGuardar
+  ): Promise<number> {
+    const codigoMuestra = datos.muestra?.codigoMuestra;
+    if (!codigoMuestra) {
+      return this.eventoRepo.asegurarEvento(evento);
+    }
+
+    const existente = await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalId);
+    if (existente !== null) {
+      // Misma asignación que ya se había descargado: se reusa, no se duplica.
+      return existente;
+    }
+
+    return this.eventoRepo.crearEvento(evento);
+  }
+
   private async guardarEventoYMuestra(datos: DatosPreparacion): Promise<void> {
     const tienda = datos.tiendas[0];
     const evento = datos.evento;
@@ -94,7 +128,7 @@ export class SincronizarDatosInicialesUseCase {
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
     if (sucursalId === null) return;
 
-    const eventoId = await this.eventoRepo.asegurarEvento({
+    const eventoId = await this.resolverEvento(datos, sucursalId, {
       sucursalId,
       fechaProgramada: evento.fechaProgramada,
       estado: evento.estado as EstadoEvento,
