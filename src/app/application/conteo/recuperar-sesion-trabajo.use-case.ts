@@ -56,11 +56,23 @@ export class RecuperarSesionTrabajoUseCase {
     if (!evento) return null;
 
     /*
-     * Un evento que ya pasó a EN_ANALISIS o CERRADO no se restaura: las
-     * pantallas de conteo lo rechazan igual y volverlo a poner solo alimenta el
-     * mismo ciclo de redirecciones que esto viene a evitar.
+     * Un evento terminado se restaura igual, pero SIN sesión de TAG: no hay
+     * nada que seguir contando.
+     *
+     * Antes se devolvía null y eso dejaba al operador sin salida en Inicio:
+     * esa pantalla necesita el evento seleccionado para mostrar "a la espera de
+     * un nuevo conteo" y el botón de buscar trabajo. Sin evento caía al caso
+     * contrario —"Iniciar conteo" deshabilitado— y no había forma de seguir,
+     * ni tras cerrar sesión ni tras reiniciar el equipo.
+     *
+     * Las pantallas de conteo no se ven afectadas: eventoSeleccionadoGuard y
+     * pdaBloqueadaGuard siguen rechazando estos estados por su cuenta, y no se
+     * arma ciclo porque noSesionActivaGuard solo devuelve a /counting cuando
+     * hay líneas EN_CURSO, que en un evento terminado no existen.
      */
-    if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') return null;
+    if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') {
+      return { evento, conteo: null };
+    }
 
     if (!sesion) return { evento, conteo: null };
 

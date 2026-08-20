@@ -85,11 +85,31 @@ describe('RecuperarSesionTrabajoUseCase', () => {
     expect(eventoRepo.getById).toHaveBeenCalledWith(5);
   });
 
-  it('no restaura un evento que ya está en análisis', async () => {
+  /*
+   * Un evento en análisis se restaura sin sesión de TAG. Devolverlo en null
+   * dejaba a Inicio sin evento seleccionado, y esa pantalla lo necesita para
+   * ofrecer "Buscar nuevo conteo": sin él mostraba "Iniciar conteo"
+   * deshabilitado y el operador quedaba sin salida.
+   */
+  it('restaura un evento en análisis pero sin sesión de conteo', async () => {
     storage.obtener.and.resolveTo(5);
-    eventoRepo.getById.and.resolveTo({ ...EVENTO, estado: 'EN_ANALISIS' });
+    const enAnalisis = { ...EVENTO, estado: 'EN_ANALISIS' as const };
+    eventoRepo.getById.and.resolveTo(enAnalisis);
 
-    expect(await useCase.execute(7, 1)).toBeNull();
+    const resultado = await useCase.execute(7, 1);
+
+    expect(resultado?.evento).toEqual(enAnalisis);
+    expect(resultado?.conteo).toBeNull();
+  });
+
+  it('tampoco arrastra una sesión de TAG si el evento ya está terminado', async () => {
+    storage.obtener.and.resolveTo(5);
+    conteoRepo.getSesionEnCurso.and.resolveTo(SESION);
+    eventoRepo.getById.and.resolveTo({ ...EVENTO, estado: 'CERRADO' as const });
+
+    const resultado = await useCase.execute(7, 1);
+
+    expect(resultado?.conteo).toBeNull();
   });
 
   // La zona puede faltar si la sincronización la eliminó: el evento sigue sirviendo.
