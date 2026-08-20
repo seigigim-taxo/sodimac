@@ -1,19 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.1.9</domain>
-        <domain includeSubdomains="true">10.3.104.102</domain>
-        <domain includeSubdomains="true">10.3.104.92</domain>
-        <domain includeSubdomains="true">172.16.235.77</domain>
-        <domain includeSubdomains="true">10.3.161.6</domain>
-        <domain includeSubdomains="true">192.168.1.11</domain>
-        <domain includeSubdomains="true">192.168.1.142</domain>
-        <domain includeSubdomains="true">50.16.13.230</domain>
-        <domain includeSubdomains="true">10.254.22.117</domain>
-        <domain includeSubdomains="true">10.54.250.77</domain>
-        <domain includeSubdomains="true">ws.code</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">192.168.3.5</domain>
-    </domain-config>
+    <!-- El backend (ws/api) es HTTP plano en la LAN y la app no se publica en
+         Play Store: se instala por APK directo en las PDA. Se permite cleartext
+         de forma global para no tener que listar cada IP nueva del servidor. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

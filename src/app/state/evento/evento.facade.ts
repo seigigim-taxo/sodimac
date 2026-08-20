@@ -101,7 +101,7 @@ export class EventoFacade {
       await this.refreshSelected();
       return resultado;
     } catch (err) {
-      this.errorSignal.set(err instanceof Error ? err.message : 'Error al abrir la iteración siguiente');
+      this.errorSignal.set(err instanceof Error ? err.message : 'Error al abrir la ronda siguiente');
       return null;
     }
   }

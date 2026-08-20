@@ -121,7 +121,13 @@ export class ConteoListFacade {
     }
   }
 
-  async sincronizar(conteo: ConteoResumen): Promise<void> {
+  /*
+   * Devuelve true solo si el TAG llegó al servidor. El error se atrapa acá para
+   * que la lista no se rompa, pero quien llama necesita saber qué pasó: sin
+   * este booleano, un fallo de red se veía igual que un envío exitoso y la app
+   * avisaba "sincronizado" estando sin conexión.
+   */
+  async sincronizar(conteo: ConteoResumen): Promise<boolean> {
     const key = keyOf(conteo);
     this.errorSignal.set(null);
     this.syncingKeysSignal.update((prev) => new Set(prev).add(key));
@@ -131,8 +137,10 @@ export class ConteoListFacade {
       this.conteosSignal.update((prev) => prev.map((c) =>
         keyOf(c) === key ? { ...c, estado: 'SINCRONIZADO' } : c
       ));
+      return true;
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al sincronizar conteo');
+      return false;
     } finally {
       this.syncingKeysSignal.update((prev) => {
         const next = new Set(prev);

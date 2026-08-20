@@ -31,6 +31,7 @@ import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade
 import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { BuscadorService } from '../../../shared/services/buscador.service';
+import { NetworkService } from '../../../shared/services/network.service';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -73,6 +74,9 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private resumenFacade = inject(ResumenEventoFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
   private buscador = inject(BuscadorService);
+  private network = inject(NetworkService);
+
+  isOnline = this.network.isOnline;
 
   currentEvent = this.eventoFacade.selectedEvent;
   // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
@@ -225,8 +229,25 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     }
   }
 
+  /*
+   * El detalle por SKU vive en su propio signal y lee sod_conteo_detalle: al
+   * sincronizar cambia el estado de esas filas en la base, pero el signal no se
+   * entera y seguía mostrando "pendiente" hasta salir y volver a la pantalla.
+   * Por eso se recarga acá y no solo la lista de TAGs.
+   */
   async sincronizarReal(c: ConteoResumen): Promise<void> {
-    await this.conteoList.sincronizar(c);
+    const sincronizado = await this.conteoList.sincronizar(c);
+
+    if (!sincronizado) {
+      await this.avisar(
+        this.conteoList.error() ?? 'No se pudo sincronizar el TAG. Queda pendiente.',
+        'danger'
+      );
+      return;
+    }
+
+    await this.cargarTrazabilidad();
+    await this.avisar(`TAG ${c.tag ?? ''} sincronizado.`.replace('  ', ' '), 'success');
   }
 
   /*
@@ -263,7 +284,13 @@ export class TagsResumenPageComponent implements ViewWillEnter {
       message: `¿Eliminar el conteo del TAG ${c.tag} (${c.zonaCodigo})?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        { text: 'Eliminar', role: 'destructive', handler: () => { void this.conteoList.delete(c); } },
+        {
+          text: 'Eliminar',
+          role: 'destructive',
+          // Mismo motivo que en sincronizarReal: borrar las líneas deja el
+          // detalle por SKU mostrando productos que ya no existen.
+          handler: () => { void this.conteoList.delete(c).then(() => this.cargarTrazabilidad()); },
+        },
       ],
     });
     await alert.present();

@@ -38,7 +38,18 @@ export class RecuperarSesionTrabajoUseCase {
   async execute(operadorId: number, pdaId: number): Promise<SesionTrabajoRestaurada | null> {
     const sesion = await this.conteoRepo.getSesionEnCurso(operadorId, pdaId);
 
-    const eventoId = sesion?.eventoId ?? (await this.eventoStorage.obtener());
+    /*
+     * Tres fuentes, en orden de peso. El logout borra la preferencia a
+     * propósito (la PDA se pasa entre turnos), así que tras cerrar sesión con
+     * todos los TAGs finalizados las dos primeras quedan vacías y el evento se
+     * perdía: la pantalla de resumen filtra por evento seleccionado y aparecía
+     * en blanco pese a tener los conteos en la base. La tercera cubre ese caso
+     * sin reabrir el de otro operador — va acotada a operador + PDA.
+     */
+    const eventoId =
+      sesion?.eventoId ??
+      (await this.eventoStorage.obtener()) ??
+      (await this.conteoRepo.getEventoIdUltimoTrabajo(operadorId, pdaId));
     if (!eventoId) return null;
 
     const evento = await this.eventoRepo.getById(eventoId);

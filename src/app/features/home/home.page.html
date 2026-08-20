@@ -1,6 +1,12 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>Inicio</ion-title>
+    <ion-title>
+      @if (isOnline()) {
+        <span style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+    </ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
@@ -181,7 +187,7 @@
         <div class="h-px mb-3" style="background: var(--app-border);"></div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Ronda</span>
             <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.iteracion }}</span>
           </div>
           <div class="flex items-center justify-between">
