@@ -87,14 +87,53 @@ describe('LoginPage', () => {
     expect(component.form.value.rut).toBe('12345678-9');
   });
 
-  it('should call auth.login and navigate on submit', async () => {
+  it('should call auth.login and navigate to sync-loading when user is new', async () => {
     component.form.setValue({ rut: '12345678-5', password: '123456' });
     authFacade.login.and.resolveTo();
     authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(false);
 
     await component.onSubmit();
 
     expect(authFacade.login).toHaveBeenCalledWith({ rut: '123456785', password: '123456' });
+    expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
+  });
+
+  it('should navigate to home when user is cached and has operator profile', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(true);
+    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(true);
+    authFacade.isAnalyst = jasmine.createSpy().and.returnValue(false);
+
+    await component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/home']);
+  });
+
+  it('should navigate to analyst-dashboard when user is cached and has analyst profile', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(true);
+    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(true);
+    authFacade.isAnalyst = jasmine.createSpy().and.returnValue(true);
+
+    await component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/analyst-dashboard']);
+  });
+
+  it('should navigate to sync-loading when user is cached but has no profile', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(true);
+    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(false);
+
+    await component.onSubmit();
+
     expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
   });
 

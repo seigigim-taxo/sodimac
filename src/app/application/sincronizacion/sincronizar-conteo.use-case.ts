@@ -1,15 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo.repository';
-import { SINCRONIZACION_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
-import { ApiService } from '../../core/http/api.service';
-import { TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { SincronizarTagFinalizadoUseCase } from './sincronizar-tag-finalizado.use-case';
 
 @Injectable({ providedIn: 'root' })
 export class SincronizarConteoUseCase {
-  private conteoRepo         = inject(CONTEO_REPOSITORY_TOKEN);
-  private sincronizacionRepo = inject(SINCRONIZACION_REPOSITORY_TOKEN);
-  private api                = inject(ApiService);
+  private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
+  private syncTag = inject(SincronizarTagFinalizadoUseCase);
 
   async execute(conteo: ConteoResumen): Promise<void> {
     if (conteo.estado !== 'FINALIZADO') {
@@ -18,16 +15,24 @@ export class SincronizarConteoUseCase {
 
     const payload = await this.conteoRepo.getPayloadSincronizacion(conteo);
 
-    const response = await this.api.post<TagFinalizadoResponse>(
-      'sincronizaciones/tag-finalizado.php',
+    const resultado = await this.syncTag.execute({
+      eventoId:   conteo.eventoId,
+      pdaId:      conteo.pdaId,
+      iteracion:  conteo.iteracion,
+      perfil:     'OPERADOR',
+      conteoId:   conteo.conteoId,
+      ubicacionId: conteo.ubicacionId,
+      operadorId: conteo.operadorId,
+      cargaUid:   payload.carga_uid,
       payload,
-    );
+    });
+
+    if (!resultado.ok) {
+      throw new Error(resultado.error ?? 'Error al sincronizar conteo');
+    }
 
     await this.conteoRepo.marcarSincronizado(
       conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId,
-    );
-    await this.sincronizacionRepo.registrarCarga(
-      conteo.eventoId, conteo.pdaId, response.total_productos,
     );
   }
 }

@@ -52,6 +52,14 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Enviar pendientes -->
+        <ion-menu-toggle>
+          <ion-item button (click)="enviarPendientesMenu()" [disabled]="enviandoPendientes()" class="menu-theme-item">
+            <ion-icon slot="start" name="paper-plane-outline"></ion-icon>
+            <ion-label>{{ enviandoPendientes() ? 'Enviando...' : 'Enviar pendientes' }}</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item button (click)="toggleTheme()" class="menu-theme-item">

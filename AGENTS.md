@@ -104,7 +104,8 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `@capacitor-community/sqlite` is wrapped by `SqliteConnectionService` (`src/app/core/database/`).
 - SQLite is only initialized on native platforms (`Capacitor.isNativePlatform()`); on web/Karma it is silently skipped.
-- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`, current version `39`).
+- Schema lives in `src/app/core/database/sodimac.schema.ts` (`SODIMAC_DB_NAME = 'sodimac'`).
+- The schema is the local operational base for the APK and may be expanded as app flows evolve; add fields/tables when they support offline operation, traceability, or sync analysis instead of forcing everything into existing tables.
 - The repository drops tables only when the schema version changes; old renamed/legacy tables (`cat_operador`, `cat_zona`, etc.) are also dropped during a version bump.
 - To force a clean database in development, bump `SODIMAC_DB_VERSION` in `sodimac.schema.ts`.
 - Dev data seeding (`SqliteDevSeederRepository`) inserts sample stores, zones, events, products, and sample assignments after login.

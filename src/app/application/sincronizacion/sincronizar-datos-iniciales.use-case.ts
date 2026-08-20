@@ -58,6 +58,7 @@ export class SincronizarDatosInicialesUseCase {
       apellidoPaterno: usuario.apellidoPaterno,
       apellidoMaterno: usuario.apellidoMaterno,
       correo: usuario.login,
+      tipoUsuario: usuario.tipoUsuario,
     });
 
     await this.sucursalRepo.guardarDeUsuario(

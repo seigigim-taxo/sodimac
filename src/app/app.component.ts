@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
+import { ToastController } from '@ionic/angular/standalone';
 import {
   IonApp,
   IonRouterOutlet,
@@ -18,10 +19,11 @@ import {
   IonContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
+import { EnviarPendientesFacade } from './state/sincronizacion/enviar-pendientes.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 
@@ -50,6 +52,8 @@ export class AppComponent {
   private auth     = inject(AuthFacade);
   private theme    = inject(ThemeFacade);
   private ajustes  = inject(AjustesFacade);
+  private enviarPendientes = inject(EnviarPendientesFacade);
+  private toastController = inject(ToastController);
   private router   = inject(Router);
   private location = inject(Location);
 
@@ -63,6 +67,7 @@ export class AppComponent {
   isOperator       = this.auth.isOperator;
   formatRutDisplay = formatRutDisplay;
   sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
+  enviandoPendientes = this.enviarPendientes.enviando;
 
   mostrarBuscador = computed(() =>
     this.session() !== null &&
@@ -74,6 +79,7 @@ export class AppComponent {
     addIcons({
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
+      paperPlaneOutline,
     });
 
     this.router.events.subscribe((evento) => {
@@ -103,6 +109,20 @@ export class AppComponent {
 
   syncDatos(): void {
     this.router.navigate(['/sync-loading']);
+  }
+
+  async enviarPendientesMenu(): Promise<void> {
+    if (this.enviarPendientes.enviando()) return;
+    const resultado = await this.enviarPendientes.enviar();
+    const toast = await this.toastController.create({
+      message: resultado.total === 0
+        ? 'No hay envíos pendientes.'
+        : `Enviados: ${resultado.enviados} | Con error: ${resultado.conError}`,
+      duration: 3000,
+      color: resultado.conError > 0 ? 'warning' : 'success',
+      position: 'top',
+    });
+    await toast.present();
   }
 
   async logout(): Promise<void> {

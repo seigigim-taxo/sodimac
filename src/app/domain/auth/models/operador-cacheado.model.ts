@@ -11,5 +11,6 @@ export interface OperadorCacheado {
   /* Derivado al leer: sod_user guarda el nombre en partes, no completo. */
   nombreCompleto: string | null;
   correo: string;
+  tipoUsuario: string | null;
   fechaRegistro: string;
 }

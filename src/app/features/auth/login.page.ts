@@ -20,7 +20,6 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -97,14 +96,16 @@ export class LoginPage implements OnInit {
         await this.sesionTrabajo.restaurar(operadorId, pdaId);
       }
 
-      if (environment.alwaysSyncAfterLogin || !this.auth.wasOfflineLogin()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (!this.auth.hasKnownProfile()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (this.auth.isAnalyst()) {
-        this.router.navigate(['/analyst-dashboard']);
+      if (this.auth.wasOfflineLogin()) {
+        if (!this.auth.hasKnownProfile()) {
+          this.router.navigate(['/sync-loading']);
+        } else if (this.auth.isAnalyst()) {
+          this.router.navigate(['/analyst-dashboard']);
+        } else {
+          this.router.navigate(['/home']);
+        }
       } else {
-        this.router.navigate(['/home']);
+        this.router.navigate(['/sync-loading']);
       }
     }
   }
