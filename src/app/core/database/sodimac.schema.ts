@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 40;
+export const SODIMAC_DB_VERSION = 41;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -162,6 +162,7 @@ const TABLES: readonly string[] = [
                     CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
     fecha_hora      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     carga_uid       TEXT             DEFAULT NULL,
+    codigo_lectura  TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
   )`
 

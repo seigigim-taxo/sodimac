@@ -106,10 +106,11 @@ export interface DatosPreparacion {
 export interface ContextoAnalista {
   codigoTienda: string;
   nombreTienda: string;
+  idAgenda: number | null;
+  numeroAgenda: string;
   codigoMuestra: string;
   nombreMuestra: string;
   fechaJornada: string;
-  numeroAgenda: string;
 }
 
 export interface KpisAnalista {

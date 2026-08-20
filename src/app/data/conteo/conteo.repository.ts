@@ -43,6 +43,7 @@ function normalizarZonaNombre(nombre: string): string {
 const SELECT_ITEM = `
   SELECT d.id, d.conteo_id, d.ubicacion_id, d.producto_id,
          d.operador_id, d.pda_id, d.cantidad_fisica, d.estado, d.fecha_hora,
+         d.codigo_lectura,
          c.iteracion,
          p.sku, p.descripcion
   FROM sod_conteo_detalle d
@@ -128,7 +129,7 @@ export class SqliteConteoRepository implements ConteoRepository {
   async upsert(
     conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
-    cantidad: number
+    cantidad: number, codigoLectura: string
   ): Promise<ConteoItem> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 
@@ -145,16 +146,17 @@ export class SqliteConteoRepository implements ConteoRepository {
       // Cero es la excepción: no es "sumar nada" (un no-op silencioso), es la
       // declaración de que del SKU no hay unidades — típicamente corrigiendo un
       // conteo previo del mismo SKU. Por eso reemplaza el valor en vez de sumarse.
+      // Opción B: se actualiza codigo_lectura al último código escaneado exitoso.
       const id = (existing.values[0] as Record<string, unknown>)['id'] as number;
       await db.run(
         cantidad === 0
           ? `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = 0, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
              WHERE id = ?`
           : `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = cantidad_fisica + ?, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
              WHERE id = ?`,
-        cantidad === 0 ? [id] : [cantidad, id]
+        cantidad === 0 ? [codigoLectura, id] : [cantidad, codigoLectura, id]
       );
     } else {
       /*
@@ -163,9 +165,9 @@ export class SqliteConteoRepository implements ConteoRepository {
        */
       await db.run(
         `INSERT INTO sod_conteo_detalle
-           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad]
+           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, codigo_lectura)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura]
       );
     }
 
@@ -600,11 +602,11 @@ export class SqliteConteoRepository implements ConteoRepository {
     const detallesRow = await db.query(
       `SELECT d.id AS detalle_id,
               p.sku, p.codigo_barras, p.descripcion,
-              (
+              COALESCE(d.codigo_lectura, (
                 SELECT MIN(pd.codigo_lectura)
                 FROM sod_producto_detalle pd
                 WHERE pd.producto_id = d.producto_id
-              ) AS codigo_lectura,
+              )) AS codigo_lectura,
               md.stock_sistema, d.cantidad_fisica, d.fecha_hora
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
@@ -682,6 +684,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       estado: row['estado'] as EstadoConteo,
       iteracion: row['iteracion'] as number,
       fechaHora: row['fecha_hora'] as string,
+      codigoLectura: (row['codigo_lectura'] as string | null) ?? null,
     };
   }
 

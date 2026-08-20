@@ -9,7 +9,7 @@ export class UpsertConteoItemUseCase {
   async execute(
     conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
-    cantidad: number
+    cantidad: number, codigoLectura: string
   ): Promise<ConteoItem> {
     /*
      * Cero es una cantidad válida: el operador declara que del SKU no hay
@@ -20,6 +20,9 @@ export class UpsertConteoItemUseCase {
     if (cantidad < 0 || !Number.isFinite(cantidad)) {
       throw new Error('La cantidad no puede ser negativa');
     }
-    return this.conteoRepo.upsert(conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad);
+    if (!codigoLectura?.trim()) {
+      throw new Error('El código de lectura no puede estar vacío');
+    }
+    return this.conteoRepo.upsert(conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura.trim());
   }
 }

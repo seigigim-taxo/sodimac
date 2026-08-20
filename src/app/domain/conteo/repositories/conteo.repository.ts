@@ -45,7 +45,7 @@ export interface ConteoRepository {
    * ese conteo está abierto o no. Lo que antes comparaba contra MAX() ahora es
    * una propiedad de la fila padre.
    */
-  upsert(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, cantidad: number): Promise<ConteoItem>;
+  upsert(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, cantidad: number, codigoLectura: string): Promise<ConteoItem>;
   adjust(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, delta: number, estado: EstadoConteo): Promise<ConteoItem>;
   delete(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<void>;
 

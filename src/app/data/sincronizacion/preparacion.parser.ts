@@ -297,10 +297,11 @@ function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
   return {
     codigoTienda: texto(raw, 'codigo_tienda', campo),
     nombreTienda: texto(raw, 'nombre_tienda', campo),
+    idAgenda: numeroOpcional(raw, 'id_agenda'),
+    numeroAgenda: textoOpcional(raw, 'numero_agenda') ?? '',
     codigoMuestra: texto(raw, 'codigo_muestra', campo),
     nombreMuestra: textoOpcional(raw, 'nombre_muestra') ?? '',
     fechaJornada: textoOpcional(raw, 'fecha_jornada') ?? '',
-    numeroAgenda: textoOpcional(raw, 'numero_agenda') ?? '',
   };
 }
 

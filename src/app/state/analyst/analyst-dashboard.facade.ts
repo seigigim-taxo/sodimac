@@ -37,10 +37,10 @@ export class AnalystDashboardFacade {
     ubicacionCodigo: string,
     zonaNombre: string,
     cantidadAnalista: number
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; error?: string }> {
     const session = this.auth.session();
     const ctx = this.contextoSignal();
-    if (!session || !ctx) return false;
+    if (!session || !ctx) return { ok: false, error: 'Sesión o contexto no disponible' };
 
     const registro: RegistroAnalista = {
       filaSku: fila.sku,
@@ -54,19 +54,31 @@ export class AnalystDashboardFacade {
 
     this.registrosSignal.update(prev => [...prev, registro]);
 
-    const exito = await this.enviarTagFinalizado(fila, tagCodigo, ubicacionCodigo, zonaNombre, cantidadAnalista);
-    if (!exito) return false;
+    const resultado = await this.enviarTagFinalizado(fila, tagCodigo, ubicacionCodigo, zonaNombre, cantidadAnalista);
+
+    if (resultado.ok) {
+      this.registrosSignal.update(prev =>
+        prev.map(r =>
+          r.filaSku === registro.filaSku &&
+          r.tagCodigo === registro.tagCodigo &&
+          r.fechaHora === registro.fechaHora
+            ? { ...r, estado: 'ENVIADO' as const }
+            : r
+        )
+      );
+      return { ok: true };
+    }
 
     this.registrosSignal.update(prev =>
       prev.map(r =>
         r.filaSku === registro.filaSku &&
         r.tagCodigo === registro.tagCodigo &&
         r.fechaHora === registro.fechaHora
-          ? { ...r, estado: 'ENVIADO' as const }
+          ? { ...r, estado: 'ERROR' as const, error: resultado.error }
           : r
       )
     );
-    return true;
+    return { ok: false, error: resultado.error };
   }
 
   limpiar(): void {
@@ -82,10 +94,10 @@ export class AnalystDashboardFacade {
     ubicacionCodigo: string,
     zonaNombre: string,
     cantidadAnalista: number
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; error?: string }> {
     const session = this.auth.session();
     const ctx = this.contextoSignal();
-    if (!session || !ctx) return false;
+    if (!session || !ctx) return { ok: false, error: 'Sesión o contexto no disponible' };
 
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
@@ -103,7 +115,7 @@ export class AnalystDashboardFacade {
       operador_login: session.correo,
       pda_codigo: String(this.pda.pdaId() ?? 'PDA'),
       codigo_muestra: ctx.codigoMuestra,
-      id_agenda: null,
+      id_agenda: ctx.idAgenda,
       numero_agenda: ctx.numeroAgenda,
       ubicacion_codigo: ubicacionCodigo,
       detalles: [
@@ -122,9 +134,10 @@ export class AnalystDashboardFacade {
 
     try {
       await this.api.post('sincronizaciones/tag-finalizado.php', payload);
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : 'Error al enviar conteo al servidor';
+      return { ok: false, error: mensaje };
     }
   }
 }

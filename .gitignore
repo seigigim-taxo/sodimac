@@ -25,6 +25,7 @@ log.txt
 
 # Docs (generados / material de presentación)
 /docs
+/TODO.md
 
 # Compiled output
 /dist
