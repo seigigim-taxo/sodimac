@@ -55,6 +55,17 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Respaldo de la base local -->
+        <ion-menu-toggle>
+          <ion-item button (click)="respaldarBase()" [disabled]="generandoRespaldo()" class="menu-theme-item">
+            <ion-icon slot="start" name="save-outline"></ion-icon>
+            <ion-label>{{ generandoRespaldo() ? 'Generando respaldo…' : 'Respaldar base local' }}</ion-label>
+            @if (generandoRespaldo()) {
+            <ion-spinner slot="end" name="crescent"></ion-spinner>
+            }
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Logout -->
         <ion-menu-toggle>
           <ion-item button (click)="logout()" class="menu-logout-item">

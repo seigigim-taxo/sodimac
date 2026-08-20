@@ -17,6 +17,10 @@ export class IniciarSesionConteoUseCase {
    * El estado vive en sod_conteo.estado — no hay meta externa. Si existen
    * filas EN_CURSO para la tupla, la sesión se recupera con ellas; si no,
    * la sesión parte vacía (las filas se crearán con el primer scan).
+   *
+   * Volver a contar un TAG ya cerrado no se resuelve acá: esa apertura es una
+   * ubicación nueva (ver SqliteUbicacionRepository), así que llega con su propia
+   * tupla y la sesión parte limpia, sin arrastrar lo contado antes.
    */
   async execute(
     conteoId: number, ubicacionId: number, operadorId: number, pdaId: number

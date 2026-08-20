@@ -25,6 +25,7 @@ import { PdaFacade } from '../../../state/pda/pda.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { stripEmojis } from '../../../shared/utils/text.utils';
 import { BuscadorService } from '../../../shared/services/buscador.service';
+import { NetworkService } from '../../../shared/services/network.service';
 
 /*
  * Pantalla previa al conteo: se ingresa/escanea el TAG y se elige la zona, y
@@ -68,6 +69,9 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private zonaFacade      = inject(ZonaFacade);
   private conteoList      = inject(ConteoListFacade);
   private buscador        = inject(BuscadorService);
+  private network         = inject(NetworkService);
+
+  isOnline = this.network.isOnline;
 
   currentEvent    = this.eventoFacade.selectedEvent;
   iteracionActual = this.conteoList.iteracionActiva;

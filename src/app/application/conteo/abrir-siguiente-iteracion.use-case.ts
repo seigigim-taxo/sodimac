@@ -43,7 +43,7 @@ export class AbrirSiguienteIteracionUseCase {
       throw new Error(`No se encontró el evento ${eventoId}`);
     }
     if (evento.estado !== 'EN_ANALISIS') {
-      throw new Error('Solo se puede abrir una iteración nueva sobre un evento en análisis.');
+      throw new Error('Solo se puede abrir una ronda nueva sobre un evento en análisis.');
     }
 
     /*
@@ -58,7 +58,7 @@ export class AbrirSiguienteIteracionUseCase {
     // Una iteración nunca retrocede: si el SGO mandara un número menor o igual,
     // se corta acá antes de reabrir una ronda ya cerrada.
     if (siguiente <= actual) {
-      throw new Error(`La iteración ${siguiente} no es posterior a la activa (${actual}).`);
+      throw new Error(`La ronda ${siguiente} no es posterior a la activa (${actual}).`);
     }
 
     if (!this.planMuestraRepo) {

@@ -92,6 +92,14 @@ export interface ConteoRepository {
    */
   getSesionEnCurso(operadorId: number, pdaId: number): Promise<SesionTrabajoEnCurso | null>;
 
+  /*
+   * Evento del último trabajo del operador en esta PDA, sin importar el estado
+   * de las líneas. Complementa a getSesionEnCurso, que solo ve EN_CURSO: un TAG
+   * ya finalizado no deja sesión que restaurar, pero sí dice en qué evento
+   * estaba trabajando el operador.
+   */
+  getEventoIdUltimoTrabajo(operadorId: number, pdaId: number): Promise<number | null>;
+
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────
 
   /*

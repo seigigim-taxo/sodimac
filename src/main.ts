@@ -30,9 +30,11 @@ import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
 import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
 import { AsignacionSimuladaRepository } from './app/data/asignacion/asignacion-simulada.repository';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
+import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
 import { CapacitorPdaRepository } from './app/data/pda/pda.repository';
@@ -137,6 +139,7 @@ bootstrapApplication(AppComponent, {
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
+    { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
 
     /*
      * Asignación de conteos: simulada mientras el SGO no expone el endpoint,

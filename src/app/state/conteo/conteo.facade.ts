@@ -65,6 +65,13 @@ export class ConteoFacade {
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
     } catch (err) {
+      /*
+       * El motivo real va a consola y no a la pantalla: puede ser "la ronda N
+       * está cerrada y no hay ninguna abierta", que no le dice nada a alguien
+       * en piso de tienda. La pantalla muestra un mensaje entendible y dos
+       * salidas; el detalle queda acá para quien revise el equipo.
+       */
+      console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
     } finally {
       this.loadingSignal.set(false);
