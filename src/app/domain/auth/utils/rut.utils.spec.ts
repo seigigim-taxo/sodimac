@@ -1,5 +1,6 @@
-import { cleanRut, formatRut, validateRut } from './rut.utils';
-import { getFirstSixDigits } from '../../domain/auth/utils/rut.utils';
+// Todo vive en este mismo módulo desde que se consolidaron los dos rut.utils;
+// shared/utils/rut.utils.ts quedó como barrel que reexporta desde acá.
+import { cleanRut, formatRut, validateRut, getFirstSixDigits } from './rut.utils';
 
 describe('RUT utilities', () => {
   describe('cleanRut', () => {
