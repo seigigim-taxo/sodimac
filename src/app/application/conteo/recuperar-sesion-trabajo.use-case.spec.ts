@@ -32,12 +32,14 @@ describe('RecuperarSesionTrabajoUseCase', () => {
   let storage: jasmine.SpyObj<EventoSeleccionadoStorageRepository>;
 
   beforeEach(() => {
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getSesionEnCurso']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getSesionEnCurso', 'getEventoIdUltimoTrabajo']);
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById']);
     zonaRepo   = jasmine.createSpyObj('ZonaRepository', ['getBySucursal']);
     storage    = jasmine.createSpyObj('EventoSeleccionadoStorage', ['obtener']);
 
     conteoRepo.getSesionEnCurso.and.resolveTo(null);
+    // Tercera fuente del evento, después de la sesión en curso y la preferencia.
+    conteoRepo.getEventoIdUltimoTrabajo.and.resolveTo(null);
     eventoRepo.getById.and.resolveTo(EVENTO);
     zonaRepo.getBySucursal.and.resolveTo([ZONA]);
     storage.obtener.and.resolveTo(null);
