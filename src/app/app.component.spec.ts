@@ -5,6 +5,8 @@ import { AppComponent } from './app.component';
 import { AuthFacade } from './state/auth/auth.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
+import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
+import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 
 describe('AppComponent', () => {
@@ -20,6 +22,19 @@ describe('AppComponent', () => {
           useValue: {
             sincronizacionAutomatica: signal(true),
             toggleSincronizacionAutomatica: jasmine.createSpy('toggleSincronizacionAutomatica'),
+          },
+        },
+        {
+          // El logout la usa para soltar el estado de trabajo del turno anterior.
+          provide: SesionTrabajoFacade,
+          useValue: { limpiar: jasmine.createSpy('limpiar').and.resolveTo(undefined) },
+        },
+        {
+          provide: RespaldoFacade,
+          useValue: {
+            generando: signal(false),
+            error: signal(null),
+            generar: jasmine.createSpy('generar').and.resolveTo(null),
           },
         },
         { provide: DATABASE_REPOSITORY_TOKEN, useValue: { initialize: jasmine.createSpy('initialize'), resetLocalDatabase: jasmine.createSpy('resetLocalDatabase') } },
