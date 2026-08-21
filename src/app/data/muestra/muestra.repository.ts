@@ -41,6 +41,18 @@ export class SqliteMuestraRepository implements MuestraRepository {
         return id;
     }
 
+    async getEventoIdPorCodigo(codigoMuestra: string, sucursalId: number): Promise<number | null> {
+        const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+        const result = await db.query(
+            `SELECT evento_id FROM sod_muestra
+             WHERE codigo_muestra = ? AND sucursal_id = ?
+             ORDER BY id DESC LIMIT 1`,
+            [codigoMuestra, sucursalId]
+        );
+        const row = result.values?.[0] as Record<string, unknown> | undefined;
+        return row ? (row['evento_id'] as number) : null;
+    }
+
     /* Compatibilidad: devuelve la muestra de iteración 1. */
     async getByEvento(eventoId: number): Promise<Muestra | null> {
         return this.getByEventoIteracion(eventoId, 1);

@@ -23,7 +23,7 @@ describe('AsignacionSimuladaRepository', () => {
   let connection: jasmine.SpyObj<SqliteConnectionService>;
 
   beforeEach(() => {
-    eventoRepo = jasmine.createSpyObj('EventoRepository', ['getBySucursal', 'getById', 'updateEstado', 'asegurarEvento']);
+    eventoRepo = jasmine.createSpyObj('EventoRepository', ['getBySucursal', 'getById', 'updateEstado', 'asegurarEvento', 'crearEvento']);
     connection = jasmine.createSpyObj('SqliteConnectionService', ['getConnection', 'enTransaccion']);
 
     TestBed.configureTestingModule({

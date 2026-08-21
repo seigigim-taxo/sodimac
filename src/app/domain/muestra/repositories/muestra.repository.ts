@@ -25,6 +25,13 @@ export interface MuestraRepository {
 
   /* Crea la muestra si no existe para (evento, iteración); devuelve su id local. */
   asegurarMuestra(muestra: MuestraParaGuardar): Promise<number>;
+
+  /*
+   * Evento al que ya quedó colgada una muestra, buscándola por su código del
+   * backend. Es lo que permite que cada asignación tenga su propio evento sin
+   * agregar columnas: la identidad ya vive acá.
+   */
+  getEventoIdPorCodigo(codigoMuestra: string, sucursalId: number): Promise<number | null>;
 }
 
 export const MUESTRA_REPOSITORY_TOKEN = new InjectionToken<MuestraRepository>('MuestraRepository');

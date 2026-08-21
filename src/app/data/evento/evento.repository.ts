@@ -45,6 +45,28 @@ export class SqliteEventoRepository implements EventoRepository {
         return id;
     }
 
+    async crearEvento(evento: EventoParaGuardar): Promise<number> {
+        const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+
+        await db.run(
+            `INSERT INTO sod_evento_inventario (sucursal_id, nombre, fecha_programada, estado)
+             VALUES (?, ?, ?, ?)`,
+            [evento.sucursalId, evento.nombre, evento.fechaProgramada, evento.estado]
+        );
+
+        const row = await db.query(
+            `SELECT last_insert_rowid() AS id`
+        );
+        const id = row.values?.[0]?.['id'] as number | undefined;
+        if (id === undefined || id === 0) {
+            throw new Error(
+                `No se pudo crear el evento de la sucursal ${evento.sucursalId} para ${evento.fechaProgramada}`
+            );
+        }
+
+        return id;
+    }
+
     async getBySucursal(sucursalId: number): Promise<Evento[]> {
         const db = await this.connection.getConnection(SODIMAC_DB_NAME);
         const result = await db.query(
