@@ -44,13 +44,15 @@
           </ion-menu-toggle>
         }
 
-        <!-- Sincronizar datos -->
+        <!-- Enviar pendientes (solo analista) -->
+        @if (isAnalyst()) {
         <ion-menu-toggle>
-          <ion-item button (click)="syncDatos()" class="menu-theme-item">
-            <ion-icon slot="start" name="sync-outline"></ion-icon>
-            <ion-label>Sincronizar datos</ion-label>
+          <ion-item button (click)="enviarPendientesMenu()" [disabled]="enviandoPendientes()" class="menu-theme-item">
+            <ion-icon slot="start" name="paper-plane-outline"></ion-icon>
+            <ion-label>{{ enviandoPendientes() ? 'Enviando...' : 'Enviar pendientes' }}</ion-label>
           </ion-item>
         </ion-menu-toggle>
+        }
 
         <!-- Theme toggle -->
         <ion-menu-toggle>
@@ -60,17 +62,7 @@
           </ion-item>
         </ion-menu-toggle>
 
-        <!-- Sincronización automática del TAG al finalizarlo (solo operador) -->
-        @if (isOperator()) {
-          <ion-menu-toggle>
-            <ion-item button (click)="toggleSincronizacionAutomatica()" class="menu-theme-item">
-              <ion-icon slot="start" [name]="sincronizacionAutomatica() ? 'cloud-upload-outline' : 'cloud-offline-outline'"></ion-icon>
-              <ion-label>
-                {{ sincronizacionAutomatica() ? 'Sincronizar TAG al finalizar' : 'No sincronizar al finalizar' }}
-              </ion-label>
-            </ion-item>
-          </ion-menu-toggle>
-        }
+
 
         <!-- Logout -->
         <ion-menu-toggle>

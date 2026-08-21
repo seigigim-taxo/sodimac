@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 40;
+export const SODIMAC_DB_VERSION = 43;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -19,6 +19,7 @@ const TABLES: readonly string[] = [
     apellido_paterno TEXT    DEFAULT NULL,
     apellido_materno TEXT    DEFAULT NULL,
     correo           TEXT    NOT NULL,
+    tipo_usuario     TEXT    DEFAULT NULL,
     fecha_registro   TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (rut, rut_dv),
     UNIQUE (correo)
@@ -121,10 +122,24 @@ const TABLES: readonly string[] = [
 
   `CREATE TABLE IF NOT EXISTS sod_sincronizacion (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    evento_id            INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
-    pda_id               INTEGER NOT NULL REFERENCES sod_pda(id),
+    evento_id            INTEGER          DEFAULT NULL REFERENCES sod_evento_inventario(id),
+    pda_id               INTEGER          DEFAULT NULL REFERENCES sod_pda(id),
     tipo                 TEXT    NOT NULL CHECK (tipo IN ('DESCARGA_A_PDA', 'CARGA_DESDE_PDA')),
+    operacion            TEXT             DEFAULT NULL CHECK (operacion IN ('PREPARACION', 'TAG_FINALIZADO')),
+    perfil               TEXT             DEFAULT NULL CHECK (perfil IN ('OPERADOR', 'ANALISTA_CLIENTE')),
+    iteracion            INTEGER          DEFAULT NULL,
+    conteo_id            INTEGER          DEFAULT NULL REFERENCES sod_conteo(id),
+    ubicacion_id         INTEGER          DEFAULT NULL REFERENCES sod_ubicacion(id),
+    operador_id          INTEGER          DEFAULT NULL REFERENCES sod_user(id),
+    carga_uid            TEXT             DEFAULT NULL UNIQUE,
+    payload_json         TEXT             DEFAULT NULL,
+    estado               TEXT    NOT NULL DEFAULT 'ENVIADO'
+                         CHECK (estado IN ('PENDIENTE', 'ENVIADO', 'ERROR')),
+    error                TEXT             DEFAULT NULL,
+    intentos             INTEGER NOT NULL DEFAULT 0,
     fecha_hora           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultimo_intento TEXT             DEFAULT NULL,
+    fecha_envio          TEXT             DEFAULT NULL,
     registros_procesados INTEGER          DEFAULT NULL
   )`,
 
@@ -162,6 +177,7 @@ const TABLES: readonly string[] = [
                     CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
     fecha_hora      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     carga_uid       TEXT             DEFAULT NULL,
+    codigo_lectura  TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
   )`
 
@@ -174,6 +190,10 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_muestra_detalle_producto ON sod_muestra_detalle(producto_id)`,
   `CREATE INDEX IF NOT EXISTS idx_zona_sucursal_nombre ON sod_zona(sucursal_id, nombre)`,
   `CREATE INDEX IF NOT EXISTS idx_evento_sucursal_fecha ON sod_evento_inventario(sucursal_id, fecha_programada)`,
+  `CREATE INDEX IF NOT EXISTS idx_sinc_estado ON sod_sincronizacion(estado, fecha_hora)`,
+  `CREATE INDEX IF NOT EXISTS idx_sinc_evento_iter ON sod_sincronizacion(evento_id, iteracion)`,
+  `CREATE INDEX IF NOT EXISTS idx_sinc_perfil_estado ON sod_sincronizacion(perfil, estado)`,
+  `CREATE INDEX IF NOT EXISTS idx_sinc_carga_uid ON sod_sincronizacion(carga_uid)`,
 ];
 
 const SEED = `

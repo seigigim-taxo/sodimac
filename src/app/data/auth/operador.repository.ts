@@ -51,15 +51,16 @@ export class SqliteOperadorRepository implements OperadorRepository {
 
     await db.run(
       `INSERT INTO sod_user
-         (rol_id, rut, rut_dv, nombres, apellido_paterno, apellido_materno, correo)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+         (rol_id, rut, rut_dv, nombres, apellido_paterno, apellido_materno, correo, tipo_usuario)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (rut, rut_dv) DO UPDATE SET
          rol_id           = excluded.rol_id,
          nombres          = excluded.nombres,
          apellido_paterno = excluded.apellido_paterno,
          apellido_materno = excluded.apellido_materno,
-         correo           = excluded.correo`,
-      [rolId, op.rut, op.rutDv, op.nombres, op.apellidoPaterno, op.apellidoMaterno, op.correo]
+         correo           = excluded.correo,
+         tipo_usuario     = excluded.tipo_usuario`,
+      [rolId, op.rut, op.rutDv, op.nombres, op.apellidoPaterno, op.apellidoMaterno, op.correo, op.tipoUsuario ?? null]
     );
   }
 
@@ -134,6 +135,7 @@ export class SqliteOperadorRepository implements OperadorRepository {
       apellidoMaterno,
       nombreCompleto:  armarNombreCompleto(nombres, apellidoPaterno, apellidoMaterno),
       correo:          row['correo']           as string,
+      tipoUsuario:     (row['tipo_usuario'] as string | null) ?? null,
       fechaRegistro:   row['fecha_registro']   as string,
     };
   }

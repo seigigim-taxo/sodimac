@@ -70,7 +70,7 @@ describe('ConteoFacade', () => {
     const resultado = await facade.scan('AF001', 2);
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2);
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2, 'AF001');
     expect(facade.items().length).toBe(1);
   });
 
@@ -80,7 +80,7 @@ describe('ConteoFacade', () => {
     const resultado = await facade.scan('AF001', 0);
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 0);
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 0, 'AF001');
     expect(facade.items()[0].cantidadFisica).toBe(0);
   });
 
@@ -162,6 +162,6 @@ describe('ConteoFacade', () => {
     const resultado = await facade.scan('7891234567890', 3);
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3);
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3, '7891234567890');
   });
 });

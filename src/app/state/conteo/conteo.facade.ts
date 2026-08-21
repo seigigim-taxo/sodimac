@@ -65,6 +65,7 @@ export class ConteoFacade {
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
     } catch (err) {
+      console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
     } finally {
       this.loadingSignal.set(false);
@@ -76,16 +77,16 @@ export class ConteoFacade {
    * 'rechazado' → el código de lectura no está en la muestra (feedback rojo)
    * 'error'     → el código era válido pero la escritura falló (detalle en error())
    */
-  async scan(sku: string, cantidad = 1): Promise<'valido' | 'rechazado' | 'error'> {
+  async scan(codigoLectura: string, cantidad = 1): Promise<'valido' | 'rechazado' | 'error'> {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
-    const codigoBuscado = sku.trim().toUpperCase();
-    const productoId = this.muestraSet.skuMap.get(codigoBuscado);
+    const codigoNormalizado = codigoLectura.trim().toUpperCase();
+    const productoId = this.muestraSet.skuMap.get(codigoNormalizado);
 
     if (productoId === undefined) {
       this.rechazadosSignal.update((prev) =>
-        prev.includes(sku) ? prev : [sku, ...prev]
+        prev.includes(codigoLectura) ? prev : [codigoLectura, ...prev]
       );
       return 'rechazado';
     }
@@ -95,7 +96,7 @@ export class ConteoFacade {
     await this.writeQueue.enqueue(async () => {
       try {
         const item = await this.upsertItem.execute(
-          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoNormalizado
         );
         this.upsertItemEnMemoria(item);
         persistido = true;

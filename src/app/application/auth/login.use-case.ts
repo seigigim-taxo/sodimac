@@ -43,6 +43,8 @@ export class LoginUseCase {
           operadorId:     cached.id,
           rutNormalizado: request.rut,
           correo:         cached.correo,
+          tipoUsuario:    cached.tipoUsuario ?? undefined,
+          nombreCompleto: cached.nombreCompleto ?? undefined,
         },
         fueOffline: true,
       };

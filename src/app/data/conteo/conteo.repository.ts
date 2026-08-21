@@ -43,6 +43,7 @@ function normalizarZonaNombre(nombre: string): string {
 const SELECT_ITEM = `
   SELECT d.id, d.conteo_id, d.ubicacion_id, d.producto_id,
          d.operador_id, d.pda_id, d.cantidad_fisica, d.estado, d.fecha_hora,
+         d.codigo_lectura,
          c.iteracion,
          p.sku, p.descripcion
   FROM sod_conteo_detalle d
@@ -128,16 +129,37 @@ export class SqliteConteoRepository implements ConteoRepository {
   async upsert(
     conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
-    cantidad: number
+    cantidad: number, codigoLectura: string
   ): Promise<ConteoItem> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
 
+    /*
+     * La búsqueda NO filtra por estado, a diferencia del resto de operaciones:
+     * tiene que mirar exactamente la misma tupla que el UNIQUE de la tabla, que
+     * tampoco incluye estado. Con el filtro por EN_CURSO, una línea ya cerrada
+     * del mismo SKU no aparecía acá y se caía al INSERT, que reventaba contra
+     * el UNIQUE con un error de SQLite en la cara del operador.
+     */
     const existing = await db.query(
-      `SELECT id FROM sod_conteo_detalle
+      `SELECT id, estado FROM sod_conteo_detalle
        WHERE conteo_id = ? AND ubicacion_id = ? AND producto_id = ?
-         AND operador_id = ? AND pda_id = ? AND estado = 'EN_CURSO'`,
+         AND operador_id = ? AND pda_id = ?`,
       [conteoId, ubicacionId, productoId, operadorId, pdaId]
     );
+
+    const estadoExistente = (existing.values?.[0] as Record<string, unknown> | undefined)?.['estado'] as
+      | EstadoConteo
+      | undefined;
+
+    /*
+     * Una línea SINCRONIZADA ya viajó al SGO: editarla dejaría a la PDA
+     * diciendo una cosa y al servidor otra. Es el mismo límite que respeta
+     * ReabrirTagUseCase, y el único — volver a contar sobre un TAG finalizado
+     * sí está permitido y se resuelve al abrir la sesión, no acá.
+     */
+    if (estadoExistente === 'SINCRONIZADO') {
+      throw new Error('Este SKU ya se sincronizó con el servidor y no se puede volver a contar en este TAG.');
+    }
 
     if (existing.values?.length) {
       // cantidad_fisica + cantidad se evalúa en SQLite sobre el valor real de la DB.
@@ -145,16 +167,17 @@ export class SqliteConteoRepository implements ConteoRepository {
       // Cero es la excepción: no es "sumar nada" (un no-op silencioso), es la
       // declaración de que del SKU no hay unidades — típicamente corrigiendo un
       // conteo previo del mismo SKU. Por eso reemplaza el valor en vez de sumarse.
+      // Opción B: se actualiza codigo_lectura al último código escaneado exitoso.
       const id = (existing.values[0] as Record<string, unknown>)['id'] as number;
       await db.run(
         cantidad === 0
           ? `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = 0, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
              WHERE id = ?`
           : `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = cantidad_fisica + ?, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
              WHERE id = ?`,
-        cantidad === 0 ? [id] : [cantidad, id]
+        cantidad === 0 ? [codigoLectura, id] : [cantidad, codigoLectura, id]
       );
     } else {
       /*
@@ -163,9 +186,9 @@ export class SqliteConteoRepository implements ConteoRepository {
        */
       await db.run(
         `INSERT INTO sod_conteo_detalle
-           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad]
+           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, codigo_lectura)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura]
       );
     }
 
@@ -351,6 +374,27 @@ export class SqliteConteoRepository implements ConteoRepository {
     };
     if (isDevMode()) console.log('[ConteoRepo] getSesionEnCurso', sesion);
     return sesion;
+  }
+
+  /*
+   * Sin filtro por estado a propósito: acá no se busca una sesión para seguir
+   * contando sino el evento donde el operador estuvo trabajando. Un TAG
+   * FINALIZADO o SINCRONIZADO responde esa pregunta igual de bien que uno
+   * EN_CURSO. Quien decide si ese evento sirve es el caso de uso.
+   */
+  async getEventoIdUltimoTrabajo(operadorId: number, pdaId: number): Promise<number | null> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT c.evento_id
+       FROM sod_conteo_detalle d
+       JOIN sod_conteo c ON c.id = d.conteo_id
+       WHERE d.operador_id = ? AND d.pda_id = ?
+       ORDER BY d.fecha_hora DESC
+       LIMIT 1`,
+      [operadorId, pdaId]
+    );
+    const row = result.values?.[0] as Record<string, unknown> | undefined;
+    return row ? (row['evento_id'] as number) : null;
   }
 
   // ─────────── consultas por evento (cruzan todas las rondas) ───────────
@@ -600,11 +644,11 @@ export class SqliteConteoRepository implements ConteoRepository {
     const detallesRow = await db.query(
       `SELECT d.id AS detalle_id,
               p.sku, p.codigo_barras, p.descripcion,
-              (
+              COALESCE(d.codigo_lectura, (
                 SELECT MIN(pd.codigo_lectura)
                 FROM sod_producto_detalle pd
                 WHERE pd.producto_id = d.producto_id
-              ) AS codigo_lectura,
+              )) AS codigo_lectura,
               md.stock_sistema, d.cantidad_fisica, d.fecha_hora
        FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
@@ -682,6 +726,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       estado: row['estado'] as EstadoConteo,
       iteracion: row['iteracion'] as number,
       fechaHora: row['fecha_hora'] as string,
+      codigoLectura: (row['codigo_lectura'] as string | null) ?? null,
     };
   }
 

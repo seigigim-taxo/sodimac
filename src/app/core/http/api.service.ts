@@ -8,13 +8,26 @@ export interface ApiResponse<T> {
   data?: T;
 }
 
+/*
+ * fetch NO trae timeout propio: sin AbortSignal, una conexión que acepta el TCP
+ * pero nunca responde —portal cautivo, WiFi de tienda a medio asociar— deja la
+ * promesa colgada hasta que corte el sistema operativo, que en móvil son
+ * minutos. Finalizar un TAG levanta un overlay que cubre la pantalla, así que
+ * eso se veía como la app congelada.
+ */
+const TIMEOUT_MS = 30_000;
+
+export interface ApiRequestOptions {
+  timeoutMs?: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class ApiService {
   private readonly baseUrl = environment.apiUrl;
 
-  async get<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | number | boolean>, options?: ApiRequestOptions): Promise<T> {
     const url = new URL(`${this.baseUrl}/${path}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -26,6 +39,7 @@ export class ApiService {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await response.json();
       return this.unwrap<T>(data);
@@ -34,12 +48,13 @@ export class ApiService {
     }
   }
 
-  async post<T>(path: string, body: unknown): Promise<T> {
+  async post<T>(path: string, body: unknown, options?: ApiRequestOptions): Promise<T> {
     try {
       const response = await fetch(`${this.baseUrl}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await response.json();
       return this.unwrap<T>(data);
@@ -67,6 +82,21 @@ export class ApiService {
    */
   private mapError(err: unknown): Error {
     if (err instanceof NetworkError) return err;
+
+    /*
+     * AbortSignal.timeout aborta con un DOMException llamado TimeoutError y el
+     * mensaje "signal timed out" — que no contiene la palabra "timeout", así
+     * que las comparaciones por texto de abajo no lo atrapan. Se detecta por
+     * nombre.
+     *
+     * Un POST cortado por timeout puede haber llegado igual al servidor. No es
+     * un problema acá: el carga_uid se persiste antes de enviar y el reintento
+     * manda el mismo, así que el SGO puede descartar el duplicado.
+     */
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      return new NetworkError('El servidor no respondió a tiempo. Revisa la conexión e intenta de nuevo.');
+    }
+
     if (err instanceof Error) {
       const msg = err.message.toLowerCase();
       if (

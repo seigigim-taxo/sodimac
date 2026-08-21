@@ -38,18 +38,34 @@ export class RecuperarSesionTrabajoUseCase {
   async execute(operadorId: number, pdaId: number): Promise<SesionTrabajoRestaurada | null> {
     const sesion = await this.conteoRepo.getSesionEnCurso(operadorId, pdaId);
 
-    const eventoId = sesion?.eventoId ?? (await this.eventoStorage.obtener());
+    /*
+     * Tres fuentes, en orden de peso. El logout borra la preferencia a
+     * propósito (la PDA se pasa entre turnos), así que tras cerrar sesión con
+     * todos los TAGs finalizados las dos primeras quedan vacías y el evento se
+     * perdía: la pantalla de resumen filtra por evento seleccionado y aparecía
+     * en blanco pese a tener los conteos en la base. La tercera cubre ese caso
+     * sin reabrir el de otro operador — va acotada a operador + PDA.
+     */
+    const eventoId =
+      sesion?.eventoId ??
+      (await this.eventoStorage.obtener()) ??
+      (await this.conteoRepo.getEventoIdUltimoTrabajo(operadorId, pdaId));
     if (!eventoId) return null;
 
     const evento = await this.eventoRepo.getById(eventoId);
     if (!evento) return null;
 
     /*
-     * Un evento que ya pasó a EN_ANALISIS o CERRADO no se restaura: las
-     * pantallas de conteo lo rechazan igual y volverlo a poner solo alimenta el
-     * mismo ciclo de redirecciones que esto viene a evitar.
+     * Un evento terminado se restaura igual, pero SIN sesión de TAG: no hay
+     * nada que seguir contando. Antes se devolvía null y eso dejaba al
+     * operador sin salida en Inicio: esa pantalla necesita el evento
+     * seleccionado para mostrar "a la espera de un nuevo conteo" y el botón
+     * de buscar trabajo. Sin evento caía al caso contrario —"Iniciar conteo"
+     * deshabilitado— y no había forma de seguir.
      */
-    if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') return null;
+    if (evento.estado === 'EN_ANALISIS' || evento.estado === 'CERRADO') {
+      return { evento, conteo: null };
+    }
 
     if (!sesion) return { evento, conteo: null };
 

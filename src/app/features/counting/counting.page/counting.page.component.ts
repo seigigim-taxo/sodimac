@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, isDevMode, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
@@ -17,7 +17,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
+  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
 } from 'ionicons/icons';
 import { ScanComponent } from '../../../shared/components/scan/scan.component';
 import { EventoFacade } from '../../../state/evento/evento.facade';
@@ -29,6 +29,7 @@ import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resumen-evento.facade';
 import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
 import { BuscadorService } from '../../../shared/services/buscador.service';
+import { NetworkService } from '../../../shared/services/network.service';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -85,6 +86,25 @@ export class CountingPageComponent implements ViewWillEnter {
   private resumenFacade     = inject(ResumenEventoFacade);
   private ajustes           = inject(AjustesFacade);
   private buscador          = inject(BuscadorService);
+  private network           = inject(NetworkService);
+
+  isOnline = this.network.isOnline;
+  sesionCargando = this.conteo.loading;
+
+  /*
+   * El escáner se bloquea siempre que no haya una sesión utilizable, no solo
+   * mientras carga: si init() falla, `loading` vuelve a false igual y el
+   * escáner quedaría aceptando lecturas contra nada.
+   */
+  escanerBloqueado = computed(() => this.sesionCargando() || !this.conteo.enCurso());
+
+  /*
+   * Falla al abrir la sesión. Se muestra como banner y no como toast porque no
+   * se resuelve sola: el operador tiene que reintentar o salir.
+   */
+  errorSesion = computed(() =>
+    !this.sesionCargando() && !this.conteo.enCurso() ? this.conteo.error() : null
+  );
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
@@ -104,17 +124,6 @@ export class CountingPageComponent implements ViewWillEnter {
   resumenVisible = signal(false);
   resumenEvento = signal<ResumenEvento | null>(null);
   resumenCargando = signal(false);
-
-  // Ronda en curso: se deriva de sod_conteo, que es la única tabla que la guarda.
-  iteracionActual = this.conteoList.iteracionActiva;
-
-  // Franja de color por iteración: el operador tiene que ver de un vistazo en qué
-  // ronda está. Cicla si hubiera más rondas que colores definidos.
-  private static readonly COLORES_ITERACION = ['--app-success', '--app-warning', '--app-info', '--app-accent'];
-  colorIteracion = computed(() => {
-    const colores = CountingPageComponent.COLORES_ITERACION;
-    return `var(${colores[(this.iteracionActual() - 1) % colores.length]})`;
-  });
 
   itemsView = computed<ItemVista[]>(() => this.conteo.items().map((i) => ({
     productoId:  i.productoId,
@@ -146,7 +155,7 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   constructor() {
-    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
+    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
   }
 
   abrirBuscador(): void {
@@ -202,9 +211,9 @@ export class CountingPageComponent implements ViewWillEnter {
     await this.eventoFacade.refreshSelected();
     const evento = this.currentEvent();
 
-    console.log('[CountingPage] ionViewWillEnter - evento:', evento);
-    console.log('[CountingPage] ionViewWillEnter - evento.id:', evento?.id);
-    console.log('[CountingPage] ionViewWillEnter - ubicacionId:', ubicacionId);
+    if (isDevMode()) {
+      console.log('[CountingPage] ionViewWillEnter', { evento, ubicacionId });
+    }
 
     // Si el evento cambió a EN_ANALISIS o CERRADO (ej: desde otra PDA), redirigir a home
     if (evento?.estado === 'EN_ANALISIS' || evento?.estado === 'CERRADO') {
@@ -225,7 +234,16 @@ export class CountingPageComponent implements ViewWillEnter {
     if (ubicacionId === this.sesionInicializada && this.conteo.enCurso()) return;
 
     this.sesionInicializada = ubicacionId;
-    void this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    /*
+     * Se espera de verdad: abrir la sesión encadena varias consultas (resolver
+     * la ronda, cargar el mapa de SKU de la muestra) y hasta que terminan
+     * ConteoFacade.scan() no tiene sesión y devuelve 'rechazado'. Sin este
+     * await, un disparo de pistola apenas entrar se perdía y encima se le
+     * mostraba al operador como "fuera de muestra".
+     *
+     * El escáner queda bloqueado mientras tanto — ver [locked] en el template.
+     */
+    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
 
     // Precargar el resumen de avance si ya está visible
     if (this.resumenVisible()) {
@@ -336,6 +354,60 @@ export class CountingPageComponent implements ViewWillEnter {
     await alert.present();
   }
 
+  /*
+   * Reintenta abrir la sesión con los mismos datos con los que se entró. Sirve
+   * para fallas transitorias de la base; si el motivo es que no hay ronda
+   * abierta —el evento está en el flujo del analista— va a volver a fallar, y
+   * para eso está el botón de volver a Inicio al lado.
+   */
+  async reintentarSesion(): Promise<void> {
+    const evento     = this.currentEvent();
+    const ubicacionId = this.zonaFacade.ubicacionId();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId      = this.pda.pdaId();
+    if (!evento || !ubicacionId || !operadorId || !pdaId) return;
+
+    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+  }
+
+  volverAInicio(): void {
+    this.router.navigate(['/home']);
+  }
+
+  /*
+   * Salida para un TAG abierto por error. Solo se ofrece sin líneas contadas:
+   * con productos registrados el camino es finalizar, no descartar.
+   *
+   * Es imprescindible que exista: noSesionActivaGuard bloquea /home mientras la
+   * sesión siga viva, y finalizarTag() exige al menos un producto. Sin esto, el
+   * operador que abre el TAG equivocado queda encerrado en esta pantalla.
+   *
+   * No toca la base: no hay filas que borrar, y la ubicación registrada se
+   * reutiliza si vuelve a elegir el mismo TAG.
+   */
+  async descartarTag(): Promise<void> {
+    if (this.itemsView().length > 0) return;
+
+    const alert = await this.alertController.create({
+      header:  'Descartar TAG',
+      message: `Vas a salir del TAG ${this.tagActual()} sin contar nada. No queda registrado.`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Descartar', role: 'confirm', handler: () => { this.doDescartarTag(); } },
+      ],
+    });
+    await alert.present();
+  }
+
+  private doDescartarTag(): void {
+    this.conteo.reset();
+    this.zonaFacade.clearTag();
+    // Sin esto, volver a elegir el mismo TAG reutiliza el ubicacionId y el
+    // atajo de ionViewWillEnter se saltaría el init de la sesión nueva.
+    this.sesionInicializada = null;
+    this.router.navigate(['/counting-tag']);
+  }
+
   async finalizarTag(): Promise<void> {
     if (this.itemsView().length === 0) return;
 
@@ -382,10 +454,13 @@ export class CountingPageComponent implements ViewWillEnter {
             c.pdaId === pdaId &&
             c.estado === 'FINALIZADO'
           );
-          if (resumen) {
-            await this.conteoList.sincronizar(resumen);
-            this.mostrarToast('TAG finalizado y sincronizado.', 'success');
-          }
+          const sincronizado = resumen ? await this.conteoList.sincronizar(resumen) : false;
+          this.mostrarToast(
+            sincronizado
+              ? 'TAG finalizado y sincronizado.'
+              : 'TAG finalizado. Queda pendiente de sincronizar.',
+            sincronizado ? 'success' : 'warning'
+          );
         } catch {
           this.mostrarToast('TAG finalizado localmente. Sincronización pendiente.', 'warning');
         }

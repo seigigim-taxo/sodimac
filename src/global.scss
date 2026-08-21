@@ -988,3 +988,14 @@ ion-modal.buscador-modal {
     margin-bottom: 0;
   }
 }
+
+/*
+ * Alerta del respaldo: el mensaje incluye la ruta donde quedó el archivo, que
+ * es larga y sin espacios. Ionic no permite HTML en las alertas (innerHTML está
+ * deshabilitado por defecto y no vale la pena abrirlo para esto), así que el
+ * salto de línea viaja como \n y se respeta acá.
+ */
+.alerta-respaldo .alert-message {
+  white-space: pre-line;
+  word-break: break-word;
+}

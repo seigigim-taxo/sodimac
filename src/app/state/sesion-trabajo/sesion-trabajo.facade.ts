@@ -2,6 +2,10 @@ import { Injectable, inject, signal } from '@angular/core';
 import { RecuperarSesionTrabajoUseCase } from '../../application/conteo/recuperar-sesion-trabajo.use-case';
 import { EventoFacade } from '../evento/evento.facade';
 import { ZonaFacade } from '../zona/zona.facade';
+import { ConteoFacade } from '../conteo/conteo.facade';
+import { ConteoListFacade } from '../conteo/conteo-list.facade';
+import { ResumenEventoFacade } from '../conteo/resumen-evento.facade';
+import { SucursalFacade } from '../sucursal/sucursal.facade';
 
 /*
  * Devuelve al operador donde estaba después de que la app dejó de correr
@@ -18,12 +22,32 @@ import { ZonaFacade } from '../zona/zona.facade';
  */
 @Injectable({ providedIn: 'root' })
 export class SesionTrabajoFacade {
-  private recuperar    = inject(RecuperarSesionTrabajoUseCase);
-  private eventoFacade = inject(EventoFacade);
-  private zonaFacade   = inject(ZonaFacade);
+  private recuperar     = inject(RecuperarSesionTrabajoUseCase);
+  private eventoFacade  = inject(EventoFacade);
+  private zonaFacade    = inject(ZonaFacade);
+  private conteoFacade  = inject(ConteoFacade);
+  private conteoList    = inject(ConteoListFacade);
+  private resumenFacade = inject(ResumenEventoFacade);
+  private sucursalFacade = inject(SucursalFacade);
 
   private restaurandoSignal = signal(false);
   readonly restaurando = this.restaurandoSignal.asReadonly();
+
+  /*
+   * Suelta TODO el estado de trabajo que vive en memoria. Se llama al cerrar
+   * sesión: las señales son singletons y sobreviven al logout, así que sin esto
+   * el evento, el TAG, los ítems y los conteos del turno anterior siguen ahí
+   * para quien entre después. Lo contado no se toca — eso está en SQLite y
+   * pertenece al evento, no a la sesión.
+   */
+  async limpiar(): Promise<void> {
+    this.conteoFacade.reset();
+    this.zonaFacade.reset();
+    this.conteoList.reset();
+    this.resumenFacade.reset();
+    this.sucursalFacade.reset();
+    await this.eventoFacade.limpiarSeleccion();
+  }
 
   /*
    * No propaga errores: si la restauración falla, la app tiene que arrancar
@@ -41,10 +65,16 @@ export class SesionTrabajoFacade {
        * turno anterior y no le corresponde a quien acaba de entrar.
        */
       if (!sesion) {
-        this.zonaFacade.reset();
-        await this.eventoFacade.limpiarSeleccion();
+        await this.limpiar();
         return;
       }
+
+      /*
+       * La sesión de conteo en memoria es del turno anterior aunque el evento
+       * coincida: sus ids de conteo y operador ya no valen. La pantalla de
+       * conteo la vuelve a abrir en su ionViewWillEnter.
+       */
+      this.conteoFacade.reset();
 
       this.eventoFacade.restaurarSeleccion(sesion.evento);
 

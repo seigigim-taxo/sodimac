@@ -45,6 +45,7 @@ export class AnalystDashboardPage {
   registros = this.dashboard.registros;
   registrosEnviados = this.dashboard.registrosEnviados;
   registrosPendientes = this.dashboard.registrosPendientes;
+  registrosConError = this.dashboard.registrosConError;
 
   filtroBusqueda = signal('');
   filtroZona = signal('TODAS');
@@ -148,14 +149,14 @@ export class AnalystDashboardPage {
 
     this.enviando.set(true);
     try {
-      const ok = await this.dashboard.registrarConteo(
+      const resultado = await this.dashboard.registrarConteo(
         fila, tag.tagCodigo, tag.ubicacionCodigo, tag.zonaNombre, cantidad
       );
-      if (ok) {
+      if (resultado.ok) {
         await this.avisar(`Conteo registrado: ${fila.sku} × ${cantidad} en ${tag.ubicacionCodigo}`, 'success');
         this.cerrarModal();
       } else {
-        await this.avisar('Error al enviar el conteo al servidor', 'danger');
+        await this.avisar(resultado.error ?? 'Error al enviar el conteo al servidor', 'danger');
       }
     } finally {
       this.enviando.set(false);

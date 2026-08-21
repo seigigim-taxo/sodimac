@@ -84,6 +84,9 @@
                 @if (registrosPendientes().length > 0) {
                   <span class="pill pill-amber">{{ registrosPendientes().length }} pendientes</span>
                 }
+                @if (registrosConError().length > 0) {
+                  <span class="pill pill-red">{{ registrosConError().length }} errores</span>
+                }
               </div>
             }
           </div>

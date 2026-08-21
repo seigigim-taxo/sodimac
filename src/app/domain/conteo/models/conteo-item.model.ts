@@ -13,4 +13,6 @@ export interface ConteoItem {
   /* Número de la ronda a la que pertenece; viene del JOIN con sod_conteo. */
   iteracion:      number;
   fechaHora:      string;
+  /* Código exacto de lectura usado para registrar este conteo. */
+  codigoLectura:  string | null;
 }

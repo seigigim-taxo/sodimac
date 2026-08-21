@@ -1,15 +1,19 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista } from '../../domain/sincronizacion/models/preparacion.model';
-import { ApiService } from '../../core/http/api.service';
 import { AuthFacade } from '../auth/auth.facade';
 import { PdaFacade } from '../pda/pda.facade';
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { SincronizarTagFinalizadoUseCase } from '../../application/sincronizacion/sincronizar-tag-finalizado.use-case';
+import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
+import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 
 @Injectable({ providedIn: 'root' })
 export class AnalystDashboardFacade {
-  private api = inject(ApiService);
   private auth = inject(AuthFacade);
   private pda = inject(PdaFacade);
+  private syncTag = inject(SincronizarTagFinalizadoUseCase);
+  private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
+  private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
 
   private contextoSignal = signal<ContextoAnalista | null>(null);
   private kpisSignal = signal<KpisAnalista | null>(null);
@@ -37,10 +41,10 @@ export class AnalystDashboardFacade {
     ubicacionCodigo: string,
     zonaNombre: string,
     cantidadAnalista: number
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; error?: string }> {
     const session = this.auth.session();
     const ctx = this.contextoSignal();
-    if (!session || !ctx) return false;
+    if (!session || !ctx) return { ok: false, error: 'Sesión o contexto no disponible' };
 
     const registro: RegistroAnalista = {
       filaSku: fila.sku,
@@ -54,19 +58,31 @@ export class AnalystDashboardFacade {
 
     this.registrosSignal.update(prev => [...prev, registro]);
 
-    const exito = await this.enviarTagFinalizado(fila, tagCodigo, ubicacionCodigo, zonaNombre, cantidadAnalista);
-    if (!exito) return false;
+    const resultado = await this.enviarTagFinalizado(fila, tagCodigo, ubicacionCodigo, zonaNombre, cantidadAnalista);
+
+    if (resultado.ok) {
+      this.registrosSignal.update(prev =>
+        prev.map(r =>
+          r.filaSku === registro.filaSku &&
+          r.tagCodigo === registro.tagCodigo &&
+          r.fechaHora === registro.fechaHora
+            ? { ...r, estado: 'ENVIADO' as const }
+            : r
+        )
+      );
+      return { ok: true };
+    }
 
     this.registrosSignal.update(prev =>
       prev.map(r =>
         r.filaSku === registro.filaSku &&
         r.tagCodigo === registro.tagCodigo &&
         r.fechaHora === registro.fechaHora
-          ? { ...r, estado: 'ENVIADO' as const }
+          ? { ...r, estado: 'ERROR' as const, error: resultado.error }
           : r
       )
     );
-    return true;
+    return { ok: false, error: resultado.error };
   }
 
   limpiar(): void {
@@ -82,14 +98,19 @@ export class AnalystDashboardFacade {
     ubicacionCodigo: string,
     zonaNombre: string,
     cantidadAnalista: number
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; error?: string }> {
     const session = this.auth.session();
     const ctx = this.contextoSignal();
-    if (!session || !ctx) return false;
+    if (!session || !ctx) return { ok: false, error: 'Sesión o contexto no disponible' };
+
+    const eventoId = await this.resolverEventoId(ctx);
+    if (!eventoId) {
+      return { ok: false, error: 'No se encontró evento local para esta jornada. Sincroniza datos antes de registrar conteos.' };
+    }
 
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
-    const cargaUid = `${ctx.codigoTienda}-ITER2-${tagCodigo}-${this.pda.pdaId() ?? 'PDA'}-${now.getTime()}`;
+    const cargaUid = this.generarCargaUid(ctx, tagCodigo, now);
 
     const payload: TagFinalizadoPayload = {
       carga_uid: cargaUid,
@@ -103,7 +124,7 @@ export class AnalystDashboardFacade {
       operador_login: session.correo,
       pda_codigo: String(this.pda.pdaId() ?? 'PDA'),
       codigo_muestra: ctx.codigoMuestra,
-      id_agenda: null,
+      id_agenda: ctx.idAgenda,
       numero_agenda: ctx.numeroAgenda,
       ubicacion_codigo: ubicacionCodigo,
       detalles: [
@@ -120,11 +141,37 @@ export class AnalystDashboardFacade {
       ],
     };
 
-    try {
-      await this.api.post('sincronizaciones/tag-finalizado.php', payload);
-      return true;
-    } catch {
-      return false;
-    }
+    const resultado = await this.syncTag.execute({
+      eventoId,
+      pdaId: this.pda.pdaId() ?? 0,
+      iteracion: 2,
+      perfil: 'ANALISTA_CLIENTE',
+      conteoId: null,
+      ubicacionId: null,
+      operadorId: session.operadorId,
+      cargaUid,
+      payload,
+    });
+
+    return resultado.ok
+      ? { ok: true }
+      : { ok: false, error: resultado.error };
+  }
+
+  private async resolverEventoId(ctx: ContextoAnalista): Promise<number | null> {
+    const sucursalId = await this.sucursalRepo.getIdPorCodigo(ctx.codigoTienda);
+    if (!sucursalId) return null;
+
+    const eventos = await this.eventoRepo.getBySucursal(sucursalId);
+    const evento = eventos.find(e => e.fechaProgramada === ctx.fechaJornada);
+    return evento?.id ?? null;
+  }
+
+  private generarCargaUid(ctx: ContextoAnalista, tagCodigo: string, now: Date): string {
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
+    const zona = tagCodigo ?? 'SINZONA';
+    const pda = String(this.pda.pdaId() ?? 'PDA');
+    return `${ctx.codigoTienda}-${ctx.fechaJornada}-AN-ITER2-${zona}-${zona}-${pda}-${ts}`;
   }
 }
