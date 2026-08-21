@@ -2,6 +2,10 @@
   <ion-toolbar>
     <ion-title>Inicio</ion-title>
     <ion-buttons slot="end">
+      <span class="status-pill text-[11px] px-2 py-0.5"
+        [style.background]="online() ? 'var(--app-success)' : 'var(--ion-color-danger)'">
+        {{ online() ? 'En línea' : 'Sin conexión' }}
+      </span>
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
       </ion-button>
@@ -146,7 +150,14 @@
     </div>
     }
 
-    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo()"
+    @if (!online()) {
+    <div class="status-banner status-banner-warning mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>Sin conexión. La consulta de nuevo conteo requiere red.</span>
+    </div>
+    }
+
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo() || !online()"
       (click)="buscarNuevoConteo()">
       @if (buscandoConteo()) {
       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>

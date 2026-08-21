@@ -17,7 +17,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
+  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeOutline, flagOutline, refreshOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
 } from 'ionicons/icons';
 import { ScanComponent } from '../../../shared/components/scan/scan.component';
 import { EventoFacade } from '../../../state/evento/evento.facade';
@@ -29,6 +29,7 @@ import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resumen-evento.facade';
 import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
 import { BuscadorService } from '../../../shared/services/buscador.service';
+import { NetworkService } from '../../../shared/services/network.service';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -85,6 +86,9 @@ export class CountingPageComponent implements ViewWillEnter {
   private resumenFacade     = inject(ResumenEventoFacade);
   private ajustes           = inject(AjustesFacade);
   private buscador          = inject(BuscadorService);
+  private network           = inject(NetworkService);
+
+  online = this.network.isOnline;
 
   currentEvent = this.eventoFacade.selectedEvent;
   tagActual    = this.zonaFacade.tagValue;
@@ -99,6 +103,8 @@ export class CountingPageComponent implements ViewWillEnter {
   private lastScanTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
   finalizando = signal(false);
+  iniciandoSesion = signal(false);
+  sesionError = signal<string | null>(null);
 
   // Resumen de avance del evento: panel expandible que muestra el progreso global
   resumenVisible = signal(false);
@@ -146,7 +152,7 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   constructor() {
-    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
+    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeOutline, flagOutline, refreshOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
   }
 
   abrirBuscador(): void {
@@ -224,8 +230,17 @@ export class CountingPageComponent implements ViewWillEnter {
      */
     if (ubicacionId === this.sesionInicializada && this.conteo.enCurso()) return;
 
-    this.sesionInicializada = ubicacionId;
-    void this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    this.iniciandoSesion.set(true);
+    this.sesionError.set(null);
+    try {
+      this.sesionInicializada = ubicacionId;
+      await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    } catch (err) {
+      this.sesionError.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
+      this.sesionInicializada = null;
+    } finally {
+      this.iniciandoSesion.set(false);
+    }
 
     // Precargar el resumen de avance si ya está visible
     if (this.resumenVisible()) {
@@ -336,6 +351,49 @@ export class CountingPageComponent implements ViewWillEnter {
     await alert.present();
   }
 
+  async reintentarSesion(): Promise<void> {
+    const ubicacionId = this.zonaFacade.ubicacionId();
+    const operadorId  = this.auth.session()?.operadorId;
+    const pdaId       = this.pda.pdaId();
+    const evento      = this.currentEvent();
+    if (!evento || !ubicacionId || !operadorId || !pdaId) return;
+
+    this.iniciandoSesion.set(true);
+    this.sesionError.set(null);
+    try {
+      this.sesionInicializada = ubicacionId;
+      await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    } catch (err) {
+      this.sesionError.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
+      this.sesionInicializada = null;
+    } finally {
+      this.iniciandoSesion.set(false);
+    }
+  }
+
+  async descartarTag(): Promise<void> {
+    // Opción 1 conservador: no borrar si ya tiene productos escaneados.
+    if (this.itemsView().length > 0) {
+      await this.mostrarToast('Este TAG tiene productos registrados. Finalízalo o elimina los productos antes de salir.', 'warning');
+      return;
+    }
+
+    const alert = await this.alertController.create({
+      header:  'Descartar TAG',
+      message: '¿Descartar la sesión de este TAG y volver a seleccionar zona?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Descartar', role: 'destructive', handler: () => {
+          this.sesionInicializada = null;
+          this.conteo.reset();
+          this.zonaFacade.reset();
+          this.router.navigate(['/counting-tag']);
+        }},
+      ],
+    });
+    await alert.present();
+  }
+
   async finalizarTag(): Promise<void> {
     if (this.itemsView().length === 0) return;
 
@@ -383,8 +441,13 @@ export class CountingPageComponent implements ViewWillEnter {
             c.estado === 'FINALIZADO'
           );
           if (resumen) {
-            await this.conteoList.sincronizar(resumen);
-            this.mostrarToast('TAG finalizado y sincronizado.', 'success');
+            const subido = await this.conteoList.sincronizar(resumen);
+            this.mostrarToast(
+              subido ? 'TAG finalizado y sincronizado.' : 'TAG finalizado localmente. Queda pendiente de sincronizar.',
+              subido ? 'success' : 'warning'
+            );
+          } else {
+            this.mostrarToast('TAG finalizado localmente. Queda pendiente de sincronizar.', 'warning');
           }
         } catch {
           this.mostrarToast('TAG finalizado localmente. Sincronización pendiente.', 'warning');

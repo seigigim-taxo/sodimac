@@ -5,6 +5,10 @@
     </ion-buttons>
     <ion-title>Conteos</ion-title>
     <ion-buttons slot="end">
+      <span class="status-pill text-[11px] px-2 py-0.5"
+        [style.background]="online() ? 'var(--app-success)' : 'var(--ion-color-danger)'">
+        {{ online() ? 'En línea' : 'Sin conexión' }}
+      </span>
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
       </ion-button>

@@ -31,6 +31,7 @@ import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade
 import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { BuscadorService } from '../../../shared/services/buscador.service';
+import { NetworkService } from '../../../shared/services/network.service';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -73,6 +74,9 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private resumenFacade = inject(ResumenEventoFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
   private buscador = inject(BuscadorService);
+  private network = inject(NetworkService);
+
+  online = this.network.isOnline;
 
   currentEvent = this.eventoFacade.selectedEvent;
   // Ronda activa derivada de sod_conteo, no la pestaña que el usuario esté mirando.
@@ -226,7 +230,15 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   }
 
   async sincronizarReal(c: ConteoResumen): Promise<void> {
-    await this.conteoList.sincronizar(c);
+    try {
+      const subido = await this.conteoList.sincronizar(c);
+      await this.avisar(
+        subido ? 'TAG sincronizado.' : 'TAG pendiente de sincronizar.',
+        subido ? 'success' : 'danger'
+      );
+    } catch {
+      await this.avisar(this.conteoList.error() ?? 'Error al sincronizar el TAG', 'danger');
+    }
   }
 
   /*

@@ -22,6 +22,7 @@ import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
 import { BuscadorService } from '../../shared/services/buscador.service';
+import { NetworkService } from '../../shared/services/network.service';
 
 
 @Component({
@@ -50,6 +51,9 @@ export class HomePage implements ViewWillEnter {
   private resumenFacade      = inject(ResumenEventoFacade);
   private nuevoConteo        = inject(NuevoConteoFacade);
   private buscador           = inject(BuscadorService);
+  private network            = inject(NetworkService);
+
+  online = this.network.isOnline;
 
   /*
    * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no
