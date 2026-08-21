@@ -15,7 +15,7 @@ export interface ApiResponse<T> {
  * minutos. Finalizar un TAG levanta un overlay que cubre la pantalla, así que
  * eso se veía como la app congelada.
  */
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 300_000;
 
 @Injectable({
   providedIn: 'root',

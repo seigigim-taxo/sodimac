@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
+import { capSQLiteSet } from '@capacitor-community/sqlite';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { LineaMuestraParaGuardar, MuestraDetalleRepository, CodigoProductoMuestra } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.model';
 
 const SQLITE_PARAM_LIMIT = 900;
+const BATCH_SIZE = 500;
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -12,6 +14,16 @@ function chunks<T>(items: T[], size: number): T[][] {
     result.push(items.slice(i, i + size));
   }
   return result;
+}
+
+async function executeSetBatched(
+  db: { executeSet: (set: capSQLiteSet[], transaction?: boolean) => Promise<unknown> },
+  statements: capSQLiteSet[],
+  batchSize: number
+): Promise<void> {
+  for (const batch of chunks(statements, batchSize)) {
+    await db.executeSet(batch, false);
+  }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,24 +48,23 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         codigoBarras: l.codigoBarras,
       }));
 
-      /* 2. Insertar/actualizar productos (sin borrar: sod_conteo.producto_id los referencia) */
-      for (const linea of normalizadas) {
-        await db.run(
-          `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
-           VALUES (?, ?, ?)
-           ON CONFLICT (sku) DO UPDATE SET
-             codigo_barras = excluded.codigo_barras,
-             descripcion   = excluded.descripcion`,
-          [linea.sku, linea.codigoBarras, linea.descripcion],
-          false
-        );
-      }
+      /* 2. Insertar/actualizar productos en lote (sin borrar: sod_conteo.producto_id los referencia) */
+      const productoUpsertStmt = `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
+        VALUES (?, ?, ?)
+        ON CONFLICT (sku) DO UPDATE SET
+          codigo_barras = excluded.codigo_barras,
+          descripcion   = excluded.descripcion`;
+      const productoSet: capSQLiteSet[] = normalizadas.map((l) => ({
+        statement: productoUpsertStmt,
+        values: [l.sku, l.codigoBarras, l.descripcion],
+      }));
+      await executeSetBatched(db, productoSet, BATCH_SIZE);
 
       /* 3. Resolver todos los producto_id en bloque */
-      const skus = normalizadas.map((l) => l.sku);
+      const skusUnicos = [...new Set(normalizadas.map((l) => l.sku))];
       const productoIdPorSku = new Map<string, number>();
 
-      for (const chunk of chunks(skus, SQLITE_PARAM_LIMIT)) {
+      for (const chunk of chunks(skusUnicos, SQLITE_PARAM_LIMIT)) {
         const placeholders = chunk.map(() => '?').join(', ');
         const result = await db.query(
           `SELECT id, sku FROM sod_producto WHERE sku IN (${placeholders})`,
@@ -64,7 +75,7 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         }
       }
 
-      for (const sku of skus) {
+      for (const sku of skusUnicos) {
         if (!productoIdPorSku.has(sku)) {
           throw new Error(`No se pudo resolver producto para SKU ${sku}`);
         }
@@ -81,35 +92,35 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         );
       }
 
-      /* 5. Insertar códigos nuevos usando el mapa de IDs */
+      /* 5. Insertar códigos nuevos en lote usando el mapa de IDs */
+      const codigoUpsertStmt = `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (codigo_lectura) DO UPDATE SET
+          producto_id = excluded.producto_id,
+          tipo_codigo = excluded.tipo_codigo,
+          codigo_barras = excluded.codigo_barras`;
+      const codigoSet: capSQLiteSet[] = [];
       for (const linea of normalizadas) {
         const productoId = productoIdPorSku.get(linea.sku)!;
         for (const codigo of linea.codigos) {
-          await db.run(
-            `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (codigo_lectura) DO UPDATE SET
-               producto_id = excluded.producto_id,
-               tipo_codigo = excluded.tipo_codigo,
-               codigo_barras = excluded.codigo_barras`,
-            [productoId, codigo.codigoLectura, codigo.tipoCodigo, codigo.codigoBarras],
-            false
-          );
+          codigoSet.push({
+            statement: codigoUpsertStmt,
+            values: [productoId, codigo.codigoLectura, codigo.tipoCodigo, codigo.codigoBarras],
+          });
         }
       }
+      await executeSetBatched(db, codigoSet, BATCH_SIZE);
 
-      /* 6. Reemplazar detalle de muestra completo (sin FK contra sod_muestra_detalle) */
+      /* 6. Reemplazar detalle de muestra completo en lote (sin FK contra sod_muestra_detalle) */
       await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId], false);
 
-      for (const linea of normalizadas) {
-        const productoId = productoIdPorSku.get(linea.sku)!;
-        await db.run(
-          `INSERT INTO sod_muestra_detalle (muestra_id, producto_id, stock_sistema)
-           VALUES (?, ?, ?)`,
-          [muestraId, productoId, linea.stockSistema],
-          false
-        );
-      }
+      const detalleInsertStmt = `INSERT INTO sod_muestra_detalle (muestra_id, producto_id, stock_sistema)
+        VALUES (?, ?, ?)`;
+      const detalleSet: capSQLiteSet[] = normalizadas.map((l) => ({
+        statement: detalleInsertStmt,
+        values: [muestraId, productoIdPorSku.get(l.sku)!, l.stockSistema],
+      }));
+      await executeSetBatched(db, detalleSet, BATCH_SIZE);
     });
   }
 
