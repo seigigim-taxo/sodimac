@@ -65,6 +65,7 @@ export class ConteoFacade {
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
     } catch (err) {
+      console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
     } finally {
       this.loadingSignal.set(false);

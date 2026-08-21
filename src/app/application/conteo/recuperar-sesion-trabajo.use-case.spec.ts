@@ -32,12 +32,13 @@ describe('RecuperarSesionTrabajoUseCase', () => {
   let storage: jasmine.SpyObj<EventoSeleccionadoStorageRepository>;
 
   beforeEach(() => {
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getSesionEnCurso']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getSesionEnCurso', 'getEventoIdUltimoTrabajo']);
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById']);
     zonaRepo   = jasmine.createSpyObj('ZonaRepository', ['getBySucursal']);
     storage    = jasmine.createSpyObj('EventoSeleccionadoStorage', ['obtener']);
 
     conteoRepo.getSesionEnCurso.and.resolveTo(null);
+    conteoRepo.getEventoIdUltimoTrabajo.and.resolveTo(null);
     eventoRepo.getById.and.resolveTo(EVENTO);
     zonaRepo.getBySucursal.and.resolveTo([ZONA]);
     storage.obtener.and.resolveTo(null);
@@ -83,11 +84,25 @@ describe('RecuperarSesionTrabajoUseCase', () => {
     expect(eventoRepo.getById).toHaveBeenCalledWith(5);
   });
 
-  it('no restaura un evento que ya está en análisis', async () => {
+  it('restaura un evento en análisis pero sin sesión de conteo', async () => {
     storage.obtener.and.resolveTo(5);
-    eventoRepo.getById.and.resolveTo({ ...EVENTO, estado: 'EN_ANALISIS' });
+    const enAnalisis = { ...EVENTO, estado: 'EN_ANALISIS' as const };
+    eventoRepo.getById.and.resolveTo(enAnalisis);
 
-    expect(await useCase.execute(7, 1)).toBeNull();
+    const resultado = await useCase.execute(7, 1);
+
+    expect(resultado?.evento).toEqual(enAnalisis);
+    expect(resultado?.conteo).toBeNull();
+  });
+
+  it('tampoco arrastra una sesión de TAG si el evento ya está terminado', async () => {
+    storage.obtener.and.resolveTo(5);
+    conteoRepo.getSesionEnCurso.and.resolveTo(SESION);
+    eventoRepo.getById.and.resolveTo({ ...EVENTO, estado: 'CERRADO' as const });
+
+    const resultado = await useCase.execute(7, 1);
+
+    expect(resultado?.conteo).toBeNull();
   });
 
   // La zona puede faltar si la sincronización la eliminó: el evento sigue sirviendo.
