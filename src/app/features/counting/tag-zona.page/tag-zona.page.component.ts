@@ -71,7 +71,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private buscador        = inject(BuscadorService);
   private network         = inject(NetworkService);
 
-  online = this.network.isOnline;
+  isOnline = this.network.isOnline;
 
   currentEvent    = this.eventoFacade.selectedEvent;
   iteracionActual = this.conteoList.iteracionActiva;

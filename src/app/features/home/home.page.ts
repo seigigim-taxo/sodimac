@@ -53,7 +53,7 @@ export class HomePage implements ViewWillEnter {
   private buscador           = inject(BuscadorService);
   private network            = inject(NetworkService);
 
-  online = this.network.isOnline;
+  isOnline = this.network.isOnline;
 
   /*
    * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no

@@ -1,11 +1,13 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>Inicio</ion-title>
+    <ion-title>
+      @if (isOnline()) {
+        <span style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+    </ion-title>
     <ion-buttons slot="end">
-      <span class="status-pill text-[11px] px-2 py-0.5"
-        [style.background]="online() ? 'var(--app-success)' : 'var(--ion-color-danger)'">
-        {{ online() ? 'En línea' : 'Sin conexión' }}
-      </span>
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
       </ion-button>
@@ -150,14 +152,7 @@
     </div>
     }
 
-    @if (!online()) {
-    <div class="status-banner status-banner-warning mb-4">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>Sin conexión. La consulta de nuevo conteo requiere red.</span>
-    </div>
-    }
-
-    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo() || !online()"
+    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo()"
       (click)="buscarNuevoConteo()">
       @if (buscandoConteo()) {
       <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
@@ -192,7 +187,7 @@
         <div class="h-px mb-3" style="background: var(--app-border);"></div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[12px]" style="color: var(--app-text-muted);">Iteración</span>
+            <span class="text-[12px]" style="color: var(--app-text-muted);">Ronda</span>
             <span class="text-[13px] font-semibold num" style="color: var(--app-text);">{{ item.resumen.iteracion }}</span>
           </div>
           <div class="flex items-center justify-between">

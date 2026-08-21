@@ -1,17 +1,13 @@
 <ion-header>
   <ion-toolbar>
     <ion-title>
-      @if (tagActual(); as tag) {
-      TAG {{ tag }}
+      @if (isOnline()) {
+        <span style="color: var(--app-success);">● En línea</span>
       } @else {
-      Conteo
+        <span style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
       }
     </ion-title>
     <ion-buttons slot="end">
-      <span class="status-pill text-[11px] px-2 py-0.5"
-        [style.background]="online() ? 'var(--app-success)' : 'var(--ion-color-danger)'">
-        {{ online() ? 'En línea' : 'Sin conexión' }}
-      </span>
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
       </ion-button>
@@ -21,36 +17,15 @@
 </ion-header>
 
 <ion-content style="--background: var(--app-bg-gradient);">
-  <!-- Franja de iteración: color + número + modo, siempre visible arriba del conteo -->
+  <!-- Franja de TAG: siempre visible arriba del conteo -->
   <div class="flex items-center justify-center gap-2 py-2.5 px-4"
-    [style.background]="colorIteracion()">
+    style="background: var(--app-success);">
     <span class="text-[15px] font-extrabold uppercase tracking-wide" style="color: white;">
-      @if (iteracionActual() > 1) {
-        Modo RECONTEO · Iteración {{ iteracionActual() }}
-      } @else {
-        Iteración {{ iteracionActual() }}
-      }
+      TAG {{ tagActual() }}
     </span>
   </div>
 
   <div class="page-inner py-6">
-
-    @if (iniciandoSesion()) {
-    <div class="status-banner status-banner-info mb-4">
-      <ion-spinner name="crescent" color="primary" style="width: 18px; height: 18px;"></ion-spinner>
-      <span>Preparando sesión de conteo…</span>
-    </div>
-    }
-
-    @if (sesionError(); as error) {
-    <div class="status-banner status-banner-error mb-4">
-      <span>{{ error }}</span>
-    </div>
-    <ion-button expand="block" class="btn-primary mb-4" (click)="reintentarSesion()">
-      <ion-icon slot="start" name="refresh-outline"></ion-icon>
-      Reintentar
-    </ion-button>
-    }
 
     <!-- Botón de resumen de avance -->
     <div class="card mb-4">
@@ -132,9 +107,24 @@
       </div>
     </div>
 
-    <app-scan scanType="sku" placeholder="Escanea o ingresa SKU" confirmLabel="Registrar" [showBanner]="false"
-      [locked]="iniciandoSesion() || !!sesionError() || finalizando()"
+    <app-scan scanType="sku" [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
+      confirmLabel="Registrar" [showBanner]="false" [locked]="escanerBloqueado()"
       (scan)="onScanSku($event)"></app-scan>
+
+    <!-- No se pudo abrir la sesión: el escáner queda bloqueado y acá se explica por qué. -->
+    @if (errorSesion()) {
+    <div class="status-banner status-banner-error mt-4">
+      <span>No se pudo preparar el conteo de este TAG. Avisa a tu supervisor si vuelve a pasar.</span>
+    </div>
+    <div class="flex gap-2 mt-3">
+      <ion-button expand="block" class="btn-accent" style="flex: 1;" (click)="reintentarSesion()">
+        Reintentar
+      </ion-button>
+      <ion-button expand="block" fill="outline" style="flex: 1;" (click)="volverAInicio()">
+        Volver a Inicio
+      </ion-button>
+    </div>
+    }
 
     @if (lastScan(); as scan) {
     @if (scan.estado === 'OK') {
@@ -221,10 +211,14 @@
         <ion-icon slot="start" name="flag-outline"></ion-icon>
         Finalizar TAG
       </ion-button>
+
+      <!-- Única salida del TAG abierto por error: sin líneas no se puede finalizar. -->
+      @if (itemsView().length === 0) {
       <ion-button expand="block" fill="clear" class="mt-2" (click)="descartarTag()">
-        <ion-icon slot="start" name="close-outline"></ion-icon>
+        <ion-icon slot="start" name="close-circle-outline"></ion-icon>
         Descartar TAG
       </ion-button>
+      }
     </div>
 
   </div>
@@ -233,7 +227,7 @@
   <div class="flex flex-col items-center justify-center gap-3"
     style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
     <ion-spinner name="crescent" color="light" style="width: 48px; height: 48px;"></ion-spinner>
-    <p class="text-base font-semibold" style="color: white;">Finalizando TAG…</p>
+    <p class="text-base font-semibold" style="color: white;">Sincronizando TAG…</p>
   </div>
   }
 </ion-content>

@@ -1,17 +1,13 @@
 <ion-header>
   <ion-toolbar>
     <ion-title>
-      @if (currentEvent(); as e) {
-      {{ e.nombre }}
+      @if (isOnline()) {
+        <span style="color: var(--app-success);">● En línea</span>
       } @else {
-      Nuevo TAG
+        <span style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
       }
     </ion-title>
     <ion-buttons slot="end">
-      <span class="status-pill text-[11px] px-2 py-0.5"
-        [style.background]="online() ? 'var(--app-success)' : 'var(--ion-color-danger)'">
-        {{ online() ? 'En línea' : 'Sin conexión' }}
-      </span>
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">
         <ion-icon slot="icon-only" name="search-outline"></ion-icon>
       </ion-button>
@@ -26,7 +22,6 @@
     <div class="flex flex-col gap-2 mb-4">
       <div class="flex items-center justify-between gap-3">
         <h2 class="page-title">Nuevo TAG</h2>
-        <span class="badge shrink-0">Iteración {{ iteracionActual() }}</span>
       </div>
       <p class="page-subtitle">Selecciona la zona, ingresa la ubicación y escanea el TAG</p>
     </div>
@@ -75,7 +70,7 @@
 
       @if (iteracionActual() > 1 && !tagConfirmado()) {
       <div class="mb-3">
-        <p class="field-label mb-2">TAGs contados en iteraciones anteriores</p>
+        <p class="field-label mb-2">TAGs contados anteriormente</p>
         @if (tagsSugeridosLoading()) {
           <div class="flex justify-center py-3">
             <ion-spinner name="crescent" color="primary" style="width: 20px; height: 20px;"></ion-spinner>
@@ -91,7 +86,7 @@
           </div>
           <p class="hint-text mt-2">Toca un TAG para autocompletar, o ingresa uno nuevo</p>
         } @else {
-          <p class="hint-text">No hay TAGs registrados en iteraciones anteriores</p>
+          <p class="hint-text">No hay TAGs registrados anteriormente</p>
         }
       </div>
       }
