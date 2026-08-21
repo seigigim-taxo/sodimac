@@ -5,6 +5,9 @@ import { LineaMuestraParaGuardar, MuestraDetalleRepository, CodigoProductoMuestr
 import { MuestraDetalle } from '../../domain/muestra/models/muestra-detalle.model';
 
 const SQLITE_PARAM_LIMIT = 900;
+const BATCH_SIZE = 500;
+const MULTI_ROW_PRODUCTO_DETALLE = 200;
+const MULTI_ROW_MUESTRA_DETALLE = 300;
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -14,17 +17,18 @@ function chunks<T>(items: T[], size: number): T[][] {
   return result;
 }
 
+type SqliteConn = {
+  executeSet: (set: { statement: string; values: unknown[] }[], transaction?: boolean) => Promise<unknown>;
+  run: (statement: string, values?: unknown[], transaction?: boolean) => Promise<unknown>;
+  query: (statement: string, values?: unknown[]) => Promise<{ values?: unknown[] }>;
+};
+
 @Injectable({ providedIn: 'root' })
 export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository {
   private connection = inject(SqliteConnectionService);
 
-  /*
-   * Transaccional, y acá importa más que en ningún otro lado: el DELETE del
-   * detalle va antes de los INSERT. Si falla a mitad sin transacción, la muestra
-   * queda sin líneas y el operador no puede contar nada.
-   */
   async reemplazarDetalles(muestraId: number, lineas: LineaMuestraParaGuardar[]): Promise<void> {
-    await this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
+    await this.connection.enTransaccion(SODIMAC_DB_NAME, async (db: SqliteConn) => {
       /* 1. Normalizar líneas una sola vez */
       const normalizadas = lineas.map((l) => ({
         sku: l.sku.trim().toUpperCase(),
@@ -36,24 +40,25 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         codigoBarras: l.codigoBarras,
       }));
 
-      /* 2. Insertar/actualizar productos (sin borrar: sod_conteo.producto_id los referencia) */
-      for (const linea of normalizadas) {
-        await db.run(
-          `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
-           VALUES (?, ?, ?)
-           ON CONFLICT (sku) DO UPDATE SET
-             codigo_barras = excluded.codigo_barras,
-             descripcion   = excluded.descripcion`,
-          [linea.sku, linea.codigoBarras, linea.descripcion],
-          false
-        );
+      /* 2. Upsert productos en batches */
+      const productoUpsertStmt = `INSERT INTO sod_producto (sku, codigo_barras, descripcion)
+        VALUES (?, ?, ?)
+        ON CONFLICT (sku) DO UPDATE SET
+          codigo_barras = excluded.codigo_barras,
+          descripcion   = excluded.descripcion`;
+      const productoSet: { statement: string; values: unknown[] }[] = normalizadas.map((l) => ({
+        statement: productoUpsertStmt,
+        values: [l.sku, l.codigoBarras, l.descripcion],
+      }));
+      for (const batch of chunks(productoSet, BATCH_SIZE)) {
+        await db.executeSet(batch, false);
       }
 
       /* 3. Resolver todos los producto_id en bloque */
-      const skus = normalizadas.map((l) => l.sku);
+      const skusUnicos = [...new Set(normalizadas.map((l) => l.sku))];
       const productoIdPorSku = new Map<string, number>();
 
-      for (const chunk of chunks(skus, SQLITE_PARAM_LIMIT)) {
+      for (const chunk of chunks(skusUnicos, SQLITE_PARAM_LIMIT)) {
         const placeholders = chunk.map(() => '?').join(', ');
         const result = await db.query(
           `SELECT id, sku FROM sod_producto WHERE sku IN (${placeholders})`,
@@ -64,7 +69,7 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         }
       }
 
-      for (const sku of skus) {
+      for (const sku of skusUnicos) {
         if (!productoIdPorSku.has(sku)) {
           throw new Error(`No se pudo resolver producto para SKU ${sku}`);
         }
@@ -81,32 +86,46 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         );
       }
 
-      /* 5. Insertar códigos nuevos usando el mapa de IDs */
+      /* 5. Upsert códigos en multi-row chunks */
+      const codigoRows: unknown[][] = [];
       for (const linea of normalizadas) {
         const productoId = productoIdPorSku.get(linea.sku)!;
         for (const codigo of linea.codigos) {
-          await db.run(
-            `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (codigo_lectura) DO UPDATE SET
-               producto_id = excluded.producto_id,
-               tipo_codigo = excluded.tipo_codigo,
-               codigo_barras = excluded.codigo_barras`,
-            [productoId, codigo.codigoLectura, codigo.tipoCodigo, codigo.codigoBarras],
-            false
-          );
+          codigoRows.push([productoId, codigo.codigoLectura, codigo.tipoCodigo, codigo.codigoBarras]);
         }
       }
+      for (const batch of chunks(codigoRows, MULTI_ROW_PRODUCTO_DETALLE)) {
+        const placeholders = batch.map(() => '(?, ?, ?, ?)').join(', ');
+        const values: unknown[] = [];
+        for (const row of batch) values.push(...row);
+        await db.run(
+          `INSERT INTO sod_producto_detalle (producto_id, codigo_lectura, tipo_codigo, codigo_barras)
+           VALUES ${placeholders}
+           ON CONFLICT (codigo_lectura) DO UPDATE SET
+             producto_id = excluded.producto_id,
+             tipo_codigo = excluded.tipo_codigo,
+             codigo_barras = excluded.codigo_barras`,
+          values,
+          false
+        );
+      }
 
-      /* 6. Reemplazar detalle de muestra completo (sin FK contra sod_muestra_detalle) */
+      /* 6. Reemplazar detalle de muestra en multi-row chunks */
       await db.run(`DELETE FROM sod_muestra_detalle WHERE muestra_id = ?`, [muestraId], false);
 
-      for (const linea of normalizadas) {
-        const productoId = productoIdPorSku.get(linea.sku)!;
+      const detalleRows: unknown[][] = normalizadas.map((l) => [
+        muestraId,
+        productoIdPorSku.get(l.sku)!,
+        l.stockSistema,
+      ]);
+      for (const batch of chunks(detalleRows, MULTI_ROW_MUESTRA_DETALLE)) {
+        const placeholders = batch.map(() => '(?, ?, ?)').join(', ');
+        const values: unknown[] = [];
+        for (const row of batch) values.push(...row);
         await db.run(
           `INSERT INTO sod_muestra_detalle (muestra_id, producto_id, stock_sistema)
-           VALUES (?, ?, ?)`,
-          [muestraId, productoId, linea.stockSistema],
+           VALUES ${placeholders}`,
+          values,
           false
         );
       }

@@ -5,6 +5,8 @@ import { PreparacionApiRepository } from '../../domain/sincronizacion/repositori
 import { parsearPreparacion } from './preparacion.parser';
 import { environment } from '../../../environments/environment';
 
+const PREPARACION_TIMEOUT_MS = 300_000;
+
 @Injectable({ providedIn: 'root' })
 export class PreparacionApiService implements PreparacionApiRepository {
   private api = inject(ApiService);
@@ -18,7 +20,7 @@ export class PreparacionApiService implements PreparacionApiRepository {
    */
   async preparar(request: PreparacionRequest): Promise<DatosPreparacion> {
     const endpoint = environment.preparacionEndpoint ?? 'sincronizaciones/preparacion.php';
-    const data = await this.api.post<unknown>(endpoint, request);
+    const data = await this.api.post<unknown>(endpoint, request, { timeoutMs: PREPARACION_TIMEOUT_MS });
     return parsearPreparacion(data);
   }
 }

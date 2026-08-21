@@ -17,13 +17,17 @@ export interface ApiResponse<T> {
  */
 const TIMEOUT_MS = 30_000;
 
+export interface ApiRequestOptions {
+  timeoutMs?: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class ApiService {
   private readonly baseUrl = environment.apiUrl;
 
-  async get<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | number | boolean>, options?: ApiRequestOptions): Promise<T> {
     const url = new URL(`${this.baseUrl}/${path}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -35,7 +39,7 @@ export class ApiService {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await response.json();
       return this.unwrap<T>(data);
@@ -44,13 +48,13 @@ export class ApiService {
     }
   }
 
-  async post<T>(path: string, body: unknown): Promise<T> {
+  async post<T>(path: string, body: unknown, options?: ApiRequestOptions): Promise<T> {
     try {
       const response = await fetch(`${this.baseUrl}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await response.json();
       return this.unwrap<T>(data);
