@@ -40,16 +40,23 @@ export class SincronizarDatosInicialesUseCase {
     session: Session,
     onEtapa?: (etapa: EtapaSincronizacion) => void
   ): Promise<{ usuario: UsuarioPreparado; analista: DatosAnalista | null }> {
+    console.time('[Sync] TOTAL');
+
+    console.time('[Sync] 1. fetch+parse preparacion.php');
     onEtapa?.('DESCARGANDO');
     const datos = await this.preparacionApi.preparar({
       correo: session.correo,
       rut: session.rutNormalizado,
     });
+    console.timeEnd('[Sync] 1. fetch+parse preparacion.php');
+    console.log('[Sync] productos:', datos.muestra?.detalles?.length ?? 0,
+      '| codigos totales:', datos.muestra?.detalles?.reduce((acc, d) => acc + d.codigos.length, 0) ?? 0);
 
     onEtapa?.('GUARDANDO');
     const usuario = datos.usuario;
     const { rut, rutDv } = partirRut(usuario.rutNormalizado);
 
+    console.time('[Sync] 2. guardar perfil operador');
     await this.operadorRepo.guardarPerfil({
       cargo: usuario.cargo,
       rut,
@@ -59,7 +66,9 @@ export class SincronizarDatosInicialesUseCase {
       apellidoMaterno: usuario.apellidoMaterno,
       correo: usuario.login,
     });
+    console.timeEnd('[Sync] 2. guardar perfil operador');
 
+    console.time('[Sync] 3. guardar sucursales');
     await this.sucursalRepo.guardarDeUsuario(
       session.operadorId,
       datos.tiendas.map((t) => ({
@@ -68,11 +77,19 @@ export class SincronizarDatosInicialesUseCase {
         zonaOperativa: t.zonaOperativa,
       }))
     );
+    console.timeEnd('[Sync] 3. guardar sucursales');
 
+    console.time('[Sync] 4. guardar evento + muestra + detalle');
     await this.guardarEventoYMuestra(datos);
+    console.timeEnd('[Sync] 4. guardar evento + muestra + detalle');
+
+    console.time('[Sync] 5. guardar zonas');
     await this.guardarZonas(datos);
+    console.timeEnd('[Sync] 5. guardar zonas');
+
     await this.logDatabase();
 
+    console.timeEnd('[Sync] TOTAL');
     onEtapa?.('LISTO');
     return { usuario, analista: datos.analista };
   }
@@ -121,25 +138,24 @@ export class SincronizarDatosInicialesUseCase {
     const evento = datos.evento;
     if (!tienda || !evento?.fechaProgramada) return;
 
-    /*
-     * El `sucursal_id` que manda el backend es suyo (48). El id local sale de
-     * traducir el código de tienda, que es la identidad compartida.
-     */
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
     if (sucursalId === null) return;
 
+    console.time('[Sync] 4a. resolver evento');
     const eventoId = await this.resolverEvento(datos, sucursalId, {
       sucursalId,
       fechaProgramada: evento.fechaProgramada,
       estado: evento.estado as EstadoEvento,
       nombre: datos.muestra?.nombreMuestra ?? '',
     });
+    console.timeEnd('[Sync] 4a. resolver evento');
 
-    console.log('[Sincronizar] Evento ID:', eventoId);
-    console.log('[Sincronizar] Detalles a guardar:', datos.muestra?.detalles?.length ?? 0);
+    console.log('[Sync] Evento ID:', eventoId);
+    console.log('[Sync] Detalles a guardar:', datos.muestra?.detalles?.length ?? 0);
 
     if (!datos.muestra) return;
 
+    console.time('[Sync] 4b. asegurar muestra');
     const muestraId = await this.muestraRepo.asegurarMuestra({
       codigoMuestra: datos.muestra.codigoMuestra,
       eventoId,
@@ -150,13 +166,16 @@ export class SincronizarDatosInicialesUseCase {
       idAgenda: datos.muestra.idAgenda,
       numeroAgenda: datos.muestra.numeroAgenda,
     });
+    console.timeEnd('[Sync] 4b. asegurar muestra');
 
-    console.log('[Sincronizar] Muestra ID:', muestraId);
-    console.log('[Sincronizar] Detalles a guardar:', datos.muestra.detalles.length);
+    console.log('[Sync] Muestra ID:', muestraId);
+    console.log('[Sync] Detalles a guardar:', datos.muestra.detalles.length);
 
+    console.time('[Sync] 4c. reemplazarDetalles (productos+codigos+detalle)');
     await this.muestraDetalleRepo.reemplazarDetalles(muestraId, datos.muestra.detalles);
-    
-    console.log('[Sincronizar] Detalles guardados exitosamente');
+    console.timeEnd('[Sync] 4c. reemplazarDetalles (productos+codigos+detalle)');
+
+    console.log('[Sync] Detalles guardados exitosamente');
   }
 
   /*
