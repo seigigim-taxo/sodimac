@@ -37,6 +37,21 @@ export class ResumenEventoFacade {
   readonly trazabilidad      = this.trazabilidadSignal.asReadonly();
   readonly trazabilidadLoading = this.trazabilidadLoadingSig.asReadonly();
 
+  /*
+   * Suelta todo lo cargado. Los datos que viven acá son de UN operador —las
+   * consultas filtran por operador_id—, pero los signals son de la app y
+   * sobreviven al logout: sin esto, quien entra después ve los conteos
+   * finalizados del turno anterior hasta que alguna pantalla los recargue.
+   */
+  reset(): void {
+    this.avanceSignal.set(null);
+    this.cerradosSignal.set([]);
+    this.trazabilidadSignal.set([]);
+    this.errorSignal.set(null);
+    this.finalizandoSig.set(false);
+    this.trazabilidadLoadingSig.set(false);
+  }
+
   /* Avance de la ronda activa del evento (Q contado, SKUs, TAGs). */
   async cargarAvance(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
     this.errorSignal.set(null);

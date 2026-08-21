@@ -21,6 +21,7 @@ import {
 import { addIcons } from 'ionicons';
 import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
+import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { EnviarPendientesFacade } from './state/sincronizacion/enviar-pendientes.facade';
@@ -50,6 +51,7 @@ import { formatRutDisplay } from './shared/utils/rut.utils';
 })
 export class AppComponent {
   private auth     = inject(AuthFacade);
+  private sesionTrabajo = inject(SesionTrabajoFacade);
   private theme    = inject(ThemeFacade);
   private ajustes  = inject(AjustesFacade);
   private enviarPendientes = inject(EnviarPendientesFacade);
@@ -127,6 +129,12 @@ export class AppComponent {
 
   async logout(): Promise<void> {
     await this.auth.logout();
+    /*
+     * El estado de trabajo vive en signals de facades singleton: no se va con la
+     * sesión. Si no se limpia acá, el operador que entre después hereda evento,
+     * TAG e ítems del anterior.
+     */
+    await this.sesionTrabajo.limpiar();
     this.router.navigate(['/login']);
   }
 

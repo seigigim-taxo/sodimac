@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { AppComponent } from './app.component';
 import { AuthFacade } from './state/auth/auth.facade';
+import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
@@ -14,6 +15,7 @@ describe('AppComponent', () => {
       providers: [
         provideRouter([]),
         { provide: AuthFacade, useValue: { session: signal(null), logout: jasmine.createSpy('logout') } },
+        { provide: SesionTrabajoFacade, useValue: { limpiar: jasmine.createSpy('limpiar').and.resolveTo(undefined) } },
         { provide: ThemeFacade, useValue: { isDark: signal(false), toggle: jasmine.createSpy('toggle') } },
         {
           provide: AjustesFacade,
