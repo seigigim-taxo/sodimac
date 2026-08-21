@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!--
+        Reserva plana del fondo del launcher. El ícono adaptativo usa
+        @drawable/ic_launcher_background, que lleva el degradado; este color
+        queda para cualquier consumidor que resuelva el fondo como color.
+        Es el token app-primary, el magenta con el que se reconoce la app.
+    -->
+    <color name="ic_launcher_background">#E6126A</color>
 </resources>

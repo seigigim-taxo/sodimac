@@ -76,3 +76,7 @@ Thumbs.db
 # Generated
 *.orig
 lint-report.json
+
+# Bytecode de los scripts de tools/
+__pycache__/
+*.pyc
