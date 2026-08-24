@@ -9,6 +9,7 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonInput,
   IonLabel,
   IonMenuButton,
   IonSegment,
@@ -52,6 +53,7 @@ import { NetworkService } from '../../../shared/services/network.service';
     IonContent,
     IonHeader,
     IonIcon,
+    IonInput,
     IonMenuButton,
     IonSegment,
     IonSegmentButton,
@@ -100,8 +102,31 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     return it === null ? [] : this.resumenesEvento().filter((c) => c.iteracion === it);
   });
 
-  // Pestañas por conteo individual (TAG)
-  conteosComoPestanas = computed(() => this.resumenesIteracionActual());
+  /*
+   * Buscador de TAG. Las pestañas se recorren en horizontal y una jornada deja
+   * decenas: sin filtro hay que arrastrar a ojo hasta encontrar el número.
+   *
+   * Filtra por coincidencia parcial y no exacta — el operador recuerda "el
+   * cincuenta y algo" más seguido que el número completo.
+   */
+  busquedaTag = signal('');
+
+  conteosComoPestanas = computed(() => {
+    const q = this.busquedaTag().trim().toUpperCase();
+    const base = this.resumenesIteracionActual();
+    if (!q) return base;
+    return base.filter((c) => (c.tag ?? '').toUpperCase().includes(q));
+  });
+
+  onBusquedaTagInput(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+    this.busquedaTag.set(value);
+  }
+
+  limpiarBusquedaTag(): void {
+    this.busquedaTag.set('');
+  }
+
   private conteoSeleccionadoSignal = signal<ConteoResumen | null>(null);
   conteoSeleccionado = computed(() => {
     const explicito = this.conteoSeleccionadoSignal();
@@ -164,6 +189,26 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     const it = this.iteracionSeleccionada();
     return it === null ? [] : this.trazabilidadCompleta().filter((t) => t.iteracion === it);
   });
+
+  /*
+   * El detalle por SKU se renderizaba entero: con una muestra grande son
+   * cientos de filas de una tabla que además hace scroll horizontal. Se pagina
+   * de a 5, el mismo tamaño que la lista de productos de la pantalla de conteo,
+   * para que el operador no encuentre dos comportamientos distintos.
+   */
+  private readonly PAGE_SIZE = 5;
+  private visiblesTrazabilidad = signal(this.PAGE_SIZE);
+
+  trazabilidadPaginada = computed(() =>
+    this.trazabilidadFiltrada().slice(0, this.visiblesTrazabilidad())
+  );
+  hayMasTrazabilidad = computed(() =>
+    this.trazabilidadFiltrada().length > this.visiblesTrazabilidad()
+  );
+
+  verMasTrazabilidad(): void {
+    this.visiblesTrazabilidad.update((v) => v + this.PAGE_SIZE);
+  }
 
 
   isSyncing(c: ConteoResumen): boolean {
@@ -347,6 +392,9 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     this.iteracionSeleccionadaSignal.set(Number(value));
     // Al cambiar de iteración, resetear el conteo seleccionado
     this.conteoSeleccionadoSignal.set(null);
+    // Y el paginado: el detalle que se muestra es otro, arrancar mostrando todo
+    // lo ya expandido de la ronda anterior no tiene sentido.
+    this.visiblesTrazabilidad.set(this.PAGE_SIZE);
   }
 
   onConteoChange(event: Event): void {

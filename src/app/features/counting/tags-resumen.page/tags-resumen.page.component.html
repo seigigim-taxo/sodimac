@@ -64,8 +64,21 @@
     }
 
     <!-- Pestañas por conteo individual (TAG) -->
-    @if (conteosComoPestanas().length > 0) {
+    @if (resumenesIteracionActual().length > 0) {
     <p class="section-label mb-2">Conteos por TAG</p>
+
+    <!-- Buscador de TAG: las pestañas se recorren en horizontal y una jornada deja decenas. -->
+    <ion-input
+      [value]="busquedaTag()"
+      (ionInput)="onBusquedaTagInput($event)"
+      placeholder="Buscar TAG"
+      aria-label="Buscar TAG"
+      class="input-base mb-3">
+      <ion-icon slot="start" name="search-outline"></ion-icon>
+    </ion-input>
+    }
+
+    @if (conteosComoPestanas().length > 0) {
     <ion-segment [value]="conteoSeleccionado()?.ubicacionId" (ionChange)="onConteoChange($event)" class="mb-4" scrollable="true">
       @for (conteo of conteosComoPestanas(); track conteo.ubicacionId) {
       <ion-segment-button [value]="conteo.ubicacionId">
@@ -160,6 +173,14 @@
       }
     </div>
     }
+    } @else if (busquedaTag()) {
+    <!-- Sin coincidencias: sin esto la pantalla se vacía y parece que se rompió. -->
+    <div class="card mb-4 flex items-center justify-between gap-3">
+      <span class="text-[13px]" style="color: var(--app-text-muted);">
+        Ningún TAG coincide con «{{ busquedaTag() }}»
+      </span>
+      <ion-button fill="clear" size="small" (click)="limpiarBusquedaTag()">Limpiar</ion-button>
+    </div>
     }
 
     <!-- Resumen global -->
@@ -204,7 +225,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (item of trazabilidadFiltrada(); track item.conteoId + '-' + item.sku) {
+            @for (item of trazabilidadPaginada(); track item.conteoId + '-' + item.sku) {
             <tr style="border-bottom: 1px solid var(--app-border);">
               <td class="text-[12px] py-1.5 px-2 num" style="color: var(--app-text);">{{ item.tag ?? '—' }}</td>
               <td class="text-[12px] py-1.5 px-2 num font-semibold" style="color: var(--app-text);">{{ item.sku }}</td>
@@ -226,6 +247,12 @@
           </tbody>
         </table>
       </div>
+
+      @if (hayMasTrazabilidad()) {
+      <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasTrazabilidad()">
+        Ver más ({{ trazabilidadPaginada().length }} de {{ trazabilidadFiltrada().length }})
+      </ion-button>
+      }
     </div>
     } @else if (trazabilidadLoading()) {
     <div class="flex items-center justify-center gap-2 py-4">
