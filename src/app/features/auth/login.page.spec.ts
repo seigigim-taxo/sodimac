@@ -23,7 +23,8 @@ describe('LoginPage', () => {
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
       'AuthFacade',
-      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin', 'session'],
+      ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin', 'session',
+       'hasKnownProfile', 'isAnalyst'],
       {
         loading: () => false,
         error: () => null,
@@ -104,8 +105,8 @@ describe('LoginPage', () => {
     authFacade.login.and.resolveTo();
     authFacade.isAuthenticated.and.returnValue(true);
     authFacade.wasOfflineLogin.and.returnValue(true);
-    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(true);
-    authFacade.isAnalyst = jasmine.createSpy().and.returnValue(false);
+    authFacade.hasKnownProfile.and.returnValue(true);
+    authFacade.isAnalyst.and.returnValue(false);
 
     await component.onSubmit();
 
@@ -117,8 +118,8 @@ describe('LoginPage', () => {
     authFacade.login.and.resolveTo();
     authFacade.isAuthenticated.and.returnValue(true);
     authFacade.wasOfflineLogin.and.returnValue(true);
-    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(true);
-    authFacade.isAnalyst = jasmine.createSpy().and.returnValue(true);
+    authFacade.hasKnownProfile.and.returnValue(true);
+    authFacade.isAnalyst.and.returnValue(true);
 
     await component.onSubmit();
 
@@ -130,7 +131,7 @@ describe('LoginPage', () => {
     authFacade.login.and.resolveTo();
     authFacade.isAuthenticated.and.returnValue(true);
     authFacade.wasOfflineLogin.and.returnValue(true);
-    authFacade.hasKnownProfile = jasmine.createSpy().and.returnValue(false);
+    authFacade.hasKnownProfile.and.returnValue(false);
 
     await component.onSubmit();
 

@@ -22,7 +22,8 @@ function item(parcial: Partial<ConteoItem> = {}): ConteoItem {
   return {
     id: 1, conteoId: 7, ubicacionId: 1, productoId: 100, sku: 'AF001',
     descripcion: 'Taladro', cantidadFisica: 1, estado: 'EN_CURSO',
-    iteracion: 1, fechaHora: '2026-08-03 10:00:00', ...parcial,
+    iteracion: 1, fechaHora: '2026-08-03 10:00:00', codigoLectura: 'AF001',
+    ...parcial,
   };
 }
 

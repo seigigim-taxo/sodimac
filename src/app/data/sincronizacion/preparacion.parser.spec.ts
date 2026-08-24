@@ -1,5 +1,10 @@
 import { parsearPreparacion } from './preparacion.parser';
 
+/*
+ * Los fixtures reproducen la respuesta completa del endpoint, pero el parser
+ * recibe solo su contenido: ApiService.unwrap() ya saca el nivel `data`. Por
+ * eso los tests llaman con raw.data y no con raw.
+ */
 describe('preparacion.parser', () => {
   describe('parsearPreparacion', () => {
     it('devuelve analista null cuando data.analista no existe', () => {
@@ -36,7 +41,7 @@ describe('preparacion.parser', () => {
         },
       };
 
-      const result = parsearPreparacion(raw);
+      const result = parsearPreparacion(raw.data);
       expect(result.analista).toBeNull();
     });
 
@@ -95,7 +100,7 @@ describe('preparacion.parser', () => {
         },
       };
 
-      const result = parsearPreparacion(raw);
+      const result = parsearPreparacion(raw.data);
       expect(result.analista).not.toBeNull();
       expect(result.analista!.contexto.idAgenda).toBe(910002);
       expect(result.analista!.contexto.numeroAgenda).toBe('AG-20260101-TI001-01');
@@ -156,7 +161,7 @@ describe('preparacion.parser', () => {
         },
       };
 
-      const result = parsearPreparacion(raw);
+      const result = parsearPreparacion(raw.data);
       expect(result.analista).not.toBeNull();
       expect(result.analista!.contexto.idAgenda).toBeNull();
     });
@@ -240,7 +245,7 @@ describe('preparacion.parser', () => {
         },
       };
 
-      const result = parsearPreparacion(raw);
+      const result = parsearPreparacion(raw.data);
       expect(result.analista).not.toBeNull();
       expect(result.analista!.filas.length).toBe(1);
       expect(result.analista!.filas[0].sku).toBe('SKU001');
