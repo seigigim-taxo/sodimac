@@ -15,7 +15,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Task | Command |
 |------|---------|
 | Dev server | `npm start` (serves the `development` configuration by default) |
-| Dev server (mock WS) | `ng serve --configuration=develop_ws` (uses `preparacion_ws.php` mock endpoint) |
+| Dev server (mockup) | `npm run start:mockup` (uses `login_mockup.php` + `preparacion_mockup.php`) |
 | Production build | `npm run build` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
@@ -28,7 +28,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Build + sync native assets | `npm run build` then `npx cap sync` |
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
-- `angular.json` defines a `develop_ws` configuration that swaps `environment.ts` → `environment.develop-ws.ts` (mock preparacion endpoint).
+- `angular.json` defines a `dev_mockup` configuration that swaps `environment.ts` → `environment.dev-mockup.ts` (login_mockup + preparacion_mockup endpoints).
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error.
 
@@ -72,10 +72,10 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - Base URL is configured in `src/environments/environment.ts` and `environment.prod.ts` (`apiUrl`).
   - All environments: `http://50.16.13.230/app/ws/sodimac/api`
-  - `develop_ws` config: same base URL but `preparacionEndpoint` points to `preparacion_ws.php` (mock) instead of `preparacion.php`.
+  - `dev_mockup` config: same base URL but `authEndpoint` → `login_mockup.php` and `preparacionEndpoint` → `preparacion_mockup.php`.
 - `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
 - `auth/login.php` is authentication-only. It must not prepare, mix, or return operational data.
-- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_ws.php` for mock), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
+- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_mockup.php` for dev_mockup), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
 - The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
 - CORS is handled server-side; for local dev/Android the backend must be reachable on the IP used in `environment.ts`.
 
@@ -146,23 +146,36 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 ## Environment / build
 
-- Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).
+- Environment files in `src/environments/`:
+  - `environment.ts` (development, uses `login_dev.php` + `preparacion_dev.php`)
+  - `environment.prod.ts` (production, uses `login.php` + `preparacion.php`)
+  - `environment.dev-mockup.ts` (mockup analista/operador, uses `login_mockup.php` + `preparacion_mockup.php`)
 - Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
-- `develop_ws` build replaces `environment.ts` with `environment.develop-ws.ts` (uses `preparacion_ws.php` mock endpoint).
+- `dev_mockup` build replaces `environment.ts` with `environment.dev-mockup.ts`.
+
+## Configurations
+
+| Configuration | Build Command | Serve Command | Login | Preparación |
+|---|---|---|---|---|
+| `production` | `ng build` | — | `login.php` | `preparacion.php` |
+| `development` | `ng build --configuration=development` | `ng serve` | `login_dev.php` | `preparacion_dev.php` |
+| `dev_mockup` | `ng build --configuration=dev_mockup` | `npm run start:mockup` | `login_mockup.php` | `preparacion_mockup.php` |
+| `ci` | `ng build --configuration=ci` | — | — | — |
 
 ## Mockup analista / operador
 
 Para probar el flujo mockup usar:
 
 ```bash
-ng serve --configuration=mockup
+npm run start:mockup
 ```
 
 Este environment apunta a:
 
-- `api/sincronizaciones/preparacion_mockup.php`
+- `auth/login_mockup.php`
+- `sincronizaciones/preparacion_mockup.php`
 
-El login sigue usando el endpoint normal configurado en la APK. La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
+La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
 
 - `OPERADOR` → `/home`
 - `ANALISTA_CLIENTE` → `/analyst-dashboard`

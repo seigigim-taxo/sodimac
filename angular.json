@@ -70,7 +70,7 @@
             "ci": {
               "progress": false
             },
-            "develop_ws": {
+            "dev_mockup": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
@@ -78,19 +78,7 @@
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.develop-ws.ts"
-                }
-              ]
-            },
-            "mockup": {
-              "optimization": false,
-              "extractLicenses": false,
-              "sourceMap": true,
-              "namedChunks": true,
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.mockup.ts"
+                  "with": "src/environments/environment.dev-mockup.ts"
                 }
               ]
             }
@@ -109,11 +97,8 @@
             "ci": {
               "progress": false
             },
-            "develop_ws": {
-              "buildTarget": "app:build:develop_ws"
-            },
-            "mockup": {
-              "buildTarget": "app:build:mockup"
+            "dev_mockup": {
+              "buildTarget": "app:build:dev_mockup"
             }
           },
           "defaultConfiguration": "development"
