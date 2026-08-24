@@ -20,6 +20,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
+import { APP_VERSION } from '../../core/version';
 
 @Component({
   selector: 'app-login',
@@ -41,6 +42,7 @@ export class LoginPage implements OnInit {
   private pda           = inject(PdaFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
 
+  version = APP_VERSION;
   loading = this.auth.loading;
   error   = this.auth.error;
 

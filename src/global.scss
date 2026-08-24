@@ -467,6 +467,18 @@ ion-title {
     margin: 0;
   }
 
+  /*
+   * Versión de la build. Discreta: es dato de soporte, no información que el
+   * operador necesite para contar. Se usa igual en el login y en el menú.
+   */
+  .version-app {
+    @apply text-[11px];
+    color: var(--app-text-muted);
+    text-align: center;
+    margin: 0.75rem 0 0;
+    letter-spacing: 0.04em;
+  }
+
   .menu-user-rut {
     @apply text-[13px];
     color: var(--app-menu-text-muted);
@@ -817,9 +829,15 @@ ion-title {
     color: var(--app-text);
   }
 
+  /*
+   * Sin `truncate`: la descripción se muestra completa aunque ocupe dos o tres
+   * líneas. Lo pidió Patricio el 7 de agosto — varios SKU comparten el mismo
+   * comienzo de nombre y cortarlo deja al operador sin con qué distinguirlos.
+   */
   .item-desc {
-    @apply text-[12px] truncate;
+    @apply text-[12px];
     color: var(--app-text-muted);
+    overflow-wrap: anywhere;
   }
 
   .step-btn {

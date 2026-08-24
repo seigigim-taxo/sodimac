@@ -14,6 +14,7 @@
       <div class="menu-user-info">
         <p class="menu-user-rut">{{ formatRutDisplay(session()?.rutNormalizado ?? '') }}</p>
         <p class="menu-user-name">{{ session()?.correo }}</p>
+        <p class="version-app">Versión {{ version }}</p>
       </div>
 
       <ion-list lines="none" class="menu-list">
@@ -53,6 +54,17 @@
           </ion-item>
         </ion-menu-toggle>
         }
+
+        <!-- Respaldo de la base local -->
+        <ion-menu-toggle>
+          <ion-item button (click)="respaldarBase()" [disabled]="generandoRespaldo()" class="menu-theme-item">
+            <ion-icon slot="start" name="save-outline"></ion-icon>
+            <ion-label>{{ generandoRespaldo() ? 'Generando respaldo…' : 'Respaldar base local' }}</ion-label>
+            @if (generandoRespaldo()) {
+            <ion-spinner slot="end" name="crescent"></ion-spinner>
+            }
+          </ion-item>
+        </ion-menu-toggle>
 
         <!-- Theme toggle -->
         <ion-menu-toggle>
