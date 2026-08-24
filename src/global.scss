@@ -208,8 +208,20 @@ ion-title {
     --border-color: var(--app-border);
     --border-style: solid;
     --border-width: 1px;
+    /*
+     * Sin la barra inferior del modo Material: es un subrayado recto que no
+     * sigue el radio y choca con el input redondeado. Además se pintaba verde
+     * o roja según la validación, algo que acá ya se comunica con el texto de
+     * error debajo del campo.
+     *
+     * Los colores de válido e inválido se igualan al borde normal para que
+     * tampoco tiñan el contorno: Ionic los usa como --border-color cuando el
+     * control tiene estado.
+     */
+    --highlight-height: 0;
     --highlight-color-focused: var(--app-primary);
-    --highlight-color-valid: var(--app-primary);
+    --highlight-color-valid: var(--app-border);
+    --highlight-color-invalid: var(--app-border);
     --placeholder-color: var(--app-placeholder);
     --color: var(--app-text);
     --padding-start: 1rem;
