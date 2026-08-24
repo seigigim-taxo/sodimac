@@ -208,20 +208,7 @@ ion-title {
     --border-color: var(--app-border);
     --border-style: solid;
     --border-width: 1px;
-    /*
-     * Sin la barra inferior del modo Material: es un subrayado recto que no
-     * sigue el radio y choca con el input redondeado. Además se pintaba verde
-     * o roja según la validación, algo que acá ya se comunica con el texto de
-     * error debajo del campo.
-     *
-     * Los colores de válido e inválido se igualan al borde normal para que
-     * tampoco tiñan el contorno: Ionic los usa como --border-color cuando el
-     * control tiene estado.
-     */
-    --highlight-height: 0;
     --highlight-color-focused: var(--app-primary);
-    --highlight-color-valid: var(--app-border);
-    --highlight-color-invalid: var(--app-border);
     --placeholder-color: var(--app-placeholder);
     --color: var(--app-text);
     --padding-start: 1rem;
@@ -235,9 +222,9 @@ ion-title {
     /*
      * El radio también en el host, no solo en la variable de Ionic.
      *
-     * --border-radius solo llega al .input-wrapper de adentro del shadow DOM
-     * —de ahí el fondo redondeado—, pero el anillo de foco de abajo es un
-     * box-shadow sobre el host, y sin radio propio salía cuadrado y rompía el
+     * --border-radius solo lo consume el .input-wrapper interno —de ahí el
+     * fondo redondeado—, pero el anillo de foco de abajo es un box-shadow
+     * sobre el propio ion-input, y sin radio propio salía cuadrado y rompía el
      * diseño al enfocar. Se lee de la misma variable para que no se separen.
      */
     border-radius: var(--border-radius);
@@ -252,6 +239,29 @@ ion-title {
       --border-color: var(--app-border-focus);
       box-shadow: 0 0 0 3px var(--app-focus-ring);
     }
+  }
+
+  /*
+   * Sin la barra inferior del modo Material: es un subrayado recto de 2px que
+   * no sigue el radio, choca con el input redondeado y encima se pinta verde o
+   * roja según la validación, algo que acá ya se comunica con el texto de error
+   * bajo el campo.
+   *
+   * Va con el selector de elemento delante y no dentro de .input-base a
+   * propósito. Ionic corre en modo scoped, no shadow DOM: sus estilos compiten
+   * en la cascada del documento y se inyectan DESPUÉS de la capa `components`
+   * de Tailwind, así que con la misma especificidad ganaba
+   * .sc-ion-input-md-h { --highlight-height: 2px }. Con ion-input delante,
+   * (0,1,1) le gana a (0,1,0).
+   *
+   * Los colores de válido e inválido se igualan al borde normal porque Ionic
+   * también los usa como --border-color cuando el control tiene estado; sin
+   * esto el contorno seguiría tiñéndose aunque la barra ya no se vea.
+   */
+  ion-input.input-base {
+    --highlight-height: 0;
+    --highlight-color-valid: var(--app-border);
+    --highlight-color-invalid: var(--app-border);
   }
 
   /* ---------- CARDS ---------- */
