@@ -220,6 +220,16 @@ ion-title {
     @apply w-full text-[15px] transition-shadow duration-200;
     min-height: 56px;
 
+    /*
+     * El radio también en el host, no solo en la variable de Ionic.
+     *
+     * --border-radius solo llega al .input-wrapper de adentro del shadow DOM
+     * —de ahí el fondo redondeado—, pero el anillo de foco de abajo es un
+     * box-shadow sobre el host, y sin radio propio salía cuadrado y rompía el
+     * diseño al enfocar. Se lee de la misma variable para que no se separen.
+     */
+    border-radius: var(--border-radius);
+
     ion-icon[slot='start'] {
       color: var(--app-text-muted);
       margin-inline-end: 0.75rem;
