@@ -57,10 +57,18 @@
 
     <!-- Evento: se selecciona aquí mismo -->
     @if (currentStore()) {
+    <!--
+      El encabezado va atado a que haya un evento renderizado, no a que haya
+      tienda: pedirle al operador que "elija un evento para continuar" mientras
+      abajo se le dice que espere uno nuevo, o que no hay ninguno disponible, se
+      contradice. Sin eventos manda el mensaje de estado.
+    -->
+    @if (eventosVisibles().length > 0) {
     <div class="flex flex-col gap-2 mb-4">
       <h2 class="page-title">Selecciona un evento</h2>
       <p class="page-subtitle">Elige el evento de inventario para continuar</p>
     </div>
+    }
 
     @if (eventsLoading()) {
     <div class="flex justify-center py-10">
