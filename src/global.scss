@@ -469,13 +469,34 @@ ion-title {
 
   /*
    * Versión de la build. Discreta: es dato de soporte, no información que el
-   * operador necesite para contar. Se usa igual en el login y en el menú.
+   * operador necesite para contar.
+   *
+   * Van dos clases y no una porque los fondos son opuestos: el login es claro
+   * y el menú va sobre el violeta de --app-menu-bg, donde un gris pensado para
+   * fondo claro queda ilegible.
    */
   .version-app {
     @apply text-[11px];
     color: var(--app-text-muted);
     text-align: center;
     margin: 0.75rem 0 0;
+    letter-spacing: 0.04em;
+  }
+
+  /* Columna de alto completo para poder anclar la versión al pie del menú. */
+  .menu-columna {
+    @apply flex flex-col;
+    min-height: 100%;
+  }
+
+  .version-menu {
+    @apply text-[11px];
+    color: var(--app-menu-text-muted);
+    text-align: center;
+    /* Empuja al pie: con el menú corto queda abajo, con el menú largo apenas
+       separado del último ítem. */
+    margin: auto 0 0;
+    padding-top: 1.5rem;
     letter-spacing: 0.04em;
   }
 

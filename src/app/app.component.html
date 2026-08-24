@@ -11,10 +11,14 @@
       </ion-toolbar>
     </ion-header>
     <ion-content style="--background: var(--app-menu-bg); --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem;">
+      <!--
+        Columna de alto completo: deja anclar la versión abajo con margin-top
+        auto, sin sacarla del flujo ni superponerla al último ítem del menú.
+      -->
+      <div class="menu-columna">
       <div class="menu-user-info">
         <p class="menu-user-rut">{{ formatRutDisplay(session()?.rutNormalizado ?? '') }}</p>
         <p class="menu-user-name">{{ session()?.correo }}</p>
-        <p class="version-app">Versión {{ version }}</p>
       </div>
 
       <ion-list lines="none" class="menu-list">
@@ -84,6 +88,9 @@
           </ion-item>
         </ion-menu-toggle>
       </ion-list>
+
+      <p class="version-menu">Versión {{ version }}</p>
+      </div>
     </ion-content>
   </ion-menu>
 
