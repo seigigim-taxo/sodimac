@@ -15,8 +15,9 @@ export class PreparacionApiService implements PreparacionApiRepository {
    * El `unknown` es deliberado: castear la respuesta a una interfaz no valida
    * nada en runtime. Quien decide si el JSON sirve es el parser.
    *
-   * El endpoint es configurable por environment: develop_ws usa
-   * preparacion_ws.php (mock), los demás usan preparacion.php (real).
+   * El endpoint es configurable por environment: development usa
+   * preparacion_dev.php, mockup usa preparacion_mockup.php,
+   * y producción usa preparacion.php.
    */
   async preparar(request: PreparacionRequest): Promise<DatosPreparacion> {
     const endpoint = environment.preparacionEndpoint ?? 'sincronizaciones/preparacion.php';
