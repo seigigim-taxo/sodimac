@@ -5,6 +5,14 @@ import { IonButton, IonIcon, IonInput } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { barcodeOutline } from 'ionicons/icons';
 import { stripEmojis } from '../../utils/text.utils';
+import { DETECCION_CAPTURA_TOKEN } from '../../../domain/conteo/services/deteccion-captura.service';
+import { MedioCaptura } from '../../../domain/conteo/models/medio-captura.model';
+
+/* Lo que sale del escáner: el código y cómo llegó. */
+export interface CodigoCapturado {
+  codigo: string;
+  medio:  MedioCaptura;
+}
 
 @Component({
   selector: 'app-scan',
@@ -28,11 +36,19 @@ export class ScanComponent implements AfterViewInit {
    * página llamando a limpiar() cuando terminó.
    */
   cederFoco      = input(false);
-  scan           = output<string>();
+  scan           = output<CodigoCapturado>();
   scanInput    = viewChild<IonInput>('scanInput');
 
   private fb = inject(FormBuilder);
+  private deteccion = inject(DETECCION_CAPTURA_TOKEN);
   form = this.fb.group({ code: ['', Validators.required] });
+
+  /*
+   * Instante de cada cambio del campo originado por el usuario. Es la única
+   * señal que distingue la pistola del teclado: quién la interpreta es el
+   * servicio de detección, acá solo se mide.
+   */
+  private marcas: number[] = [];
 
   private _tagConfirmed = signal(false);
   private _tagValue     = signal('');
@@ -71,6 +87,19 @@ export class ScanComponent implements AfterViewInit {
       .pipe(takeUntilDestroyed())
       .subscribe((value) => {
         if (typeof value !== 'string') return;
+
+        /*
+         * Se marca acá y no en un keydown porque este es el único punto por el
+         * que pasa TODO cambio hecho por el usuario, incluidas las correcciones.
+         * La renormalización de arriba usa emitEvent:false, así que no ensucia
+         * la medición con marcas que el operador no produjo.
+         *
+         * Que borrar un carácter también deje marca es deseado: la pausa de una
+         * corrección rompe la ráfaga y la lectura pasa a contar como manual.
+         */
+        if (value.length > 0) this.marcas.push(performance.now());
+        else this.marcas = [];
+
         const normalizado = stripEmojis(value).toUpperCase();
         if (normalizado !== value) this.form.get('code')?.setValue(normalizado, { emitEvent: false });
       });
@@ -94,11 +123,15 @@ export class ScanComponent implements AfterViewInit {
     const value = this.form.get('code')?.value?.trim().toUpperCase();
     if (!value) return;
 
+    const medio = this.deteccion.clasificar(this.marcas);
+
     this._tagValue.set(value);
     this._tagConfirmed.set(true);
-    this.scan.emit(value);
+    this.scan.emit({ codigo: value, medio });
 
     // El flujo sigue en otro campo: ni se borra el código ni se recupera el foco.
+    // Las marcas sí se sueltan: ya se consumieron y la próxima lectura empieza limpia.
+    this.marcas = [];
     if (this.cederFoco()) return;
 
     if (this.scanType() === 'sku') {
@@ -114,6 +147,7 @@ export class ScanComponent implements AfterViewInit {
    */
   limpiar(): void {
     this.form.reset();
+    this.marcas = [];
     setTimeout(() => this.scanInput()?.setFocus(), 50);
   }
 }

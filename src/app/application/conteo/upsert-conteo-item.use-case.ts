@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo.repository';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
+import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 
 @Injectable({ providedIn: 'root' })
 export class UpsertConteoItemUseCase {
@@ -9,7 +10,7 @@ export class UpsertConteoItemUseCase {
   async execute(
     conteoId: number, ubicacionId: number,
     productoId: number, operadorId: number, pdaId: number,
-    cantidad: number, codigoLectura: string
+    cantidad: number, codigoLectura: string, medioCaptura: MedioCaptura
   ): Promise<ConteoItem> {
     /*
      * Cero es una cantidad válida: el operador declara que del SKU no hay
@@ -23,6 +24,6 @@ export class UpsertConteoItemUseCase {
     if (!codigoLectura?.trim()) {
       throw new Error('El código de lectura no puede estar vacío');
     }
-    return this.conteoRepo.upsert(conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura.trim());
+    return this.conteoRepo.upsert(conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura.trim(), medioCaptura);
   }
 }

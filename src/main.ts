@@ -28,6 +28,8 @@ import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/su
 import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
 import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/ubicacion.repository';
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
+import { DETECCION_CAPTURA_TOKEN } from './app/domain/conteo/services/deteccion-captura.service';
+import { DeteccionCapturaTecladoService } from './app/data/conteo/deteccion-captura-teclado.service';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
@@ -137,6 +139,13 @@ bootstrapApplication(AppComponent, {
     { provide: ZONA_REPOSITORY_TOKEN,            useClass: SqliteZonaRepository },
     { provide: UBICACION_REPOSITORY_TOKEN,       useClass: SqliteUbicacionRepository },
     { provide: CONTEO_REPOSITORY_TOKEN,          useClass: SqliteConteoRepository },
+    /*
+     * Cómo se decide si un código vino de la pistola o del teclado. Hoy es una
+     * estimación por el ritmo de tecleo, porque el lector de las Meferi entrega
+     * como teclado. Si algún día se lo puede poner en modo intent, se cambia
+     * acá y no en la pantalla de conteo.
+     */
+    { provide: DETECCION_CAPTURA_TOKEN,          useClass: DeteccionCapturaTecladoService },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },

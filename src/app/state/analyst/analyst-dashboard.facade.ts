@@ -137,6 +137,14 @@ export class AnalystDashboardFacade {
           stock_sistema: fila.stockSistema,
           cantidad_fisica: cantidadAnalista,
           fecha_hora: ts,
+          /*
+           * El analista no escanea: elige la fila en el dashboard y tipea la
+           * cantidad. La captura es manual por definición, no hay heurística
+           * que aplicar acá.
+           */
+          lecturas: [
+            { codigo_lectura: fila.codigoBarras || fila.sku, medio_captura: 'MANUAL' as const },
+          ],
         },
       ],
     };

@@ -96,21 +96,44 @@ describe('ConteoFacade', () => {
     });
   });
 
+  describe('medio de captura', () => {
+    /*
+     * El caso que define el modelo: el mismo SKU entra dos veces, de formas
+     * distintas. Cada captura viaja con SU medio y su cantidad — si el facade
+     * reusara el medio de la primera, se perdería justo el dato por el que
+     * existe la tabla de lecturas.
+     */
+    it('propaga el medio de cada lectura por separado, aunque sea el mismo SKU', async () => {
+      await facade.scan('AF001', 3, 'MANUAL');
+      await facade.scan('AF001', 2, 'ESCANER');
+
+      expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3, 'AF001', 'MANUAL');
+      expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2, 'AF001', 'ESCANER');
+    });
+
+    // Ante la duda, manual: nunca afirmar un escaneo del que no hay constancia.
+    it('sin medio explícito asume MANUAL', async () => {
+      await facade.scan('AF001', 1);
+
+      expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 1, 'AF001', 'MANUAL');
+    });
+  });
+
   it('registra un SKU que está en la muestra', async () => {
-    const resultado = await facade.scan('AF001', 2);
+    const resultado = await facade.scan('AF001', 2, 'ESCANER');
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2, 'AF001');
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 2, 'AF001', 'ESCANER');
     expect(facade.items().length).toBe(1);
   });
 
   it('registra cantidad 0 — es una declaración válida, no un error', async () => {
     conteoRepo.upsert.and.resolveTo(item({ cantidadFisica: 0 }));
 
-    const resultado = await facade.scan('AF001', 0);
+    const resultado = await facade.scan('AF001', 0, 'MANUAL');
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 0, 'AF001');
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 0, 'AF001', 'MANUAL');
     expect(facade.items()[0].cantidadFisica).toBe(0);
   });
 
@@ -189,9 +212,9 @@ describe('ConteoFacade', () => {
 
     await facade.init(1, 1, 1, 1);
 
-    const resultado = await facade.scan('7891234567890', 3);
+    const resultado = await facade.scan('7891234567890', 3, 'ESCANER');
 
     expect(resultado).toBe('valido');
-    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3, '7891234567890');
+    expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3, '7891234567890', 'ESCANER');
   });
 });

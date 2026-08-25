@@ -33,24 +33,24 @@ describe('Casos de uso de item de conteo', () => {
 
   describe('UpsertConteoItemUseCase', () => {
     it('acepta cantidad 0 — declarar que no hay unidades es un dato válido', async () => {
-      await upsert.execute(1, 1, 7, 1, 1, 0, 'AF001');
+      await upsert.execute(1, 1, 7, 1, 1, 0, 'AF001', 'ESCANER');
 
-      expect(repo.upsert).toHaveBeenCalledWith(1, 1, 7, 1, 1, 0, 'AF001');
+      expect(repo.upsert).toHaveBeenCalledWith(1, 1, 7, 1, 1, 0, 'AF001', 'ESCANER');
     });
 
     it('acepta cantidades positivas', async () => {
-      await upsert.execute(1, 1, 7, 1, 1, 5, 'AF001');
+      await upsert.execute(1, 1, 7, 1, 1, 5, 'AF001', 'ESCANER');
 
-      expect(repo.upsert).toHaveBeenCalledWith(1, 1, 7, 1, 1, 5, 'AF001');
+      expect(repo.upsert).toHaveBeenCalledWith(1, 1, 7, 1, 1, 5, 'AF001', 'ESCANER');
     });
 
     it('rechaza cantidades negativas', async () => {
-      await expectAsync(upsert.execute(1, 1, 7, 1, 1, -1, 'AF001')).toBeRejectedWithError(/no puede ser negativa/);
+      await expectAsync(upsert.execute(1, 1, 7, 1, 1, -1, 'AF001', 'MANUAL')).toBeRejectedWithError(/no puede ser negativa/);
       expect(repo.upsert).not.toHaveBeenCalled();
     });
 
     it('rechaza cantidades no numéricas', async () => {
-      await expectAsync(upsert.execute(1, 1, 7, 1, 1, NaN, 'AF001')).toBeRejectedWithError(/no puede ser negativa/);
+      await expectAsync(upsert.execute(1, 1, 7, 1, 1, NaN, 'AF001', 'MANUAL')).toBeRejectedWithError(/no puede ser negativa/);
       expect(repo.upsert).not.toHaveBeenCalled();
     });
   });

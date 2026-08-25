@@ -1,5 +1,23 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ScanComponent } from './scan.component';
+import { ScanComponent, CodigoCapturado } from './scan.component';
+import { DETECCION_CAPTURA_TOKEN, DeteccionCapturaService } from '../../../domain/conteo/services/deteccion-captura.service';
+import { MedioCaptura } from '../../../domain/conteo/models/medio-captura.model';
+
+/*
+ * La detección va stubeada a propósito: acá se prueba que el componente MIDA y
+ * propague, no el criterio para separar pistola de teclado — eso vive en
+ * DeteccionCapturaTecladoService y tiene su propio spec. Atar estos tests al
+ * ritmo real de ejecución los volvería intermitentes.
+ */
+class DeteccionStub implements DeteccionCapturaService {
+  respuesta: MedioCaptura = 'MANUAL';
+  marcasRecibidas: readonly number[] = [];
+
+  clasificar(marcas: readonly number[]): MedioCaptura {
+    this.marcasRecibidas = [...marcas];
+    return this.respuesta;
+  }
+}
 
 /*
  * ScanComponent es la única puerta de entrada de códigos de la app: por acá
@@ -10,6 +28,7 @@ import { ScanComponent } from './scan.component';
 describe('ScanComponent', () => {
   let component: ScanComponent;
   let fixture: ComponentFixture<ScanComponent>;
+  let deteccion: DeteccionStub;
 
   function escribir(valor: string): void {
     component.form.get('code')?.setValue(valor);
@@ -20,7 +39,11 @@ describe('ScanComponent', () => {
   }
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [ScanComponent] }).compileComponents();
+    deteccion = new DeteccionStub();
+    await TestBed.configureTestingModule({
+      imports: [ScanComponent],
+      providers: [{ provide: DETECCION_CAPTURA_TOKEN, useValue: deteccion }],
+    }).compileComponents();
     fixture = TestBed.createComponent(ScanComponent);
     component = fixture.componentInstance;
   });
@@ -49,17 +72,17 @@ describe('ScanComponent', () => {
 
   describe('confirm', () => {
     it('emite el código normalizado', () => {
-      const emitidos: string[] = [];
+      const emitidos: CodigoCapturado[] = [];
       component.scan.subscribe((v) => emitidos.push(v));
 
       escribir('  af001  ');
       component.confirm();
 
-      expect(emitidos).toEqual(['AF001']);
+      expect(emitidos).toEqual([{ codigo: 'AF001', medio: 'MANUAL' }]);
     });
 
     it('no emite con el campo vacío', () => {
-      const emitidos: string[] = [];
+      const emitidos: CodigoCapturado[] = [];
       component.scan.subscribe((v) => emitidos.push(v));
 
       escribir('');
@@ -70,7 +93,7 @@ describe('ScanComponent', () => {
 
     it('no emite mientras está bloqueado', () => {
       fixture.componentRef.setInput('locked', true);
-      const emitidos: string[] = [];
+      const emitidos: CodigoCapturado[] = [];
       component.scan.subscribe((v) => emitidos.push(v));
 
       escribir('AF001');
@@ -97,6 +120,65 @@ describe('ScanComponent', () => {
       component.confirm();
 
       expect(valorActual() ?? '').toBe('');
+    });
+  });
+
+  describe('medio de captura', () => {
+    it('propaga lo que dictamina el servicio de detección', () => {
+      deteccion.respuesta = 'ESCANER';
+      const emitidos: CodigoCapturado[] = [];
+      component.scan.subscribe((v) => emitidos.push(v));
+
+      escribir('AF001');
+      component.confirm();
+
+      expect(emitidos).toEqual([{ codigo: 'AF001', medio: 'ESCANER' }]);
+    });
+
+    it('mide una marca por cada cambio hecho por el usuario', () => {
+      escribir('A');
+      escribir('AF');
+      escribir('AF0');
+      component.confirm();
+
+      expect(deteccion.marcasRecibidas.length).toBe(3);
+    });
+
+    /*
+     * Las marcas de una lectura no pueden arrastrarse a la siguiente: si lo
+     * hicieran, la pausa entre un disparo y el próximo haría que todo pareciera
+     * tipeado a mano.
+     */
+    it('arranca de cero después de confirmar', () => {
+      escribir('AF001');
+      component.confirm();
+
+      escribir('B');
+      escribir('BC');
+      component.confirm();
+
+      expect(deteccion.marcasRecibidas.length).toBe(2);
+    });
+
+    it('arranca de cero después de limpiar()', () => {
+      fixture.componentRef.setInput('cederFoco', true);
+      escribir('AF001');
+      component.confirm();
+      component.limpiar();
+
+      escribir('B');
+      component.confirm();
+
+      expect(deteccion.marcasRecibidas.length).toBe(1);
+    });
+
+    it('vaciar el campo descarta las marcas acumuladas', () => {
+      escribir('AF0');
+      escribir('');
+      escribir('B');
+      component.confirm();
+
+      expect(deteccion.marcasRecibidas.length).toBe(1);
     });
   });
 

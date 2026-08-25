@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 43;
+export const SODIMAC_DB_VERSION = 44;
 
 /*
  * Las columnas de fecha usan datetime('now','localtime') y no CURRENT_TIMESTAMP,
@@ -192,6 +192,33 @@ const TABLES: readonly string[] = [
     carga_uid       TEXT             DEFAULT NULL,
     codigo_lectura  TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
+  )`,
+
+  /*
+   * CÓMO SE CAPTURÓ. Una fila por captura: qué código entró, de qué forma y
+   * cuántas unidades declaró.
+   *
+   * Es un log, y por eso NO lleva UNIQUE: escanear diez veces el mismo EAN deja
+   * diez filas. Deduplicar ahorraría unas pocas filas y perdería justo lo que
+   * un agregado no puede reconstruir — cuántas unidades entraron por pistola y
+   * cuántas a mano, y en qué orden.
+   *
+   * El SGO recibe menos: su contrato pide solo las combinaciones distintas de
+   * (código, medio). Eso se deriva al armar el payload; la PDA guarda completo.
+   *
+   * La suma de las cantidades NO tiene por qué coincidir con la
+   * cantidad_fisica de la línea: el MAX(0, …) de los ajustes y la regla de que
+   * cantidad 0 reemplaza el total la rompen a propósito. Esta tabla registra lo
+   * que el operador hizo, no lo que haría cerrar la aritmética.
+   */
+  `CREATE TABLE IF NOT EXISTS sod_conteo_lectura (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    detalle_id     INTEGER NOT NULL REFERENCES sod_conteo_detalle(id),
+    codigo_lectura TEXT    NOT NULL,
+    medio_captura  TEXT    NOT NULL
+                   CHECK (medio_captura IN ('ESCANER', 'MANUAL')),
+    cantidad       REAL    NOT NULL,
+    fecha_hora     TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
   )`
 
 ];
@@ -207,6 +234,7 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_sinc_evento_iter ON sod_sincronizacion(evento_id, iteracion)`,
   `CREATE INDEX IF NOT EXISTS idx_sinc_perfil_estado ON sod_sincronizacion(perfil, estado)`,
   `CREATE INDEX IF NOT EXISTS idx_sinc_carga_uid ON sod_sincronizacion(carga_uid)`,
+  `CREATE INDEX IF NOT EXISTS idx_conteo_lectura_detalle ON sod_conteo_lectura(detalle_id)`,
 ];
 
 const SEED = `
@@ -231,6 +259,7 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_sincronizacion',
   'sod_conteo',
   'sod_conteo_detalle',
+  'sod_conteo_lectura',
 ] as const;
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];

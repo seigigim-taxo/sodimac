@@ -9,6 +9,7 @@ import { AsegurarRondaAbiertaUseCase } from '../../application/conteo/asegurar-r
 import { WriteQueue } from '../../core/utils/write-queue';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { SesionConteo } from '../../domain/conteo/models/sesion-conteo.model';
+import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 export type { ConteoItem, SesionConteo };
 
 @Injectable({ providedIn: 'root' })
@@ -88,7 +89,11 @@ export class ConteoFacade {
    * 'rechazado' → el código de lectura no está en la muestra (feedback rojo)
    * 'error'     → el código era válido pero la escritura falló (detalle en error())
    */
-  async scan(codigoLectura: string, cantidad = 1): Promise<'valido' | 'rechazado' | 'error'> {
+  async scan(
+    codigoLectura: string,
+    cantidad = 1,
+    medioCaptura: MedioCaptura = 'MANUAL'
+  ): Promise<'valido' | 'rechazado' | 'error'> {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
@@ -107,7 +112,7 @@ export class ConteoFacade {
     await this.writeQueue.enqueue(async () => {
       try {
         const item = await this.upsertItem.execute(
-          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoNormalizado
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoNormalizado, medioCaptura
         );
         this.upsertItemEnMemoria(item);
         persistido = true;

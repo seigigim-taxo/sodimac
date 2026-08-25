@@ -22,7 +22,8 @@ import { addIcons } from 'ionicons';
 import {
   addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
 } from 'ionicons/icons';
-import { ScanComponent } from '../../../shared/components/scan/scan.component';
+import { ScanComponent, CodigoCapturado } from '../../../shared/components/scan/scan.component';
+import { MedioCaptura } from '../../../domain/conteo/models/medio-captura.model';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
@@ -112,8 +113,15 @@ export class CountingPageComponent implements ViewWillEnter {
   private cantidadInput = viewChild<IonInput>('cantidadInput');
 
   modoCaptura = signal<ModoCaptura>('uno');
-  // SKU leído en modo 'cantidad' que todavía espera las unidades. null = no hay captura abierta.
-  skuPendiente = signal<string | null>(null);
+  /*
+   * SKU leído en modo 'cantidad' que todavía espera las unidades, junto con
+   * cómo entró. null = no hay captura abierta.
+   *
+   * El medio viaja con el código y no se recalcula al guardar: describe cómo
+   * llegó el SKU, y eso ya ocurrió. Que la cantidad se tipee después no lo
+   * cambia.
+   */
+  skuPendiente = signal<CodigoCapturado | null>(null);
 
   /*
    * A partir de acá se pregunta antes de escribir. Es un umbral de referencia
@@ -310,11 +318,11 @@ export class CountingPageComponent implements ViewWillEnter {
     this.cerrarCaptura();
   }
 
-  async onScanSku(sku: string): Promise<void> {
-    const codigo = sku.trim().toUpperCase();
+  async onScanSku(capturado: CodigoCapturado): Promise<void> {
+    const codigo = capturado.codigo.trim().toUpperCase();
 
     if (this.modoCaptura() === 'uno') {
-      await this.registrar(codigo, 1);
+      await this.registrar(codigo, 1, capturado.medio);
       return;
     }
 
@@ -329,18 +337,18 @@ export class CountingPageComponent implements ViewWillEnter {
     }
 
     this.cantidad.set(1);
-    this.skuPendiente.set(codigo);
+    this.skuPendiente.set({ codigo, medio: capturado.medio });
     // El foco lo cede ScanComponent vía [cederFoco]; acá se lo lleva la cantidad.
     setTimeout(() => void this.cantidadInput()?.setFocus(), 60);
   }
 
   async guardarCantidad(): Promise<void> {
-    const codigo = this.skuPendiente();
-    if (codigo === null) return;
+    const pendiente = this.skuPendiente();
+    if (pendiente === null) return;
 
     // Si no se registró (canceló una confirmación) la captura sigue abierta: el
     // operador corrige la cantidad en vez de volver a leer el SKU.
-    if (!(await this.registrar(codigo, this.cantidad()))) return;
+    if (!(await this.registrar(pendiente.codigo, this.cantidad(), pendiente.medio))) return;
 
     this.cerrarCaptura();
   }
@@ -363,10 +371,10 @@ export class CountingPageComponent implements ViewWillEnter {
    * un rechazo por muestra o una falla de escritura sí cierran el ciclo, con su
    * banner.
    */
-  private async registrar(codigo: string, cantidad: number): Promise<boolean> {
+  private async registrar(codigo: string, cantidad: number, medio: MedioCaptura): Promise<boolean> {
     if (!(await this.confirmarCantidad(codigo, cantidad))) return false;
 
-    const resultado = await this.conteo.scan(codigo, cantidad);
+    const resultado = await this.conteo.scan(codigo, cantidad, medio);
     if (resultado === 'error') {
       this.setLastScan({ sku: codigo, estado: 'ERROR', mensaje: this.conteo.error() ?? 'No se pudo registrar el scan' });
     } else {

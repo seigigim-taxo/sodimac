@@ -122,11 +122,11 @@
       (scan)="onScanSku($event)"></app-scan>
 
     <!-- ===== Cantidad del SKU capturado (solo modo "por cantidad") ===== -->
-    @if (skuPendiente(); as sku) {
+    @if (skuPendiente(); as pendiente) {
     <div class="card mt-4">
       <div class="flex items-center justify-between gap-3 mb-3">
         <span class="field-label">Cantidad</span>
-        <span class="item-sku num">{{ sku }}</span>
+        <span class="item-sku num">{{ pendiente.codigo }}</span>
       </div>
       <ion-input #cantidadInput type="number" inputmode="numeric" min="0" [value]="cantidad()"
         (ionInput)="onCantidadInput($event)" (keyup.enter)="guardarCantidad()" aria-label="Cantidad"

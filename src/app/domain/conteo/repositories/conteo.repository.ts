@@ -6,6 +6,8 @@ import { SesionTrabajoEnCurso } from '../models/sesion-trabajo.model';
 import { ConteoTrazabilidadItem } from '../models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
+import { MedioCaptura } from '../models/medio-captura.model';
+import { ConteoLectura } from '../models/conteo-lectura.model';
 import { TagFinalizadoPayload } from '../../sincronizacion/models/tag-finalizado.model';
 
 export interface ConteoRepository {
@@ -45,9 +47,16 @@ export interface ConteoRepository {
    * ese conteo está abierto o no. Lo que antes comparaba contra MAX() ahora es
    * una propiedad de la fila padre.
    */
-  upsert(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, cantidad: number, codigoLectura: string): Promise<ConteoItem>;
+  upsert(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, cantidad: number, codigoLectura: string, medioCaptura: MedioCaptura): Promise<ConteoItem>;
   adjust(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, delta: number, estado: EstadoConteo): Promise<ConteoItem>;
   delete(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<void>;
+
+  /*
+   * Capturas de una línea, en orden. Una fila por lectura: sirve para saber
+   * cuántas unidades entraron por pistola y cuántas a mano, que es lo que el
+   * agregado no puede reconstruir.
+   */
+  getLecturas(detalleId: number): Promise<ConteoLectura[]>;
 
   /* Líneas de una sesión de TAG en un estado dado. */
   getBySesion(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<ConteoItem[]>;

@@ -1,3 +1,15 @@
+import { MedioCaptura } from '../../conteo/models/medio-captura.model';
+
+/*
+ * Un código usado en la línea y cómo entró. Sin cantidad ni fecha: es el
+ * conjunto de combinaciones distintas, no un log de escaneos (formato acordado
+ * con el SGO).
+ */
+export interface TagFinalizadoLecturaPayload {
+  codigo_lectura: string;
+  medio_captura: MedioCaptura;
+}
+
 export interface TagFinalizadoDetallePayload {
   detalle_uid: string;
   codigo_lectura: string | null;
@@ -7,6 +19,7 @@ export interface TagFinalizadoDetallePayload {
   stock_sistema: number | null;
   cantidad_fisica: number;
   fecha_hora: string;
+  lecturas: TagFinalizadoLecturaPayload[];
 }
 
 export interface TagFinalizadoPayload {
