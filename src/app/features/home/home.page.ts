@@ -18,6 +18,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { EventoFacade, Evento } from '../../state/evento/evento.facade';
+import { hoySql } from '../../shared/utils/fecha.utils';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
@@ -164,10 +165,17 @@ export class HomePage implements ViewWillEnter {
     if (pdaId) void this.conteoList.load(session.operadorId, pdaId);
   }
 
-  // Compara solo la fecha (YYYY-MM-DD), ignorando la hora — un evento de "hoy" siempre es seleccionable.
+  /*
+   * Compara solo la fecha (YYYY-MM-DD), ignorando la hora — un evento de "hoy"
+   * siempre es seleccionable.
+   *
+   * El "hoy" es el local de la PDA, no el UTC. Con toISOString() la PDA pasaba
+   * al día siguiente a las 20:00 hora Chile (UTC−4) y el evento del día quedaba
+   * marcado como vencido durante las últimas 4 horas del turno, justo cuando el
+   * operador todavía estaba contando.
+   */
   esVencido(evento: Evento): boolean {
-    const hoy = new Date().toISOString().slice(0, 10);
-    return evento.fechaProgramada.slice(0, 10) < hoy;
+    return evento.fechaProgramada.slice(0, 10) < hoySql();
   }
 
   esCerrado(evento: Evento): boolean {

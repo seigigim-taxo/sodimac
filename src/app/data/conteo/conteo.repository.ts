@@ -10,6 +10,7 @@ import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazab
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { ahoraSql } from '../../shared/utils/fecha.utils';
 
 /*
  * Mapeo de aliases antiguos de zona a los códigos oficiales de
@@ -70,10 +71,11 @@ export class SqliteConteoRepository implements ConteoRepository {
      * Reabrirla pisaría su estado y podría revivir una ronda ya cerrada.
      */
     await db.run(
-      `INSERT INTO sod_conteo (evento_id, iteracion)
-       VALUES (?, ?)
+      // fecha_apertura va explícita: el DEFAULT de la tabla la escribiría en UTC.
+      `INSERT INTO sod_conteo (evento_id, iteracion, fecha_apertura)
+       VALUES (?, ?, ?)
        ON CONFLICT (evento_id, iteracion) DO NOTHING`,
-      [eventoId, iteracion]
+      [eventoId, iteracion, ahoraSql()]
     );
 
     const result = await db.query(
@@ -113,9 +115,9 @@ export class SqliteConteoRepository implements ConteoRepository {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     await db.run(
       `UPDATE sod_conteo
-       SET estado = 'FINALIZADO', fecha_cierre = CURRENT_TIMESTAMP
+       SET estado = 'FINALIZADO', fecha_cierre = ?
        WHERE id = ? AND estado = 'ABIERTO'`,
-      [conteoId]
+      [ahoraSql(), conteoId]
     );
     if (isDevMode()) console.log('[ConteoRepo] cerrarRonda', { conteoId });
   }
@@ -172,23 +174,27 @@ export class SqliteConteoRepository implements ConteoRepository {
       await db.run(
         cantidad === 0
           ? `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = ?
              WHERE id = ?`
           : `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = CURRENT_TIMESTAMP
+             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = ?
              WHERE id = ?`,
-        cantidad === 0 ? [codigoLectura, id] : [cantidad, codigoLectura, id]
+        cantidad === 0
+          ? [codigoLectura, ahoraSql(), id]
+          : [cantidad, codigoLectura, ahoraSql(), id]
       );
     } else {
       /*
        * La iteración ya no se calcula: la línea cuelga del conteo, y el conteo
        * sabe a qué ronda pertenece. estado toma el DEFAULT 'EN_CURSO'.
+       *
+       * fecha_hora sí va explícita: dejarla al DEFAULT la escribiría en UTC.
        */
       await db.run(
         `INSERT INTO sod_conteo_detalle
-           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, codigo_lectura)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura]
+           (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, codigo_lectura, fecha_hora)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura, ahoraSql()]
       );
     }
 
@@ -208,10 +214,10 @@ export class SqliteConteoRepository implements ConteoRepository {
     // cero es intencional la pide la UI antes de llamar acá.
     await db.run(
       `UPDATE sod_conteo_detalle
-       SET cantidad_fisica = MAX(0, cantidad_fisica + ?), fecha_hora = CURRENT_TIMESTAMP
+       SET cantidad_fisica = MAX(0, cantidad_fisica + ?), fecha_hora = ?
        WHERE conteo_id = ? AND ubicacion_id = ? AND producto_id = ?
          AND operador_id = ? AND pda_id = ? AND estado = ?`,
-      [delta, conteoId, ubicacionId, productoId, operadorId, pdaId, estado]
+      [delta, ahoraSql(), conteoId, ubicacionId, productoId, operadorId, pdaId, estado]
     );
 
     return this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);

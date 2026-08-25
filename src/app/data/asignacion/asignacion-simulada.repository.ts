@@ -5,6 +5,7 @@ import { AsignacionApiRepository } from '../../domain/asignacion/repositories/as
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
 import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 import { Evento } from '../../domain/evento/models/evento.model';
+import { hoySql } from '../../shared/utils/fecha.utils';
 
 const TAG = '[AsignacionSimulada]';
 
@@ -90,7 +91,7 @@ export class AsignacionSimuladaRepository implements AsignacionApiRepository {
     const numero = eventos.filter((e) => e.nombre.startsWith(PREFIJO_CONTEO_PRUEBA)).length + 2;
     const nombre = `${PREFIJO_CONTEO_PRUEBA} ${numero}`;
     // Fecha de hoy: un evento con fecha anterior no se puede seleccionar en Home.
-    const fechaProgramada = new Date().toISOString().slice(0, 10);
+    const fechaProgramada = hoySql();
 
     const eventoNuevoId = await this.connection.enTransaccion(SODIMAC_DB_NAME, async (tx) => {
       const evento = await tx.run(

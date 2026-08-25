@@ -1,6 +1,19 @@
 export const SODIMAC_DB_NAME = 'sodimac';
 export const SODIMAC_DB_VERSION = 43;
 
+/*
+ * Las columnas de fecha usan datetime('now','localtime') y no CURRENT_TIMESTAMP,
+ * que devuelve UTC: la PDA trabaja en hora de Chile (UTC−4) y ese valor viaja
+ * tal cual al SGO en el payload del TAG.
+ *
+ * Ojo: esto NO migra las bases ya creadas — con CREATE TABLE IF NOT EXISTS, una
+ * instalación vieja conserva el DEFAULT en UTC. Por eso los repositorios pasan
+ * la fecha explícita en cada INSERT/UPDATE (ver shared/utils/fecha.utils.ts) en
+ * vez de confiar en el DEFAULT. Así quedan iguales las instalaciones nuevas y
+ * las viejas, y no hace falta subir SODIMAC_DB_VERSION, que borraría la base
+ * local de cada PDA al actualizar.
+ */
+
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
 
@@ -20,7 +33,7 @@ const TABLES: readonly string[] = [
     apellido_materno TEXT    DEFAULT NULL,
     correo           TEXT    NOT NULL,
     tipo_usuario     TEXT    DEFAULT NULL,
-    fecha_registro   TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_registro   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     UNIQUE (rut, rut_dv),
     UNIQUE (correo)
   )`,
@@ -47,7 +60,7 @@ const TABLES: readonly string[] = [
     fecha_programada    TEXT    NOT NULL,
     fecha_ejecucion     TEXT             DEFAULT NULL,
     estado              TEXT    NOT NULL DEFAULT 'ABIERTO',
-    fecha_registro      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    fecha_registro      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 )`,
 
   `CREATE TABLE IF NOT EXISTS sod_producto (
@@ -117,7 +130,7 @@ const TABLES: readonly string[] = [
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     evento_id        INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
     operador_id      INTEGER NOT NULL REFERENCES sod_user(id),
-    fecha_asignacion TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    fecha_asignacion TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
   )`,
 
   `CREATE TABLE IF NOT EXISTS sod_sincronizacion (
@@ -137,7 +150,7 @@ const TABLES: readonly string[] = [
                          CHECK (estado IN ('PENDIENTE', 'ENVIADO', 'ERROR')),
     error                TEXT             DEFAULT NULL,
     intentos             INTEGER NOT NULL DEFAULT 0,
-    fecha_hora           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_hora           TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     fecha_ultimo_intento TEXT             DEFAULT NULL,
     fecha_envio          TEXT             DEFAULT NULL,
     registros_procesados INTEGER          DEFAULT NULL
@@ -155,7 +168,7 @@ const TABLES: readonly string[] = [
     iteracion      INTEGER NOT NULL,
     estado         TEXT    NOT NULL DEFAULT 'ABIERTO'
                    CHECK (estado IN ('ABIERTO', 'FINALIZADO', 'SINCRONIZADO')),
-    fecha_apertura TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_apertura TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     fecha_cierre   TEXT             DEFAULT NULL,
     UNIQUE (evento_id, iteracion)
   )`,
@@ -175,7 +188,7 @@ const TABLES: readonly string[] = [
     cantidad_fisica REAL    NOT NULL,
     estado          TEXT    NOT NULL DEFAULT 'EN_CURSO'
                     CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
-    fecha_hora      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_hora      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     carga_uid       TEXT             DEFAULT NULL,
     codigo_lectura  TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
