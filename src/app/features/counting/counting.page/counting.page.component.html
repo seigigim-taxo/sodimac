@@ -97,19 +97,50 @@
       </div>
     </div>
 
-    <!-- ===== Cantidad ===== -->
-    <div class="card mb-4">
-      <div class="flex items-center justify-between gap-3">
-        <span class="field-label">Cantidad</span>
-        <ion-input type="number" inputmode="numeric" min="0" [value]="cantidad()" (ionInput)="onCantidadInput($event)"
-          aria-label="Cantidad" class="input-base num"
-          style="max-width: 96px; text-align: center; font-weight: 700;"></ion-input>
-      </div>
+    <!-- ===== Modo de captura ===== -->
+    <!--
+      Es una decisión por SKU, no una preferencia de la pantalla: el operador la
+      cambia según el producto que tenga delante. Por eso vive acá arriba del
+      escáner y no en el menú de ajustes.
+    -->
+    <div class="mb-4">
+      <ion-segment [value]="modoCaptura()" (ionChange)="onModoChange($event)" mode="md">
+        <ion-segment-button value="uno">
+          <ion-label>Uno a uno</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="cantidad">
+          <ion-label>Por cantidad</ion-label>
+        </ion-segment-button>
+      </ion-segment>
     </div>
 
-    <app-scan scanType="sku" [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
-      confirmLabel="Registrar" [showBanner]="false" [locked]="escanerBloqueado()"
+    <app-scan scanType="sku"
+      [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
+      [confirmLabel]="modoCaptura() === 'cantidad' ? 'Continuar' : 'Registrar'"
+      [showBanner]="false" [locked]="escanerBloqueado()"
+      [cederFoco]="modoCaptura() === 'cantidad'"
       (scan)="onScanSku($event)"></app-scan>
+
+    <!-- ===== Cantidad del SKU capturado (solo modo "por cantidad") ===== -->
+    @if (skuPendiente(); as sku) {
+    <div class="card mt-4">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <span class="field-label">Cantidad</span>
+        <span class="item-sku num">{{ sku }}</span>
+      </div>
+      <ion-input #cantidadInput type="number" inputmode="numeric" min="0" [value]="cantidad()"
+        (ionInput)="onCantidadInput($event)" (keyup.enter)="guardarCantidad()" aria-label="Cantidad"
+        class="input-base num" style="text-align: center; font-weight: 700;"></ion-input>
+      <div class="flex gap-2 mt-3">
+        <ion-button expand="block" class="btn-primary" style="flex: 1;" (click)="guardarCantidad()">
+          Guardar
+        </ion-button>
+        <ion-button expand="block" fill="outline" style="flex: 1;" (click)="cancelarCaptura()">
+          Cancelar
+        </ion-button>
+      </div>
+    </div>
+    }
 
     <!-- No se pudo abrir la sesión: el escáner queda bloqueado y acá se explica por qué. -->
     @if (errorSesion()) {

@@ -67,6 +67,35 @@ describe('ConteoFacade', () => {
     await facade.init(1, 1, 1, 1);
   });
 
+  /*
+   * estaEnMuestra() es lo que sostiene el modo "por cantidad": valida antes de
+   * pedir las unidades. Si dejara de coincidir con el criterio de scan(), el
+   * operador tipearía la cantidad de un SKU que después va a ser rechazado.
+   */
+  describe('estaEnMuestra', () => {
+    it('acepta un código de la muestra sin escribir nada', () => {
+      expect(facade.estaEnMuestra('AF001')).toBe(true);
+      expect(conteoRepo.upsert).not.toHaveBeenCalled();
+      expect(facade.items().length).toBe(0);
+    });
+
+    it('normaliza igual que scan(): espacios y minúsculas', () => {
+      expect(facade.estaEnMuestra('  af001 ')).toBe(true);
+    });
+
+    it('rechaza un código fuera de la muestra', () => {
+      expect(facade.estaEnMuestra('NO-EXISTE')).toBe(false);
+    });
+
+    it('coincide con el veredicto de scan()', async () => {
+      expect(facade.estaEnMuestra('NO-EXISTE')).toBe(false);
+      expect(await facade.scan('NO-EXISTE', 3)).toBe('rechazado');
+
+      expect(facade.estaEnMuestra('AF001')).toBe(true);
+      expect(await facade.scan('AF001', 3)).toBe('valido');
+    });
+  });
+
   it('registra un SKU que está en la muestra', async () => {
     const resultado = await facade.scan('AF001', 2);
 

@@ -73,6 +73,17 @@ export class ConteoFacade {
   }
 
   /*
+   * Consulta si un código pertenece a la muestra SIN escribir nada.
+   *
+   * La necesita el modo "por cantidad": ahí el SKU se lee primero y las unidades
+   * se piden después, así que validar recién al guardar obligaría al operador a
+   * tipear la cantidad para enterarse de que el producto no correspondía.
+   */
+  estaEnMuestra(codigoLectura: string): boolean {
+    return this.muestraSet.skuMap.has(codigoLectura.trim().toUpperCase());
+  }
+
+  /*
    * 'valido'    → el código de lectura está en la muestra y quedó persistido
    * 'rechazado' → el código de lectura no está en la muestra (feedback rojo)
    * 'error'     → el código era válido pero la escritura falló (detalle en error())

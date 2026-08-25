@@ -21,6 +21,13 @@ export class ScanComponent implements AfterViewInit {
   showBanner     = input(true);
   // true cuando aún no se cumplen las condiciones previas (ej: falta TAG/zona) — input y botón quedan deshabilitados
   locked         = input(false);
+  /*
+   * true cuando la página dueña continúa el flujo en otro campo (ej: el modo
+   * "por cantidad" del conteo pide las unidades después de leer el SKU). El
+   * código leído queda a la vista y el foco no vuelve acá solo: lo devuelve la
+   * página llamando a limpiar() cuando terminó.
+   */
+  cederFoco      = input(false);
   scan           = output<string>();
   scanInput    = viewChild<IonInput>('scanInput');
 
@@ -82,10 +89,22 @@ export class ScanComponent implements AfterViewInit {
     this._tagConfirmed.set(true);
     this.scan.emit(value);
 
+    // El flujo sigue en otro campo: ni se borra el código ni se recupera el foco.
+    if (this.cederFoco()) return;
+
     if (this.scanType() === 'sku') {
       this.form.reset();
     }
 
+    setTimeout(() => this.scanInput()?.setFocus(), 50);
+  }
+
+  /*
+   * Deja el campo listo para la próxima lectura. La usa la página dueña cuando
+   * trabaja con cederFoco: es ella la que sabe cuándo se cerró el ciclo.
+   */
+  limpiar(): void {
+    this.form.reset();
     setTimeout(() => this.scanInput()?.setFocus(), 50);
   }
 }

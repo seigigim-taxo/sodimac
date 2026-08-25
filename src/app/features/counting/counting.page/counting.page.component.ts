@@ -1,4 +1,4 @@
-import { Component, inject, isDevMode, signal, computed } from '@angular/core';
+import { Component, inject, isDevMode, signal, computed, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
@@ -9,7 +9,10 @@ import {
   IonHeader,
   IonIcon,
   IonInput,
+  IonLabel,
   IonMenuButton,
+  IonSegment,
+  IonSegmentButton,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -55,6 +58,17 @@ interface ResultadoScan {
   mensaje?: string;
 }
 
+/*
+ * Cómo se cuenta el próximo SKU. Es una decisión por lectura, no una
+ * configuración de la pantalla: el operador la cambia según el producto que
+ * tenga delante.
+ *
+ *  - 'uno'      → una lectura suma una unidad y el foco vuelve al escáner.
+ *  - 'cantidad' → la lectura solo captura el SKU; las unidades se tipean después
+ *                 y recién ahí se registra.
+ */
+type ModoCaptura = 'uno' | 'cantidad';
+
 @Component({
   selector: 'app-counting-page',
   templateUrl: './counting.page.component.html',
@@ -67,7 +81,10 @@ interface ResultadoScan {
     IonHeader,
     IonIcon,
     IonInput,
+    IonLabel,
     IonMenuButton,
+    IonSegment,
+    IonSegmentButton,
     IonSpinner,
     IonTitle,
     IonToolbar,
@@ -91,12 +108,24 @@ export class CountingPageComponent implements ViewWillEnter {
   isOnline = this.network.isOnline;
   sesionCargando = this.conteo.loading;
 
+  private scanComp      = viewChild(ScanComponent);
+  private cantidadInput = viewChild<IonInput>('cantidadInput');
+
+  modoCaptura = signal<ModoCaptura>('uno');
+  // SKU leído en modo 'cantidad' que todavía espera las unidades. null = no hay captura abierta.
+  skuPendiente = signal<string | null>(null);
+
   /*
    * El escáner se bloquea siempre que no haya una sesión utilizable, no solo
    * mientras carga: si init() falla, `loading` vuelve a false igual y el
    * escáner quedaría aceptando lecturas contra nada.
+   *
+   * También mientras hay un SKU esperando cantidad: con pistola de teclado, un
+   * segundo disparo pisaría el código a medio registrar sin que nadie lo note.
    */
-  escanerBloqueado = computed(() => this.sesionCargando() || !this.conteo.enCurso());
+  escanerBloqueado = computed(() =>
+    this.sesionCargando() || !this.conteo.enCurso() || this.skuPendiente() !== null
+  );
 
   /*
    * Falla al abrir la sesión. Se muestra como banner y no como toast porque no
@@ -262,16 +291,71 @@ export class CountingPageComponent implements ViewWillEnter {
     this.cantidad.set(Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1);
   }
 
-  async onScanSku(sku: string): Promise<void> {
-    const codigo   = sku.trim().toUpperCase();
-    const cantidad = this.cantidad();
+  onModoChange(event: Event): void {
+    const value = (event as CustomEvent<{ value: string }>).detail.value;
+    if (value !== 'uno' && value !== 'cantidad') return;
+    if (value === this.modoCaptura()) return;
+    this.modoCaptura.set(value);
+    // Cambiar de modo con una captura a medias la descarta: nada se escribió todavía.
+    this.cerrarCaptura();
+  }
 
-    // Contar en cero es válido (ej. producto vendido/despachado), pero se confirma
-    // antes de persistir para evitar que sea un error de digitación.
-    if (cantidad === 0 && !(await this.confirmarCantidadCero(codigo))) {
-      this.cantidad.set(1);
+  async onScanSku(sku: string): Promise<void> {
+    const codigo = sku.trim().toUpperCase();
+
+    if (this.modoCaptura() === 'uno') {
+      await this.registrar(codigo, 1);
       return;
     }
+
+    /*
+     * Se valida acá y no al guardar: pedirle las unidades para recién entonces
+     * avisarle que el SKU no pertenece a la muestra es trabajo tirado.
+     */
+    if (!this.conteo.estaEnMuestra(codigo)) {
+      this.setLastScan({ sku: codigo, estado: 'FUERA_DE_MUESTRA' });
+      this.scanComp()?.limpiar();
+      return;
+    }
+
+    this.cantidad.set(1);
+    this.skuPendiente.set(codigo);
+    // El foco lo cede ScanComponent vía [cederFoco]; acá se lo lleva la cantidad.
+    setTimeout(() => void this.cantidadInput()?.setFocus(), 60);
+  }
+
+  async guardarCantidad(): Promise<void> {
+    const codigo = this.skuPendiente();
+    if (codigo === null) return;
+
+    // Si no se registró (canceló la confirmación de cero) la captura sigue
+    // abierta: el operador corrige la cantidad en vez de volver a leer el SKU.
+    if (!(await this.registrar(codigo, this.cantidad()))) return;
+
+    this.cerrarCaptura();
+  }
+
+  cancelarCaptura(): void {
+    this.cerrarCaptura();
+  }
+
+  private cerrarCaptura(): void {
+    this.skuPendiente.set(null);
+    this.cantidad.set(1);
+    // Devuelve el foco al escáner: sin esto el operador tiene que tocar la
+    // pantalla entre lectura y lectura y la pistola deja de servir.
+    this.scanComp()?.limpiar();
+  }
+
+  /*
+   * Punto único de escritura de los dos modos. Devuelve false solo cuando el
+   * operador canceló la confirmación de cantidad cero — un rechazo por muestra
+   * o una falla de escritura sí cierran el ciclo, con su banner.
+   */
+  private async registrar(codigo: string, cantidad: number): Promise<boolean> {
+    // Contar en cero es válido (ej. producto vendido/despachado), pero se confirma
+    // antes de persistir para evitar que sea un error de digitación.
+    if (cantidad === 0 && !(await this.confirmarCantidadCero(codigo))) return false;
 
     const resultado = await this.conteo.scan(codigo, cantidad);
     if (resultado === 'error') {
@@ -284,7 +368,7 @@ export class CountingPageComponent implements ViewWillEnter {
         void this.cargarResumen();
       }
     }
-    this.cantidad.set(1);
+    return true;
   }
 
   private confirmarCantidadCero(codigo: string): Promise<boolean> {
@@ -400,6 +484,7 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   private doDescartarTag(): void {
+    this.skuPendiente.set(null);
     this.conteo.reset();
     this.zonaFacade.clearTag();
     // Sin esto, volver a elegir el mismo TAG reutiliza el ubicacionId y el
@@ -428,6 +513,7 @@ export class CountingPageComponent implements ViewWillEnter {
     this.finalizando.set(true);
     // Cerrada esta sesión, volver a entrar a la misma ubicación debe arrancar de cero.
     this.sesionInicializada = null;
+    this.skuPendiente.set(null);
 
     const sesion  = this.conteo.sesion();
     const evento  = this.currentEvent();
