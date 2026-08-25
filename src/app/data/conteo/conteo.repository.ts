@@ -151,7 +151,7 @@ export class SqliteConteoRepository implements ConteoRepository {
      * el UNIQUE con un error de SQLite en la cara del operador.
      */
     const existing = await db.query(
-      `SELECT id, estado FROM sod_conteo_detalle
+      `SELECT id, estado, cantidad_fisica FROM sod_conteo_detalle
        WHERE conteo_id = ? AND ubicacion_id = ? AND producto_id = ?
          AND operador_id = ? AND pda_id = ?`,
       [conteoId, ubicacionId, productoId, operadorId, pdaId]
@@ -171,25 +171,31 @@ export class SqliteConteoRepository implements ConteoRepository {
       throw new Error('Este SKU ya se sincronizó con el servidor y no se puede volver a contar en este TAG.');
     }
 
-    if (existing.values?.length) {
-      // cantidad_fisica + cantidad se evalúa en SQLite sobre el valor real de la DB.
-      //
-      // Cero es la excepción: no es "sumar nada" (un no-op silencioso), es la
-      // declaración de que del SKU no hay unidades — típicamente corrigiendo un
-      // conteo previo del mismo SKU. Por eso reemplaza el valor en vez de sumarse.
+    /*
+     * El movimiento que este scan produce sobre el total. No es siempre
+     * `cantidad`:
+     *
+     * Cero no es "sumar nada" (un no-op silencioso), es la declaración de que
+     * del SKU no hay unidades — típicamente corrigiendo un conteo previo. Por
+     * eso REEMPLAZA el total, y el movimiento que lo logra es el negativo de lo
+     * que había.
+     *
+     * Calcularlo acá es lo que sostiene el invariante de sod_conteo_lectura:
+     * la suma de los movimientos siempre da cantidad_fisica.
+     */
+    const filaPrevia = existing.values?.[0] as Record<string, unknown> | undefined;
+    const totalPrevio = (filaPrevia?.['cantidad_fisica'] as number | undefined) ?? 0;
+    const movimiento = cantidad === 0 ? -totalPrevio : cantidad;
+
+    if (filaPrevia) {
       // Opción B: se actualiza codigo_lectura al último código escaneado exitoso.
-      const id = (existing.values[0] as Record<string, unknown>)['id'] as number;
+      const id = filaPrevia['id'] as number;
       await db.run(
-        cantidad === 0
-          ? `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = ?
-             WHERE id = ?`
-          : `UPDATE sod_conteo_detalle
-             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = ?
-             WHERE id = ?`,
-        cantidad === 0
-          ? [codigoLectura, ahoraSql(), id]
-          : [cantidad, codigoLectura, ahoraSql(), id]
+        `UPDATE sod_conteo_detalle
+         SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = ?
+         WHERE id = ?`,
+        [movimiento, codigoLectura, ahoraSql(), id],
+        false
       );
     } else {
       /*
@@ -202,22 +208,24 @@ export class SqliteConteoRepository implements ConteoRepository {
         `INSERT INTO sod_conteo_detalle
            (conteo_id, ubicacion_id, producto_id, operador_id, pda_id, cantidad_fisica, codigo_lectura, fecha_hora)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura, ahoraSql()]
+        [conteoId, ubicacionId, productoId, operadorId, pdaId, cantidad, codigoLectura, ahoraSql()],
+        false
       );
     }
 
     const item = await this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId);
 
     /*
-     * Una fila por captura, sin deduplicar: es la única forma de poder decir
-     * después cuántas unidades del SKU entraron por pistola y cuántas a mano.
-     * El payload manda las combinaciones distintas, pero eso se resuelve al
-     * armarlo, no tirando el dato acá.
+     * Se registra siempre, incluso con movimiento 0: la fila deja constancia de
+     * que ESE código se usó y de qué forma, y eso vale aunque no haya movido
+     * unidades. El reporte responde "¿se escaneó?" por presencia del par
+     * (código, medio), no por el signo de la suma.
      */
     await db.run(
       `INSERT INTO sod_conteo_lectura (detalle_id, codigo_lectura, medio_captura, cantidad, fecha_hora)
        VALUES (?, ?, ?, ?, ?)`,
-      [item.id, codigoLectura, medioCaptura, cantidad, ahoraSql()]
+      [item.id, codigoLectura, medioCaptura, movimiento, ahoraSql()],
+      false
     );
 
     return item;
@@ -234,7 +242,7 @@ export class SqliteConteoRepository implements ConteoRepository {
       [detalleId]
     );
     return (result.values ?? []).map((row: Record<string, unknown>) => ({
-      codigoLectura: row['codigo_lectura'] as string,
+      codigoLectura: (row['codigo_lectura'] as string | null) ?? null,
       medioCaptura:  row['medio_captura']  as MedioCaptura,
       cantidad:      row['cantidad']       as number,
       fechaHora:     row['fecha_hora']     as string,
@@ -246,21 +254,64 @@ export class SqliteConteoRepository implements ConteoRepository {
     productoId: number, operadorId: number, pdaId: number,
     delta: number, estado: EstadoConteo
   ): Promise<ConteoItem> {
-    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    /*
+     * Los botones +/- también son una captura: declaran unidades. Lo que NO
+     * hacen es leer un código, y por eso la lectura queda con codigo_lectura
+     * nulo. Atribuirle el código que ya tenía la línea diría que ese código se
+     * tipeó a mano — y si venía de la pistola, el reporte concluiría que el EAN
+     * no se escaneó. Es la afirmación falsa que todo esto existe para evitar.
+     *
+     * Se AGREGA un movimiento; no se tocan las lecturas anteriores. Bajar de 5
+     * a 3 deja constancia de que hubo un escaneo de 5 y una baja manual de 2,
+     * que es lo que realmente pasó.
+     */
+    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
 
-    // MAX(0, ...) impide cantidades negativas, pero sí permite llegar a 0:
-    // dejar un SKU en cero es un dato válido (no hay unidades) y es distinto de
-    // borrarlo del conteo, que sigue siendo delete(). La confirmación de que el
-    // cero es intencional la pide la UI antes de llamar acá.
-    await db.run(
-      `UPDATE sod_conteo_detalle
-       SET cantidad_fisica = MAX(0, cantidad_fisica + ?), fecha_hora = ?
+    const detalleRow = await db.query(
+      `SELECT id, cantidad_fisica
+       FROM sod_conteo_detalle
        WHERE conteo_id = ? AND ubicacion_id = ? AND producto_id = ?
          AND operador_id = ? AND pda_id = ? AND estado = ?`,
-      [delta, ahoraSql(), conteoId, ubicacionId, productoId, operadorId, pdaId, estado]
+      [conteoId, ubicacionId, productoId, operadorId, pdaId, estado]
+    );
+    const detalle = detalleRow.values?.[0] as Record<string, unknown> | undefined;
+    if (!detalle) {
+      throw new Error('No se encontró el detalle para ajustar');
+    }
+
+    const detalleId  = detalle['id'] as number;
+    const totalPrevio = detalle['cantidad_fisica'] as number;
+
+    /*
+     * El movimiento REAL, no el pedido: MAX(0, …) impide dejar la línea en
+     * negativo, así que pedir -5 sobre un total de 3 mueve -3. Registrar el
+     * pedido en vez de lo aplicado rompería el invariante de la tabla.
+     */
+    const totalNuevo = Math.max(0, totalPrevio + delta);
+    const movimiento = totalNuevo - totalPrevio;
+
+    // Sin movimiento no hay nada que escribir ni que registrar.
+    if (movimiento === 0) {
+      return this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);
+    }
+
+    await db.run(
+      `UPDATE sod_conteo_detalle
+       SET cantidad_fisica = ?, fecha_hora = ?
+       WHERE id = ?`,
+      [totalNuevo, ahoraSql(), detalleId],
+      false
+    );
+
+    await db.run(
+      `INSERT INTO sod_conteo_lectura (detalle_id, codigo_lectura, medio_captura, cantidad, fecha_hora)
+       VALUES (?, NULL, 'MANUAL', ?, ?)`,
+      [detalleId, movimiento, ahoraSql()],
+      false
     );
 
     return this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);
+    });
   }
 
   async delete(
@@ -741,15 +792,28 @@ export class SqliteConteoRepository implements ConteoRepository {
      */
     const lecturasRow = await db.query(
       /*
-       * Acá se aplica el contrato del SGO: combinaciones DISTINTAS de código y
-       * medio, sin cantidad ni fecha. La tabla local guarda una fila por
-       * captura; el agrupado vive en esta consulta y no en el modelo, para que
-       * cambiar el contrato no cueste otra migración.
+       * Acá se aplica el contrato del SGO: una entrada por combinación de
+       * código y medio, con las unidades sumadas. La tabla local guarda una
+       * fila por captura; el agrupado vive en esta consulta y no en el modelo,
+       * para que cambiar el contrato no cueste otra migración.
+       *
+       * La suma da cantidad_fisica, sin excepciones: todo movimiento genera
+       * lectura, incluidos los botones +/- y la declaración de cantidad 0.
+       *
+       * Los ajustes con +/- tienen codigo_lectura nulo y SQLite agrupa los
+       * nulos entre sí, así que quedan como una sola entrada por detalle con el
+       * neto de lo movido a mano.
+       *
+       * Una entrada puede venir con cantidad negativa o cero — un código
+       * escaneado y después retractado. No se filtra: la presencia del par
+       * (código, medio) es lo que dice cómo entró ese código, y eso vale aunque
+       * el neto sea cero.
        *
        * Se ordena por la primera aparición, que es el orden real en que el
        * operador usó cada código.
        */
-      `SELECT l.detalle_id, l.codigo_lectura, l.medio_captura
+      `SELECT l.detalle_id, l.codigo_lectura, l.medio_captura,
+              SUM(l.cantidad) AS cantidad
        FROM sod_conteo_lectura l
        JOIN sod_conteo_detalle d ON d.id = l.detalle_id
        WHERE d.conteo_id = ? AND d.ubicacion_id = ?
@@ -765,8 +829,10 @@ export class SqliteConteoRepository implements ConteoRepository {
       const detalleId = row['detalle_id'] as number;
       const lista = lecturasPorDetalle.get(detalleId) ?? [];
       lista.push({
-        codigo_lectura: row['codigo_lectura'] as string,
+        // Nulo en los ajustes con +/-: mueven unidades sin leer ningún código.
+        codigo_lectura: (row['codigo_lectura'] as string | null) ?? null,
         medio_captura:  row['medio_captura']  as MedioCaptura,
+        cantidad:       row['cantidad']       as number,
       });
       lecturasPorDetalle.set(detalleId, lista);
     }

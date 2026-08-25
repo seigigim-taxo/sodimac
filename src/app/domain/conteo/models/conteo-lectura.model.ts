@@ -13,16 +13,20 @@ import { MedioCaptura } from './medio-captura.model';
  * servidor no es razón para tirar dato en la PDA, así que local se guarda
  * completo y el payload se deriva.
  *
- * OJO — no se promete que la suma de las lecturas coincida con
- * cantidad_fisica de la línea. Dos operaciones lo rompen a propósito: el
- * MAX(0, …) que impide negativos, y la regla de que declarar cantidad 0
- * REEMPLAZA el total en vez de sumarse. Para que cuadrara habría que inventar
- * capturas que nunca ocurrieron, y un registro que miente para que cierre la
- * aritmética no sirve como trazabilidad. Acá manda lo que el operador hizo.
+ * SOLO SE AGREGA. Quitar unidades no deshace una captura anterior: agrega un
+ * movimiento negativo. Así un escaneo sigue constando aunque después se haya
+ * retractado — mutar el historial para que el saldo quede prolijo perdería
+ * justo el dato por el que esto existe.
+ *
+ * INVARIANTE: la suma de los movimientos de un detalle da su cantidad_fisica.
+ * Todo pasa por acá: los scans, los botones +/- y la declaración de cantidad 0
+ * (que entra como el negativo del total previo).
  */
 export interface ConteoLectura {
-  codigoLectura: string;
+  /* Nulo cuando no hubo lectura: los botones +/- mueven unidades sin leer nada. */
+  codigoLectura: string | null;
   medioCaptura:  MedioCaptura;
+  /* Movimiento sobre el total, con signo. Negativo al quitar unidades. */
   cantidad:      number;
   fechaHora:     string;
 }

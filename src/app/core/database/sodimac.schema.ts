@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 44;
+export const SODIMAC_DB_VERSION = 46;
 
 /*
  * Las columnas de fecha usan datetime('now','localtime') y no CURRENT_TIMESTAMP,
@@ -179,42 +179,48 @@ const TABLES: readonly string[] = [
    * operador_id y pda_id van acá porque varios operadores trabajan la misma ronda.
    */
   `CREATE TABLE IF NOT EXISTS sod_conteo_detalle (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    conteo_id       INTEGER NOT NULL REFERENCES sod_conteo(id),
-    ubicacion_id    INTEGER NOT NULL REFERENCES sod_ubicacion(id),
-    producto_id     INTEGER NOT NULL REFERENCES sod_producto(id),
-    operador_id     INTEGER NOT NULL REFERENCES sod_user(id),
-    pda_id          INTEGER NOT NULL REFERENCES sod_pda(id),
-    cantidad_fisica REAL    NOT NULL,
-    estado          TEXT    NOT NULL DEFAULT 'EN_CURSO'
-                    CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
-    fecha_hora      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
-    carga_uid       TEXT             DEFAULT NULL,
-    codigo_lectura  TEXT             DEFAULT NULL,
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    conteo_id            INTEGER NOT NULL REFERENCES sod_conteo(id),
+    ubicacion_id         INTEGER NOT NULL REFERENCES sod_ubicacion(id),
+    producto_id          INTEGER NOT NULL REFERENCES sod_producto(id),
+    operador_id          INTEGER NOT NULL REFERENCES sod_user(id),
+    pda_id               INTEGER NOT NULL REFERENCES sod_pda(id),
+    cantidad_fisica      REAL    NOT NULL,
+    estado               TEXT    NOT NULL DEFAULT 'EN_CURSO'
+                           CHECK (estado IN ('EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
+    fecha_hora           TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    carga_uid            TEXT             DEFAULT NULL,
+    codigo_lectura       TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
   )`,
 
   /*
-   * CÓMO SE CAPTURÓ. Una fila por captura: qué código entró, de qué forma y
-   * cuántas unidades declaró.
+   * CÓMO SE CAPTURÓ. Un movimiento de unidades y cómo se declaró.
    *
-   * Es un log, y por eso NO lleva UNIQUE: escanear diez veces el mismo EAN deja
-   * diez filas. Deduplicar ahorraría unas pocas filas y perdería justo lo que
-   * un agregado no puede reconstruir — cuántas unidades entraron por pistola y
-   * cuántas a mano, y en qué orden.
+   * SOLO SE AGREGA. Nunca se modifica ni se borra una fila: quitar unidades
+   * agrega un movimiento negativo, no deshace el anterior. Es lo que permite
+   * que un escaneo siga constando aunque después se haya retractado — mutar el
+   * historial para que el saldo quede prolijo es perder justo el dato por el
+   * que existe esta tabla.
    *
-   * El SGO recibe menos: su contrato pide solo las combinaciones distintas de
-   * (código, medio). Eso se deriva al armar el payload; la PDA guarda completo.
+   * INVARIANTE: SUM(cantidad) por detalle == cantidad_fisica de la línea.
+   * Todo movimiento pasa por acá, incluidos los botones +/- y la declaración de
+   * cantidad 0 (que entra como el negativo del total previo).
    *
-   * La suma de las cantidades NO tiene por qué coincidir con la
-   * cantidad_fisica de la línea: el MAX(0, …) de los ajustes y la regla de que
-   * cantidad 0 reemplaza el total la rompen a propósito. Esta tabla registra lo
-   * que el operador hizo, no lo que haría cerrar la aritmética.
+   * codigo_lectura es NULO cuando no hubo lectura: los botones +/- ajustan
+   * unidades sin que el operador lea nada. Atribuirle el código que ya tenía la
+   * línea diría que ese código se tipeó a mano, y es exactamente la afirmación
+   * falsa que este registro existe para evitar.
+   *
+   * Al armar el payload esto se agrupa por (código, medio). Ahí "¿se escaneó
+   * este código?" se responde por PRESENCIA del par, no por el signo de la
+   * suma: un código escaneado y después retractado suma cero y sigue siendo un
+   * código que se escaneó.
    */
   `CREATE TABLE IF NOT EXISTS sod_conteo_lectura (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     detalle_id     INTEGER NOT NULL REFERENCES sod_conteo_detalle(id),
-    codigo_lectura TEXT    NOT NULL,
+    codigo_lectura TEXT             DEFAULT NULL,
     medio_captura  TEXT    NOT NULL
                    CHECK (medio_captura IN ('ESCANER', 'MANUAL')),
     cantidad       REAL    NOT NULL,

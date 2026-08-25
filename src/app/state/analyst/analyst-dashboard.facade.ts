@@ -143,7 +143,11 @@ export class AnalystDashboardFacade {
            * que aplicar acá.
            */
           lecturas: [
-            { codigo_lectura: fila.codigoBarras || fila.sku, medio_captura: 'MANUAL' as const },
+            {
+              codigo_lectura: fila.codigoBarras || fila.sku,
+              medio_captura: 'MANUAL' as const,
+              cantidad: cantidadAnalista,
+            },
           ],
         },
       ],
