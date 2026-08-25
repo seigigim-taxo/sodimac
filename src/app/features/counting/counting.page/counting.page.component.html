@@ -131,6 +131,15 @@
       <ion-input #cantidadInput type="number" inputmode="numeric" min="0" [value]="cantidad()"
         (ionInput)="onCantidadInput($event)" (keyup.enter)="guardarCantidad()" aria-label="Cantidad"
         class="input-base num" style="text-align: center; font-weight: 700;"></ion-input>
+
+      <!-- Aviso mientras tipea: el diálogo de confirmación llega recién al guardar. -->
+      @if (cantidadEsAlta()) {
+      <div class="status-banner status-banner-warning mt-3">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>Cantidad inusualmente alta. Revisa que no sea un error de tipeo.</span>
+      </div>
+      }
+
       <div class="flex gap-2 mt-3">
         <ion-button expand="block" class="btn-primary" style="flex: 1;" (click)="guardarCantidad()">
           Guardar

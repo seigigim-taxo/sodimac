@@ -116,6 +116,16 @@ export class CountingPageComponent implements ViewWillEnter {
   skuPendiente = signal<string | null>(null);
 
   /*
+   * A partir de acá se pregunta antes de escribir. Es un umbral de referencia
+   * acordado con el cliente, no un límite del negocio: hay SKU que legítimamente
+   * pasan de 2000 unidades.
+   */
+  readonly CANTIDAD_ALTA = 2000;
+
+  // Aviso en la propia tarjeta, mientras tipea: llega antes que el diálogo del guardado.
+  cantidadEsAlta = computed(() => this.cantidad() >= this.CANTIDAD_ALTA);
+
+  /*
    * El escáner se bloquea siempre que no haya una sesión utilizable, no solo
    * mientras carga: si init() falla, `loading` vuelve a false igual y el
    * escáner quedaría aceptando lecturas contra nada.
@@ -328,8 +338,8 @@ export class CountingPageComponent implements ViewWillEnter {
     const codigo = this.skuPendiente();
     if (codigo === null) return;
 
-    // Si no se registró (canceló la confirmación de cero) la captura sigue
-    // abierta: el operador corrige la cantidad en vez de volver a leer el SKU.
+    // Si no se registró (canceló una confirmación) la captura sigue abierta: el
+    // operador corrige la cantidad en vez de volver a leer el SKU.
     if (!(await this.registrar(codigo, this.cantidad()))) return;
 
     this.cerrarCaptura();
@@ -349,13 +359,12 @@ export class CountingPageComponent implements ViewWillEnter {
 
   /*
    * Punto único de escritura de los dos modos. Devuelve false solo cuando el
-   * operador canceló la confirmación de cantidad cero — un rechazo por muestra
-   * o una falla de escritura sí cierran el ciclo, con su banner.
+   * operador canceló una confirmación de cantidad (cero o inusualmente alta) —
+   * un rechazo por muestra o una falla de escritura sí cierran el ciclo, con su
+   * banner.
    */
   private async registrar(codigo: string, cantidad: number): Promise<boolean> {
-    // Contar en cero es válido (ej. producto vendido/despachado), pero se confirma
-    // antes de persistir para evitar que sea un error de digitación.
-    if (cantidad === 0 && !(await this.confirmarCantidadCero(codigo))) return false;
+    if (!(await this.confirmarCantidad(codigo, cantidad))) return false;
 
     const resultado = await this.conteo.scan(codigo, cantidad);
     if (resultado === 'error') {
@@ -371,11 +380,36 @@ export class CountingPageComponent implements ViewWillEnter {
     return true;
   }
 
-  private confirmarCantidadCero(codigo: string): Promise<boolean> {
+  /*
+   * Dos controles sobre el mismo número, por motivos opuestos:
+   *
+   *  - 0     → es una declaración válida (producto vendido o despachado), pero
+   *            también el resultado típico de un borrado accidental.
+   *  - ≥2000 → es posible (tornillería a granel), pero también el resultado
+   *            típico de un dedo de más: 2000 donde iban 20.
+   *
+   * Ninguno bloquea: preguntan y siguen si el operador confirma. Un tope duro
+   * dejaría fuera conteos legítimos y el operador terminaría partiéndolos en
+   * pedazos para esquivarlo, que es peor que el dato alto.
+   */
+  private confirmarCantidad(codigo: string, cantidad: number): Promise<boolean> {
+    if (cantidad === 0) {
+      return this.preguntar('Confirmar cantidad', `¿Confirmas que ${codigo} tiene 0 unidades?`);
+    }
+    if (cantidad >= this.CANTIDAD_ALTA) {
+      return this.preguntar(
+        'Cantidad inusualmente alta',
+        `Vas a registrar ${cantidad} unidades de ${codigo}. Revisa que no sea un error de tipeo.`
+      );
+    }
+    return Promise.resolve(true);
+  }
+
+  private preguntar(header: string, message: string): Promise<boolean> {
     return new Promise((resolve) => {
       this.alertController.create({
-        header:  'Confirmar cantidad',
-        message: `¿Confirmas que ${codigo} tiene 0 unidades?`,
+        header,
+        message,
         buttons: [
           { text: 'Cancelar', role: 'cancel', handler: () => resolve(false) },
           { text: 'Confirmar', role: 'confirm', handler: () => resolve(true) },
@@ -408,7 +442,12 @@ export class CountingPageComponent implements ViewWillEnter {
     // Ya está en 0 y se sigue bajando: no hay nada que confirmar ni que escribir.
     if (siguiente === item.cantidad) return;
 
-    if (siguiente === 0 && !(await this.confirmarCantidadCero(item.sku))) return;
+    /*
+     * Solo se controla el cero. La alerta de cantidad alta no aplica acá: +1 no
+     * es un error de tipeo, y dispararla al cruzar el umbral la volvería ruido
+     * en cada clic posterior.
+     */
+    if (siguiente === 0 && !(await this.preguntar('Confirmar cantidad', `¿Confirmas que ${item.sku} tiene 0 unidades?`))) return;
 
     await this.conteo.adjust(productoId, delta);
 
