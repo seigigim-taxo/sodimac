@@ -1,8 +1,13 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, isDevMode, signal, computed } from '@angular/core';
 import { GetZonasBySucursalUseCase } from '../../application/zona/get-zonas-by-sucursal.use-case';
 import { RegistrarUbicacionUseCase } from '../../application/ubicacion/registrar-ubicacion.use-case';
 import { Zona } from '../../domain/zona/models/zona.model';
-export type { Zona };
+import {
+  ResolucionZona,
+  detectarSuperposiciones,
+  resolverZonaPorTag,
+} from '../../domain/zona/utils/zona-por-tag.utils';
+export type { Zona, ResolucionZona };
 
 @Injectable({ providedIn: 'root' })
 export class ZonaFacade {
@@ -36,7 +41,9 @@ export class ZonaFacade {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
-      this.zonesSignal.set(await this.getZonasBySucursal.execute(sucursalId));
+      const zonas = await this.getZonasBySucursal.execute(sucursalId);
+      this.zonesSignal.set(zonas);
+      this.avisarSuperposiciones(zonas);
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar zonas');
     } finally {
@@ -54,6 +61,39 @@ export class ZonaFacade {
 
   selectZona(zona: Zona): void {
     this.selectedZoneSignal.set(zona);
+  }
+
+  /*
+   * Deriva la zona del número de TAG y la deja seleccionada si la encuentra.
+   * Reemplaza a que el operador la elija: el rango de la zona ya venía del WS,
+   * solo que hasta ahora servía para validar la elección en vez de hacerla.
+   *
+   * Devuelve el desenlace para que la pantalla decida qué decirle al operador;
+   * si no resuelve, no toca la selección anterior — dejarla a medias haría que
+   * el botón de continuar mirara una zona que no corresponde al TAG tipeado.
+   */
+  aplicarZonaPorTag(tag: string): ResolucionZona {
+    const resolucion = resolverZonaPorTag(tag, this.zonesSignal());
+    if (resolucion.estado === 'RESUELTA') {
+      this.selectedZoneSignal.set(resolucion.zona);
+    }
+    return resolucion;
+  }
+
+  /*
+   * Los rangos superpuestos son un error de datos del WS que, sin esto, no se
+   * nota: la derivación devuelve la primera zona que encuentra y el conteo se
+   * imputa a la zona equivocada en silencio. El cliente confirmó que hoy no hay
+   * superposiciones — esto está para el día que eso cambie.
+   */
+  private avisarSuperposiciones(zonas: Zona[]): void {
+    if (!isDevMode()) return;
+    const pares = detectarSuperposiciones(zonas);
+    if (pares.length === 0) return;
+    console.warn(
+      '[ZonaFacade] rangos de TAG superpuestos — la derivación de zona es ambigua:',
+      pares.map(([a, b]) => `${a.nombre}(${a.tagDesde}-${a.tagHasta}) ∩ ${b.nombre}(${b.tagDesde}-${b.tagHasta})`)
+    );
   }
 
   async confirmZona(): Promise<void> {
@@ -86,6 +126,11 @@ export class ZonaFacade {
     this.ubicacionIdSignal.set(ubicacionId);
     this.ubicacionPrecisaSignal.set(ubicacionPrecisa);
     this.errorSignal.set(null);
+  }
+
+  /* La zona se deriva del TAG: si el TAG cambia, la zona anterior ya no aplica. */
+  clearZona(): void {
+    this.selectedZoneSignal.set(null);
   }
 
   clearTag(): void {

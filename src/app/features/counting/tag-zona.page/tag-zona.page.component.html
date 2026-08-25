@@ -23,36 +23,14 @@
       <div class="flex items-center justify-between gap-3">
         <h2 class="page-title">Nuevo TAG</h2>
       </div>
-      <p class="page-subtitle">Selecciona la zona, ingresa la ubicación y escanea el TAG</p>
+      <p class="page-subtitle">Escanea el TAG e ingresa la ubicación</p>
     </div>
 
-    <!-- ===== 1. Zona ===== -->
-    <div class="card mb-4">
-      <p class="field-label mb-2">Zona</p>
-      <ion-select #zonaSelect [value]="zonaConfirmada()" placeholder="Selecciona una zona"
-        (ionChange)="onZonaChange($event)" class="zone-select">
-        @for (zona of zonas(); track zona.id) {
-        <ion-select-option [value]="zona">{{ zona.descripcion || zona.nombre }}</ion-select-option>
-        }
-      </ion-select>
-    </div>
-
-    <!-- ===== 2. Ubicación ===== -->
-    <div class="card mb-4">
-      <p class="field-label mb-2">Ubicación</p>
-      <ion-input #ubicacionInputEl [value]="ubicacionPrecisa()" [disabled]="!zonaConfirmada()" (ionInput)="onUbicacionInput($event)"
-        (keydown)="onUbicacionKeydown($event)"
-        placeholder="Ej: PASILLO A, PASILLO B, CABECERA 3"
-        class="input-base">
-      </ion-input>
-      @if (!zonaConfirmada()) {
-      <p class="hint-text">Selecciona una zona para habilitar la ubicación</p>
-      } @else {
-      <p class="hint-text">Ingresa la ubicación precisa dentro de la zona seleccionada</p>
-      }
-    </div>
-
-    <!-- ===== 3. TAG ===== -->
+    <!-- ===== 1. TAG ===== -->
+    <!--
+      El TAG va primero porque de él sale la zona: el operador ya no la elige,
+      la deriva el rango que viene del WS. Sin TAG no hay zona que mostrar.
+    -->
     <div class="card mb-4">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="field-label">Tag de ubicación</p>
@@ -60,13 +38,6 @@
         <span class="badge badge-success">Confirmado</span>
         }
       </div>
-
-      @if (zonaConfirmada()?.tagDesde !== null && zonaConfirmada()?.tagHasta !== null) {
-      <p class="hint-text mb-3">
-        Rango permitido para {{ zonaConfirmada()?.descripcion || zonaConfirmada()?.nombre }}:
-        {{ zonaConfirmada()?.tagDesde }} a {{ zonaConfirmada()?.tagHasta }}
-      </p>
-      }
 
       @if (iteracionActual() > 1 && !tagConfirmado()) {
       <div class="mb-3">
@@ -78,7 +49,7 @@
         } @else if (tagsSugeridos().length > 0) {
           <div class="flex flex-wrap gap-2">
             @for (tag of tagsSugeridos(); track tag) {
-              <ion-button fill="outline" size="small" [disabled]="!!tagConfirmado() || !(zonaConfirmada() && ubicacionPrecisa().trim())"
+              <ion-button fill="outline" size="small" [disabled]="!!tagConfirmado()"
                 (click)="seleccionarTagSugerido(tag)" class="tag-chip">
                 {{ tag }}
               </ion-button>
@@ -92,21 +63,11 @@
       }
 
       <ion-input #tagInputEl [value]="tagConfirmado() ?? tagInputValue()"
-        [disabled]="!!tagConfirmado() || !(zonaConfirmada() && ubicacionPrecisa().trim())"
+        [disabled]="!!tagConfirmado()"
         (ionInput)="onTagInput($event)" (keyup.enter)="confirmarTag()" placeholder="Escanea o ingresa el TAG"
         class="input-base">
         <ion-icon slot="start" name="barcode-outline"></ion-icon>
       </ion-input>
-
-      @if (!tagConfirmado()) {
-      <p class="hint-text mt-2">
-        @if (!zonaConfirmada()) {
-          Selecciona una zona para habilitar el TAG
-        } @else if (!ubicacionPrecisa().trim()) {
-          Ingresa la ubicación para habilitar el TAG
-        }
-      </p>
-      }
 
       @if (tagConfirmado()) {
       <ion-button expand="block" class="btn-outline mt-4" (click)="cancelarTag()">
@@ -114,7 +75,7 @@
       </ion-button>
       } @else {
       <ion-button expand="block" class="btn-primary mt-4" (click)="confirmarTag()"
-        [disabled]="!(zonaConfirmada() && ubicacionPrecisa().trim() && tagInputValue().trim())">
+        [disabled]="!tagInputValue().trim()">
         Confirmar TAG
       </ion-button>
       }
@@ -124,6 +85,44 @@
         <ion-icon name="alert-circle-outline"></ion-icon>
         <span>{{ tagError() }}</span>
       </div>
+      }
+    </div>
+
+    <!-- ===== 2. Zona (derivada, no se elige) ===== -->
+    <!--
+      Se muestra igual aunque el operador no la controle: es su única forma de
+      cachar que tipeó mal el TAG antes de contar un pasillo entero contra la
+      zona equivocada.
+    -->
+    @if (tagConfirmado() && zonaConfirmada(); as zona) {
+    <div class="card mb-4">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="field-label mb-1">Zona</p>
+          <p class="text-[15px] font-bold truncate" style="color: var(--app-text);">
+            {{ zona.descripcion || zona.nombre }}
+          </p>
+        </div>
+        <span class="badge badge-success">Automática</span>
+      </div>
+      @if (zona.tagDesde !== null && zona.tagHasta !== null) {
+      <p class="hint-text mt-2">Rango de TAG: {{ zona.tagDesde }} a {{ zona.tagHasta }}</p>
+      }
+    </div>
+    }
+
+    <!-- ===== 3. Ubicación ===== -->
+    <div class="card mb-4">
+      <p class="field-label mb-2">Ubicación</p>
+      <ion-input #ubicacionInputEl [value]="ubicacionPrecisa()" [disabled]="!tagConfirmado()"
+        (ionInput)="onUbicacionInput($event)"
+        placeholder="Ej: PASILLO A, PASILLO B, CABECERA 3"
+        class="input-base">
+      </ion-input>
+      @if (!tagConfirmado()) {
+      <p class="hint-text">Confirma el TAG para habilitar la ubicación</p>
+      } @else {
+      <p class="hint-text">Ingresa la ubicación precisa dentro de la zona</p>
       }
     </div>
 

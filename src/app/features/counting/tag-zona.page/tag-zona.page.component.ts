@@ -10,8 +10,6 @@ import {
   IonIcon,
   IonInput,
   IonMenuButton,
-  IonSelect,
-  IonSelectOption,
   IonSpinner,
   IonTitle,
   IonToolbar,
@@ -19,7 +17,7 @@ import {
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, arrowForwardOutline, barcodeOutline, listOutline, lockClosedOutline, searchOutline } from 'ionicons/icons';
 import { EventoFacade } from '../../../state/evento/evento.facade';
-import { Zona, ZonaFacade } from '../../../state/zona/zona.facade';
+import { ZonaFacade } from '../../../state/zona/zona.facade';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
@@ -28,10 +26,14 @@ import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
 
 /*
- * Pantalla previa al conteo: se ingresa/escanea el TAG y se elige la zona, y
- * desde acá se pasa a contar. Separada de la pantalla de conteo para que el
- * operador pueda ir al resumen entre un TAG y el siguiente, sin mezclarse con
- * el escaneo.
+ * Pantalla previa al conteo: se ingresa/escanea el TAG, se ingresa la ubicación
+ * precisa y desde acá se pasa a contar. Separada de la pantalla de conteo para
+ * que el operador pueda ir al resumen entre un TAG y el siguiente, sin
+ * mezclarse con el escaneo.
+ *
+ * La zona NO se elige: se deriva del número de TAG usando los rangos que la
+ * tienda trae del WS. Se muestra igual, para que el operador pueda cachar que
+ * tipeó mal el TAG antes de contar contra la zona equivocada.
  *
  * No dirige al operador a un TAG concreto, tampoco en reconteo: la muestra de
  * la iteración define QUÉ SKUs son válidos, pero dónde están se descubre en
@@ -50,8 +52,6 @@ import { NetworkService } from '../../../shared/services/network.service';
     IonIcon,
     IonInput,
     IonMenuButton,
-    IonSelect,
-    IonSelectOption,
     IonSpinner,
     IonTitle,
     IonToolbar,
@@ -79,7 +79,6 @@ export class TagZonaPageComponent implements ViewWillEnter {
   tagInputValue = signal('');
   tagError      = signal<string | null>(null);
 
-  zonas             = this.zonaFacade.zones;
   private tagLocked = signal(false);
   tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
   zonaConfirmada    = this.zonaFacade.selectedZone;
@@ -130,8 +129,9 @@ export class TagZonaPageComponent implements ViewWillEnter {
   }
 
   /*
-   * Las zonas salen de la tienda del evento, no de una asignación por operador:
-   * dentro del evento asignado, el operador elige en cuál trabajar.
+   * Las zonas salen de la tienda del evento, no de una asignación por operador.
+   * Ya no se cargan para que elija: se cargan porque sus rangos son lo que
+   * permite derivar la zona del TAG.
    */
   private cargarZonas(): void {
     const evento = this.currentEvent();
@@ -157,17 +157,28 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.zonaFacade.setUbicacionPrecisa(stripEmojis(value));
   }
 
+  /*
+   * La zona ya no se elige: se deriva del número de TAG con los rangos que
+   * vienen del WS. Por eso la validación de forma y la resolución de zona van
+   * juntas — un TAG sin zona no es un TAG utilizable.
+   */
   private validarTag(value: string): string | null {
     if (!value) return 'Ingresa o escanea un TAG.';
     if (!/^\d+$/.test(value)) return 'El TAG debe ser numérico.';
     if (Number(value) === 0) return 'El TAG no puede ser 0.';
 
-    const zona = this.zonaConfirmada();
-    if (zona && zona.tagDesde !== null && zona.tagHasta !== null) {
-      const tagNumero = Number(value);
-      if (tagNumero < zona.tagDesde || tagNumero > zona.tagHasta) {
-        return `El TAG ${value} no corresponde a ${zona.descripcion || zona.nombre}. Rango permitido: ${zona.tagDesde} a ${zona.tagHasta}.`;
-      }
+    const resolucion = this.zonaFacade.aplicarZonaPorTag(value);
+
+    /*
+     * Los dos fallos se separan porque el operador tiene que hacer cosas
+     * distintas: uno lo resuelve él corrigiendo el número, el otro no lo
+     * resuelve reintentando y necesita que alguien arregle los datos.
+     */
+    if (resolucion.estado === 'SIN_RANGOS') {
+      return 'Las zonas de esta tienda no tienen rangos de TAG configurados. Avisa a tu supervisor.';
+    }
+    if (resolucion.estado === 'SIN_COINCIDENCIA') {
+      return `El TAG ${value} no pertenece a ninguna zona de esta tienda. Revisa el número.`;
     }
 
     return null;
@@ -187,7 +198,9 @@ export class TagZonaPageComponent implements ViewWillEnter {
         header: 'TAG no registrado en iteraciones anteriores',
         message: `El TAG ${value} no fue contado en iteraciones anteriores de este evento.\n\n¿Deseas continuar con este TAG?`,
         buttons: [
-          { text: 'Cancelar', role: 'cancel', handler: () => { this.tagInputValue.set(''); } },
+          // Se suelta la zona que ya había derivado validarTag(): el TAG que la
+          // originó quedó descartado.
+          { text: 'Cancelar', role: 'cancel', handler: () => { this.tagInputValue.set(''); this.zonaFacade.clearZona(); } },
           { text: 'Continuar', role: 'confirm', handler: () => { this.confirmarTagSinValidar(value); } },
         ],
       });
@@ -203,6 +216,12 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.tagInputValue.set('');
     this.zonaFacade.setTag(value);
     this.tagLocked.set(true);
+    /*
+     * El foco pasa a la ubicación precisa, que es el único campo que le queda
+     * por llenar. Antes lo hacía onZonaChange al elegir la zona; sin selector,
+     * el salto tiene que salir de acá.
+     */
+    setTimeout(() => this.ubicacionInputEl?.nativeElement?.setFocus?.(), 80);
   }
 
   seleccionarTagSugerido(tag: string): void {
@@ -216,32 +235,13 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.confirmarTagSinValidar(value);
   }
 
-  onZonaChange(event: Event): void {
-    const zona = (event as CustomEvent<{ value: Zona | null }>).detail.value;
-    if (!zona) return;
-
-    const zonaAnterior = this.zonaConfirmada();
-    this.zonaFacade.selectZona(zona);
-
-    if (zonaAnterior && zonaAnterior.id !== zona.id) {
-      this.tagLocked.set(false);
-      this.tagInputValue.set('');
-      this.tagError.set(null);
-      this.zonaFacade.clearUbicacionYTag();
-    }
-
-    setTimeout(() => this.ubicacionInputEl?.nativeElement?.setFocus?.(), 80);
-  }
-
-  onUbicacionKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
-    }
-  }
-
+  /*
+   * Cambiar el TAG suelta también la zona: era derivada de ese TAG, así que
+   * dejarla puesta mostraría la zona del TAG anterior mientras se tipea otro.
+   */
   cancelarTag(): void {
     this.tagLocked.set(false);
+    this.zonaFacade.clearZona();
     this.zonaFacade.clearTag();
     this.tagInputValue.set('');
     this.tagError.set(null);
