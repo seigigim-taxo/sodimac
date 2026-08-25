@@ -57,13 +57,22 @@ export class ScanComponent implements AfterViewInit {
       }
     });
 
-    // No se permiten emojis en el código de TAG/SKU escaneado o tipeado.
+    /*
+     * Normaliza el código mientras se tipea: sin emojis y todo en mayúscula.
+     *
+     * confirm() ya pasaba a mayúscula, pero recién al emitir: el operador
+     * escribía en minúscula y veía en pantalla algo distinto de lo que iba a
+     * quedar registrado. Haciéndolo acá, lo que ve es lo que se guarda.
+     *
+     * Solo se reescribe cuando cambió algo — reescribir en cada tecla mandaría
+     * el cursor al final siempre, incluso al corregir en medio del código.
+     */
     this.form.get('code')?.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((value) => {
         if (typeof value !== 'string') return;
-        const limpio = stripEmojis(value);
-        if (limpio !== value) this.form.get('code')?.setValue(limpio, { emitEvent: false });
+        const normalizado = stripEmojis(value).toUpperCase();
+        if (normalizado !== value) this.form.get('code')?.setValue(normalizado, { emitEvent: false });
       });
   }
 
