@@ -37,11 +37,33 @@ export class FinalizarEventoUseCase {
       throw new Error('El conteo de este evento ya está finalizado.');
     }
 
-    const resumenes  = await this.conteoRepo.getResumenes(operadorId, pdaId);
-    const delEvento  = resumenes.filter((r) => r.eventoId === eventoId);
-    const hayEnCurso = delEvento.some((r) => r.estado === 'EN_CURSO');
-    if (hayEnCurso) {
-      throw new Error('Aún quedan TAGs en curso — finalízalos antes de cerrar el conteo del evento.');
+    /*
+     * Nada puede quedar sin viajar al SGO.
+     *
+     * Los dos estados pendientes se informan por separado porque el operador
+     * tiene que hacer cosas distintas: un TAG EN_CURSO lo termina de contar, uno
+     * FINALIZADO ya está contado y lo que falta es subirlo. Un mensaje único lo
+     * dejaría buscando qué hacer.
+     *
+     * Lo de sincronizar es lo que faltaba: hasta acá solo se miraba EN_CURSO, y
+     * un TAG contado y cerrado pero nunca enviado pasaba de largo — el conteo
+     * quedaba cerrado en la PDA con trabajo que el SGO nunca recibió.
+     */
+    const resumenes = await this.conteoRepo.getResumenes(operadorId, pdaId);
+    const delEvento = resumenes.filter((r) => r.eventoId === eventoId);
+
+    const enCurso = delEvento.filter((r) => r.estado === 'EN_CURSO').length;
+    if (enCurso > 0) {
+      throw new Error(
+        `Aún ${enCurso === 1 ? 'queda 1 TAG en curso' : `quedan ${enCurso} TAGs en curso`} — finalízalos antes de cerrar el conteo del evento.`
+      );
+    }
+
+    const sinSincronizar = delEvento.filter((r) => r.estado === 'FINALIZADO').length;
+    if (sinSincronizar > 0) {
+      throw new Error(
+        `${sinSincronizar === 1 ? 'Hay 1 TAG sin sincronizar' : `Hay ${sinSincronizar} TAGs sin sincronizar`} — súbelos antes de cerrar el conteo del evento.`
+      );
     }
 
     const ronda     = await this.conteoRepo.getRondaAbierta(eventoId);

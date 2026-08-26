@@ -18,7 +18,7 @@ function evento(parcial: Partial<Evento> = {}): Evento {
 
 function resumen(parcial: Partial<ConteoResumen> = {}): ConteoResumen {
   return {
-    conteoId: 1, eventoId: 1, ubicacionId: 1, operadorId: 1, pdaId: 1, estado: 'FINALIZADO',
+    conteoId: 1, eventoId: 1, ubicacionId: 1, operadorId: 1, pdaId: 1, estado: 'SINCRONIZADO',
     tag: 'A-01', zonaCodigo: 'LC01', zonaNombre: 'Venta', totalProductos: 2,
     totalUnidades: 10, iteracion: 1, fechaUltima: '2026-08-03 11:00:00', ...parcial,
   };
@@ -99,8 +99,56 @@ describe('FinalizarEventoUseCase', () => {
   it('no permite cerrar con TAGs todavía en curso', async () => {
     conteoRepo.getResumenes.and.resolveTo([resumen({ estado: 'EN_CURSO' })]);
 
-    await expectAsync(useCase.execute(1, 1, 1)).toBeRejectedWithError(/TAGs en curso/);
+    await expectAsync(useCase.execute(1, 1, 1)).toBeRejectedWithError(/en curso/);
     expect(eventoRepo.updateEstado).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Un TAG FINALIZADO está contado y cerrado, pero nunca viajó al SGO. Cerrar
+   * el conteo ahí dejaba trabajo que el servidor no recibe nunca, y la PDA
+   * diciendo que terminó. Es lo que pidió Rodrigo el 26/08.
+   */
+  it('no permite cerrar con TAGs finalizados sin sincronizar', async () => {
+    conteoRepo.getResumenes.and.resolveTo([resumen({ estado: 'FINALIZADO' })]);
+
+    await expectAsync(useCase.execute(1, 1, 1)).toBeRejectedWithError(/sin sincronizar/);
+    expect(eventoRepo.updateEstado).not.toHaveBeenCalled();
+  });
+
+  it('cierra cuando todos los TAGs están sincronizados', async () => {
+    conteoRepo.getResumenes.and.resolveTo([
+      resumen({ conteoId: 1, estado: 'SINCRONIZADO' }),
+      resumen({ conteoId: 2, estado: 'SINCRONIZADO' }),
+    ]);
+
+    const resultado = await useCase.execute(1, 1, 1);
+
+    expect(resultado.estado).toBe('EN_ANALISIS');
+  });
+
+  /*
+   * Con las dos cosas pendientes se avisa primero lo de contar: mandarlo a
+   * sincronizar mientras todavía le falta contar lo dejaría yendo y viniendo.
+   */
+  it('con ambos pendientes reclama primero los que están en curso', async () => {
+    conteoRepo.getResumenes.and.resolveTo([
+      resumen({ conteoId: 1, estado: 'EN_CURSO' }),
+      resumen({ conteoId: 2, estado: 'FINALIZADO' }),
+    ]);
+
+    await expectAsync(useCase.execute(1, 1, 1)).toBeRejectedWithError(/en curso/);
+  });
+
+  // Los TAGs de otro evento no bloquean el cierre de este.
+  it('ignora los pendientes de otros eventos', async () => {
+    conteoRepo.getResumenes.and.resolveTo([
+      resumen({ conteoId: 1, estado: 'SINCRONIZADO' }),
+      resumen({ conteoId: 9, eventoId: 99, estado: 'EN_CURSO' }),
+    ]);
+
+    const resultado = await useCase.execute(1, 1, 1);
+
+    expect(resultado.estado).toBe('EN_ANALISIS');
   });
 
   it('no permite cerrar dos veces el mismo conteo', async () => {

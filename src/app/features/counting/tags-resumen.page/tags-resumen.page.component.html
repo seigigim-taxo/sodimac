@@ -279,9 +279,20 @@
         <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
         Finalizar conteo
       </ion-button>
+      <!--
+        Los dos pendientes se avisan por separado: un TAG en curso hay que
+        terminar de contarlo, uno finalizado ya está contado y lo que falta es
+        subirlo. Sin distinguirlos, el operador ve el botón apagado y no sabe
+        qué hacer.
+      -->
       @if (enCursoReal().length > 0) {
       <p class="hint-text text-center">
         Quedan {{ enCursoReal().length }} TAG(s) en curso — finalízalos antes de cerrar el conteo
+      </p>
+      }
+      @if (finalizadosReal().length > 0) {
+      <p class="hint-text text-center">
+        Hay {{ finalizadosReal().length }} TAG(s) sin sincronizar — súbelos antes de cerrar el conteo
       </p>
       }
       }

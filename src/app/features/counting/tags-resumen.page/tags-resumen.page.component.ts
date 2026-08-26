@@ -175,10 +175,18 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   );
 
   // No se puede cerrar el evento con algún TAG todavía en curso.
+  /*
+   * Solo se puede cerrar el conteo con TODO sincronizado. Un TAG FINALIZADO
+   * está contado pero no viajó al SGO: cerrar ahí dejaría trabajo que el
+   * servidor nunca recibe.
+   *
+   * El caso de uso valida lo mismo y es el que manda — esto solo evita ofrecer
+   * un botón que va a fallar.
+   */
   puedeFinalizarEvento = computed(() =>
     !this.conteoCerrado() &&
     this.resumenesEvento().length > 0 &&
-    this.resumenesEvento().every((c) => c.estado !== 'EN_CURSO')
+    this.resumenesEvento().every((c) => c.estado === 'SINCRONIZADO')
   );
   finalizandoEvento = this.resumenFacade.finalizando;
 
