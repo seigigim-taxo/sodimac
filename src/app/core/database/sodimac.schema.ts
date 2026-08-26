@@ -14,8 +14,35 @@ export const SODIMAC_DB_VERSION = 46;
  * local de cada PDA al actualizar.
  */
 
+/*
+ * Se exporta aparte porque hace falta ANTES que el resto del esquema: la
+ * inicialización lee y escribe la versión acá mientras decide si hay que
+ * migrar, y eso ocurre antes de aplicar las demás tablas.
+ */
+export const SODIMAC_META_TABLE_SQL = `CREATE TABLE IF NOT EXISTS sod_meta (
+    clave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL
+  )`;
+
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
+
+  /*
+   * Metadatos de la base. Hoy guarda una sola cosa: en qué versión de esquema
+   * está.
+   *
+   * Vive ACÁ ADENTRO y no en Capacitor Preferences, que es donde estaba, porque
+   * la versión tiene que viajar con el archivo. Con Preferences, restaurar un
+   * respaldo dejaba la base vieja y el registro diciendo que estaba al día: no
+   * corría ninguna migración y todo fallaba después, en silencio.
+   *
+   * Se descartó PRAGMA user_version —lo idiomático— porque el plugin recibe la
+   * versión en createConnection y no está verificado si escribe ese pragma por
+   * su cuenta. Si lo hiciera, leeríamos siempre la versión destino y no se
+   * migraría nunca. Una tabla propia no tiene esa incógnita.
+   */
+  SODIMAC_META_TABLE_SQL,
+
 
   `CREATE TABLE IF NOT EXISTS sod_rol (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -249,6 +276,7 @@ const SEED = `
 `;
 
 export const SODIMAC_TABLE_NAMES = [
+  'sod_meta',
   'sod_rol',
   'sod_user',
   'sod_sucursal',
