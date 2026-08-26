@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Se permite tráfico HTTP plano contra cualquier host.
+
+    No es una preferencia: el backend (ws/api) es HTTP plano en la LAN de la
+    tienda y no tiene certificado, así que la app no puede hablarle por HTTPS.
+
+    Antes esto era una lista blanca de IPs y se rompía sola. Ojo con el detalle
+    que lo hace confuso: android:networkSecurityConfig ANULA a
+    android:usesCleartextTraffic="true" del manifest. Con la lista, cualquier
+    host que no estuviera enumerado daba ERR_CLEARTEXT_NOT_PERMITTED aunque el
+    manifest dijera que el tráfico plano estaba permitido.
+
+    Y la lista quedaba vieja todo el tiempo: cada IP nueva de un equipo de
+    desarrollo, cada cambio de red y cada live reload por WiFi obligaba a
+    editarla. El último caso fue justamente ese, una IP de live reload que no
+    figuraba.
+
+    Cuando el servicio pase a HTTPS, esto vuelve a acotarse.
+-->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.1.9</domain>
-        <domain includeSubdomains="true">10.3.104.102</domain>
-        <domain includeSubdomains="true">10.3.104.92</domain>
-        <domain includeSubdomains="true">172.16.235.77</domain>
-        <domain includeSubdomains="true">10.3.161.6</domain>
-        <domain includeSubdomains="true">192.168.1.11</domain>
-        <domain includeSubdomains="true">192.168.1.142</domain>
-        <domain includeSubdomains="true">50.16.13.230</domain>
-        <domain includeSubdomains="true">10.254.22.117</domain>
-        <domain includeSubdomains="true">10.54.250.77</domain>
-        <domain includeSubdomains="true">ws.code</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">192.168.3.5</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
