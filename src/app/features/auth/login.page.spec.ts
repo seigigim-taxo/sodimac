@@ -12,6 +12,7 @@ import { LoginPage } from './login.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
+import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 
 describe('LoginPage', () => {
   let component: LoginPage;
@@ -19,6 +20,7 @@ describe('LoginPage', () => {
   let authFacade: jasmine.SpyObj<AuthFacade>;
   let router: jasmine.SpyObj<Router>;
   let sesionTrabajo: jasmine.SpyObj<SesionTrabajoFacade>;
+  let vigencia: jasmine.SpyObj<VigenciaDiaService>;
 
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
@@ -46,6 +48,9 @@ describe('LoginPage', () => {
     sesionTrabajo = jasmine.createSpyObj('SesionTrabajoFacade', ['restaurar']);
     sesionTrabajo.restaurar.and.resolveTo();
 
+    vigencia = jasmine.createSpyObj<VigenciaDiaService>('VigenciaDiaService', ['necesitaSincronizar', 'iniciar']);
+    vigencia.necesitaSincronizar.and.resolveTo(false);
+
     await TestBed.configureTestingModule({
       imports: [
         ReactiveFormsModule,
@@ -61,6 +66,11 @@ describe('LoginPage', () => {
       .overrideProvider(Router, { useValue: routerSpy })
       .overrideProvider(PdaFacade, { useValue: pdaSpy })
       .overrideProvider(SesionTrabajoFacade, { useValue: sesionTrabajo })
+      /*
+       * Por defecto los datos son del día: así estas pruebas siguen midiendo el
+       * ruteo por perfil. El caso "los datos son de ayer" tiene su propio test.
+       */
+      .overrideProvider(VigenciaDiaService, { useValue: vigencia })
       .compileComponents();
 
     fixture = TestBed.createComponent(LoginPage);
@@ -111,6 +121,40 @@ describe('LoginPage', () => {
     await component.onSubmit();
 
     expect(router.navigate).toHaveBeenCalledWith(['/home']);
+  });
+
+  /*
+   * El problema que originó esto: la app consultaba SQLite, veía que el
+   * operador existía y lo dejaba entrar sin preguntar si los datos seguían
+   * siendo del día. Se quedaba trabajando sobre el evento de ayer, y llegó a
+   * enviarse un conteo contra la agenda del día anterior.
+   */
+  it('manda a sincronizar aunque el perfil sea conocido, si los datos no son de hoy', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(true);
+    authFacade.hasKnownProfile.and.returnValue(true);
+    authFacade.isAnalyst.and.returnValue(false);
+    vigencia.necesitaSincronizar.and.resolveTo(true);
+
+    await component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
+    expect(router.navigate).not.toHaveBeenCalledWith(['/home']);
+  });
+
+  // El login online ya baja datos siempre: no hace falta preguntar nada.
+  it('el login online no consulta la vigencia', async () => {
+    component.form.setValue({ rut: '12345678-5', password: '123456' });
+    authFacade.login.and.resolveTo();
+    authFacade.isAuthenticated.and.returnValue(true);
+    authFacade.wasOfflineLogin.and.returnValue(false);
+
+    await component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
+    expect(vigencia.necesitaSincronizar).not.toHaveBeenCalled();
   });
 
   it('should navigate to analyst-dashboard when user is cached and has analyst profile', async () => {

@@ -25,6 +25,7 @@ import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
+import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { EnviarPendientesFacade } from './state/sincronizacion/enviar-pendientes.facade';
 import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
@@ -58,6 +59,7 @@ export class AppComponent {
   private sesionTrabajo = inject(SesionTrabajoFacade);
   private theme    = inject(ThemeFacade);
   private ajustes  = inject(AjustesFacade);
+  private vigenciaDia = inject(VigenciaDiaService);
   private enviarPendientes = inject(EnviarPendientesFacade);
   private respaldo = inject(RespaldoFacade);
   private alertController = inject(AlertController);
@@ -95,6 +97,12 @@ export class AppComponent {
     this.router.events.subscribe((evento) => {
       if (evento instanceof NavigationEnd) this.rutaActual.set(evento.urlAfterRedirects);
     });
+
+    /*
+     * Se arranca acá y no en una página: el cambio de día tiene que detectarse
+     * esté donde esté el operador, incluso a mitad de un conteo.
+     */
+    this.vigenciaDia.iniciar();
   }
 
   async toggleSincronizacionAutomatica(): Promise<void> {

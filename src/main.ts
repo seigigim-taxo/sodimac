@@ -28,6 +28,8 @@ import { SUCURSAL_REPOSITORY_TOKEN } from './app/domain/sucursal/repositories/su
 import { ZONA_REPOSITORY_TOKEN } from './app/domain/zona/repositories/zona.repository';
 import { UBICACION_REPOSITORY_TOKEN } from './app/domain/ubicacion/repositories/ubicacion.repository';
 import { CONTEO_REPOSITORY_TOKEN } from './app/domain/conteo/repositories/conteo.repository';
+import { META_REPOSITORY_TOKEN } from './app/domain/meta/repositories/meta.repository';
+import { SqliteMetaRepository } from './app/data/meta/meta.repository';
 import { DETECCION_CAPTURA_TOKEN } from './app/domain/conteo/services/deteccion-captura.service';
 import { DeteccionCapturaTecladoService } from './app/data/conteo/deteccion-captura-teclado.service';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
@@ -133,6 +135,7 @@ bootstrapApplication(AppComponent, {
     { provide: EVENTO_SELECCIONADO_STORAGE_TOKEN, useClass: CapacitorEventoSeleccionadoStorageRepository },
     { provide: MUESTRA_REPOSITORY_TOKEN,         useClass: SqliteMuestraRepository },
     { provide: MUESTRA_DETALLE_REPOSITORY_TOKEN, useClass: SqliteMuestraDetalleRepository },
+    { provide: META_REPOSITORY_TOKEN,            useClass: SqliteMetaRepository },
 
     // Muestra de reconteo: genera muestra acotada a partir de SKUs contados en iteración anterior.
     { provide: PLAN_MUESTRA_REPOSITORY_TOKEN,     useClass: SqlitePlanMuestraRepository },

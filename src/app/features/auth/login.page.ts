@@ -19,6 +19,7 @@ import { alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
+import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 import { cleanRut, formatRut, validateRut } from '../../shared/utils/rut.utils';
 import { APP_VERSION } from '../../core/version';
 
@@ -41,6 +42,7 @@ export class LoginPage implements OnInit {
   private router = inject(Router);
   private pda           = inject(PdaFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
+  private vigencia      = inject(VigenciaDiaService);
 
   version = APP_VERSION;
   loading = this.auth.loading;
@@ -64,14 +66,27 @@ export class LoginPage implements OnInit {
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
-      if (!this.auth.hasKnownProfile()) {
-        this.router.navigate(['/sync-loading']);
-      } else if (this.auth.isAnalyst()) {
-        this.router.navigate(['/analyst-dashboard']);
-      } else {
-        this.router.navigate(['/home']);
-      }
+      void this.entrar();
     }
+  }
+
+  /*
+   * Único punto de decisión de a dónde entra el operador.
+   *
+   * Antes se iba derecho a /home si el perfil ya era conocido, y ahí estaba el
+   * problema: la app consultaba SQLite, veía que el operador existía y lo
+   * dejaba pasar sin preguntar si esos datos seguían siendo válidos. Se quedaba
+   * trabajando sobre el evento de ayer.
+   *
+   * Ahora, si los datos no son del día en curso, pasa por la descarga aunque
+   * ya esté autenticado.
+   */
+  private async entrar(): Promise<void> {
+    if (!this.auth.hasKnownProfile() || await this.vigencia.necesitaSincronizar()) {
+      this.router.navigate(['/sync-loading']);
+      return;
+    }
+    this.router.navigate([this.auth.isAnalyst() ? '/analyst-dashboard' : '/home']);
   }
 
   onRutInput(event: Event): void {
@@ -98,14 +113,13 @@ export class LoginPage implements OnInit {
         await this.sesionTrabajo.restaurar(operadorId, pdaId);
       }
 
+      /*
+       * El login online siempre sincroniza. El offline es el que necesita la
+       * comprobación: sin red no se pudo bajar nada, así que hay que mirar si
+       * lo guardado sigue siendo del día.
+       */
       if (this.auth.wasOfflineLogin()) {
-        if (!this.auth.hasKnownProfile()) {
-          this.router.navigate(['/sync-loading']);
-        } else if (this.auth.isAnalyst()) {
-          this.router.navigate(['/analyst-dashboard']);
-        } else {
-          this.router.navigate(['/home']);
-        }
+        await this.entrar();
       } else {
         this.router.navigate(['/sync-loading']);
       }

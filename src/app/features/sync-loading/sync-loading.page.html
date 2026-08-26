@@ -10,6 +10,15 @@
       @if (error(); as mensaje) {
         <p class="sync-step-label">{{ mensaje }}</p>
         <ion-button expand="block" (click)="reintentar()">Reintentar</ion-button>
+        <!--
+          Salida obligatoria: si la descarga no puede completarse —sin red, o
+          el operador no tiene tienda asignada— "Reintentar" no lleva a ningún
+          lado y esta pantalla queda sin salida. Pasa a ser mucho más frecuente
+          desde que el login manda acá cuando los datos no son del día.
+        -->
+        <ion-button expand="block" fill="clear" (click)="cerrarSesion()">
+          Cerrar sesión
+        </ion-button>
       } @else {
         <p class="sync-step-label">{{ etiqueta() }}</p>
 

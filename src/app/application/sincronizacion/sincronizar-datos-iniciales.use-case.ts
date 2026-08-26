@@ -15,6 +15,8 @@ import { Evento } from '../../domain/evento/models/evento.model';
 type EstadoEvento = Evento['estado'];
 import { Session } from '../../domain/auth/models/session.model';
 import { partirRut } from '../../domain/auth/utils/rut.utils';
+import { CLAVE_ULTIMA_PREPARACION, META_REPOSITORY_TOKEN } from '../../domain/meta/repositories/meta.repository';
+import { hoySql } from '../../shared/utils/fecha.utils';
 
 /*
  * Sincronización inicial: descarga los datos del backend y los escribe en
@@ -35,6 +37,7 @@ export class SincronizarDatosInicialesUseCase {
   private muestraDetalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
   private sqlite = inject(SqliteConnectionService);
+  private metaRepo = inject(META_REPOSITORY_TOKEN);
 
   async execute(
     session: Session,
@@ -73,6 +76,16 @@ export class SincronizarDatosInicialesUseCase {
     await this.guardarEventoYMuestra(datos);
     await this.guardarZonas(datos);
     await this.logDatabase();
+
+    /*
+     * Se deja registrado el DÍA de esta preparación, y recién acá: si algo
+     * falló antes, no hubo preparación que anotar.
+     *
+     * Es lo que responde después "¿los datos que tengo son de hoy?", de donde
+     * cuelgan la sincronización forzada al entrar y el cierre de sesión cuando
+     * el día cambia con la app abierta.
+     */
+    await this.metaRepo.guardar(CLAVE_ULTIMA_PREPARACION, hoySql());
 
     onEtapa?.('LISTO');
     return { usuario, analista: datos.analista };

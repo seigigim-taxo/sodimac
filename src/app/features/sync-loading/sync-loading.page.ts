@@ -87,6 +87,12 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
     await this.ejecutar();
   }
 
+  /* Única salida cuando la descarga no puede completarse. Ver el template. */
+  async cerrarSesion(): Promise<void> {
+    await this.auth.logout();
+    this.router.navigate(['/login']);
+  }
+
   private async ejecutar(): Promise<void> {
     const session = this.auth.session();
     if (!session) {

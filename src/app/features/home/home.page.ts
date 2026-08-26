@@ -69,7 +69,16 @@ export class HomePage implements ViewWillEnter {
 
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
   // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
-  eventosFinalizados = this.resumenFacade.cerrados;
+  /*
+   * El historial también se acota al día: la jornada empieza limpia y lo de
+   * ayer ya no es asunto del operador. Sin esto, "conteos finalizados" iba
+   * creciendo sin fin y mezclaba jornadas.
+   */
+  eventosFinalizados = computed(() => {
+    const hoy = hoySql();
+    return this.resumenFacade.cerrados()
+      .filter((c) => c.evento.fechaProgramada.slice(0, 10) === hoy);
+  });
 
   /*
    * Paginado del historial: crece una jornada tras otra y no cabe entero en la
@@ -113,10 +122,21 @@ export class HomePage implements ViewWillEnter {
    *
    * Si hubiera más de uno abierto, manda el más nuevo — el de id mayor.
    */
+  /*
+   * Solo el evento del día en curso. Cada jornada la app arranca como si fuera
+   * la primera: si quedó el evento de ayer en la base, no se ofrece.
+   *
+   * La comparación es contra la fecha LOCAL, no UTC — ver hoySql(). Con
+   * toISOString() la PDA pasaba al día siguiente a las 20:00 hora Chile y el
+   * evento del día desaparecía en plena jornada.
+   */
   eventosVisibles = computed<Evento[]>(() => {
-    const abiertos = this.events().filter((e) => e.estado === 'ABIERTO');
-    if (abiertos.length === 0) return [];
-    return [abiertos.reduce((masNuevo, e) => (e.id > masNuevo.id ? e : masNuevo))];
+    const hoy = hoySql();
+    const delDia = this.events().filter(
+      (e) => e.estado === 'ABIERTO' && e.fechaProgramada.slice(0, 10) === hoy
+    );
+    if (delDia.length === 0) return [];
+    return [delDia.reduce((masNuevo, e) => (e.id > masNuevo.id ? e : masNuevo))];
   });
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;

@@ -9,6 +9,7 @@ import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
+import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
@@ -46,6 +47,12 @@ describe('AppComponent', () => {
           },
         },
         { provide: DATABASE_REPOSITORY_TOKEN, useValue: { initialize: jasmine.createSpy('initialize'), resetLocalDatabase: jasmine.createSpy('resetLocalDatabase') } },
+        {
+          // El componente arranca la vigilancia de cambio de día al construirse;
+          // sin el doble, engancharía el listener real de Capacitor.
+          provide: VigenciaDiaService,
+          useValue: { iniciar: jasmine.createSpy('iniciar') },
+        },
         { provide: 'AlertController', useValue: { create: jasmine.createSpy('create').and.returnValue(Promise.resolve({ present: jasmine.createSpy('present') })) } },
       ],
     }).compileComponents();
