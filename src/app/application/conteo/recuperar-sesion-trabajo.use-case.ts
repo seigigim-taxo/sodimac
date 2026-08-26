@@ -5,6 +5,7 @@ import { EVENTO_SELECCIONADO_STORAGE_TOKEN } from '../../domain/evento/repositor
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Zona } from '../../domain/zona/models/zona.model';
+import { hoySql } from '../../shared/utils/fecha.utils';
 
 /*
  * `conteo` en null significa "hay evento pero no hay TAG abierto": el operador
@@ -54,6 +55,18 @@ export class RecuperarSesionTrabajoUseCase {
 
     const evento = await this.eventoRepo.getById(eventoId);
     if (!evento) return null;
+
+    /*
+     * Cada jornada arranca limpia. Un evento de otro día no se restaura, aunque
+     * siga ABIERTO en la base y aunque haya quedado un TAG a medio contar.
+     *
+     * Sin esto, el operador que dejó un TAG abierto el lunes se lo encontraba
+     * abierto el martes —después del cierre de sesión, del login y de la
+     * descarga— y seguía sumando unidades sobre la jornada equivocada. Las tres
+     * fuentes de arriba sobreviven al cambio de día, así que el corte va acá,
+     * donde ya están resueltas.
+     */
+    if (evento.fechaProgramada.slice(0, 10) !== hoySql()) return null;
 
     /*
      * Un evento terminado se restaura igual, pero SIN sesión de TAG: no hay

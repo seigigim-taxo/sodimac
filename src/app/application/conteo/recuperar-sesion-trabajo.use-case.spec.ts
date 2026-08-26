@@ -7,12 +7,19 @@ import { ZONA_REPOSITORY_TOKEN, ZonaRepository } from '../../domain/zona/reposit
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Zona } from '../../domain/zona/models/zona.model';
 import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.model';
+import { hoySql } from '../../shared/utils/fecha.utils';
 
+/*
+ * La fecha va calculada y no fija: restaurar la sesión solo aplica al evento
+ * del día en curso, así que un literal dejaría el spec verde hoy y roto mañana.
+ */
 const EVENTO: Evento = {
   id: 5, sucursalId: 1, nombre: 'Inventario agosto',
-  fechaProgramada: '2026-08-17', fechaEjecucion: null, estado: 'ABIERTO',
-  fechaRegistro: '2026-08-17 08:00:00',
+  fechaProgramada: hoySql(), fechaEjecucion: null, estado: 'ABIERTO',
+  fechaRegistro: `${hoySql()} 08:00:00`,
 };
+
+const EVENTO_DE_AYER: Evento = { ...EVENTO, fechaProgramada: '2026-08-25' };
 
 const ZONA: Zona = {
   id: 3, sucursalId: 1, nombre: 'SALA_VENTAS',
@@ -118,5 +125,34 @@ describe('RecuperarSesionTrabajoUseCase', () => {
 
   it('no restaura nada si no hay conteo ni evento guardado', async () => {
     expect(await useCase.execute(7, 1)).toBeNull();
+  });
+
+  /*
+   * Cada jornada arranca limpia. Las tres fuentes que resuelven el evento
+   * —el TAG abierto, la preferencia y el último trabajo— sobreviven al cambio
+   * de día, así que sin este corte el operador retomaba la jornada de ayer.
+   */
+  describe('un evento de otro día no se restaura', () => {
+    it('aunque siga ABIERTO', async () => {
+      eventoRepo.getById.and.resolveTo(EVENTO_DE_AYER);
+
+      expect(await useCase.execute(7, 1)).toBeNull();
+    });
+
+    // El caso caro: se sigue contando sobre la jornada equivocada sin notarlo.
+    it('aunque haya quedado un TAG a medio contar', async () => {
+      conteoRepo.getSesionEnCurso.and.resolveTo(SESION);
+      eventoRepo.getById.and.resolveTo(EVENTO_DE_AYER);
+
+      expect(await useCase.execute(7, 1)).toBeNull();
+    });
+
+    it('aunque venga de la preferencia guardada', async () => {
+      conteoRepo.getSesionEnCurso.and.resolveTo(null);
+      storage.obtener.and.resolveTo(EVENTO_DE_AYER.id);
+      eventoRepo.getById.and.resolveTo(EVENTO_DE_AYER);
+
+      expect(await useCase.execute(7, 1)).toBeNull();
+    });
   });
 });
