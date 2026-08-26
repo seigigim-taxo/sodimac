@@ -7,6 +7,11 @@ export interface SincronizacionRepository {
 
   /* Cola offline de payloads tag-finalizado.php pendientes de envío. */
   guardarSyncTag(input: GuardarSyncTagInput): Promise<void>;
+  /*
+   * Pendientes que todavía se pueden enviar: solo los del día en curso. Un
+   * conteo que no alcanzó a subir en su jornada se da por perdido y no se manda
+   * después.
+   */
   listarPendientes(): Promise<SincronizacionSync[]>;
   marcarEnviado(cargaUid: string, registrosProcesados: number): Promise<void>;
   marcarError(cargaUid: string, error: string): Promise<void>;

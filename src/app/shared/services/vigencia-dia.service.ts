@@ -1,11 +1,8 @@
 import { Injectable, inject, isDevMode } from '@angular/core';
 import { App } from '@capacitor/app';
 import { Router } from '@angular/router';
-import { AlertController } from '@ionic/angular/standalone';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
-import { EnviarPendientesFacade } from '../../state/sincronizacion/enviar-pendientes.facade';
-import { SINCRONIZACION_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import {
   CLAVE_ULTIMA_PREPARACION,
   META_REPOSITORY_TOKEN,
@@ -24,6 +21,11 @@ import { hoySql } from '../utils/fecha.utils';
  * Se engancha a la vuelta del segundo plano y no a un temporizador: el cambio
  * de día ocurre mientras la app está dormida, y despertar el proceso cada
  * minuto para mirar un reloj sería gastar batería en piso de tienda.
+ *
+ * NO avisa de los TAGs sin enviar antes de cerrar, y es a propósito: un conteo
+ * que no alcanzó a subir en su jornada se da por perdido y no se manda después
+ * (ver listarPendientes en el repositorio de sincronización). Ofrecer subirlos
+ * acá sería prometer algo que el envío ya no permite.
  */
 @Injectable({ providedIn: 'root' })
 export class VigenciaDiaService {
@@ -31,9 +33,6 @@ export class VigenciaDiaService {
   private auth             = inject(AuthFacade);
   private sesionTrabajo    = inject(SesionTrabajoFacade);
   private router           = inject(Router);
-  private sincronizacion   = inject(SINCRONIZACION_REPOSITORY_TOKEN);
-  private enviarPendientes = inject(EnviarPendientesFacade);
-  private alertController  = inject(AlertController);
 
   private iniciado = false;
 
@@ -72,81 +71,8 @@ export class VigenciaDiaService {
       console.log(`[VigenciaDia] los datos son del ${ultima} y hoy es ${hoySql()}: se cierra la sesión`);
     }
 
-    await this.avisarPendientes();
-
     await this.sesionTrabajo.limpiar();
     await this.auth.logout();
     this.router.navigate(['/login']);
-  }
-
-  /*
-   * Última oportunidad de subir lo que quedó del día anterior.
-   *
-   * El cierre de sesión no pierde nada —las líneas siguen en la base—, pero al
-   * volver a entrar la app ya está en el evento de hoy y esos TAGs dejan de
-   * estar a la vista. Este es el único momento en que el operador se entera.
-   *
-   * Se cuenta desde la misma fuente que después envía (sod_sincronizacion), no
-   * desde los resúmenes: si contáramos de un lado y enviáramos del otro, el
-   * número del aviso podría no coincidir con lo que realmente se manda.
-   */
-  private async avisarPendientes(): Promise<void> {
-    let pendientes = 0;
-    try {
-      pendientes = (await this.sincronizacion.listarPendientes()).length;
-    } catch (err) {
-      // No poder contarlos no es motivo para dejar la sesión de ayer abierta.
-      console.error('[VigenciaDia] no se pudieron consultar los pendientes:', err);
-      return;
-    }
-    if (pendientes === 0) return;
-
-    if (!(await this.preguntarSiEnvia(pendientes))) return;
-
-    try {
-      const resultado = await this.enviarPendientes.enviar();
-      await this.informar(
-        resultado.conError === 0
-          ? `Se enviaron ${resultado.enviados} TAG(s).`
-          : `Se enviaron ${resultado.enviados} de ${resultado.total}. ${resultado.conError} quedaron pendientes.`
-      );
-    } catch {
-      await this.informar('No se pudieron enviar. Quedan guardados en el equipo para el próximo intento.');
-    }
-  }
-
-  private preguntarSiEnvia(pendientes: number): Promise<boolean> {
-    const cuantos = pendientes === 1 ? '1 TAG' : `${pendientes} TAGs`;
-    return new Promise((resolve) => {
-      this.alertController.create({
-        header: 'Cambió el día',
-        message:
-          `Quedaron ${cuantos} sin enviar al servidor. Se va a cerrar la sesión: ` +
-          `los conteos no se pierden, pero después no vas a verlos en pantalla.`,
-        backdropDismiss: false,
-        buttons: [
-          { text: 'Cerrar sesión', role: 'cancel', handler: () => resolve(false) },
-          { text: 'Enviar ahora', role: 'confirm', handler: () => resolve(true) },
-        ],
-      }).then((alert) => {
-        // Sin esto, cerrar el alert por fuera dejaría la promesa colgada y el
-        // cierre de sesión no llegaría a ocurrir nunca.
-        void alert.onDidDismiss().then(() => resolve(false));
-        return alert.present();
-      });
-    });
-  }
-
-  private informar(message: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.alertController.create({
-        header: 'Envío de pendientes',
-        message,
-        buttons: [{ text: 'Entendido', handler: () => resolve() }],
-      }).then((alert) => {
-        void alert.onDidDismiss().then(() => resolve());
-        return alert.present();
-      });
-    });
   }
 }

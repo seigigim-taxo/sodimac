@@ -3,7 +3,7 @@ import { SqliteConnectionService } from '../../core/database/sqlite-connection.s
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { SincronizacionRepository } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { GuardarSyncTagInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
-import { ahoraSql } from '../../shared/utils/fecha.utils';
+import { ahoraSql, hoySql } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteSincronizacionRepository implements SincronizacionRepository {
@@ -48,12 +48,31 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
     }
   }
 
+  /*
+   * Pendientes que TODAVÍA se pueden enviar: solo los del día en curso.
+   *
+   * Un conteo vale para la jornada a la que pertenece. Si no alcanzó a subir
+   * ese mismo día, se da por perdido y no se manda después: llegar al SGO con
+   * fecha corrida ensucia el análisis de diferencias más de lo que aporta
+   * recuperar el dato.
+   *
+   * Las filas no se borran ni se marcan — quedan en la tabla como registro de
+   * lo que no llegó. Simplemente dejan de ofrecerse para envío.
+   *
+   * El corte es por la fecha PROGRAMADA del evento, que es el día al que
+   * corresponde el conteo, y no por cuándo se cerró el TAG.
+   */
   async listarPendientes(): Promise<SincronizacionSync[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT * FROM sod_sincronizacion
-       WHERE estado IN ('PENDIENTE', 'ERROR') AND tipo = 'CARGA_DESDE_PDA' AND operacion = 'TAG_FINALIZADO'
-       ORDER BY fecha_hora ASC`
+      `SELECT s.* FROM sod_sincronizacion s
+       JOIN sod_evento_inventario e ON e.id = s.evento_id
+       WHERE s.estado IN ('PENDIENTE', 'ERROR')
+         AND s.tipo = 'CARGA_DESDE_PDA'
+         AND s.operacion = 'TAG_FINALIZADO'
+         AND substr(e.fecha_programada, 1, 10) = ?
+       ORDER BY s.fecha_hora ASC`,
+      [hoySql()]
     );
     return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
   }
