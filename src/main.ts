@@ -51,6 +51,8 @@ import { AuthService } from './app/data/auth/auth.service';
 import { CapacitorSessionStorageRepository } from './app/data/auth/session-storage.repository';
 import { SqliteOperadorRepository } from './app/data/auth/operador.repository';
 import { SqliteSucursalRepository } from './app/data/sucursal/sucursal.repository';
+import { VALIDACION_REPOSITORY_TOKEN } from './app/domain/validacion/repositories/validacion.repository';
+import { SqliteValidacionRepository } from './app/data/validacion/validacion.repository';
 
 /*
  * DB must complete before Auth or PDA query SQLite.
@@ -148,5 +150,6 @@ bootstrapApplication(AppComponent, {
      * flujo real.
      */
     { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionSimuladaRepository },
+    { provide: VALIDACION_REPOSITORY_TOKEN,     useClass: SqliteValidacionRepository },
   ],
 });

@@ -12,6 +12,11 @@ import {
   TagAnalista,
   TiendaPreparada,
   UsuarioPreparado,
+  ValidacionBloqueAnalista,
+  ValidacionOperacionalAnalista,
+  ValidacionProductoAnalista,
+  ValidacionResumenAnalista,
+  ValidacionTagAnalista,
 } from '../../domain/sincronizacion/models/preparacion.model';
 
 /*
@@ -286,8 +291,9 @@ function parsearAnalista(raw: unknown): DatosAnalista | null {
 
   const kpis = parsearKpisAnalista(raw['kpis']);
   const filas = parsearFilasAnalista(raw['filas']);
+  const validacionOperacional = parsearValidacionOperacional(raw['validacion_operacional']);
 
-  return { contexto, kpis, filas };
+  return { contexto, kpis, filas, validacionOperacional };
 }
 
 function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
@@ -363,5 +369,85 @@ function parsearTagsAnalista(raw: unknown): TagAnalista[] {
     zonaNombre: textoOpcional(t, 'zona_nombre') ?? '',
     zonaDescripcion: textoOpcional(t, 'zona_descripcion'),
     cantidadOperador: numeroOpcional(t, 'cantidad_operador') ?? 0,
+  }));
+}
+
+/*
+ * Validación operacional: parsea el bloque altillos (y futuros PDV,
+ * Pre Variance, Recuento) desde data.analista.validacion_operacional.
+ * Si no viene, devuelve null sin romper.
+ */
+function parsearValidacionOperacional(raw: unknown): ValidacionOperacionalAnalista | null {
+  if (!esJson(raw)) return null;
+
+  const altillos = parsearBloqueValidacion(raw['altillos']);
+  const puntoVenta = parsearBloqueValidacion(raw['punto_venta']);
+  return { altillos, puntoVenta };
+}
+
+function parsearBloqueValidacion(raw: unknown): ValidacionBloqueAnalista {
+  const vacio: ValidacionBloqueAnalista = {
+    resumen: {
+      codigoZona: '',
+      nombreZona: '',
+      objetivoPorcentaje: 0,
+      tagsUsados: 0,
+      tagsConfirmados: 0,
+      tagsPendientes: 0,
+      porcentaje: 0,
+      cumple: false,
+    },
+    tags: [],
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenValidacion(raw['resumen']);
+  const tags = parsearTagsValidacion(raw['tags']);
+  const productos = parsearProductosValidacion(raw['productos']);
+
+  return { resumen, tags, productos };
+}
+
+function parsearResumenValidacion(raw: unknown): ValidacionResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    codigoZona: textoOpcional(r, 'codigo_zona') ?? '',
+    nombreZona: textoOpcional(r, 'nombre_zona') ?? '',
+    objetivoPorcentaje: numeroOpcional(r, 'objetivo_porcentaje') ?? 0,
+    tagsUsados: numeroOpcional(r, 'tags_usados') ?? 0,
+    tagsConfirmados: numeroOpcional(r, 'tags_confirmados') ?? 0,
+    tagsPendientes: numeroOpcional(r, 'tags_pendientes') ?? 0,
+    porcentaje: numeroOpcional(r, 'porcentaje') ?? 0,
+    cumple: r['cumple'] === true || r['cumple'] === 1,
+  };
+}
+
+function parsearTagsValidacion(raw: unknown): ValidacionTagAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((t) => ({
+    idTagBackend: enteroOpcional(t, 'id_tag'),
+    numeroTag: enteroOpcional(t, 'numero_tag'),
+    codigoZona: textoOpcional(t, 'codigo_zona') ?? '',
+    nombreZona: textoOpcional(t, 'nombre_zona') ?? '',
+    productosTotal: numeroOpcional(t, 'productos_total') ?? 0,
+    productosConfirmados: numeroOpcional(t, 'productos_confirmados') ?? 0,
+    estadoValidacion: (textoOpcional(t, 'estado_validacion') ?? textoOpcional(t, 'estado')) === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDIENTE',
+  }));
+}
+
+function parsearProductosValidacion(raw: unknown): ValidacionProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idTagBackend: enteroOpcional(p, 'id_tag'),
+    numeroTag: enteroOpcional(p, 'numero_tag'),
+    idProductoBackend: enteroOpcional(p, 'id_producto'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion_producto'),
+    cantidadInventariada: numeroOpcional(p, 'cantidad_inventariada') ?? 0,
+    cantidadAnalista: numeroOpcional(p, 'cantidad_analista'),
+    estadoValidacion: textoOpcional(p, 'estado_validacion') === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDIENTE',
+    flIncorporado: textoOpcional(p, 'fl_incorporado') === 'S' ? 'S' : 'N',
   }));
 }

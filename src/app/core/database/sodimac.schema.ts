@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 43;
+export const SODIMAC_DB_VERSION = 44;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -179,6 +179,74 @@ const TABLES: readonly string[] = [
     carga_uid       TEXT             DEFAULT NULL,
     codigo_lectura  TEXT             DEFAULT NULL,
     UNIQUE (conteo_id, ubicacion_id, producto_id, operador_id, pda_id)
+  )`,
+
+  /* ========================================================================
+     VALIDACIÓN OPERACIONAL — tablas específicas para flujos de analista.
+     Se crean en fase A0.5 para evitar descargar muestras/productos completos.
+     ======================================================================== */
+
+  `CREATE TABLE IF NOT EXISTS sod_validacion_jornada (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    evento_id       INTEGER NOT NULL REFERENCES sod_evento_inventario(id),
+    sucursal_id     INTEGER NOT NULL REFERENCES sod_sucursal(id),
+    id_agenda       INTEGER          DEFAULT NULL,
+    numero_agenda   TEXT             DEFAULT NULL,
+    codigo_muestra  TEXT             DEFAULT NULL,
+    nombre_muestra  TEXT             DEFAULT NULL,
+    fecha_jornada   TEXT             DEFAULT NULL,
+    estado          TEXT    NOT NULL DEFAULT 'ABIERTO'
+                    CHECK (estado IN ('ABIERTO', 'EN_CURSO', 'FINALIZADO', 'SINCRONIZADO')),
+    fecha_registro  TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (evento_id, sucursal_id, id_agenda)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sod_validacion_bloque (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    jornada_id            INTEGER NOT NULL REFERENCES sod_validacion_jornada(id),
+    tipo_validacion       TEXT    NOT NULL
+                          CHECK (tipo_validacion IN ('ALTILLOS', 'PUNTO_VENTA', 'PRE_VARIANCE', 'RECUENTO')),
+    codigo_zona           TEXT             DEFAULT NULL,
+    nombre_zona           TEXT             DEFAULT NULL,
+    objetivo_porcentaje   REAL    NOT NULL DEFAULT 0,
+    tags_usados           INTEGER NOT NULL DEFAULT 0,
+    tags_confirmados      INTEGER NOT NULL DEFAULT 0,
+    tags_pendientes       INTEGER NOT NULL DEFAULT 0,
+    porcentaje            REAL    NOT NULL DEFAULT 0,
+    cumple                INTEGER NOT NULL DEFAULT 0,
+    fecha_registro        TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (jornada_id, tipo_validacion)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sod_validacion_tag (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    bloque_id             INTEGER NOT NULL REFERENCES sod_validacion_bloque(id),
+    id_tag_backend        INTEGER          DEFAULT NULL,
+    numero_tag            INTEGER          DEFAULT NULL,
+    codigo_zona           TEXT             DEFAULT NULL,
+    nombre_zona           TEXT             DEFAULT NULL,
+    productos_total       INTEGER NOT NULL DEFAULT 0,
+    productos_confirmados INTEGER NOT NULL DEFAULT 0,
+    estado_validacion     TEXT    NOT NULL DEFAULT 'PENDIENTE'
+                          CHECK (estado_validacion IN ('PENDIENTE', 'CONFIRMADO')),
+    fecha_registro        TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sod_validacion_producto (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag_id                 INTEGER NOT NULL REFERENCES sod_validacion_tag(id),
+    id_tag_backend         INTEGER          DEFAULT NULL,
+    numero_tag             INTEGER          DEFAULT NULL,
+    id_producto_backend    INTEGER          DEFAULT NULL,
+    sku                    TEXT    NOT NULL,
+    descripcion            TEXT             DEFAULT NULL,
+    cantidad_inventariada  REAL    NOT NULL DEFAULT 0,
+    cantidad_analista      REAL             DEFAULT NULL,
+    estado_validacion      TEXT    NOT NULL DEFAULT 'PENDIENTE'
+                           CHECK (estado_validacion IN ('PENDIENTE', 'CONFIRMADO')),
+    fl_incorporado         TEXT    NOT NULL DEFAULT 'N'
+                           CHECK (fl_incorporado IN ('S', 'N')),
+    fecha_registro         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`
 
 ];
@@ -194,6 +262,14 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_sinc_evento_iter ON sod_sincronizacion(evento_id, iteracion)`,
   `CREATE INDEX IF NOT EXISTS idx_sinc_perfil_estado ON sod_sincronizacion(perfil, estado)`,
   `CREATE INDEX IF NOT EXISTS idx_sinc_carga_uid ON sod_sincronizacion(carga_uid)`,
+  `CREATE INDEX IF NOT EXISTS idx_vj_evento ON sod_validacion_jornada(evento_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_vj_agenda ON sod_validacion_jornada(id_agenda)`,
+  `CREATE INDEX IF NOT EXISTS idx_vb_jornada ON sod_validacion_bloque(jornada_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_vb_tipo ON sod_validacion_bloque(jornada_id, tipo_validacion)`,
+  `CREATE INDEX IF NOT EXISTS idx_vt_bloque ON sod_validacion_tag(bloque_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_vt_numero ON sod_validacion_tag(numero_tag)`,
+  `CREATE INDEX IF NOT EXISTS idx_vp_tag ON sod_validacion_producto(tag_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_vp_sku ON sod_validacion_producto(sku)`,
 ];
 
 const SEED = `
@@ -218,6 +294,10 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_sincronizacion',
   'sod_conteo',
   'sod_conteo_detalle',
+  'sod_validacion_jornada',
+  'sod_validacion_bloque',
+  'sod_validacion_tag',
+  'sod_validacion_producto',
 ] as const;
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];

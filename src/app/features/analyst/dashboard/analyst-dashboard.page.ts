@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   IonButtons,
@@ -9,6 +9,8 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { AuthFacade } from '../../../state/auth/auth.facade';
+import { AnalystDashboardFacade } from '../../../state/analyst/analyst-dashboard.facade';
+import { ValidacionBloqueAnalista } from '../../../domain/sincronizacion/models/preparacion.model';
 
 export type StageStatus = 'COMPLETADO' | 'PENDIENTE' | 'BLOQUEADO';
 export type MetricTone = 'neutral' | 'ok' | 'warning' | 'danger' | 'purple';
@@ -117,11 +119,121 @@ export interface RecountModalData {
     IonToolbar,
   ],
 })
-export class AnalystDashboardPage {
+export class AnalystDashboardPage implements OnInit {
   private router = inject(Router);
   private auth = inject(AuthFacade);
+  private dashboard = inject(AnalystDashboardFacade);
 
   usuario = this.auth.session;
+
+  altillosStage = computed<Stage>(() => {
+    const altillos = this.dashboard.altillos();
+    if (!altillos) {
+      return {
+        id: 'altillos',
+        label: '1.2',
+        title: 'Altillos - 100%',
+        description: 'Todos los TAG de Altillo utilizados deben ser revisados.',
+        objective: 'Puede validar buscando por TAG o por SKU.',
+        status: 'PENDIENTE',
+        badge: '0%',
+        actionLabel: 'Abrir validación',
+        metrics: [
+          { label: 'TAG usados', value: 0, hint: 'Universo a revisar', tone: 'neutral' },
+          { label: 'Objetivo mínimo', value: '100%', hint: '100%', tone: 'ok' },
+          { label: 'Confirmados', value: 0, hint: 'TAG completamente confirmados', tone: 'ok' },
+          { label: 'Pendientes', value: 0, hint: 'TAG aún incompletos', tone: 'ok' },
+          { label: 'Avance', value: '0%', hint: 'Sin datos', tone: 'neutral' },
+        ],
+        previewRows: [],
+      };
+    }
+
+    const r = altillos.resumen;
+    const status: StageStatus = r.cumple ? 'COMPLETADO' : 'PENDIENTE';
+    const badge = r.cumple ? 'CUMPLE' : `${r.porcentaje}%`;
+    const actionLabel = r.cumple ? 'Ver validación' : 'Abrir validación';
+
+    return {
+      id: 'altillos',
+      label: '1.2',
+      title: 'Altillos - 100%',
+      description: 'Todos los TAG de Altillo utilizados deben ser revisados.',
+      objective: 'Puede validar buscando por TAG o por SKU.',
+      status,
+      badge,
+      actionLabel,
+      metrics: [
+        { label: 'TAG usados', value: r.tagsUsados, hint: 'Universo a revisar', tone: 'neutral' },
+        { label: 'Objetivo mínimo', value: r.objetivoPorcentaje, hint: '100%', tone: 'ok' },
+        { label: 'Confirmados', value: r.tagsConfirmados, hint: 'TAG completamente confirmados', tone: 'ok' },
+        { label: 'Pendientes', value: r.tagsPendientes, hint: 'TAG aún incompletos', tone: r.tagsPendientes > 0 ? 'warning' : 'ok' },
+        { label: 'Avance', value: `${r.porcentaje}%`, hint: r.cumple ? 'Objetivo cumplido' : 'Objetivo aún no cumplido', tone: r.cumple ? 'ok' : 'warning' },
+      ],
+      previewRows: altillos.tags.map(t => ({
+        main: `TAG ${t.numeroTag ?? ''}`,
+        secondary: t.nombreZona || t.codigoZona || 'ALTILLO',
+        status: t.estadoValidacion === 'CONFIRMADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
+      })),
+    };
+  });
+
+  puntoVentaStage = computed<Stage>(() => {
+    const pv = this.dashboard.puntoVenta();
+    if (!pv) {
+      return {
+        id: 'punto-venta',
+        label: '1.3',
+        title: 'Punto de Venta - mínimo 30%',
+        description: 'El Analista elige los TAG a revisar; el sistema controla el mínimo.',
+        objective: 'Puede validar buscando por TAG o por SKU.',
+        status: 'PENDIENTE',
+        badge: '0%',
+        actionLabel: 'Abrir validación',
+        metrics: [
+          { label: 'TAG usados', value: 0, hint: 'Universo a revisar', tone: 'neutral' },
+          { label: 'Objetivo mínimo', value: '30%', hint: '30%', tone: 'warning' },
+          { label: 'Confirmados', value: 0, hint: 'TAG completamente confirmados', tone: 'ok' },
+          { label: 'Pendientes', value: 0, hint: 'TAG aún incompletos', tone: 'ok' },
+          { label: 'Avance', value: '0%', hint: 'Sin datos', tone: 'neutral' },
+        ],
+        previewRows: [],
+      };
+    }
+
+    const r = pv.resumen;
+    const status: StageStatus = r.cumple ? 'COMPLETADO' : 'PENDIENTE';
+    const badge = r.cumple ? 'CUMPLE' : `${r.porcentaje}%`;
+    const actionLabel = r.cumple ? 'Ver validación' : 'Abrir validación';
+
+    return {
+      id: 'punto-venta',
+      label: '1.3',
+      title: 'Punto de Venta - mínimo 30%',
+      description: 'El Analista elige los TAG a revisar; el sistema controla el mínimo.',
+      objective: 'Puede validar buscando por TAG o por SKU.',
+      status,
+      badge,
+      actionLabel,
+      metrics: [
+        { label: 'TAG usados', value: r.tagsUsados, hint: 'Universo a revisar', tone: 'neutral' },
+        { label: 'Objetivo mínimo', value: r.objetivoPorcentaje, hint: '30%', tone: 'warning' },
+        { label: 'Confirmados', value: r.tagsConfirmados, hint: 'TAG completamente confirmados', tone: 'ok' },
+        { label: 'Pendientes', value: r.tagsPendientes, hint: 'TAG aún incompletos', tone: r.tagsPendientes > 0 ? 'warning' : 'ok' },
+        { label: 'Avance', value: `${r.porcentaje}%`, hint: r.cumple ? 'Objetivo cumplido' : 'Objetivo aún no cumplido', tone: r.cumple ? 'ok' : 'warning' },
+      ],
+      previewRows: pv.tags.map(t => ({
+        main: `TAG ${t.numeroTag ?? ''}`,
+        secondary: t.nombreZona || t.codigoZona || 'PUNTO DE VENTA',
+        status: t.estadoValidacion === 'CONFIRMADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
+      })),
+    };
+  });
+
+  ngOnInit(): void {
+    this.dashboard.cargarAltillosDesdeLocal();
+    this.dashboard.cargarPuntoVentaDesdeLocal();
+  }
 
   etapa1Label = 'ETAPA 1 - Validación operacional';
   etapa1Objetivo = 'Comprobar la ejecución física realizada por Taxo. El Analista puede entrar por TAG o por SKU. Se muestra la cantidad inventariada para confirmarla o modificarla; no se muestra Kardex, teórico ni valorización.';
@@ -131,50 +243,10 @@ export class AnalystDashboardPage {
   etapa2Objetivo = 'Revisar diferencias entre el físico vigente y Kardex. Desde aquí sí se muestra teórico, costo y diferencia valorizada.';
   etapa2Route = 'PRE VARIANCE > RECUENTO';
 
-  etapa1: Stage[] = [
-    {
-      id: 'altillos',
-      label: '1.2',
-      title: 'Altillos - 100%',
-      description: 'Todos los TAG de Altillo utilizados deben ser revisados.',
-      objective: 'Puede validar buscando por TAG o por SKU.',
-      status: 'COMPLETADO',
-      badge: 'CUMPLE',
-      actionLabel: 'Ver validación',
-      metrics: [
-        { label: 'TAG usados', value: 1, hint: 'Universo a revisar', tone: 'neutral' },
-        { label: 'Objetivo mínimo', value: 1, hint: '100%', tone: 'ok' },
-        { label: 'Confirmados', value: 1, hint: 'TAG completamente confirmados', tone: 'ok' },
-        { label: 'Pendientes', value: 0, hint: 'TAG aún incompletos', tone: 'ok' },
-        { label: 'Avance', value: '100%', hint: 'Objetivo cumplido', tone: 'ok' },
-      ],
-      previewRows: [
-        { main: 'TAG 1000', secondary: 'ALTILLO', status: 'COMPLETADO' },
-      ],
-    },
-    {
-      id: 'punto-venta',
-      label: '1.3',
-      title: 'Punto de Venta - mínimo 30%',
-      description: 'El Analista elige los TAG a revisar; el sistema controla el mínimo.',
-      objective: 'Puede validar buscando por TAG o por SKU.',
-      status: 'PENDIENTE',
-      badge: '33%',
-      actionLabel: 'Abrir validación',
-      metrics: [
-        { label: 'TAG usados', value: 3, hint: 'Universo a revisar', tone: 'neutral' },
-        { label: 'Objetivo mínimo', value: 1, hint: '30%', tone: 'warning' },
-        { label: 'Confirmados', value: 1, hint: 'TAG completamente confirmados', tone: 'ok' },
-        { label: 'Pendientes', value: 2, hint: 'TAG aún incompletos', tone: 'warning' },
-        { label: 'Avance', value: '33%', hint: 'Objetivo aún no cumplido', tone: 'warning' },
-      ],
-      previewRows: [
-        { main: 'TAG 3000', secondary: 'PUNTO DE VENTA', status: 'COMPLETADO' },
-        { main: 'TAG 3001', secondary: 'PUNTO DE VENTA', status: 'PENDIENTE' },
-        { main: 'TAG 3002', secondary: 'PUNTO DE VENTA', status: 'PENDIENTE' },
-      ],
-    },
-  ];
+  etapa1 = computed<Stage[]>(() => [
+    this.altillosStage(),
+    this.puntoVentaStage(),
+  ]);
 
   etapa2: Stage[] = [
     {
@@ -215,41 +287,85 @@ export class AnalystDashboardPage {
     },
   ];
 
-  private altillosModalData: OperationalModalData = {
-    stageId: 'altillos',
-    title: 'Validación operacional - Analista Sodimac',
-    subtitle: 'Altillos 100% - busque por TAG o SKU.',
-    searchValue: '1000',
-    tagTitle: 'TAG 1000 - ALTILLO',
-    tagDescription: 'Lista completa de productos contados dentro del TAG.',
-    productCount: '1 producto',
-    confirmedCount: 1,
-    pendingCount: 0,
-    products: [
-      { sku: '4015134', product: 'SUAVIZANTE ROPA 10 LITROS KW', quantity: 1, newQuantity: 1, status: 'CONFIRMADO' },
-    ],
-  };
+  private construirAltillosModalData(): OperationalModalData {
+    const altillos = this.dashboard.altillos();
+    if (!altillos || altillos.tags.length === 0) {
+      return {
+        stageId: 'altillos',
+        title: 'Validación operacional - Analista Sodimac',
+        subtitle: 'Altillos 100% - busque por TAG o SKU.',
+        searchValue: '',
+        tagTitle: 'Sin TAG disponibles',
+        tagDescription: 'No hay datos de Altillos para esta jornada.',
+        productCount: '0 productos',
+        confirmedCount: 0,
+        pendingCount: 0,
+        products: [],
+      };
+    }
 
-  private puntoVentaModalData: OperationalModalData = {
-    stageId: 'punto-venta',
-    title: 'Validación operacional - Analista Sodimac',
-    subtitle: 'Punto de Venta 30% - busque por TAG o SKU.',
-    searchValue: '3001',
-    tagTitle: 'TAG 3001 - PUNTO DE VENTA',
-    tagDescription: 'Lista completa de productos contados dentro del TAG.',
-    productCount: '15 productos',
-    confirmedCount: 0,
-    pendingCount: 15,
-    products: [
-      { sku: '3948048', product: 'DETERGENTE LIQUIDO 3 LT KW', quantity: 8, newQuantity: 8, status: 'PENDIENTE' },
-      { sku: '3948056', product: 'DETERGENTE LIQUIDO 10 LTS KW', quantity: 34, newQuantity: 34, status: 'PENDIENTE' },
-      { sku: '4015134', product: 'SUAVIZANTE ROPA 10 LITROS KW', quantity: 24, newQuantity: 24, status: 'PENDIENTE' },
-      { sku: '524875', product: 'SUAVIZANTE LIQUIDO 5LT SOFT.', quantity: 5, newQuantity: 5, status: 'PENDIENTE' },
-      { sku: '563864X', product: 'SUAVIZANTE ROPA 3L KW', quantity: 9, newQuantity: 9, status: 'PENDIENTE' },
-      { sku: '6009786', product: 'SUAVIZANTE DOWNY BRISA 1L', quantity: 14, newQuantity: 14, status: 'PENDIENTE' },
-      { sku: '6009808', product: 'SUAVIZANTE ROPA ADOR 900 ML', quantity: 19, newQuantity: 19, status: 'PENDIENTE' },
-    ],
-  };
+    const primerTag = altillos.tags[0];
+    const productosDelTag = altillos.productos.filter(p => p.numeroTag === primerTag.numeroTag);
+
+    return {
+      stageId: 'altillos',
+      title: 'Validación operacional - Analista Sodimac',
+      subtitle: 'Altillos 100% - busque por TAG o SKU.',
+      searchValue: String(primerTag.numeroTag ?? ''),
+      tagTitle: `TAG ${primerTag.numeroTag ?? ''} - ${primerTag.nombreZona || primerTag.codigoZona || 'ALTILLO'}`,
+      tagDescription: 'Lista completa de productos contados dentro del TAG.',
+      productCount: `${productosDelTag.length} producto${productosDelTag.length !== 1 ? 's' : ''}`,
+      confirmedCount: productosDelTag.filter(p => p.estadoValidacion === 'CONFIRMADO').length,
+      pendingCount: productosDelTag.filter(p => p.estadoValidacion === 'PENDIENTE').length,
+      products: productosDelTag.map(p => ({
+        sku: p.sku,
+        product: p.descripcion ?? p.sku,
+        quantity: p.cantidadInventariada,
+        newQuantity: p.cantidadAnalista ?? p.cantidadInventariada,
+        status: p.estadoValidacion === 'CONFIRMADO' ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
+      })),
+    };
+  }
+
+  private construirPuntoVentaModalData(): OperationalModalData {
+    const pv = this.dashboard.puntoVenta();
+    if (!pv || pv.tags.length === 0) {
+      return {
+        stageId: 'punto-venta',
+        title: 'Validación operacional - Analista Sodimac',
+        subtitle: 'Punto de Venta 30% - busque por TAG o SKU.',
+        searchValue: '',
+        tagTitle: 'Sin TAG disponibles',
+        tagDescription: 'No hay datos de Punto de Venta para esta jornada.',
+        productCount: '0 productos',
+        confirmedCount: 0,
+        pendingCount: 0,
+        products: [],
+      };
+    }
+
+    const primerTag = pv.tags[0];
+    const productosDelTag = pv.productos.filter(p => p.numeroTag === primerTag.numeroTag);
+
+    return {
+      stageId: 'punto-venta',
+      title: 'Validación operacional - Analista Sodimac',
+      subtitle: 'Punto de Venta 30% - busque por TAG o SKU.',
+      searchValue: String(primerTag.numeroTag ?? ''),
+      tagTitle: `TAG ${primerTag.numeroTag ?? ''} - ${primerTag.nombreZona || primerTag.codigoZona || 'PUNTO DE VENTA'}`,
+      tagDescription: 'Lista completa de productos contados dentro del TAG.',
+      productCount: `${productosDelTag.length} producto${productosDelTag.length !== 1 ? 's' : ''}`,
+      confirmedCount: productosDelTag.filter(p => p.estadoValidacion === 'CONFIRMADO').length,
+      pendingCount: productosDelTag.filter(p => p.estadoValidacion === 'PENDIENTE').length,
+      products: productosDelTag.map(p => ({
+        sku: p.sku,
+        product: p.descripcion ?? p.sku,
+        quantity: p.cantidadInventariada,
+        newQuantity: p.cantidadAnalista ?? p.cantidadInventariada,
+        status: p.estadoValidacion === 'CONFIRMADO' ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
+      })),
+    };
+  }
 
   stageExpanded = signal<string | null>(null);
   operationalModal = signal<OperationalModalData | null>(null);
@@ -337,11 +453,11 @@ export class AnalystDashboardPage {
   abrirValidacion(stage: Stage): void {
     if (!this.isStageUnlocked(stage)) return;
     if (stage.id === 'altillos') {
-      this.operationalModal.set(this.altillosModalData);
+      this.operationalModal.set(this.construirAltillosModalData());
       this.searchMode.set('TAG');
       this.showAddSku.set(false);
     } else if (stage.id === 'punto-venta') {
-      this.operationalModal.set(this.puntoVentaModalData);
+      this.operationalModal.set(this.construirPuntoVentaModalData());
       this.searchMode.set('TAG');
       this.showAddSku.set(false);
     } else if (stage.id === 'pre-variance') {
