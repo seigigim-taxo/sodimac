@@ -19,10 +19,10 @@ if (hayKeystore) {
 }
 
 android {
-    namespace = "io.ionic.starter"
+    namespace = "cl.taxo.sodimac.inventario"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "io.ionic.starter"
+        applicationId "cl.taxo.sodimac.inventario"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3

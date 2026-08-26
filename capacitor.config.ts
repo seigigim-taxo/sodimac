@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
+  appId: 'cl.taxo.sodimac.inventario',
   appName: 'sodimac-app',
   webDir: 'www',
   plugins: {
