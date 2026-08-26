@@ -1,0 +1,304 @@
+import { TestBed } from '@angular/core/testing';
+import { SqliteConteoRepository } from './conteo.repository';
+import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
+import { SODIMAC_SCHEMA_SQL } from '../../core/database/sodimac.schema';
+import { ConexionFalsa, crearConexionEnMemoria } from '../../../testing/sqlite-en-memoria';
+
+/*
+ * El repositorio de conteo contra SQLite de verdad.
+ *
+ * Es la pieza que más importa de la app y la que no tenía una sola prueba: toda
+ * la lógica vive en SQL, así que un doble que devolviera filas inventadas no
+ * habría probado nada. El motor en memoria replica además la regla de
+ * transacciones del plugin — ver testing/sqlite-en-memoria.
+ */
+
+const CONTEO_ID = 1;
+const UBICACION_ID = 1;
+const OPERADOR_ID = 1;
+const PDA_ID = 1;
+const PRODUCTO_ID = 1;
+const OTRO_PRODUCTO_ID = 2;
+
+/*
+ * Lo mínimo para que las FK de sod_conteo_detalle se satisfagan.
+ *
+ * El rol va con OR IGNORE porque el propio esquema trae un SEED que ya crea el
+ * id 1; si existe se reutiliza, y sod_user.rol_id sigue apuntando bien.
+ */
+const SEMILLA = `
+  INSERT OR IGNORE INTO sod_rol (id, nombre) VALUES (1, 'Operador');
+  INSERT INTO sod_user (id, rol_id, rut, rut_dv, correo) VALUES (1, 1, 12345678, '5', 'op@sodimac.cl');
+  INSERT INTO sod_sucursal (id, codigo_tienda, nombre) VALUES (1, 'T01', 'Ñuble');
+  INSERT INTO sod_evento_inventario (id, sucursal_id, nombre, fecha_programada) VALUES (1, 1, 'Inventario', '2026-08-26');
+  INSERT INTO sod_producto (id, sku, codigo_barras, descripcion) VALUES (1, 'AF001', '7801234567890', 'Taladro');
+  INSERT INTO sod_producto (id, sku, codigo_barras, descripcion) VALUES (2, 'AF002', '7809999999999', 'Sierra');
+  INSERT INTO sod_pda (id, codigo) VALUES (1, 'PDA-01');
+  INSERT INTO sod_zona (id, sucursal_id, nombre, tag_desde, tag_hasta) VALUES (1, 1, 'SALA', 1000, 1999);
+  INSERT INTO sod_ubicacion (id, zona_id, codigo, tag) VALUES (1, 1, 'PASILLO A', '1500');
+  INSERT INTO sod_conteo (id, evento_id, iteracion, estado) VALUES (1, 1, 1, 'ABIERTO');
+`;
+
+describe('SqliteConteoRepository', () => {
+  let repo: SqliteConteoRepository;
+  let db: ConexionFalsa;
+
+  /* Lecturas crudas de la línea, en el orden en que se registraron. */
+  async function lecturasDe(detalleId: number) {
+    const r = await db.query(
+      `SELECT codigo_lectura, medio_captura, cantidad FROM sod_conteo_lectura
+       WHERE detalle_id = ? ORDER BY id`,
+      [detalleId]
+    );
+    return r.values ?? [];
+  }
+
+  async function cantidadFisica(productoId = PRODUCTO_ID): Promise<number | null> {
+    const r = await db.query(
+      `SELECT cantidad_fisica FROM sod_conteo_detalle WHERE producto_id = ?`,
+      [productoId]
+    );
+    const fila = r.values?.[0];
+    return fila ? Number(fila['cantidad_fisica']) : null;
+  }
+
+  async function sumaLecturas(detalleId: number): Promise<number> {
+    const r = await db.query(
+      `SELECT COALESCE(SUM(cantidad), 0) AS total FROM sod_conteo_lectura WHERE detalle_id = ?`,
+      [detalleId]
+    );
+    return Number(r.values?.[0]?.['total'] ?? 0);
+  }
+
+  function scan(cantidad: number, codigo = 'AF001', medio: 'ESCANER' | 'MANUAL' = 'ESCANER', producto = PRODUCTO_ID) {
+    return repo.upsert(CONTEO_ID, UBICACION_ID, producto, OPERADOR_ID, PDA_ID, cantidad, codigo, medio);
+  }
+
+  beforeEach(async () => {
+    db = await crearConexionEnMemoria(SODIMAC_SCHEMA_SQL + SEMILLA);
+
+    TestBed.configureTestingModule({ providers: [SqliteConteoRepository, SqliteConnectionService] });
+
+    /*
+     * Se usa el SqliteConnectionService REAL y solo se le cambia de dónde saca
+     * la conexión: así enTransaccion() —donde vivía el bug— se ejecuta tal cual
+     * está en producción, en vez de reimplementarse en el test.
+     */
+    const conexion = TestBed.inject(SqliteConnectionService);
+    spyOn(conexion, 'getConnection').and.resolveTo(db as never);
+
+    repo = TestBed.inject(SqliteConteoRepository);
+  });
+
+  // Con guarda: si beforeEach falla, db queda sin asignar y el cierre taparía el error real.
+  afterEach(() => db?.cerrar());
+
+  describe('upsert', () => {
+    /*
+     * El caso que rompió la app en el dispositivo: upsert corre dentro de
+     * enTransaccion, y cada db.run() del plugin abre la suya salvo que se le
+     * pase false. Sin ese false, el operador no podía registrar un solo SKU.
+     */
+    it('registra un SKU sin chocar con la transacción abierta', async () => {
+      const item = await scan(1);
+
+      expect(item.cantidadFisica).toBe(1);
+      expect(db.transaccionAbierta).toBeFalse();
+    });
+
+    it('acumula al escanear el mismo SKU dos veces', async () => {
+      await scan(1);
+      const item = await scan(1);
+
+      expect(item.cantidadFisica).toBe(2);
+    });
+
+    it('suma la cantidad declarada, no de a uno', async () => {
+      await scan(40);
+
+      expect(await cantidadFisica()).toBe(40);
+    });
+
+    it('mantiene separadas las líneas de productos distintos', async () => {
+      await scan(3);
+      await scan(5, 'AF002', 'ESCANER', OTRO_PRODUCTO_ID);
+
+      expect(await cantidadFisica(PRODUCTO_ID)).toBe(3);
+      expect(await cantidadFisica(OTRO_PRODUCTO_ID)).toBe(5);
+    });
+
+    /*
+     * Cero no es "sumar nada": es declarar que del SKU no hay unidades,
+     * típicamente corrigiendo un conteo previo. Por eso REEMPLAZA el total.
+     */
+    it('cantidad 0 reemplaza el total en vez de sumarse', async () => {
+      await scan(5);
+      await scan(0);
+
+      expect(await cantidadFisica()).toBe(0);
+    });
+
+    it('una línea ya sincronizada no se puede volver a contar', async () => {
+      const item = await scan(1);
+      await db.run(`UPDATE sod_conteo_detalle SET estado = 'SINCRONIZADO' WHERE id = ?`, [item.id]);
+
+      await expectAsync(scan(1)).toBeRejectedWithError(/ya se sincronizó/);
+    });
+
+    it('un rechazo deja la transacción cerrada, no colgada', async () => {
+      const item = await scan(1);
+      await db.run(`UPDATE sod_conteo_detalle SET estado = 'SINCRONIZADO' WHERE id = ?`, [item.id]);
+
+      await expectAsync(scan(1)).toBeRejected();
+
+      expect(db.transaccionAbierta).toBeFalse();
+    });
+  });
+
+  describe('lecturas', () => {
+    it('guarda el código y el medio de cada captura', async () => {
+      await scan(2, 'AF001', 'MANUAL');
+      const item = await scan(3, '7801234567890', 'ESCANER');
+
+      expect(await lecturasDe(item.id)).toEqual([
+        { codigo_lectura: 'AF001', medio_captura: 'MANUAL', cantidad: 2 },
+        { codigo_lectura: '7801234567890', medio_captura: 'ESCANER', cantidad: 3 },
+      ]);
+    });
+
+    it('no deduplica: diez escaneos del mismo código dejan diez lecturas', async () => {
+      for (let i = 0; i < 10; i++) await scan(1);
+      const item = await scan(1);
+
+      expect((await lecturasDe(item.id)).length).toBe(11);
+    });
+
+    /*
+     * Los botones +/- declaran unidades sin leer nada. Atribuirles el código de
+     * la línea diría que ese código se tipeó a mano — y si venía de la pistola,
+     * el reporte concluiría que el EAN no se escaneó.
+     */
+    it('un ajuste con +/- no inventa un código', async () => {
+      const item = await scan(5);
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 2, 'EN_CURSO');
+
+      const lecturas = await lecturasDe(item.id);
+      expect(lecturas[lecturas.length - 1]).toEqual({
+        codigo_lectura: null, medio_captura: 'MANUAL', cantidad: 2,
+      });
+    });
+
+    it('quitar unidades agrega un movimiento negativo, no borra la lectura anterior', async () => {
+      const item = await scan(5);
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -2, 'EN_CURSO');
+
+      const lecturas = await lecturasDe(item.id);
+      // El escaneo original sigue constando: es lo que el reporte necesita.
+      expect(lecturas[0]).toEqual({ codigo_lectura: 'AF001', medio_captura: 'ESCANER', cantidad: 5 });
+      expect(lecturas[1]).toEqual({ codigo_lectura: null, medio_captura: 'MANUAL', cantidad: -2 });
+    });
+  });
+
+  /*
+   * El invariante que sostiene el dato que viaja al SGO. Si se rompe, el
+   * servidor recibe un desglose por vía de captura que no suma el total de la
+   * línea, y nadie se entera hasta que alguien cuadra un informe.
+   */
+  describe('invariante: la suma de las lecturas da cantidad_fisica', () => {
+    it('tras varios escaneos', async () => {
+      await scan(3);
+      await scan(7);
+      const item = await scan(2);
+
+      expect(await sumaLecturas(item.id)).toBe(await cantidadFisica() as number);
+    });
+
+    it('tras sumar y restar con los botones', async () => {
+      const item = await scan(5);
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'EN_CURSO');
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -4, 'EN_CURSO');
+
+      expect(await cantidadFisica()).toBe(4);
+      expect(await sumaLecturas(item.id)).toBe(4);
+    });
+
+    it('tras declarar cantidad 0', async () => {
+      await scan(5);
+      const item = await scan(0);
+
+      expect(await cantidadFisica()).toBe(0);
+      expect(await sumaLecturas(item.id)).toBe(0);
+    });
+
+    /*
+     * MAX(0, ...) impide dejar la línea en negativo, así que pedir -10 sobre un
+     * total de 3 mueve -3. Registrar el delta PEDIDO en vez del APLICADO
+     * rompería el invariante justo acá.
+     */
+    it('cuando el ajuste se topa con el cero', async () => {
+      const item = await scan(3);
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -10, 'EN_CURSO');
+
+      expect(await cantidadFisica()).toBe(0);
+      expect(await sumaLecturas(item.id)).toBe(0);
+    });
+  });
+
+  describe('adjust', () => {
+    it('no escribe nada cuando el movimiento real es cero', async () => {
+      const item = await scan(0);
+      const antes = (await lecturasDe(item.id)).length;
+
+      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -1, 'EN_CURSO');
+
+      expect((await lecturasDe(item.id)).length).toBe(antes);
+    });
+
+    it('falla si la línea no existe en ese estado', async () => {
+      await expectAsync(
+        repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 1, 'EN_CURSO')
+      ).toBeRejectedWithError(/No se encontró el detalle/);
+    });
+  });
+
+  describe('delete', () => {
+    it('borra la línea y sus lecturas, sin dejar huérfanas', async () => {
+      const item = await scan(5);
+
+      await repo.delete(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO');
+
+      expect(await cantidadFisica()).toBeNull();
+      expect((await lecturasDe(item.id)).length).toBe(0);
+    });
+
+    it('no toca las lecturas de otra línea', async () => {
+      await scan(5);
+      const otro = await scan(2, 'AF002', 'ESCANER', OTRO_PRODUCTO_ID);
+
+      await repo.delete(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO');
+
+      expect((await lecturasDe(otro.id)).length).toBe(1);
+    });
+  });
+
+  describe('getBySesion', () => {
+    it('devuelve las líneas de la sesión con su SKU y descripción', async () => {
+      await scan(4);
+
+      const items = await repo.getBySesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO');
+
+      expect(items.length).toBe(1);
+      expect(items[0].sku).toBe('AF001');
+      expect(items[0].descripcion).toBe('Taladro');
+      expect(items[0].cantidadFisica).toBe(4);
+    });
+
+    it('no devuelve las de otro estado', async () => {
+      await scan(4);
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      expect((await repo.getBySesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO')).length).toBe(0);
+      expect((await repo.getBySesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID, 'FINALIZADO')).length).toBe(1);
+    });
+  });
+});

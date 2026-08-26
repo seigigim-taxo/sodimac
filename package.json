@@ -79,6 +79,7 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "postcss": "^8.5.19",
+    "sql.js": "^1.14.1",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.0"
   },
