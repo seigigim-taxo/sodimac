@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista, PreVarianceAnalista, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
+import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista, PreVarianceAnalista, RecuentoAnalista, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { AuthFacade } from '../auth/auth.facade';
 import { PdaFacade } from '../pda/pda.facade';
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
@@ -8,6 +8,7 @@ import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/su
 import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 import { VALIDACION_REPOSITORY_TOKEN } from '../../domain/validacion/repositories/validacion.repository';
 import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/repositories/pre-variance.repository';
+import { RECUENTO_REPOSITORY_TOKEN } from '../../domain/recuento/repositories/recuento.repository';
 
 @Injectable({ providedIn: 'root' })
 export class AnalystDashboardFacade {
@@ -18,6 +19,7 @@ export class AnalystDashboardFacade {
   private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
   private validacionRepo = inject(VALIDACION_REPOSITORY_TOKEN);
   private preVarianceRepo = inject(PRE_VARIANCE_REPOSITORY_TOKEN);
+  private recuentoRepo = inject(RECUENTO_REPOSITORY_TOKEN);
 
   private contextoSignal = signal<ContextoAnalista | null>(null);
   private kpisSignal = signal<KpisAnalista | null>(null);
@@ -26,6 +28,7 @@ export class AnalystDashboardFacade {
   private altillosSignal = signal<ValidacionBloqueAnalista | null>(null);
   private puntoVentaSignal = signal<ValidacionBloqueAnalista | null>(null);
   private preVarianceSignal = signal<PreVarianceAnalista | null>(null);
+  private recuentoSignal = signal<RecuentoAnalista | null>(null);
 
   readonly contexto = this.contextoSignal.asReadonly();
   readonly kpis = this.kpisSignal.asReadonly();
@@ -34,6 +37,7 @@ export class AnalystDashboardFacade {
   readonly altillos = this.altillosSignal.asReadonly();
   readonly puntoVenta = this.puntoVentaSignal.asReadonly();
   readonly preVariance = this.preVarianceSignal.asReadonly();
+  readonly recuento = this.recuentoSignal.asReadonly();
 
   readonly registrosPendientes = computed(() => this.registrosSignal().filter(r => r.estado === 'PENDIENTE'));
   readonly registrosEnviados = computed(() => this.registrosSignal().filter(r => r.estado === 'ENVIADO'));
@@ -103,6 +107,7 @@ export class AnalystDashboardFacade {
     this.altillosSignal.set(null);
     this.puntoVentaSignal.set(null);
     this.preVarianceSignal.set(null);
+    this.recuentoSignal.set(null);
   }
 
   async cargarAltillosDesdeLocal(): Promise<void> {
@@ -129,6 +134,15 @@ export class AnalystDashboardFacade {
       this.preVarianceSignal.set(preVariance);
     } catch (err) {
       console.error('[AnalystDashboardFacade] Error al cargar Pre Variance desde local:', err);
+    }
+  }
+
+  async cargarRecuentoDesdeLocal(): Promise<void> {
+    try {
+      const recuento = await this.recuentoRepo.getRecuento();
+      this.recuentoSignal.set(recuento);
+    } catch (err) {
+      console.error('[AnalystDashboardFacade] Error al cargar Recuento desde local:', err);
     }
   }
 

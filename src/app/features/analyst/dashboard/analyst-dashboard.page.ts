@@ -284,10 +284,65 @@ export class AnalystDashboardPage implements OnInit {
     };
   });
 
+  recuentoStage = computed<Stage>(() => {
+    const rc = this.dashboard.recuento();
+    if (!rc || rc.productos.length === 0) {
+      return {
+        id: 'recuento',
+        label: '2.2',
+        title: 'Recuento',
+        description: 'Por defecto muestra diferencias no abordadas en Pre Variance. Puede ampliar a todas las diferencias.',
+        objective: 'El resultado se registra como Conteo 3.',
+        status: 'PENDIENTE',
+        badge: '0',
+        actionLabel: 'Abrir recuento',
+        metrics: [
+          { label: 'Restantes', value: 0, hint: 'Diferencias por revisar', tone: 'neutral' },
+          { label: 'Recontados', value: 0, hint: 'Aún sin recuento', tone: 'neutral' },
+          { label: 'Conteo', value: 3, hint: 'Registro resultante', tone: 'purple' },
+        ],
+        previewRows: [],
+      };
+    }
+
+    const r = rc.resumen;
+    const status: StageStatus = r.skuPendientes === 0 ? 'COMPLETADO' : 'PENDIENTE';
+    const badge = r.skuRecontados > 0 ? `${r.skuRecontados}/${r.skuTotal}` : `${r.skuTotal}`;
+    const actionLabel = r.skuPendientes === 0 ? 'Ver Recuento' : 'Abrir recuento';
+
+    const formatCurrency = (v: number): string => {
+      const abs = Math.abs(v);
+      const formatted = abs.toLocaleString('es-CL');
+      return v < 0 ? `-$${formatted}` : `$${formatted}`;
+    };
+
+    return {
+      id: 'recuento',
+      label: '2.2',
+      title: 'Recuento',
+      description: 'Por defecto muestra diferencias no abordadas en Pre Variance. Puede ampliar a todas las diferencias.',
+      objective: 'El resultado se registra como Conteo 3.',
+      status,
+      badge,
+      actionLabel,
+      metrics: [
+        { label: 'Restantes', value: r.skuPendientes, hint: 'Diferencias por revisar', tone: r.skuPendientes > 0 ? 'warning' : 'ok' },
+        { label: 'Recontados', value: r.skuRecontados, hint: r.skuRecontados > 0 ? 'Con recuento' : 'Aún sin recuento', tone: r.skuRecontados > 0 ? 'ok' : 'neutral' },
+        { label: 'Conteo', value: 3, hint: 'Registro resultante', tone: 'purple' },
+      ],
+      previewRows: rc.productos.slice(0, 5).map(p => ({
+        main: p.sku,
+        secondary: p.descripcion ?? p.sku,
+        status: p.estadoRecuento === 'RECONTADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
+      })),
+    };
+  });
+
   ngOnInit(): void {
     this.dashboard.cargarAltillosDesdeLocal();
     this.dashboard.cargarPuntoVentaDesdeLocal();
     this.dashboard.cargarPreVarianceDesdeLocal();
+    this.dashboard.cargarRecuentoDesdeLocal();
   }
 
   etapa1Label = 'ETAPA 1 - Validación operacional';
@@ -305,21 +360,7 @@ export class AnalystDashboardPage implements OnInit {
 
   etapa2 = computed<Stage[]>(() => [
     this.preVarianceStage(),
-    {
-      id: 'recuento',
-      label: '2.2',
-      title: 'Recuento',
-      description: 'Por defecto muestra diferencias no abordadas en Pre Variance. Puede ampliar a todas las diferencias.',
-      objective: 'El resultado se registra como Conteo 3.',
-      status: 'PENDIENTE',
-      actionLabel: 'Abrir recuento',
-      metrics: [
-        { label: 'Restantes', value: 0, hint: 'Diferencias por revisar', tone: 'neutral' },
-        { label: 'Recontados', value: 0, hint: 'Aún sin recuento', tone: 'neutral' },
-        { label: 'Conteo', value: 3, hint: 'Registro resultante', tone: 'purple' },
-      ],
-      previewRows: [],
-    },
+    this.recuentoStage(),
   ]);
 
   private construirAltillosModalData(): OperationalModalData {
@@ -440,21 +481,37 @@ export class AnalystDashboardPage implements OnInit {
     };
   }
 
-  private recountModalData: RecountModalData = {
-    title: 'Recuento - Analista Sodimac',
-    subtitle: 'Diferencias restantes para Conteo 3',
-    remaining: 15,
-    recounted: 0,
-    countNumber: 3,
-    largestDifference: '-$307.472',
-    rows: [
-      { sku: '7576331', product: 'DETERGENTE EN LAMINAS DEKAP CR', physical: 0, theoretical: 88, unitDifference: -88, unitCost: '$3.494', costDifference: '-$307.472', status: 'PENDIENTE 0 TAG' },
-      { sku: '3948056', product: 'DETERGENTE LIQUIDO 10 LTS KW', physical: 69, theoretical: 82, unitDifference: -13, unitCost: '$9.453', costDifference: '-$122.889', status: 'PENDIENTE 3 TAG' },
-      { sku: '7712227', product: 'DETERGENTE HIPO 3 L DOYPACK', physical: 2, theoretical: 13, unitDifference: -11, unitCost: '$11.123', costDifference: '-$122.353', status: 'PENDIENTE 1 TAG' },
-      { sku: '7361750', product: 'DETERGENTE KLEINE RECARGA 3LT', physical: 1, theoretical: 35, unitDifference: -34, unitCost: '$3.147', costDifference: '-$106.998', status: 'PENDIENTE 1 TAG' },
-      { sku: '8823006', product: 'DETERGENTE POLVO KLEINE 10KG', physical: 50, theoretical: 65, unitDifference: -15, unitCost: '$7.050', costDifference: '-$105.750', status: 'PENDIENTE 2 TAG' },
-    ],
-  };
+  private construirRecountModalData(): RecountModalData | null {
+    const rc = this.dashboard.recuento();
+    if (!rc || rc.productos.length === 0) return null;
+
+    const primerSku = rc.productos.find(p => p.estadoRecuento === 'PENDIENTE') ?? rc.productos[0];
+
+    const formatCurrency = (v: number): string => {
+      const abs = Math.abs(v);
+      const formatted = abs.toLocaleString('es-CL');
+      return v < 0 ? `-$${formatted}` : `$${formatted}`;
+    };
+
+    return {
+      title: 'Recuento - Analista Sodimac',
+      subtitle: 'Diferencias restantes para Conteo 3',
+      remaining: rc.resumen.skuPendientes,
+      recounted: rc.resumen.skuRecontados,
+      countNumber: 3,
+      largestDifference: formatCurrency(rc.resumen.mayorDiferenciaValor),
+      rows: rc.productos.slice(0, 10).map(p => ({
+        sku: p.sku,
+        product: p.descripcion ?? p.sku,
+        physical: p.fisicoActual,
+        theoretical: p.stockTeorico,
+        unitDifference: p.diferenciaUnidades,
+        unitCost: formatCurrency(p.valorUnitario),
+        costDifference: formatCurrency(p.diferenciaEnCosto),
+        status: p.estadoRecuento === 'RECONTADO' ? 'RECONTADO' : `PENDIENTE`,
+      })),
+    };
+  }
 
   toggleStage(stageId: string): void {
     const current = this.stageExpanded();
@@ -518,7 +575,10 @@ export class AnalystDashboardPage implements OnInit {
         this.preVarianceModal.set(pvData);
       }
     } else if (stage.id === 'recuento') {
-      this.recountModal.set(this.recountModalData);
+      const rcData = this.construirRecountModalData();
+      if (rcData) {
+        this.recountModal.set(rcData);
+      }
     }
   }
 

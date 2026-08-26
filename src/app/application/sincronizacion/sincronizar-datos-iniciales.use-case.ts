@@ -9,9 +9,10 @@ import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositor
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
 import { VALIDACION_REPOSITORY_TOKEN } from '../../domain/validacion/repositories/validacion.repository';
 import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/repositories/pre-variance.repository';
+import { RECUENTO_REPOSITORY_TOKEN } from '../../domain/recuento/repositories/recuento.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
-import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, PreVarianceAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
+import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, PreVarianceAnalista, RecuentoAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
 type EstadoEvento = Evento['estado'];
@@ -42,6 +43,7 @@ export class SincronizarDatosInicialesUseCase {
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
   private validacionRepo = inject(VALIDACION_REPOSITORY_TOKEN);
   private preVarianceRepo = inject(PRE_VARIANCE_REPOSITORY_TOKEN);
+  private recuentoRepo = inject(RECUENTO_REPOSITORY_TOKEN);
   private sqlite = inject(SqliteConnectionService);
 
   async execute(
@@ -226,6 +228,33 @@ export class SincronizarDatosInicialesUseCase {
             })),
           });
           console.log('[SincronizarAnalista] Pre Variance guardado:', va.preVariance.productos.length, 'SKUs');
+        }
+
+        // Persistir Recuento en tablas propias
+        if (va.recuento && va.recuento.productos.length > 0) {
+          await this.recuentoRepo.reemplazarRecuento({
+            jornadaId,
+            productos: va.recuento.productos.map(p => ({
+              idProductoBackend: p.idProductoBackend,
+              sku: p.sku,
+              descripcion: p.descripcion,
+              stockTeorico: p.stockTeorico,
+              valorUnitario: p.valorUnitario,
+              fisicoActual: p.fisicoActual,
+              diferenciaUnidades: p.diferenciaUnidades,
+              diferenciaEnCosto: p.diferenciaEnCosto,
+              esPreVariance: p.esPreVariance,
+              estadoRecuento: p.estadoRecuento,
+              ubicaciones: p.ubicaciones.map(u => ({
+                idTagBackend: u.idTagBackend,
+                numeroTag: u.numeroTag,
+                zona: u.zona,
+                cantidadInventariada: u.cantidadInventariada,
+                cantidadRecuento: u.cantidadRecuento,
+              })),
+            })),
+          });
+          console.log('[SincronizarAnalista] Recuento guardado:', va.recuento.productos.length, 'SKUs');
         }
       }
     }

@@ -13,6 +13,10 @@ import {
   PreVarianceProductoAnalista,
   PreVarianceResumenAnalista,
   PreVarianceUbicacionAnalista,
+  RecuentoAnalista,
+  RecuentoProductoAnalista,
+  RecuentoResumenAnalista,
+  RecuentoUbicacionAnalista,
   TagAnalista,
   TiendaPreparada,
   UsuarioPreparado,
@@ -388,7 +392,8 @@ function parsearValidacionOperacional(raw: unknown): ValidacionOperacionalAnalis
   const altillos = parsearBloqueValidacion(raw['altillos']);
   const puntoVenta = parsearBloqueValidacion(raw['punto_venta']);
   const preVariance = parsearPreVarianceAnalista(raw['pre_variance']);
-  return { altillos, puntoVenta, preVariance };
+  const recuento = parsearRecuentoAnalista(raw['recuento']);
+  return { altillos, puntoVenta, preVariance, recuento };
 }
 
 function parsearBloqueValidacion(raw: unknown): ValidacionBloqueAnalista {
@@ -522,5 +527,72 @@ function parsearUbicacionesPreVariance(raw: unknown): PreVarianceUbicacionAnalis
     zona: textoOpcional(u, 'zona') ?? '',
     cantidadInventariada: numeroOpcional(u, 'cantidad_inventariada') ?? 0,
     cantidadPreVariance: numeroOpcional(u, 'cantidad_pre_variance'),
+  }));
+}
+
+/* ============================================================================
+   Recuento — parsers
+   ============================================================================ */
+
+function parsearRecuentoAnalista(raw: unknown): RecuentoAnalista {
+  const vacio: RecuentoAnalista = {
+    resumen: {
+      skuTotal: 0,
+      skuPendientes: 0,
+      skuRecontados: 0,
+      diferenciaTotal: 0,
+      mayorDiferenciaValor: 0,
+      mayorDiferenciaSku: null,
+      mayorDiferenciaDescripcion: null,
+    },
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenRecuento(raw['resumen']);
+  const productos = parsearProductosRecuento(raw['productos']);
+
+  return { resumen, productos };
+}
+
+function parsearResumenRecuento(raw: unknown): RecuentoResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    skuTotal: numeroOpcional(r, 'sku_total') ?? 0,
+    skuPendientes: numeroOpcional(r, 'sku_pendientes') ?? 0,
+    skuRecontados: numeroOpcional(r, 'sku_recontados') ?? 0,
+    diferenciaTotal: numeroOpcional(r, 'diferencia_total') ?? 0,
+    mayorDiferenciaValor: numeroOpcional(r, 'mayor_diferencia_valor') ?? 0,
+    mayorDiferenciaSku: textoOpcional(r, 'mayor_diferencia_sku'),
+    mayorDiferenciaDescripcion: textoOpcional(r, 'mayor_diferencia_descripcion'),
+  };
+}
+
+function parsearProductosRecuento(raw: unknown): RecuentoProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idProductoBackend: enteroOpcional(p, 'id_producto_backend'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion'),
+    stockTeorico: numeroOpcional(p, 'stock_teorico') ?? 0,
+    valorUnitario: numeroOpcional(p, 'valor_unitario') ?? 0,
+    fisicoActual: numeroOpcional(p, 'fisico_actual') ?? 0,
+    diferenciaUnidades: numeroOpcional(p, 'diferencia_unidades') ?? 0,
+    diferenciaEnCosto: numeroOpcional(p, 'diferencia_en_costo') ?? 0,
+    esPreVariance: p['es_pre_variance'] === true || p['es_pre_variance'] === 1,
+    estadoRecuento: textoOpcional(p, 'estado_recuento') === 'RECONTADO' ? 'RECONTADO' : 'PENDIENTE',
+    ubicaciones: parsearUbicacionesRecuento(p['ubicaciones']),
+  }));
+}
+
+function parsearUbicacionesRecuento(raw: unknown): RecuentoUbicacionAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((u) => ({
+    idTagBackend: enteroOpcional(u, 'id_tag_backend'),
+    numeroTag: enteroOpcional(u, 'numero_tag'),
+    zona: textoOpcional(u, 'zona') ?? '',
+    cantidadInventariada: numeroOpcional(u, 'cantidad_inventariada') ?? 0,
+    cantidadRecuento: numeroOpcional(u, 'cantidad_recuento'),
   }));
 }

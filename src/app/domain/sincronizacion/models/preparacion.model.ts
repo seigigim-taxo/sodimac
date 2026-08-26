@@ -207,6 +207,7 @@ export interface ValidacionOperacionalAnalista {
   altillos: ValidacionBloqueAnalista;
   puntoVenta: ValidacionBloqueAnalista;
   preVariance: PreVarianceAnalista;
+  recuento: RecuentoAnalista;
 }
 
 /*
@@ -248,6 +249,48 @@ export interface PreVarianceProductoAnalista {
 export interface PreVarianceAnalista {
   resumen: PreVarianceResumenAnalista;
   productos: PreVarianceProductoAnalista[];
+}
+
+/*
+ * Recuento — modelos para la revisión contra Kárdex (Conteo 3).
+ * Excluye universo Pre Variance por defecto.
+ * Prioridad: C3_RECUENTO > C2_PRE_VARIANCE > C2_VALIDACION > C1_INICIAL.
+ */
+export interface RecuentoResumenAnalista {
+  skuTotal: number;
+  skuPendientes: number;
+  skuRecontados: number;
+  diferenciaTotal: number;
+  mayorDiferenciaValor: number;
+  mayorDiferenciaSku: string | null;
+  mayorDiferenciaDescripcion: string | null;
+}
+
+export interface RecuentoUbicacionAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  zona: string;
+  cantidadInventariada: number;
+  cantidadRecuento: number | null;
+}
+
+export interface RecuentoProductoAnalista {
+  idProductoBackend: number | null;
+  sku: string;
+  descripcion: string | null;
+  stockTeorico: number;
+  valorUnitario: number;
+  fisicoActual: number;
+  diferenciaUnidades: number;
+  diferenciaEnCosto: number;
+  esPreVariance: boolean;
+  estadoRecuento: 'PENDIENTE' | 'RECONTADO';
+  ubicaciones: RecuentoUbicacionAnalista[];
+}
+
+export interface RecuentoAnalista {
+  resumen: RecuentoResumenAnalista;
+  productos: RecuentoProductoAnalista[];
 }
 
 export interface DatosAnalista {

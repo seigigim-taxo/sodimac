@@ -55,6 +55,8 @@ import { VALIDACION_REPOSITORY_TOKEN } from './app/domain/validacion/repositorie
 import { SqliteValidacionRepository } from './app/data/validacion/validacion.repository';
 import { PRE_VARIANCE_REPOSITORY_TOKEN } from './app/domain/pre-variance/repositories/pre-variance.repository';
 import { SqlitePreVarianceRepository } from './app/data/pre-variance/pre-variance.repository';
+import { RECUENTO_REPOSITORY_TOKEN } from './app/domain/recuento/repositories/recuento.repository';
+import { SqliteRecuentoRepository } from './app/data/recuento/recuento.repository';
 
 /*
  * DB must complete before Auth or PDA query SQLite.
@@ -154,5 +156,6 @@ bootstrapApplication(AppComponent, {
     { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionSimuladaRepository },
     { provide: VALIDACION_REPOSITORY_TOKEN,     useClass: SqliteValidacionRepository },
     { provide: PRE_VARIANCE_REPOSITORY_TOKEN,  useClass: SqlitePreVarianceRepository },
+    { provide: RECUENTO_REPOSITORY_TOKEN,      useClass: SqliteRecuentoRepository },
   ],
 });
