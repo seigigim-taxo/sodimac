@@ -230,9 +230,64 @@ export class AnalystDashboardPage implements OnInit {
     };
   });
 
+  preVarianceStage = computed<Stage>(() => {
+    const pv = this.dashboard.preVariance();
+    if (!pv || pv.productos.length === 0) {
+      return {
+        id: 'pre-variance',
+        label: '2.1',
+        title: 'Pre Variance',
+        description: 'Diferencia valorizada absoluta mayor a $500.000.',
+        objective: 'Revisión contra Kardex.',
+        status: 'PENDIENTE',
+        badge: '0',
+        actionLabel: 'Revisar Pre Variance',
+        metrics: [
+          { label: 'SKU en Pre Variance', value: 0, hint: 'Diferencia valorizada > $500.000', tone: 'neutral' },
+          { label: 'Diferencia valorizada', value: '$0', hint: 'Total con signo', tone: 'neutral' },
+          { label: 'Revisados / pendientes', value: '0 / 0', hint: 'Revisión Analista Sodimac', tone: 'neutral' },
+        ],
+        previewRows: [],
+      };
+    }
+
+    const r = pv.resumen;
+    const status: StageStatus = r.skuPendientes === 0 ? 'COMPLETADO' : 'PENDIENTE';
+    const badge = r.skuRevisados > 0 ? `${r.skuRevisados}/${r.skuTotal}` : `${r.skuTotal}`;
+    const actionLabel = r.skuPendientes === 0 ? 'Ver Pre Variance' : 'Revisar Pre Variance';
+
+    const formatCurrency = (v: number): string => {
+      const abs = Math.abs(v);
+      const formatted = abs.toLocaleString('es-CL');
+      return v < 0 ? `-$${formatted}` : `$${formatted}`;
+    };
+
+    return {
+      id: 'pre-variance',
+      label: '2.1',
+      title: 'Pre Variance',
+      description: 'Diferencia valorizada absoluta mayor a $500.000.',
+      objective: 'Revisión contra Kardex.',
+      status,
+      badge,
+      actionLabel,
+      metrics: [
+        { label: 'SKU en Pre Variance', value: r.skuTotal, hint: 'Diferencia valorizada > $500.000', tone: 'neutral' },
+        { label: 'Diferencia valorizada', value: formatCurrency(r.diferenciaTotal), hint: 'Total con signo', tone: r.skuPendientes > 0 ? 'danger' : 'ok' },
+        { label: 'Revisados / pendientes', value: `${r.skuRevisados} / ${r.skuPendientes}`, hint: 'Revisión Analista Sodimac', tone: r.skuPendientes > 0 ? 'warning' : 'ok' },
+      ],
+      previewRows: pv.productos.slice(0, 5).map(p => ({
+        main: p.sku,
+        secondary: p.descripcion ?? p.sku,
+        status: p.estadoPreVariance === 'REVISADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
+      })),
+    };
+  });
+
   ngOnInit(): void {
     this.dashboard.cargarAltillosDesdeLocal();
     this.dashboard.cargarPuntoVentaDesdeLocal();
+    this.dashboard.cargarPreVarianceDesdeLocal();
   }
 
   etapa1Label = 'ETAPA 1 - Validación operacional';
@@ -248,24 +303,8 @@ export class AnalystDashboardPage implements OnInit {
     this.puntoVentaStage(),
   ]);
 
-  etapa2: Stage[] = [
-    {
-      id: 'pre-variance',
-      label: '2.1',
-      title: 'Pre Variance',
-      description: 'Diferencia valorizada absoluta mayor a $500.000.',
-      objective: 'Revisión contra Kardex.',
-      status: 'PENDIENTE',
-      actionLabel: 'Revisar Pre Variance',
-      metrics: [
-        { label: 'SKU en Pre Variance', value: 1, hint: 'Diferencia valorizada > $500.000', tone: 'neutral' },
-        { label: 'Diferencia valorizada', value: '-$554.168', hint: 'Total con signo', tone: 'danger' },
-        { label: 'Revisados / pendientes', value: '0 / 1', hint: 'Revisión Analista Sodimac', tone: 'warning' },
-      ],
-      previewRows: [
-        { main: '7496508', secondary: 'DETERGENTE LIQUIDO HIPO 10L R', status: 'PENDIENTE' },
-      ],
-    },
+  etapa2 = computed<Stage[]>(() => [
+    this.preVarianceStage(),
     {
       id: 'recuento',
       label: '2.2',
@@ -275,17 +314,13 @@ export class AnalystDashboardPage implements OnInit {
       status: 'PENDIENTE',
       actionLabel: 'Abrir recuento',
       metrics: [
-        { label: 'Restantes', value: 15, hint: 'Diferencias por revisar', tone: 'warning' },
+        { label: 'Restantes', value: 0, hint: 'Diferencias por revisar', tone: 'neutral' },
         { label: 'Recontados', value: 0, hint: 'Aún sin recuento', tone: 'neutral' },
         { label: 'Conteo', value: 3, hint: 'Registro resultante', tone: 'purple' },
       ],
-      previewRows: [
-        { main: '7576331', secondary: 'DETERGENTE EN LAMINAS DEKAP CR', status: 'PENDIENTE' },
-        { main: '3948056', secondary: 'DETERGENTE LIQUIDO 10 LTS KW', status: 'PENDIENTE' },
-        { main: '7712227', secondary: 'DETERGENTE HIPO 3 L DOYPACK', status: 'PENDIENTE' },
-      ],
+      previewRows: [],
     },
-  ];
+  ]);
 
   private construirAltillosModalData(): OperationalModalData {
     const altillos = this.dashboard.altillos();
@@ -374,19 +409,36 @@ export class AnalystDashboardPage implements OnInit {
   searchMode = signal<SearchMode>('TAG');
   showAddSku = signal(false);
 
-  private preVarianceModalData: PreVarianceModalData = {
-    title: 'Revisión de Pre Variance - Analista Sodimac',
-    subtitle: '7496508 - DETERGENTE LIQUIDO HIPO 10L R',
-    sku: '7496508',
-    product: 'DETERGENTE LIQUIDO HIPO 10L R',
-    kardex: 104,
-    unitCost: '$10.456',
-    currentDifference: '-$554.168',
-    locations: [
-      { origin: 'Contado', zone: 'PUNTO DE VENTA', tag: '3001', quantity: 20, newQuantity: 20, status: 'CONFIRMADO' },
-      { origin: 'Contado', zone: 'PUNTO DE VENTA', tag: '3002', quantity: 31, newQuantity: 31, status: 'CONFIRMADO' },
-    ],
-  };
+  private construirPreVarianceModalData(): PreVarianceModalData | null {
+    const pv = this.dashboard.preVariance();
+    if (!pv || pv.productos.length === 0) return null;
+
+    const primerSku = pv.productos.find(p => p.estadoPreVariance === 'PENDIENTE') ?? pv.productos[0];
+
+    const formatCurrency = (v: number): string => {
+      const abs = Math.abs(v);
+      const formatted = abs.toLocaleString('es-CL');
+      return v < 0 ? `-$${formatted}` : `$${formatted}`;
+    };
+
+    return {
+      title: 'Revisión de Pre Variance - Analista Sodimac',
+      subtitle: `${primerSku.sku} - ${primerSku.descripcion ?? primerSku.sku}`,
+      sku: primerSku.sku,
+      product: primerSku.descripcion ?? primerSku.sku,
+      kardex: primerSku.stockTeorico,
+      unitCost: formatCurrency(primerSku.valorUnitario),
+      currentDifference: formatCurrency(primerSku.diferenciaEnCosto),
+      locations: primerSku.ubicaciones.map(u => ({
+        origin: 'Contado',
+        zone: u.zona,
+        tag: String(u.numeroTag ?? ''),
+        quantity: u.cantidadInventariada,
+        newQuantity: u.cantidadPreVariance ?? u.cantidadInventariada,
+        status: u.cantidadPreVariance !== null ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
+      })),
+    };
+  }
 
   private recountModalData: RecountModalData = {
     title: 'Recuento - Analista Sodimac',
@@ -461,7 +513,10 @@ export class AnalystDashboardPage implements OnInit {
       this.searchMode.set('TAG');
       this.showAddSku.set(false);
     } else if (stage.id === 'pre-variance') {
-      this.preVarianceModal.set(this.preVarianceModalData);
+      const pvData = this.construirPreVarianceModalData();
+      if (pvData) {
+        this.preVarianceModal.set(pvData);
+      }
     } else if (stage.id === 'recuento') {
       this.recountModal.set(this.recountModalData);
     }

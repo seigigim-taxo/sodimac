@@ -9,6 +9,10 @@ import {
   FilaAnalista,
   KpisAnalista,
   MuestraPreparada,
+  PreVarianceAnalista,
+  PreVarianceProductoAnalista,
+  PreVarianceResumenAnalista,
+  PreVarianceUbicacionAnalista,
   TagAnalista,
   TiendaPreparada,
   UsuarioPreparado,
@@ -308,6 +312,7 @@ function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
     codigoMuestra: texto(raw, 'codigo_muestra', campo),
     nombreMuestra: textoOpcional(raw, 'nombre_muestra') ?? '',
     fechaJornada: textoOpcional(raw, 'fecha_jornada') ?? '',
+    idKardex: numeroOpcional(raw, 'id_kardex'),
   };
 }
 
@@ -382,7 +387,8 @@ function parsearValidacionOperacional(raw: unknown): ValidacionOperacionalAnalis
 
   const altillos = parsearBloqueValidacion(raw['altillos']);
   const puntoVenta = parsearBloqueValidacion(raw['punto_venta']);
-  return { altillos, puntoVenta };
+  const preVariance = parsearPreVarianceAnalista(raw['pre_variance']);
+  return { altillos, puntoVenta, preVariance };
 }
 
 function parsearBloqueValidacion(raw: unknown): ValidacionBloqueAnalista {
@@ -449,5 +455,72 @@ function parsearProductosValidacion(raw: unknown): ValidacionProductoAnalista[] 
     cantidadAnalista: numeroOpcional(p, 'cantidad_analista'),
     estadoValidacion: textoOpcional(p, 'estado_validacion') === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDIENTE',
     flIncorporado: textoOpcional(p, 'fl_incorporado') === 'S' ? 'S' : 'N',
+  }));
+}
+
+/* ============================================================================
+   Pre Variance — parsers
+   ============================================================================ */
+
+function parsearPreVarianceAnalista(raw: unknown): PreVarianceAnalista {
+  const vacio: PreVarianceAnalista = {
+    resumen: {
+      skuTotal: 0,
+      skuPendientes: 0,
+      skuRevisados: 0,
+      diferenciaTotal: 0,
+      mayorDiferenciaValor: 0,
+      mayorDiferenciaSku: null,
+      mayorDiferenciaDescripcion: null,
+    },
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenPreVariance(raw['resumen']);
+  const productos = parsearProductosPreVariance(raw['productos']);
+
+  return { resumen, productos };
+}
+
+function parsearResumenPreVariance(raw: unknown): PreVarianceResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    skuTotal: numeroOpcional(r, 'sku_total') ?? 0,
+    skuPendientes: numeroOpcional(r, 'sku_pendientes') ?? 0,
+    skuRevisados: numeroOpcional(r, 'sku_revisados') ?? 0,
+    diferenciaTotal: numeroOpcional(r, 'diferencia_total') ?? 0,
+    mayorDiferenciaValor: numeroOpcional(r, 'mayor_diferencia_valor') ?? 0,
+    mayorDiferenciaSku: textoOpcional(r, 'mayor_diferencia_sku'),
+    mayorDiferenciaDescripcion: textoOpcional(r, 'mayor_diferencia_descripcion'),
+  };
+}
+
+function parsearProductosPreVariance(raw: unknown): PreVarianceProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idProductoBackend: enteroOpcional(p, 'id_producto_backend'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion'),
+    stockTeorico: numeroOpcional(p, 'stock_teorico') ?? 0,
+    valorUnitario: numeroOpcional(p, 'valor_unitario') ?? 0,
+    inventariadoAntesPreVariance: numeroOpcional(p, 'inventariado_antes_pre_variance') ?? 0,
+    fisicoVigente: numeroOpcional(p, 'fisico_vigente') ?? 0,
+    diferenciaUnidades: numeroOpcional(p, 'diferencia_unidades') ?? 0,
+    diferenciaEnCosto: numeroOpcional(p, 'diferencia_en_costo') ?? 0,
+    estadoPreVariance: textoOpcional(p, 'estado_pre_variance') === 'REVISADO' ? 'REVISADO' : 'PENDIENTE',
+    ubicaciones: parsearUbicacionesPreVariance(p['ubicaciones']),
+  }));
+}
+
+function parsearUbicacionesPreVariance(raw: unknown): PreVarianceUbicacionAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((u) => ({
+    idTagBackend: enteroOpcional(u, 'id_tag_backend'),
+    numeroTag: enteroOpcional(u, 'numero_tag'),
+    zona: textoOpcional(u, 'zona') ?? '',
+    cantidadInventariada: numeroOpcional(u, 'cantidad_inventariada') ?? 0,
+    cantidadPreVariance: numeroOpcional(u, 'cantidad_pre_variance'),
   }));
 }

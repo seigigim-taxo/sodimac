@@ -141,7 +141,7 @@
       </section>
 
       <section class="stages-section">
-        @for (stage of etapa2; track stage.id) {
+        @for (stage of etapa2(); track stage.id) {
           <div class="stage-card"
                [class.stage-card--locked]="stage.status === 'BLOQUEADO'"
                [class.stage-card--expanded]="stageExpanded() === stage.id">

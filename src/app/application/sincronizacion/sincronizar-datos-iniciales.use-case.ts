@@ -8,9 +8,10 @@ import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/mues
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
 import { VALIDACION_REPOSITORY_TOKEN } from '../../domain/validacion/repositories/validacion.repository';
+import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/repositories/pre-variance.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
-import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
+import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, PreVarianceAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
 type EstadoEvento = Evento['estado'];
@@ -40,6 +41,7 @@ export class SincronizarDatosInicialesUseCase {
   private muestraDetalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
   private validacionRepo = inject(VALIDACION_REPOSITORY_TOKEN);
+  private preVarianceRepo = inject(PRE_VARIANCE_REPOSITORY_TOKEN);
   private sqlite = inject(SqliteConnectionService);
 
   async execute(
@@ -198,6 +200,33 @@ export class SincronizarDatosInicialesUseCase {
 
         const jornadaId = await this.validacionRepo.reemplazarJornada(input);
         console.log('[SincronizarAnalista] Jornada validacion ID:', jornadaId);
+
+        // Persistir Pre Variance en tablas propias
+        if (va.preVariance && va.preVariance.productos.length > 0) {
+          await this.preVarianceRepo.reemplazarPreVariance({
+            jornadaId,
+            productos: va.preVariance.productos.map(p => ({
+              idProductoBackend: p.idProductoBackend,
+              sku: p.sku,
+              descripcion: p.descripcion,
+              stockTeorico: p.stockTeorico,
+              valorUnitario: p.valorUnitario,
+              inventariadoAntesPreVariance: p.inventariadoAntesPreVariance,
+              fisicoVigente: p.fisicoVigente,
+              diferenciaUnidades: p.diferenciaUnidades,
+              diferenciaEnCosto: p.diferenciaEnCosto,
+              estadoPreVariance: p.estadoPreVariance,
+              ubicaciones: p.ubicaciones.map(u => ({
+                idTagBackend: u.idTagBackend,
+                numeroTag: u.numeroTag,
+                zona: u.zona,
+                cantidadInventariada: u.cantidadInventariada,
+                cantidadPreVariance: u.cantidadPreVariance,
+              })),
+            })),
+          });
+          console.log('[SincronizarAnalista] Pre Variance guardado:', va.preVariance.productos.length, 'SKUs');
+        }
       }
     }
   }

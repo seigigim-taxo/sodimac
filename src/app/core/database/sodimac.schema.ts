@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 44;
+export const SODIMAC_DB_VERSION = 45;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -247,6 +247,38 @@ const TABLES: readonly string[] = [
     fl_incorporado         TEXT    NOT NULL DEFAULT 'N'
                            CHECK (fl_incorporado IN ('S', 'N')),
     fecha_registro         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  /* ========================================================================
+     PRE VARIANCE — tablas específicas para revisión contra Kárdex.
+     ======================================================================== */
+
+  `CREATE TABLE IF NOT EXISTS sod_pre_variance_producto (
+    id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+    jornada_id                      INTEGER NOT NULL REFERENCES sod_validacion_jornada(id),
+    id_producto_backend             INTEGER          DEFAULT NULL,
+    sku                             TEXT    NOT NULL,
+    descripcion                     TEXT             DEFAULT NULL,
+    stock_teorico                   REAL    NOT NULL DEFAULT 0,
+    valor_unitario                  REAL    NOT NULL DEFAULT 0,
+    inventariado_antes_pre_variance REAL    NOT NULL DEFAULT 0,
+    fisico_vigente                  REAL    NOT NULL DEFAULT 0,
+    diferencia_unidades             REAL    NOT NULL DEFAULT 0,
+    diferencia_en_costo             REAL    NOT NULL DEFAULT 0,
+    estado_pre_variance             TEXT    NOT NULL DEFAULT 'PENDIENTE'
+                                    CHECK (estado_pre_variance IN ('PENDIENTE', 'REVISADO')),
+    fecha_registro                  TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sod_pre_variance_ubicacion (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    producto_id            INTEGER NOT NULL REFERENCES sod_pre_variance_producto(id),
+    id_tag_backend         INTEGER          DEFAULT NULL,
+    numero_tag             INTEGER          DEFAULT NULL,
+    zona                   TEXT             DEFAULT NULL,
+    cantidad_inventariada  REAL    NOT NULL DEFAULT 0,
+    cantidad_pre_variance  REAL             DEFAULT NULL,
+    fecha_registro         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`
 
 ];
@@ -270,6 +302,9 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_vt_numero ON sod_validacion_tag(numero_tag)`,
   `CREATE INDEX IF NOT EXISTS idx_vp_tag ON sod_validacion_producto(tag_id)`,
   `CREATE INDEX IF NOT EXISTS idx_vp_sku ON sod_validacion_producto(sku)`,
+  `CREATE INDEX IF NOT EXISTS idx_pvp_jornada ON sod_pre_variance_producto(jornada_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_pvp_sku ON sod_pre_variance_producto(sku)`,
+  `CREATE INDEX IF NOT EXISTS idx_pvu_producto ON sod_pre_variance_ubicacion(producto_id)`,
 ];
 
 const SEED = `

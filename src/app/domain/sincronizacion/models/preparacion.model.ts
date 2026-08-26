@@ -111,6 +111,7 @@ export interface ContextoAnalista {
   codigoMuestra: string;
   nombreMuestra: string;
   fechaJornada: string;
+  idKardex: number | null;
 }
 
 export interface KpisAnalista {
@@ -205,6 +206,48 @@ export interface ValidacionBloqueAnalista {
 export interface ValidacionOperacionalAnalista {
   altillos: ValidacionBloqueAnalista;
   puntoVenta: ValidacionBloqueAnalista;
+  preVariance: PreVarianceAnalista;
+}
+
+/*
+ * Pre Variance — modelos para la revisión contra Kárdex.
+ * Diferencia valorizada absoluta estricta > $500.000.
+ */
+export interface PreVarianceResumenAnalista {
+  skuTotal: number;
+  skuPendientes: number;
+  skuRevisados: number;
+  diferenciaTotal: number;
+  mayorDiferenciaValor: number;
+  mayorDiferenciaSku: string | null;
+  mayorDiferenciaDescripcion: string | null;
+}
+
+export interface PreVarianceUbicacionAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  zona: string;
+  cantidadInventariada: number;
+  cantidadPreVariance: number | null;
+}
+
+export interface PreVarianceProductoAnalista {
+  idProductoBackend: number | null;
+  sku: string;
+  descripcion: string | null;
+  stockTeorico: number;
+  valorUnitario: number;
+  inventariadoAntesPreVariance: number;
+  fisicoVigente: number;
+  diferenciaUnidades: number;
+  diferenciaEnCosto: number;
+  estadoPreVariance: 'PENDIENTE' | 'REVISADO';
+  ubicaciones: PreVarianceUbicacionAnalista[];
+}
+
+export interface PreVarianceAnalista {
+  resumen: PreVarianceResumenAnalista;
+  productos: PreVarianceProductoAnalista[];
 }
 
 export interface DatosAnalista {
