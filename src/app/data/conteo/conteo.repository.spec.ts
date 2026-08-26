@@ -36,6 +36,7 @@ const SEMILLA = `
   INSERT INTO sod_pda (id, codigo) VALUES (1, 'PDA-01');
   INSERT INTO sod_zona (id, sucursal_id, nombre, tag_desde, tag_hasta) VALUES (1, 1, 'SALA', 1000, 1999);
   INSERT INTO sod_ubicacion (id, zona_id, codigo, tag) VALUES (1, 1, 'PASILLO A', '1500');
+  INSERT INTO sod_ubicacion (id, zona_id, codigo, tag) VALUES (2, 1, 'PASILLO B', '1600');
   INSERT INTO sod_conteo (id, evento_id, iteracion, estado) VALUES (1, 1, 1, 'ABIERTO');
 `;
 
@@ -278,6 +279,74 @@ describe('SqliteConteoRepository', () => {
       await repo.delete(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO');
 
       expect((await lecturasDe(otro.id)).length).toBe(1);
+    });
+  });
+
+  /*
+   * ¿Se puede terminar más de un TAG y que al servidor llegue uno solo?
+   *
+   * Cada apertura de TAG crea su propia fila en sod_ubicacion, y de ahí cuelga
+   * todo: el carga_uid, la fila en sod_sincronizacion y el marcado. Si alguna de
+   * esas tres cosas se escapara del ubicacion_id, dos TAGs terminados quedarían
+   * pisándose y el operador vería ambos como enviados con uno solo en el SGO —
+   * trabajo perdido en silencio y sin error a la vista.
+   */
+  describe('dos TAGs terminados no se pisan entre sí', () => {
+    const OTRA_UBICACION = 2;
+
+    async function contarYCerrar(ubicacionId: number, cantidad: number) {
+      await repo.upsert(CONTEO_ID, ubicacionId, PRODUCTO_ID, OPERADOR_ID, PDA_ID, cantidad, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, ubicacionId, OPERADOR_ID);
+    }
+
+    it('cada uno recibe su propio carga_uid', async () => {
+      await contarYCerrar(UBICACION_ID, 3);
+      await contarYCerrar(OTRA_UBICACION, 7);
+
+      const uidA = await repo.asegurarCargaUid(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
+      const uidB = await repo.asegurarCargaUid(CONTEO_ID, OTRA_UBICACION, OPERADOR_ID, PDA_ID);
+
+      expect(uidA).not.toBe(uidB);
+    });
+
+    // Reintentar el envío del mismo TAG no puede generar un uid nuevo: en el SGO
+    // entraría como una carga distinta y el conteo se contaría dos veces.
+    it('el carga_uid de un TAG es estable entre llamadas', async () => {
+      await contarYCerrar(UBICACION_ID, 3);
+
+      const primera = await repo.asegurarCargaUid(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
+      const segunda = await repo.asegurarCargaUid(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
+
+      expect(segunda).toBe(primera);
+    });
+
+    /*
+     * El caso que de verdad haría perder un TAG: si marcar uno como sincronizado
+     * alcanzara al otro, el segundo nunca se enviaría y se vería como hecho.
+     */
+    it('marcar uno como sincronizado no toca al otro', async () => {
+      await contarYCerrar(UBICACION_ID, 3);
+      await contarYCerrar(OTRA_UBICACION, 7);
+
+      await repo.marcarSincronizado(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
+
+      const resumenes = await repo.getResumenes(OPERADOR_ID, PDA_ID);
+      const a = resumenes.find((r) => r.ubicacionId === UBICACION_ID);
+      const b = resumenes.find((r) => r.ubicacionId === OTRA_UBICACION);
+
+      expect(a?.estado).toBe('SINCRONIZADO');
+      expect(b?.estado).toBe('FINALIZADO');
+    });
+
+    it('los dos aparecen como sesiones separadas, con sus totales', async () => {
+      await contarYCerrar(UBICACION_ID, 3);
+      await contarYCerrar(OTRA_UBICACION, 7);
+
+      const resumenes = await repo.getResumenes(OPERADOR_ID, PDA_ID);
+
+      expect(resumenes.length).toBe(2);
+      expect(resumenes.find((r) => r.ubicacionId === UBICACION_ID)?.totalUnidades).toBe(3);
+      expect(resumenes.find((r) => r.ubicacionId === OTRA_UBICACION)?.totalUnidades).toBe(7);
     });
   });
 
