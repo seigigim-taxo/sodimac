@@ -294,6 +294,20 @@
       <p class="hint-text text-center">
         Hay {{ finalizadosReal().length }} TAG(s) sin sincronizar — súbelos antes de cerrar el conteo
       </p>
+      <!--
+        La salida al bloqueo, acá mismo. Mandarlo a subirlos de a uno cuando son
+        diez es pedirle que se saltee alguno, que es justo lo que hay que evitar.
+      -->
+      <ion-button expand="block" class="btn-primary mt-2" [disabled]="sincronizandoTodos()"
+        (click)="sincronizarTodos()">
+        @if (sincronizandoTodos()) {
+        <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+        Sincronizando…
+        } @else {
+        <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
+        Sincronizar los {{ finalizadosReal().length }} pendientes
+        }
+      </ion-button>
       }
       }
     </div>

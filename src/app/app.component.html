@@ -49,15 +49,20 @@
           </ion-menu-toggle>
         }
 
-        <!-- Enviar pendientes (solo analista) -->
-        @if (isAnalyst()) {
+        <!--
+          Enviar pendientes, para los dos perfiles.
+          Era solo del analista, y eso dejaba al operador sin salida: un TAG que
+          falló al subir y quedó en un evento ya cerrado no se alcanza desde el
+          resumen, que solo muestra el evento en curso. Pasó en terreno — tres
+          TAGs varados en una PDA. Este envío no mira el evento ni el día: manda
+          todo lo que esté pendiente.
+        -->
         <ion-menu-toggle>
           <ion-item button (click)="enviarPendientesMenu()" [disabled]="enviandoPendientes()" class="menu-theme-item">
             <ion-icon slot="start" name="paper-plane-outline"></ion-icon>
             <ion-label>{{ enviandoPendientes() ? 'Enviando...' : 'Enviar pendientes' }}</ion-label>
           </ion-item>
         </ion-menu-toggle>
-        }
 
         <!-- Respaldo de la base local -->
         <ion-menu-toggle>

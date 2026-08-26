@@ -303,6 +303,49 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     await this.avisar(`TAG ${c.tag ?? ''} sincronizado.`.replace('  ', ' '), 'success');
   }
 
+  sincronizandoTodos = signal(false);
+
+  /*
+   * Sube de una todos los TAGs pendientes de la ronda a la vista.
+   *
+   * Existe porque el operador queda bloqueado para cerrar el conteo mientras
+   * quede alguno sin subir, y hacerlo de a uno con diez TAGs es una invitación a
+   * saltearse alguno. Pasó en terreno: tres TAGs quedaron sin enviar y el conteo
+   * se cerró igual.
+   *
+   * Va uno por uno con el mismo camino que el botón individual, en vez de un
+   * envío masivo aparte: así cada TAG actualiza su estado en pantalla apenas
+   * sube, y si la red se corta a la mitad, lo que ya subió queda subido.
+   */
+  async sincronizarTodos(): Promise<void> {
+    if (this.sincronizandoTodos()) return;
+
+    // Se fija la lista antes de empezar: sincronizar() muta el estado y el
+    // computed se vaciaría bajo los pies del recorrido.
+    const pendientes = [...this.finalizadosReal()];
+    if (pendientes.length === 0) return;
+
+    this.sincronizandoTodos.set(true);
+    let subidos = 0;
+    try {
+      for (const conteo of pendientes) {
+        if (await this.conteoList.sincronizar(conteo)) subidos++;
+      }
+    } finally {
+      this.sincronizandoTodos.set(false);
+    }
+
+    await this.cargarTrazabilidad();
+
+    const fallaron = pendientes.length - subidos;
+    await this.avisar(
+      fallaron === 0
+        ? `${subidos} TAG(s) sincronizados.`
+        : `${subidos} de ${pendientes.length} sincronizados. ${fallaron} quedaron pendientes.`,
+      fallaron === 0 ? 'success' : 'danger'
+    );
+  }
+
   /*
    * Reabre el TAG y lleva al operador de vuelta a la pantalla de conteo, con lo
    * que ya había contado.
