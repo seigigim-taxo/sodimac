@@ -2,7 +2,6 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { GetEventosBySucursalUseCase } from '../../application/evento/get-eventos-by-sucursal.use-case';
 import { AbrirSiguienteIteracionUseCase, ResultadoAbrirIteracion } from '../../application/conteo/abrir-siguiente-iteracion.use-case';
 import { GetEventoByIdUseCase } from '../../application/evento/get-evento-by-id.use-case';
-import { CerrarEventoUseCase } from '../../application/evento/cerrar-evento.use-case';
 import { SeleccionarEventoUseCase } from '../../application/evento/seleccionar-evento.use-case';
 import { Evento } from '../../domain/evento/models/evento.model';
 export type { Evento };
@@ -12,7 +11,6 @@ export class EventoFacade {
   private getEventosBySucursal = inject(GetEventosBySucursalUseCase);
   private abrirIteracionUC     = inject(AbrirSiguienteIteracionUseCase);
   private getEventoById        = inject(GetEventoByIdUseCase);
-  private cerrarEventoUC       = inject(CerrarEventoUseCase);
   private seleccionarEventoUC  = inject(SeleccionarEventoUseCase);
 
   private eventsSignal         = signal<Evento[]>([]);
@@ -103,21 +101,6 @@ export class EventoFacade {
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al abrir la iteración siguiente');
       return null;
-    }
-  }
-
-  async cerrarSeleccionado(): Promise<boolean> {
-    const evento = this.selectedEventSignal();
-    if (!evento) return false;
-
-    this.errorSignal.set(null);
-    try {
-      await this.cerrarEventoUC.execute(evento.id);
-      await this.refreshSelected();
-      return true;
-    } catch (err) {
-      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cerrar el evento');
-      return false;
     }
   }
 }
