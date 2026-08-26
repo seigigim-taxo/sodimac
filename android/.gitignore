@@ -53,9 +53,16 @@ captures/
 .idea/navEditor.xml
 
 # Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+#
+# La llave de firma NUNCA va al repositorio. Si se filtra, cualquiera puede
+# publicar una APK que las PDA aceptan como actualización legítima.
+#
+# Y si se PIERDE no hay reemplazo: Android exige que la firma coincida para
+# actualizar, así que sin ella habría que desinstalar la app en cada equipo, lo
+# que borra los conteos. Guardarla fuera del repo, con respaldo.
+*.jks
+*.keystore
+keystore.properties
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
