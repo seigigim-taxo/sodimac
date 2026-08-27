@@ -36,7 +36,7 @@ import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/rep
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
 import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
-import { AsignacionSimuladaRepository } from './app/data/asignacion/asignacion-simulada.repository';
+import { AsignacionApiService } from './app/data/asignacion/asignacion-api.service';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
@@ -159,6 +159,6 @@ bootstrapApplication(AppComponent, {
      * clase por la implementación HTTP es todo lo que hace falta para pasar al
      * flujo real.
      */
-    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionSimuladaRepository },
+    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionApiService },
   ],
 });
