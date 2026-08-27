@@ -1,4 +1,4 @@
-import { ahoraSql, hoySql } from './fecha.utils';
+import { ahoraSql, ahoraSqlMs, hoySql, selloUid } from './fecha.utils';
 
 /*
  * Se prueban con una fecha inyectada, no con la del reloj: el bug que motivó
@@ -56,6 +56,59 @@ describe('fecha.utils', () => {
     it('comparte la parte de fecha con hoySql', () => {
       const f = new Date(2026, 7, 25, 18, 45, 12);
       expect(ahoraSql(f).slice(0, 10)).toBe(hoySql(f));
+    });
+  });
+
+  describe('ahoraSqlMs', () => {
+    it('es ahoraSql más los milisegundos', () => {
+      const f = new Date(2026, 7, 27, 9, 22, 26, 123);
+      expect(ahoraSqlMs(f)).toBe('2026-08-27 09:22:26.123');
+      expect(ahoraSqlMs(f).startsWith(ahoraSql(f))).toBeTrue();
+    });
+
+    it('rellena los milisegundos a tres dígitos', () => {
+      expect(ahoraSqlMs(new Date(2026, 7, 27, 9, 22, 26, 7))).toBe('2026-08-27 09:22:26.007');
+    });
+
+    /*
+     * Su razón de ser: con pistola se escanean varios SKU dentro del mismo
+     * segundo, así que sin milisegundos dos productos consecutivos quedarían con
+     * el mismo instante y el detalle_uid no los distinguiría.
+     */
+    it('separa dos capturas del mismo segundo, que ahoraSql confunde', () => {
+      const a = new Date(2026, 7, 27, 9, 22, 26, 100);
+      const b = new Date(2026, 7, 27, 9, 22, 26, 340);
+
+      expect(ahoraSql(a)).toBe(ahoraSql(b));
+      expect(ahoraSqlMs(a)).not.toBe(ahoraSqlMs(b));
+    });
+  });
+
+  describe('selloUid', () => {
+    it('compacta la fecha a solo dígitos', () => {
+      expect(selloUid('2026-08-27 09:22:26.123')).toBe('20260827092226123');
+    });
+
+    /*
+     * Una lectura registrada antes de que existiera ahoraSqlMs no trae
+     * milisegundos. Tiene que dar un sello válido igual: si devolviera algo más
+     * corto, el detalle_uid quedaría malformado y una línea vieja tumbaría la
+     * sincronización del TAG entero.
+     */
+    it('completa con ceros una fecha sin milisegundos', () => {
+      expect(selloUid('2026-08-27 09:22:26')).toBe('20260827092226000');
+    });
+
+    // Largo fijo por el mismo motivo que ahoraSql: el orden alfabético tiene
+    // que seguir siendo el cronológico.
+    it('siempre da 17 dígitos', () => {
+      expect(selloUid('2026-08-27 09:22:26.123').length).toBe(17);
+      expect(selloUid('2026-08-27 09:22:26').length).toBe(17);
+      expect(selloUid('').length).toBe(17);
+    });
+
+    it('conserva el orden entre capturas del mismo segundo', () => {
+      expect(selloUid('2026-08-27 09:22:26.100') < selloUid('2026-08-27 09:22:26.340')).toBeTrue();
     });
   });
 });

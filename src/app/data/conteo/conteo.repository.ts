@@ -9,10 +9,10 @@ import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
-import { TagFinalizadoPayload, TagFinalizadoLecturaPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { TagFinalizadoPayload, TagFinalizadoLecturaPayload, detalleUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 import { ConteoLectura } from '../../domain/conteo/models/conteo-lectura.model';
-import { ahoraSql } from '../../shared/utils/fecha.utils';
+import { ahoraSql, ahoraSqlMs, selloUid } from '../../shared/utils/fecha.utils';
 
 /*
  * Mapeo de aliases antiguos de zona a los códigos oficiales de
@@ -224,7 +224,7 @@ export class SqliteConteoRepository implements ConteoRepository {
     await db.run(
       `INSERT INTO sod_conteo_lectura (detalle_id, codigo_lectura, medio_captura, cantidad, fecha_hora)
        VALUES (?, ?, ?, ?, ?)`,
-      [item.id, codigoLectura, medioCaptura, movimiento, ahoraSql()],
+      [item.id, codigoLectura, medioCaptura, movimiento, ahoraSqlMs()],
       false
     );
 
@@ -306,7 +306,7 @@ export class SqliteConteoRepository implements ConteoRepository {
     await db.run(
       `INSERT INTO sod_conteo_lectura (detalle_id, codigo_lectura, medio_captura, cantidad, fecha_hora)
        VALUES (?, NULL, 'MANUAL', ?, ?)`,
-      [detalleId, movimiento, ahoraSql()],
+      [detalleId, movimiento, ahoraSqlMs()],
       false
     );
 
@@ -705,9 +705,9 @@ export class SqliteConteoRepository implements ConteoRepository {
       throw new Error(`No se pudo generar carga_uid para conteo=${conteoId}`);
     }
 
-    const now = new Date();
-    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
-    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
+    // Mismo sello que usan los detalles: si cada uno armara el suyo a mano, los
+    // dos formatos se separarían con el tiempo dentro del mismo identificador.
+    const ts = selloUid(ahoraSqlMs());
 
     const iteracion = r['iteracion'] as number;
     const fechaProg = (r['eventoFecha'] as string ?? '').replace(/-/g, '');
@@ -824,6 +824,37 @@ export class SqliteConteoRepository implements ConteoRepository {
       [conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
     );
 
+    /*
+     * El instante en que cada producto entró al TAG: la PRIMERA lectura de la
+     * línea, que es la de menor id porque la tabla solo se agrega.
+     *
+     * Tiene que ser la primera y no la última: el detalle_uid se arma con esto,
+     * y un identificador que cambia entre un envío fallido y su reintento haría
+     * que el SGO —que deduplica por detalle_uid— insertara el producto dos
+     * veces en vez de reconocerlo.
+     *
+     * Se va por MIN(id) y no por MIN(fecha_hora): el id es el orden real de
+     * captura, la fecha es solo lo que decía el reloj.
+     */
+    const primeraLecturaRow = await db.query(
+      `SELECT l.detalle_id, l.fecha_hora
+       FROM sod_conteo_lectura l
+       JOIN sod_conteo_detalle d ON d.id = l.detalle_id
+       WHERE d.conteo_id = ? AND d.ubicacion_id = ?
+         AND d.operador_id = ? AND d.pda_id = ?
+         AND d.estado = 'FINALIZADO'
+         AND l.id = (
+           SELECT MIN(l2.id) FROM sod_conteo_lectura l2
+           WHERE l2.detalle_id = l.detalle_id
+         )`,
+      [conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
+    );
+
+    const primeraLecturaPorDetalle = new Map<number, string>();
+    for (const row of (primeraLecturaRow.values ?? []) as Record<string, unknown>[]) {
+      primeraLecturaPorDetalle.set(row['detalle_id'] as number, row['fecha_hora'] as string);
+    }
+
     const lecturasPorDetalle = new Map<number, TagFinalizadoLecturaPayload[]>();
     for (const row of (lecturasRow.values ?? []) as Record<string, unknown>[]) {
       const detalleId = row['detalle_id'] as number;
@@ -838,7 +869,14 @@ export class SqliteConteoRepository implements ConteoRepository {
     }
 
     const detalles = (detallesRow.values ?? []).map((row: Record<string, unknown>) => ({
-      detalle_uid:     `${cargaUid}-DET-${row['detalle_id']}`,
+      detalle_uid: detalleUid(
+        cargaUid,
+        row['detalle_id'] as number,
+        // Sin lecturas la línea viene de antes de que existiera esa tabla; la
+        // fecha del detalle es lo más cercano que hay al momento del conteo.
+        primeraLecturaPorDetalle.get(row['detalle_id'] as number)
+          ?? (row['fecha_hora'] as string),
+      ),
       codigo_lectura:  (row['codigo_lectura'] as string | null) ?? null,
       sku:            row['sku']            as string,
       codigo_barras:  row['codigo_barras']  as string | null,

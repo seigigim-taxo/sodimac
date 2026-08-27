@@ -2,10 +2,11 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { AuthFacade } from '../auth/auth.facade';
 import { PdaFacade } from '../pda/pda.facade';
-import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { TagFinalizadoPayload, detalleUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { SincronizarTagFinalizadoUseCase } from '../../application/sincronizacion/sincronizar-tag-finalizado.use-case';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
 import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
+import { ahoraSqlMs } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
 export class AnalystDashboardFacade {
@@ -109,7 +110,7 @@ export class AnalystDashboardFacade {
     }
 
     const now = new Date();
-    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+    const ts = ahoraSqlMs(now);
     const cargaUid = this.generarCargaUid(ctx, tagCodigo, now);
 
     const payload: TagFinalizadoPayload = {
@@ -129,7 +130,10 @@ export class AnalystDashboardFacade {
       ubicacion_codigo: ubicacionCodigo,
       detalles: [
         {
-          detalle_uid: `${cargaUid}-DET-1`,
+          // El analista manda un producto por carga, así que el id de línea es
+          // siempre 1; el formato se comparte con el operador para que ambos se
+          // lean igual en la tabla del SGO.
+          detalle_uid: detalleUid(cargaUid, 1, ts),
           codigo_lectura: fila.codigoBarras || fila.sku,
           sku: fila.sku,
           codigo_barras: fila.codigoBarras,

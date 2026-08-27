@@ -34,7 +34,7 @@ const SEMILLA = `
   INSERT INTO sod_producto (id, sku, codigo_barras, descripcion) VALUES (1, 'AF001', '7801234567890', 'Taladro');
   INSERT INTO sod_producto (id, sku, codigo_barras, descripcion) VALUES (2, 'AF002', '7809999999999', 'Sierra');
   INSERT INTO sod_pda (id, codigo) VALUES (1, 'PDA-01');
-  INSERT INTO sod_zona (id, sucursal_id, nombre, tag_desde, tag_hasta) VALUES (1, 1, 'SALA', 1000, 1999);
+  INSERT INTO sod_zona (id, sucursal_id, nombre, tag_desde, tag_hasta) VALUES (1, 1, 'SALA_VENTAS', 1000, 1999);
   INSERT INTO sod_ubicacion (id, zona_id, codigo, tag) VALUES (1, 1, 'PASILLO A', '1500');
   INSERT INTO sod_ubicacion (id, zona_id, codigo, tag) VALUES (2, 1, 'PASILLO B', '1600');
   INSERT INTO sod_conteo (id, evento_id, iteracion, estado) VALUES (1, 1, 1, 'ABIERTO');
@@ -368,6 +368,78 @@ describe('SqliteConteoRepository', () => {
 
       expect((await repo.getBySesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID, 'EN_CURSO')).length).toBe(0);
       expect((await repo.getBySesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID, 'FINALIZADO')).length).toBe(1);
+    });
+  });
+
+  /*
+   * El detalle_uid es la clave con la que el SGO deduplica: si llega dos veces
+   * el mismo, responde DUPLICADO_IGNORADO en vez de insertar el producto otra
+   * vez. Eso vuelve seguro reintentar un envío incierto —lo probamos contra el
+   * servidor real— pero SOLO mientras el identificador no cambie entre un
+   * intento y el siguiente. Estas pruebas cuidan esa propiedad.
+   */
+  describe('detalle_uid del payload', () => {
+    async function payloadDelTag() {
+      const resumen = (await repo.getResumenes(OPERADOR_ID, PDA_ID))
+        .find((r) => r.ubicacionId === UBICACION_ID)!;
+      return repo.getPayloadSincronizacion(resumen);
+    }
+
+    it('cada producto trae el suyo', async () => {
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'AF001', 'ESCANER');
+      await repo.upsert(CONTEO_ID, UBICACION_ID, OTRO_PRODUCTO_ID, OPERADOR_ID, PDA_ID, 5, 'AF002', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      const { detalles } = await payloadDelTag();
+      const uids = detalles.map((d) => d.detalle_uid);
+
+      expect(uids.length).toBe(2);
+      expect(new Set(uids).size).toBe(2);
+    });
+
+    it('lleva el carga_uid del TAG y un sello de 17 dígitos', async () => {
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      const payload = await payloadDelTag();
+      const uid = payload.detalles[0].detalle_uid;
+
+      expect(uid.startsWith(`${payload.carga_uid}-DET`)).toBeTrue();
+      expect(uid).toMatch(/-DET\d+-\d{17}$/);
+    });
+
+    /*
+     * La propiedad que importa. Si el UID cambiara entre reintentos, el SGO no
+     * reconocería el duplicado y cargaría el producto dos veces — justo el error
+     * que la deduplicación existe para evitar.
+     */
+    it('es el mismo si se vuelve a armar el payload', async () => {
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      const primero = (await payloadDelTag()).detalles[0].detalle_uid;
+      const segundo = (await payloadDelTag()).detalles[0].detalle_uid;
+
+      expect(segundo).toBe(primero);
+    });
+
+    /*
+     * El sello sale de la PRIMERA lectura, no de la última: seguir contando el
+     * mismo SKU tiene que dejar el identificador quieto. Con la última, cada
+     * escaneo extra lo movería.
+     */
+    it('no se mueve al agregar más unidades del mismo SKU', async () => {
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 1, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+      const antes = (await payloadDelTag()).detalles[0].detalle_uid;
+
+      await repo.reabrirTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 2, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      const despues = await payloadDelTag();
+      expect(despues.detalles[0].cantidad_fisica).toBe(3);
+      expect(despues.detalles[0].detalle_uid).toBe(antes);
     });
   });
 });

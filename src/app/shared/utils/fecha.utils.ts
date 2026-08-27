@@ -29,3 +29,31 @@ export function hoySql(fecha: Date = new Date()): string {
 export function ahoraSql(fecha: Date = new Date()): string {
   return `${hoySql(fecha)} ${pad(fecha.getHours())}:${pad(fecha.getMinutes())}:${pad(fecha.getSeconds())}`;
 }
+
+/*
+ * `YYYY-MM-DD HH:MM:SS.mmm` local. Es el instante de una captura.
+ *
+ * Los milisegundos existen porque un operador con pistola escanea varios SKU
+ * dentro del mismo segundo: sin ellos, el sello no distingue dos productos
+ * consecutivos.
+ *
+ * Va SOLO en sod_conteo_lectura, que es un dato local. El fecha_hora de
+ * sod_conteo_detalle sigue con ahoraSql() a propósito: ese viaja verbatim al
+ * SGO y meterle milisegundos arriesga el parse del DATETIME en MySQL.
+ */
+export function ahoraSqlMs(fecha: Date = new Date()): string {
+  return `${ahoraSql(fecha)}.${String(fecha.getMilliseconds()).padStart(3, '0')}`;
+}
+
+/*
+ * Compacta una fecha SQL a `YYYYMMDDHHMMSSmmm` para meterla en un UID, donde
+ * los separadores solo gastan largo.
+ *
+ * Tolera que le llegue sin milisegundos —una lectura registrada antes de que
+ * ahoraSqlMs existiera— y la completa con 000. Así una línea vieja también
+ * produce un UID válido en vez de romper la sincronización del TAG entero.
+ */
+export function selloUid(fechaSql: string): string {
+  const soloDigitos = fechaSql.replace(/\D/g, '');
+  return soloDigitos.padEnd(17, '0').slice(0, 17);
+}

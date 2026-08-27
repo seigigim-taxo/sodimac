@@ -1,4 +1,5 @@
 import { MedioCaptura } from '../../conteo/models/medio-captura.model';
+import { selloUid } from '../../../shared/utils/fecha.utils';
 
 /*
  * Un código usado en la línea, cómo entró y cuántas unidades le corresponden.
@@ -22,6 +23,32 @@ export interface TagFinalizadoLecturaPayload {
   codigo_lectura: string | null;
   medio_captura: MedioCaptura;
   cantidad: number;
+}
+
+/*
+ * El identificador de un producto dentro de una carga, tal como lo recibe el
+ * SGO. Es la clave con la que el servidor deduplica: si llega dos veces el
+ * mismo detalle_uid, responde DUPLICADO_IGNORADO en vez de insertarlo otra vez.
+ * De ahí que tenga que ser estable entre un envío y su reintento.
+ *
+ * Lleva las dos cosas a propósito:
+ *
+ *   - el id de la línea, que garantiza unicidad dura dentro de la carga;
+ *   - el instante de la primera captura, que es lo que pidió Rodrigo para poder
+ *     distinguir productos mirando la tabla, y de paso agrega trazabilidad que
+ *     el UID anterior no tenía (todos los detalles de un TAG compartían el
+ *     timestamp del momento en que se finalizó, no el del escaneo).
+ *
+ * El sello solo bastaría casi siempre —dos SKU distintos no se escanean en el
+ * mismo milisegundo—, pero "casi siempre" es peor que la garantía dura que ya
+ * daba el id, y conservarlo no cuesta nada.
+ *
+ * PENDIENTE: confirmar con Rodrigo el ancho de la columna en MySQL. Esto suma
+ * ~18 caracteres sobre el UID anterior; un VARCHAR corto truncaría en silencio
+ * y crearía justo las colisiones que se quieren evitar.
+ */
+export function detalleUid(cargaUid: string, detalleId: number, fechaPrimeraLectura: string): string {
+  return `${cargaUid}-DET${detalleId}-${selloUid(fechaPrimeraLectura)}`;
 }
 
 export interface TagFinalizadoDetallePayload {
