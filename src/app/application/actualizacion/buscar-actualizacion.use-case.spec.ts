@@ -13,7 +13,6 @@ function version(versionCode: number): VersionDisponible {
     url:         'http://servidor/apk/x.apk',
     sha256:      'f'.repeat(64),
     obligatoria: false,
-    notas:       '',
   };
 }
 

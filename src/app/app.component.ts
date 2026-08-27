@@ -220,12 +220,16 @@ export class AppComponent {
     const version = this.actualizacion.disponible()!;
     const alert = await this.alertController.create({
       header: `Versión ${version.versionName} disponible`,
+      /*
+       * Sin lista de cambios. Las notas del manifiesto las escribe quien
+       * publica la APK y salen en lenguaje de desarrollo —"UID por producto"—,
+       * que al operador no le dice nada y le ocupa el lugar de lo único que sí
+       * necesita saber: que no pierde su trabajo y que la app se va a cerrar.
+       */
       message: [
-        version.notas,
-        '',
-        'Tus conteos NO se pierden al actualizar.',
-        'La app se va a cerrar para instalarse y podés volver a entrar enseguida.',
-      ].filter((l) => l !== undefined).join('\n'),
+        'Tus conteos no se pierden.',
+        'La app se va a cerrar para instalarse. Volvé a entrar cuando termine.',
+      ].join('\n\n'),
       cssClass: 'alerta-respaldo',
       buttons: [
         // Posponer sólo si la versión no es obligatoria. Con obligatoria en

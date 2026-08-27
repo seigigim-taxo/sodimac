@@ -24,7 +24,6 @@ const VERSION: VersionDisponible = {
   url:         'http://servidor/apk/sodimac-1.0.2.apk',
   sha256:      'f91f3fabb8ca8086edc76d68c4228ff657f839ac712a5630b732bb91174f9cd6',
   obligatoria: false,
-  notas:       'Arreglos',
 };
 
 const RUTA = '/data/cache/actualizacion.apk';

@@ -59,7 +59,7 @@ MIME es `application/vnd.android.package-archive`.
 | `url` | De dónde bajar el APK. Absoluta, porque la descarga nativa no resuelve rutas relativas. |
 | `sha256` | Se verifica antes de instalar. Sin esto, una descarga cortada por mala señal le llega al instalador de Android como archivo corrupto y el operador ve un error sin contexto. |
 | `obligatoria` | Si es `true`, la app no deja seguir contando hasta actualizar. |
-| `notas` | Se le muestra al operador como "qué trae esta versión". |
+| `notas` | **No se muestra en la app.** Es para quien mantiene este archivo: sirve para saber qué APK es cada una. Se probó mostrárselo al operador y sale en lenguaje de desarrollo —"UID por producto"—, que no le dice nada y le tapa lo único que necesita leer: que no pierde su trabajo. |
 
 ## Al publicar una versión nueva
 

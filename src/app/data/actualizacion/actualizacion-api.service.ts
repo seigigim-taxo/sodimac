@@ -66,7 +66,6 @@ export function parsearVersion(crudo: unknown): VersionDisponible | null {
   if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(sha256.trim())) return null;
 
   const versionName = obj['version_name'] ?? obj['versionName'];
-  const notas = obj['notas'];
 
   return {
     versionCode,
@@ -78,6 +77,5 @@ export function parsearVersion(crudo: unknown): VersionDisponible | null {
     // Ante la duda, NO obligatoria: bloquear el trabajo del operador por un
     // campo mal escrito en un JSON es peor que dejarlo posponer.
     obligatoria: obj['obligatoria'] === true,
-    notas:       typeof notas === 'string' ? notas : '',
   };
 }

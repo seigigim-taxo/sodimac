@@ -32,10 +32,14 @@ export interface VersionDisponible {
 
   /** Si es true, la app no deja seguir contando hasta actualizar. */
   obligatoria: boolean;
-
-  /** Qué trae la versión, en castellano, para el operador. */
-  notas: string;
 }
+
+/*
+ * El manifiesto trae además un campo `notas`. La app NO lo lee: lo escribe
+ * quien publica la APK, sale en lenguaje de desarrollo y al operador no le dice
+ * nada. Queda en el archivo como referencia de qué APK es cada una para quien
+ * lo mantiene.
+ */
 
 /** Estado de la comparación entre lo instalado y lo publicado. */
 export interface EstadoActualizacion {

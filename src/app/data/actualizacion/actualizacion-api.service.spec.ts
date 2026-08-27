@@ -19,14 +19,12 @@ describe('parsearVersion', () => {
       url: 'http://servidor/apk/sodimac-1.0.2.apk',
       sha256: SHA,
       obligatoria: false,
-      notas: 'Arreglos',
     })).toEqual({
       versionCode: 4,
       versionName: '1.0.2',
       url: 'http://servidor/apk/sodimac-1.0.2.apk',
       sha256: SHA,
       obligatoria: false,
-      notas: 'Arreglos',
     });
   });
 
