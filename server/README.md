@@ -7,10 +7,23 @@ junto con el APK que describe, no por su cuenta.
 
 ## Dónde va cada cosa
 
+Rutas absolutas en el servidor. `/var/www/html/` es la raíz web, o sea que
+`/var/www/html/app/...` se sirve como `http://50.16.13.230/app/...`.
+
 ```
-server/api/app/version.json   →   /app/ws/sodimac/api/app/version.json
-(el APK compilado)            →   /app/ws/sodimac/apk/sodimac-<version>.apk
+server/api/actualizaciones/version.json
+  → /var/www/html/app/ws/sodimac/api/actualizaciones/version.json
+
+app/build/outputs/apk/release/app-release.apk
+  → /var/www/html/app/ws/sodimac/apk/sodimac-<version>.apk
 ```
+
+Las dos carpetas hay que crearlas: hoy sólo existen `api/auth` y
+`api/sincronizaciones`.
+
+Permisos: `755` en las carpetas y `644` en los archivos. Se suben como
+`ec2-user`, pero quien los sirve es Apache con otro usuario — si el archivo
+queda en `600`, la PDA recibe un 403 y el error no dice por qué.
 
 El `version.json` **tiene que quedar colgando de `api/`**. Ahí el `.htaccess`
 del web service ya pone los headers de CORS, y Apache los aplica también a los
