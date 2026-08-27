@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { BuscarNuevoConteoUseCase } from '../../application/asignacion/buscar-nuevo-conteo.use-case';
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
+import { Session } from '../../domain/auth/models/session.model';
 
 /*
  * Estado de la PDA que terminó su conteo y espera el siguiente.
@@ -21,12 +22,17 @@ export class NuevoConteoFacade {
   readonly sinNovedad = this.sinNovedadSignal.asReadonly();
   readonly error      = this.errorSignal.asReadonly();
 
-  async buscar(sucursalId: number, eventoFinalizadoId: number | null): Promise<AsignacionConteo | null> {
+  /*
+   * Necesita la sesión porque la consulta va contra el endpoint de preparación,
+   * que identifica al operador por correo y rut. Antes alcanzaba con la tienda:
+   * el endpoint liviano que se había pedido nunca existió.
+   */
+  async buscar(session: Session, sucursalId: number): Promise<AsignacionConteo | null> {
     this.buscandoSignal.set(true);
     this.sinNovedadSignal.set(false);
     this.errorSignal.set(null);
     try {
-      const asignacion = await this.buscarUC.execute(sucursalId, eventoFinalizadoId);
+      const asignacion = await this.buscarUC.execute(session, sucursalId);
       this.sinNovedadSignal.set(asignacion === null);
       return asignacion;
     } catch (err) {

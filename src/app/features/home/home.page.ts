@@ -254,7 +254,10 @@ export class HomePage implements ViewWillEnter {
     const tienda = this.currentStore();
     if (!tienda) return;
 
-    const asignacion = await this.nuevoConteo.buscar(tienda.id, this.selectedEvent()?.id ?? null);
+    const session = this.auth.session();
+    if (!session) return;
+
+    const asignacion = await this.nuevoConteo.buscar(session, tienda.id);
     if (!asignacion) return;
 
     /*

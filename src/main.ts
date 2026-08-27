@@ -35,8 +35,6 @@ import { DeteccionCapturaTecladoService } from './app/data/conteo/deteccion-capt
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
-import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
-import { AsignacionApiService } from './app/data/asignacion/asignacion-api.service';
 import {
   ACTUALIZACION_API_REPOSITORY_TOKEN,
   DESCARGA_REPOSITORY_TOKEN,
@@ -160,8 +158,6 @@ bootstrapApplication(AppComponent, {
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
-
-    { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionApiService },
 
     /*
      * Autoactualización. Las tres piezas van separadas porque tienen

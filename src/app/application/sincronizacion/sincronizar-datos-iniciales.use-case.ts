@@ -44,11 +44,37 @@ export class SincronizarDatosInicialesUseCase {
     onEtapa?: (etapa: EtapaSincronizacion) => void
   ): Promise<{ usuario: UsuarioPreparado; analista: DatosAnalista | null }> {
     onEtapa?.('DESCARGANDO');
-    const datos = await this.preparacionApi.preparar({
+    const datos = await this.descargar(session);
+
+    return this.persistir(session, datos, onEtapa);
+  }
+
+  /*
+   * La descarga, sola.
+   *
+   * Se expone aparte porque BuscarNuevoConteoUseCase necesita mirar la
+   * respuesta —comparar la agenda— ANTES de decidir si vale la pena escribir
+   * nada. Si tuviera que llamar a execute(), la preparación se bajaría dos
+   * veces sólo para averiguar que no había trabajo nuevo.
+   */
+  async descargar(session: Session): Promise<DatosPreparacion> {
+    return this.preparacionApi.preparar({
       correo: session.correo,
       rut: session.rutNormalizado,
     });
+  }
 
+  /*
+   * La escritura, sola. Recibe datos ya descargados.
+   *
+   * Que "terminó" signifique tablas escritas y no respuesta recibida sigue
+   * valiendo: es este método el que decide que la preparación fue exitosa.
+   */
+  async persistir(
+    session: Session,
+    datos: DatosPreparacion,
+    onEtapa?: (etapa: EtapaSincronizacion) => void
+  ): Promise<{ usuario: UsuarioPreparado; analista: DatosAnalista | null }> {
     onEtapa?.('GUARDANDO');
     const usuario = datos.usuario;
     const { rut, rutDv } = partirRut(usuario.rutNormalizado);
