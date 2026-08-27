@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "data": {
+    "version_code": 3,
+    "version_name": "1.0.1",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.1.apk",
+    "sha256": "f91f3fabb8ca8086edc76d68c4228ff657f839ac712a5630b732bb91174f9cd6",
+    "obligatoria": false,
+    "notas": "Aviso al fallar la sincronizacion y UID por producto"
+  }
+}
