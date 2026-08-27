@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">sodimac-app</string>
-    <string name="title_activity_main">sodimac-app</string>
+    <string name="app_name">Sodimac</string>
+    <string name="title_activity_main">Sodimac</string>
     <string name="package_name">cl.taxo.sodimac.inventario</string>
     <string name="custom_url_scheme">cl.taxo.sodimac.inventario</string>
 </resources>

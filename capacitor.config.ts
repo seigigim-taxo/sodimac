@@ -2,7 +2,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'cl.taxo.sodimac.inventario',
-  appName: 'sodimac-app',
+  /*
+   * El nombre visible bajo el ícono en la PDA. El appId de arriba es la
+   * identidad del APK y NO se toca: si cambiara, Android trataría la app como
+   * otra distinta y en vez de actualizar instalaría una segunda copia al lado,
+   * dejando la base local del operador en la vieja.
+   */
+  appName: 'Sodimac',
   webDir: 'www',
   plugins: {
     StatusBar: {
