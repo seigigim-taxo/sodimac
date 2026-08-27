@@ -80,3 +80,14 @@ lint-report.json
 # Bytecode de los scripts de tools/
 __pycache__/
 *.pyc
+
+# Llaves de firma. android/.gitignore ya cubre las que viven dentro de android/,
+# pero keystore.properties.example apunta a ../sodimac-release.jks — o sea acá,
+# en la raíz. Sin estas líneas, seguir la plantilla al pie de la letra
+# commitearía la llave de release.
+#
+# Lo recomendado igual es guardarla FUERA del repositorio y poner una ruta
+# absoluta en keystore.properties.
+*.jks
+*.keystore
+keystore.properties

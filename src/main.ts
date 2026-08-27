@@ -37,6 +37,14 @@ import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/re
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
 import { ASIGNACION_API_REPOSITORY_TOKEN } from './app/domain/asignacion/repositories/asignacion-api.repository';
 import { AsignacionApiService } from './app/data/asignacion/asignacion-api.service';
+import {
+  ACTUALIZACION_API_REPOSITORY_TOKEN,
+  DESCARGA_REPOSITORY_TOKEN,
+  INSTALADOR_REPOSITORY_TOKEN,
+} from './app/domain/actualizacion/repositories/actualizacion.repository';
+import { ActualizacionApiService } from './app/data/actualizacion/actualizacion-api.service';
+import { CapacitorDescargaService } from './app/data/actualizacion/descarga.service';
+import { CapacitorInstaladorService } from './app/data/actualizacion/instalador.service';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
@@ -153,12 +161,16 @@ bootstrapApplication(AppComponent, {
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
 
-    /*
-     * Asignación de conteos: simulada mientras el SGO no expone el endpoint,
-     * para poder maquetar y probar el ciclo completo en terreno. Cambiar esta
-     * clase por la implementación HTTP es todo lo que hace falta para pasar al
-     * flujo real.
-     */
     { provide: ASIGNACION_API_REPOSITORY_TOKEN,  useClass: AsignacionApiService },
+
+    /*
+     * Autoactualización. Las tres piezas van separadas porque tienen
+     * naturalezas distintas —una consulta HTTP, una descarga nativa y el
+     * instalador del sistema—, y así la lógica de cuándo actualizar se puede
+     * probar sin nada de Android de por medio.
+     */
+    { provide: ACTUALIZACION_API_REPOSITORY_TOKEN, useClass: ActualizacionApiService },
+    { provide: DESCARGA_REPOSITORY_TOKEN,          useClass: CapacitorDescargaService },
+    { provide: INSTALADOR_REPOSITORY_TOKEN,        useClass: CapacitorInstaladorService },
   ],
 });

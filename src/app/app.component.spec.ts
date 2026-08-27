@@ -10,6 +10,7 @@ import { ThemeFacade } from './state/theme/theme.facade';
 import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
+import { ActualizacionFacade } from './state/actualizacion/actualizacion.facade';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
@@ -36,6 +37,19 @@ describe('AppComponent', () => {
             ultimoResultado: signal(null),
             error: signal(null),
             enviar: jasmine.createSpy('enviar').and.resolveTo({ enviados: 0, fallidos: 0 }),
+          },
+        },
+        {
+          // El menú ofrece actualizar la app; sin este doble el componente no
+          // se puede construir.
+          provide: ActualizacionFacade,
+          useValue: {
+            buscando: signal(false),
+            descargando: signal(false),
+            porcentaje: signal(null),
+            error: signal(null),
+            disponible: signal(null),
+            buscar: jasmine.createSpy('buscar').and.resolveTo(false),
           },
         },
         { provide: ThemeFacade, useValue: { isDark: signal(false), toggle: jasmine.createSpy('toggle') } },

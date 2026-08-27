@@ -75,6 +75,30 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!--
+          Actualización de la app. Se ofrece siempre, no sólo cuando hay una
+          disponible: si apareciera y desapareciera, el operador al que le
+          dijeron "andá a actualizar" no encontraría el botón y llamaría a
+          soporte. Cuando no hay nada nuevo, responde que ya está al día.
+        -->
+        <ion-menu-toggle>
+          <ion-item button (click)="buscarActualizacion()" [disabled]="buscandoActualizacion() || descargandoActualizacion()" class="menu-theme-item">
+            <ion-icon slot="start" name="cloud-download-outline"></ion-icon>
+            <ion-label>
+              @if (descargandoActualizacion()) {
+                Descargando{{ porcentajeActualizacion() !== null ? ' ' + porcentajeActualizacion() + '%' : '…' }}
+              } @else if (buscandoActualizacion()) {
+                Buscando…
+              } @else {
+                Actualizar la app
+              }
+            </ion-label>
+            @if (buscandoActualizacion() || descargandoActualizacion()) {
+            <ion-spinner slot="end" name="crescent"></ion-spinner>
+            }
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item button (click)="toggleTheme()" class="menu-theme-item">
