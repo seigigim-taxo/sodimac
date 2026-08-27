@@ -49,6 +49,23 @@ const INCREMENTO = 1.5;
 const INCREMENTO_LENTO = 0.3;
 const TOPE_ESPERA = 99;
 
+/*
+ * Los únicos perfiles que la app sabe atender. Cualquier otro no tiene pantalla
+ * a la que ir.
+ *
+ * Sin esta validación la app no fallaba: se colgaba. Con un perfil desconocido
+ * —ADMINISTRADOR, por ejemplo— la sincronización terminaba bien, la barra
+ * llegaba a 100 y ahí operatorGuard mandaba al dashboard, analystGuard mandaba
+ * de vuelta a home, y Angular cancelaba la navegación. El operador quedaba
+ * mirando una barra congelada en 100, sin error, sin mensaje y sin salida: ni
+ * el botón de atrás servía.
+ *
+ * Se valida ANTES de persistir el perfil en la sesión. Guardarlo dejaría
+ * hasKnownProfile en true y el rebote entre guards volvería a armarse en la
+ * próxima navegación.
+ */
+const PERFILES_HABILITADOS = ['OPERADOR', 'ANALISTA_CLIENTE'];
+
 @Component({
   selector: 'app-sync-loading',
   templateUrl: './sync-loading.page.html',
@@ -65,6 +82,15 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
   progress = signal(0);
   etapa = signal<EtapaSincronizacion>('DESCARGANDO');
   error = signal<string | null>(null);
+
+  /*
+   * Perfil que la app no sabe atender. Va aparte de `error` porque no se
+   * arregla reintentando: el perfil va a ser el mismo la próxima vez, así que
+   * la única salida honesta es cerrar sesión.
+   *
+   * Guarda el valor recibido para que soporte lo tenga en la primera llamada.
+   */
+  perfilNoHabilitado = signal<string | null>(null);
 
   etiqueta = () => {
     if (this.progress() >= TECHOS[this.etapa()] && this.etapa() !== 'LISTO') {
@@ -83,6 +109,9 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
 
   async reintentar(): Promise<void> {
     this.error.set(null);
+    // Hoy el bloqueo por perfil no ofrece "Reintentar", pero dejarlo colgado
+    // convertiría un futuro botón en una pantalla que no se despega.
+    this.perfilNoHabilitado.set(null);
     this.progress.set(0);
     await this.ejecutar();
   }
@@ -108,6 +137,16 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
       const resultado = await this.sincronizar.execute(session, (etapa) => this.etapa.set(etapa));
       this.detenerAvance();
       this.progress.set(100);
+
+      /*
+       * Corta acá, antes de guardar el perfil y antes de navegar. Los datos ya
+       * quedaron escritos —eso no se deshace ni hace falta—, pero este usuario
+       * no tiene pantalla donde trabajar.
+       */
+      if (!PERFILES_HABILITADOS.includes(resultado.usuario.tipoUsuario)) {
+        this.perfilNoHabilitado.set(resultado.usuario.tipoUsuario || 'sin perfil');
+        return;
+      }
 
       await this.auth.actualizarPerfilSesion({
         tipoUsuario: resultado.usuario.tipoUsuario,

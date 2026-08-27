@@ -7,7 +7,23 @@
     </div>
 
     <div class="sync-body">
-      @if (error(); as mensaje) {
+      <!--
+        Perfil que la app no sabe atender. Va antes que el error genérico y sin
+        "Reintentar": el perfil va a ser el mismo la próxima vez, así que
+        ofrecerlo sería mandar al operador a repetir una descarga de 320
+        productos para llegar a la misma pantalla.
+      -->
+      @if (perfilNoHabilitado(); as perfil) {
+        <p class="sync-step-label">
+          No tienes una muestra asignada para trabajar en esta PDA.
+        </p>
+        <p class="sync-step-label" style="font-size: 12px; opacity: 0.7;">
+          Avisa a soporte. Perfil recibido: {{ perfil }}
+        </p>
+        <ion-button expand="block" (click)="cerrarSesion()">
+          Cerrar sesión
+        </ion-button>
+      } @else if (error(); as mensaje) {
         <p class="sync-step-label">{{ mensaje }}</p>
         <ion-button expand="block" (click)="reintentar()">Reintentar</ion-button>
         <!--
