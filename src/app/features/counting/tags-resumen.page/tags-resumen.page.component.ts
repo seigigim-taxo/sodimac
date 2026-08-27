@@ -28,6 +28,7 @@ import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
+import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
 import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
 import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
@@ -73,6 +74,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private pda = inject(PdaFacade);
   private eventoFacade = inject(EventoFacade);
   private conteoList = inject(ConteoListFacade);
+  private avisoSync = inject(AvisoSincronizacionService);
   private resumenFacade = inject(ResumenEventoFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
   private buscador = inject(BuscadorService);
@@ -292,10 +294,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     const sincronizado = await this.conteoList.sincronizar(c);
 
     if (!sincronizado) {
-      await this.avisar(
-        this.conteoList.error() ?? 'No se pudo sincronizar el TAG. Queda pendiente.',
-        'danger'
-      );
+      await this.avisoSync.avisarFalloTag(c.tag, this.conteoList.error());
       return;
     }
 
@@ -327,9 +326,13 @@ export class TagsResumenPageComponent implements ViewWillEnter {
 
     this.sincronizandoTodos.set(true);
     let subidos = 0;
+    // Los que no subieron se juntan para un único aviso al final: un diálogo por
+    // TAG fallido se convierte en cinco Aceptar seguidos que nadie lee.
+    const fallidos: (string | null)[] = [];
     try {
       for (const conteo of pendientes) {
         if (await this.conteoList.sincronizar(conteo)) subidos++;
+        else fallidos.push(conteo.tag);
       }
     } finally {
       this.sincronizandoTodos.set(false);
@@ -337,13 +340,12 @@ export class TagsResumenPageComponent implements ViewWillEnter {
 
     await this.cargarTrazabilidad();
 
-    const fallaron = pendientes.length - subidos;
-    await this.avisar(
-      fallaron === 0
-        ? `${subidos} TAG(s) sincronizados.`
-        : `${subidos} de ${pendientes.length} sincronizados. ${fallaron} quedaron pendientes.`,
-      fallaron === 0 ? 'success' : 'danger'
-    );
+    if (fallidos.length === 0) {
+      await this.avisar(`${subidos} TAG(s) sincronizados.`, 'success');
+      return;
+    }
+
+    await this.avisoSync.avisarFalloLote(fallidos, pendientes.length);
   }
 
   /*

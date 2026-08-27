@@ -1070,3 +1070,12 @@ ion-modal.buscador-modal {
   white-space: pre-line;
   word-break: break-word;
 }
+
+/*
+ * Aviso de sincronización fallida. Mismo motivo que la alerta del respaldo: los
+ * saltos de línea viajan como \n porque Ionic no permite HTML en el mensaje.
+ */
+.aviso-sincronizacion .alert-message {
+  white-space: pre-line;
+  word-break: break-word;
+}

@@ -34,6 +34,7 @@ import { ResumenEventoFacade, ResumenEvento } from '../../../state/conteo/resume
 import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
+import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -105,6 +106,7 @@ export class CountingPageComponent implements ViewWillEnter {
   private ajustes           = inject(AjustesFacade);
   private buscador          = inject(BuscadorService);
   private network           = inject(NetworkService);
+  private avisoSync         = inject(AvisoSincronizacionService);
 
   isOnline = this.network.isOnline;
   sesionCargando = this.conteo.loading;
@@ -564,6 +566,9 @@ export class CountingPageComponent implements ViewWillEnter {
 
     const sesion  = this.conteo.sesion();
     const evento  = this.currentEvent();
+    // Se lee antes de finalizar: después el reset lo deja vacío y el aviso de
+    // fallo se quedaría sin el código que el operador necesita para reintentar.
+    const tag     = this.tagActual();
     const operadorId = this.auth.session()?.operadorId;
     const pdaId      = this.pda.pdaId();
 
@@ -576,6 +581,12 @@ export class CountingPageComponent implements ViewWillEnter {
        * pasa a ser una acción explícita del operador.
        */
       if (!this.ajustes.sincronizacionAutomatica()) {
+        /*
+         * Esto NO es un fallo: el operador apagó la sincronización automática y
+         * el TAG quedó pendiente porque así lo pidió. Va como toast; obligarlo a
+         * tocar Aceptar en cada TAG del día sería castigarlo por su propia
+         * configuración.
+         */
         this.mostrarToast('TAG finalizado. Queda pendiente de sincronizar.', 'warning');
       } else if (sesion && operadorId && pdaId) {
         try {
@@ -588,14 +599,23 @@ export class CountingPageComponent implements ViewWillEnter {
             c.estado === 'FINALIZADO'
           );
           const sincronizado = resumen ? await this.conteoList.sincronizar(resumen) : false;
-          this.mostrarToast(
-            sincronizado
-              ? 'TAG finalizado y sincronizado.'
-              : 'TAG finalizado. Queda pendiente de sincronizar.',
-            sincronizado ? 'success' : 'warning'
+
+          if (sincronizado) {
+            this.mostrarToast('TAG finalizado y sincronizado.', 'success');
+          } else {
+            /*
+             * El await es el punto de todo el cambio: la navegación de más abajo
+             * espera a que el operador toque Aceptar. Antes la toast se mostraba
+             * y la app cambiaba de pantalla en el mismo tick, así que el aviso
+             * pasaba mientras él ya estaba mirando otra cosa.
+             */
+            await this.avisoSync.avisarFalloTag(tag, this.conteoList.error());
+          }
+        } catch (err) {
+          await this.avisoSync.avisarFalloTag(
+            tag,
+            err instanceof Error ? err.message : null,
           );
-        } catch {
-          this.mostrarToast('TAG finalizado localmente. Sincronización pendiente.', 'warning');
         }
       }
 
