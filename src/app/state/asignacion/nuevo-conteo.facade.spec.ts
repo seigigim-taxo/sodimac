@@ -3,7 +3,7 @@ import { NuevoConteoFacade } from './nuevo-conteo.facade';
 import { BuscarNuevoConteoUseCase } from '../../application/asignacion/buscar-nuevo-conteo.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 
-const ASIGNACION = { eventoId: 7, nombre: 'Evento 7', fechaProgramada: '2026-08-18' };
+const ASIGNACION = { eventoId: 7, sucursalId: 4, nombre: 'Evento 7', fechaProgramada: '2026-08-18' };
 
 /*
  * La consulta va contra el endpoint de preparacion, que identifica al operador
@@ -30,7 +30,7 @@ describe('NuevoConteoFacade', () => {
   it('devuelve la asignación y no marca sin novedad', async () => {
     buscar.execute.and.resolveTo(ASIGNACION);
 
-    expect(await facade.buscar(SESION, 1)).toEqual(ASIGNACION);
+    expect(await facade.buscar(SESION)).toEqual(ASIGNACION);
     expect(facade.sinNovedad()).toBeFalse();
     expect(facade.buscando()).toBeFalse();
   });
@@ -42,7 +42,7 @@ describe('NuevoConteoFacade', () => {
   it('marca sin novedad cuando no hay conteo asignado', async () => {
     buscar.execute.and.resolveTo(null);
 
-    expect(await facade.buscar(SESION, 1)).toBeNull();
+    expect(await facade.buscar(SESION)).toBeNull();
     expect(facade.sinNovedad()).toBeTrue();
     expect(facade.error()).toBeNull();
   });
@@ -50,14 +50,14 @@ describe('NuevoConteoFacade', () => {
   it('captura el error sin propagarlo a la pantalla', async () => {
     buscar.execute.and.rejectWith(new Error('Sin conexión con el SGO'));
 
-    expect(await facade.buscar(SESION, 1)).toBeNull();
+    expect(await facade.buscar(SESION)).toBeNull();
     expect(facade.error()).toBe('Sin conexión con el SGO');
     expect(facade.buscando()).toBeFalse();
   });
 
   it('limpia el aviso de sin novedad', async () => {
     buscar.execute.and.resolveTo(null);
-    await facade.buscar(SESION, 1);
+    await facade.buscar(SESION);
 
     facade.limpiar();
 

@@ -83,11 +83,68 @@
     </div>
     }
 
-    @if (noEvents()) {
-    <div class="error-pill">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>No hay eventos disponibles</span>
+    <!--
+      Hoy no hay nada que contar.
+
+      Antes este caso no mostraba nada: noEvents() mira si la base tiene ALGÚN
+      evento y eventosVisibles() filtra a los de hoy, así que con el evento de
+      ayer todavía guardado el operador entraba y veía un vacío.
+
+      Va como estado informativo y no como error: no tener trabajo asignado es
+      un resultado normal de la jornada, sobre todo temprano.
+    -->
+    @if (sinTrabajoHoy()) {
+    <div class="card mb-4 text-center py-6">
+      <ion-icon name="hourglass-outline" class="text-3xl mb-2" style="color: var(--app-text-muted);"></ion-icon>
+      @if (terminoElDeHoy()) {
+      <!-- Se nombra el conteo terminado cuando se sabe cuál fue: "terminaste el
+           de hoy" a secas deja al operador sin saber si la app se refiere al
+           que él acaba de cerrar. -->
+      @if (selectedEvent(); as evento) {
+      <p class="font-medium">Terminaste el conteo de {{ evento.nombre }}</p>
+      } @else {
+      <p class="font-medium">Terminaste el conteo de hoy</p>
+      }
+      <p class="text-sm mt-1" style="color: var(--app-text-muted);">
+        No hay otro conteo asignado por ahora. Actualiza para ver si el SGO ya te asignó uno.
+      </p>
+      } @else {
+      <p class="font-medium">No tienes un conteo asignado para hoy</p>
+      <p class="text-sm mt-1" style="color: var(--app-text-muted);">
+        Cuando el SGO te asigne uno, aparece acá. Consulta si ya está disponible.
+      </p>
+      }
     </div>
+
+    <!--
+      La acción tiene que estar en este estado. Antes el botón sólo aparecía con
+      un evento seleccionado y en análisis, así que el operador sin nada
+      asignado no tenía forma de consultar: la única salida era cerrar sesión y
+      volver a entrar para que se resincronizara.
+    -->
+    @if (sinNovedad()) {
+    <div class="status-banner status-banner-info mb-4">
+      <span>Todavía no hay un conteo nuevo asignado. Vuelve a intentar más tarde.</span>
+    </div>
+    }
+
+    @if (errorAsignacion(); as error) {
+    <div class="status-banner status-banner-error mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ error }}</span>
+    </div>
+    }
+
+    <ion-button expand="block" class="btn-primary" [disabled]="buscandoConteo()"
+      (click)="buscarNuevoConteo()">
+      @if (buscandoConteo()) {
+      <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
+      Actualizando…
+      } @else {
+      <ion-icon slot="start" name="sync-outline"></ion-icon>
+      Actualizar
+      }
+    </ion-button>
     }
 
     @if (avisoNuevoConteo(); as nombre) {
@@ -133,44 +190,17 @@
     </div>
     }
 
-    @if (selectedEvent() && enAnalisis(selectedEvent()!)) {
-    <!-- Conteo finalizado: la PDA queda a la espera de que le asignen otro -->
-    <div class="status-banner status-banner-warning mt-6">
-      <ion-icon name="hourglass-outline"></ion-icon>
-      <span>Conteo finalizado — a la espera de un nuevo conteo</span>
-    </div>
+    <!--
+      "Iniciar conteo" sólo cuando hay algo que contar hoy. Sin trabajo del día
+      el bloque de arriba ya explica la situación y ofrece Actualizar; agregar
+      acá un botón gris sería una segunda acción muerta debajo del mensaje.
 
-    <div class="card mb-4 mt-4">
-      <p class="text-sm" style="color: var(--app-text-muted);">
-        Terminaste el conteo de <strong>{{ selectedEvent()!.nombre }}</strong>.
-        Actualiza para ver si el SGO ya te asignó otro.
-      </p>
-    </div>
-
-    @if (sinNovedad()) {
-    <div class="status-banner status-banner-info mb-4">
-      <span>Todavía no hay un conteo nuevo asignado. Vuelve a intentar más tarde.</span>
-    </div>
-    }
-
-    @if (errorAsignacion(); as error) {
-    <div class="status-banner status-banner-error mb-4">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>{{ error }}</span>
-    </div>
-    }
-
-    <ion-button expand="block" class="btn-primary mt-4" [disabled]="buscandoConteo()"
-      (click)="buscarNuevoConteo()">
-      @if (buscandoConteo()) {
-      <ion-spinner name="crescent" slot="start" color="light"></ion-spinner>
-      Consultando…
-      } @else {
-      <ion-icon slot="start" name="sync-outline"></ion-icon>
-      Buscar nuevo conteo
-      }
-    </ion-button>
-    } @else {
+      La espera post-conteo NO tiene su propio bloque: un evento en análisis no
+      es ABIERTO, así que no entra en eventosVisibles y cae en sinTrabajoHoy.
+      Tenerlo aparte hacía que las dos versiones del mismo estado se dibujaran
+      juntas, con dos tarjetas y dos botones que hacían lo mismo.
+    -->
+    @if (!sinTrabajoHoy()) {
     <ion-button expand="block" class="btn-primary mt-6" [disabled]="!selectedEvent() || eventsLoading() || esCerrado(selectedEvent()!)"
       (click)="continue()">
       Iniciar conteo

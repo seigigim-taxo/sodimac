@@ -142,6 +142,32 @@ export class HomePage implements ViewWillEnter {
   eventsError   = this.eventoFacade.error;
   noEvents      = this.eventoFacade.noEvents;
 
+  /*
+   * Hoy no hay nada que contar.
+   *
+   * Existe porque entre noEvents() y eventosVisibles() quedaba un hueco: el
+   * primero mira si la base tiene ALGÚN evento, el segundo filtra a los de HOY.
+   * Con el evento de ayer todavía en la base y nada programado hoy, los dos
+   * daban un resultado que no mostraba nada — el operador entraba y se
+   * encontraba con la tarjeta de la tienda, un vacío y un botón gris, sin una
+   * línea que le dijera qué pasaba.
+   *
+   * Cubre también la base recién preparada sin eventos, que antes salía como
+   * píldora roja de error. No tener trabajo asignado no es un error.
+   */
+  sinTrabajoHoy = computed(() =>
+    this.eventosVisibles().length === 0 &&
+    !this.eventsLoading() &&
+    !this.eventsError()
+  );
+
+  /*
+   * Distingue "todavía no te asignaron" de "ya lo terminaste": si hay conteos
+   * cerrados hoy, decirle que no tiene nada asignado sería mentirle. Los
+   * finalizados se acotan al día, así que su sola presencia alcanza.
+   */
+  terminoElDeHoy = computed(() => this.eventosFinalizados().length > 0);
+
   constructor() {
     addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline });
 
@@ -251,14 +277,24 @@ export class HomePage implements ViewWillEnter {
    * viene es otro evento con su propia muestra.
    */
   async buscarNuevoConteo(): Promise<void> {
-    const tienda = this.currentStore();
-    if (!tienda) return;
-
     const session = this.auth.session();
     if (!session) return;
 
-    const asignacion = await this.nuevoConteo.buscar(session, tienda.id);
+    const asignacion = await this.nuevoConteo.buscar(session);
     if (!asignacion) return;
+
+    /*
+     * El conteo nuevo puede ser en OTRA TIENDA: al operador se lo asignan por
+     * jornada, no por local.
+     *
+     * Por eso hay que recargar las tiendas y pararse en la del conteo antes de
+     * pedir sus eventos. Sin esto, la pantalla seguía mostrando el local
+     * anterior y recargaba SUS eventos, así que el conteo recién insertado no
+     * aparecía nunca: el aviso lo nombraba y no había tarjeta que seleccionar.
+     */
+    await this.sucursalFacade.loadSucursales(session.operadorId);
+    const tiendaDelConteo = this.sucursalFacade.stores().find((s) => s.id === asignacion.sucursalId);
+    if (tiendaDelConteo) this.sucursalFacade.selectSucursal(tiendaDelConteo);
 
     /*
      * Se suelta el evento terminado antes de recargar. Sin esto el operador no
@@ -266,7 +302,7 @@ export class HomePage implements ViewWillEnter {
      * otro evento seleccionado.
      */
     await this.eventoFacade.limpiarSeleccion();
-    await this.eventoFacade.loadEventos(tienda.id);
+    await this.eventoFacade.loadEventos(asignacion.sucursalId);
 
     /*
      * No se selecciona ni se navega: el operador elige su evento y decide

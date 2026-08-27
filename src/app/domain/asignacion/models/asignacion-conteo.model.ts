@@ -9,6 +9,16 @@
  */
 export interface AsignacionConteo {
   eventoId:        number;
+  /*
+   * La tienda del conteo nuevo, que PUEDE NO SER la que el operador tiene
+   * abierta: al SGO se lo asignan por jornada, no por local, y le puede tocar
+   * el siguiente en otra tienda.
+   *
+   * Sin este dato la pantalla recargaba los eventos de la tienda vieja y el
+   * conteo recién insertado no aparecía nunca: el aviso lo nombraba y no había
+   * ninguna tarjeta que seleccionar.
+   */
+  sucursalId:      number;
   nombre:          string;
   fechaProgramada: string;
 }

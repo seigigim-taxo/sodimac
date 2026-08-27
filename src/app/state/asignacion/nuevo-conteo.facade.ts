@@ -24,15 +24,17 @@ export class NuevoConteoFacade {
 
   /*
    * Necesita la sesión porque la consulta va contra el endpoint de preparación,
-   * que identifica al operador por correo y rut. Antes alcanzaba con la tienda:
-   * el endpoint liviano que se había pedido nunca existió.
+   * que identifica al operador por correo y rut.
+   *
+   * NO recibe la tienda: la del conteo nuevo sale de la propia respuesta, que
+   * puede traer otra distinta a la que el operador tiene abierta.
    */
-  async buscar(session: Session, sucursalId: number): Promise<AsignacionConteo | null> {
+  async buscar(session: Session): Promise<AsignacionConteo | null> {
     this.buscandoSignal.set(true);
     this.sinNovedadSignal.set(false);
     this.errorSignal.set(null);
     try {
-      const asignacion = await this.buscarUC.execute(session, sucursalId);
+      const asignacion = await this.buscarUC.execute(session);
       this.sinNovedadSignal.set(asignacion === null);
       return asignacion;
     } catch (err) {
