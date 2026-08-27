@@ -4,6 +4,7 @@ import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import {
   JornadaValidacionParaGuardar,
   ValidacionRepository,
+  GuardarValidacionTagInput,
 } from '../../domain/validacion/repositories/validacion.repository';
 import {
   ValidacionBloqueAnalista,
@@ -209,5 +210,101 @@ export class SqliteValidacionRepository implements ValidacionRepository {
       tags,
       productos,
     };
+  }
+
+  async guardarValidacionTag(input: GuardarValidacionTagInput): Promise<void> {
+    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
+      // 1. Obtener última jornada
+      const jornadaRow = await db.query(
+        `SELECT id FROM sod_validacion_jornada ORDER BY fecha_registro DESC, id DESC LIMIT 1`
+      );
+      const jornadaId = jornadaRow.values?.[0]?.['id'] as number | undefined;
+      if (jornadaId === undefined) {
+        throw new Error('No hay jornada de validación activa');
+      }
+
+      // 2. Obtener bloque por tipo
+      const bloqueRow = await db.query(
+        `SELECT id, objetivo_porcentaje FROM sod_validacion_bloque
+         WHERE jornada_id = ? AND tipo_validacion = ? LIMIT 1`,
+        [jornadaId, input.tipoValidacion]
+      );
+      const bloque = bloqueRow.values?.[0] as Record<string, unknown> | undefined;
+      if (!bloque) {
+        throw new Error(`No hay bloque de validación ${input.tipoValidacion}`);
+      }
+      const bloqueId = bloque['id'] as number;
+      const objetivoPorcentaje = (bloque['objetivo_porcentaje'] as number) ?? 100;
+
+      // 3. Obtener TAG por número
+      const tagRow = await db.query(
+        `SELECT id, productos_total FROM sod_validacion_tag
+         WHERE bloque_id = ? AND numero_tag = ? LIMIT 1`,
+        [bloqueId, input.numeroTag]
+      );
+      const tag = tagRow.values?.[0] as Record<string, unknown> | undefined;
+      if (!tag) {
+        throw new Error(`No se encontró TAG ${input.numeroTag} en ${input.tipoValidacion}`);
+      }
+      const tagId = tag['id'] as number;
+
+      // 4. Actualizar cada producto: cantidad_analista y estado = CONFIRMADO
+      for (const prod of input.productos) {
+        await db.run(
+          `UPDATE sod_validacion_producto
+           SET cantidad_analista = ?,
+               estado_validacion = 'CONFIRMADO'
+           WHERE tag_id = ?
+             AND sku = ?`,
+          [prod.cantidadAnalista, tagId, prod.sku],
+          false
+        );
+      }
+
+      // 5. Recalcular TAG: productos_confirmados
+      const confirmadosRow = await db.query(
+        `SELECT COUNT(*) AS cnt FROM sod_validacion_producto
+         WHERE tag_id = ? AND estado_validacion = 'CONFIRMADO'`,
+        [tagId]
+      );
+      const productosConfirmados = (confirmadosRow.values?.[0]?.['cnt'] as number) ?? 0;
+      const productosTotal = (tag['productos_total'] as number) ?? 0;
+      const tagEstado = productosConfirmados >= productosTotal ? 'CONFIRMADO' : 'PENDIENTE';
+
+      await db.run(
+        `UPDATE sod_validacion_tag
+         SET productos_confirmados = ?,
+             estado_validacion = ?
+         WHERE id = ?`,
+        [productosConfirmados, tagEstado, tagId],
+        false
+      );
+
+      // 6. Recalcular bloque: tags_confirmados, tags_pendientes, porcentaje, cumple
+      const todosTagsRow = await db.query(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN estado_validacion = 'CONFIRMADO' THEN 1 ELSE 0 END) AS confirmados
+         FROM sod_validacion_tag
+         WHERE bloque_id = ?`,
+        [bloqueId]
+      );
+      const tagsUsados = (todosTagsRow.values?.[0]?.['total'] as number) ?? 0;
+      const tagsConfirmados = (todosTagsRow.values?.[0]?.['confirmados'] as number) ?? 0;
+      const tagsPendientes = tagsUsados - tagsConfirmados;
+      const porcentaje = tagsUsados > 0 ? Math.round((tagsConfirmados / tagsUsados) * 100) : 0;
+      const cumple = porcentaje >= objetivoPorcentaje ? 1 : 0;
+
+      await db.run(
+        `UPDATE sod_validacion_bloque
+         SET tags_confirmados = ?,
+             tags_pendientes = ?,
+             porcentaje = ?,
+             cumple = ?
+         WHERE id = ?`,
+        [tagsConfirmados, tagsPendientes, porcentaje, cumple, bloqueId],
+        false
+      );
+    });
   }
 }

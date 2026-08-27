@@ -1,5 +1,5 @@
 export const SODIMAC_DB_NAME = 'sodimac';
-export const SODIMAC_DB_VERSION = 46;
+export const SODIMAC_DB_VERSION = 47;
 
 // Orden de creación respeta dependencias FK de arriba hacia abajo.
 const TABLES: readonly string[] = [
@@ -125,7 +125,7 @@ const TABLES: readonly string[] = [
     evento_id            INTEGER          DEFAULT NULL REFERENCES sod_evento_inventario(id),
     pda_id               INTEGER          DEFAULT NULL REFERENCES sod_pda(id),
     tipo                 TEXT    NOT NULL CHECK (tipo IN ('DESCARGA_A_PDA', 'CARGA_DESDE_PDA')),
-    operacion            TEXT             DEFAULT NULL CHECK (operacion IN ('PREPARACION', 'TAG_FINALIZADO')),
+    operacion            TEXT             DEFAULT NULL CHECK (operacion IN ('PREPARACION', 'TAG_FINALIZADO', 'VALIDACION_OPERACIONAL')),
     perfil               TEXT             DEFAULT NULL CHECK (perfil IN ('OPERADOR', 'ANALISTA_CLIENTE')),
     iteracion            INTEGER          DEFAULT NULL,
     conteo_id            INTEGER          DEFAULT NULL REFERENCES sod_conteo(id),

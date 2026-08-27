@@ -10,11 +10,10 @@ import {
 } from '@ionic/angular/standalone';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { AnalystDashboardFacade } from '../../../state/analyst/analyst-dashboard.facade';
-import { ValidacionBloqueAnalista } from '../../../domain/sincronizacion/models/preparacion.model';
+import { ValidacionBloqueAnalista, ValidacionProductoAnalista } from '../../../domain/sincronizacion/models/preparacion.model';
 
 export type StageStatus = 'COMPLETADO' | 'PENDIENTE' | 'BLOQUEADO';
 export type MetricTone = 'neutral' | 'ok' | 'warning' | 'danger' | 'purple';
-export type SearchMode = 'TAG' | 'SKU';
 
 export interface StageMetric {
   label: string;
@@ -29,6 +28,31 @@ export interface StagePreviewRow {
   status: StageStatus;
 }
 
+export interface OperationalTagSummaryProduct {
+  sku: string;
+  product: string;
+  c1Units: number;
+  c2Units: string;
+  status: StageStatus;
+}
+
+export interface OperationalTagSummaryRow {
+  tag: string;
+  c1Units: number;
+  taxoOperator: string;
+  c2Units: string;
+  analyst: string;
+  status: StageStatus;
+  allProducts: OperationalTagSummaryProduct[];
+  visibleProducts: OperationalTagSummaryProduct[];
+  hiddenProductsCount: number;
+}
+
+export interface TagProductsModalData {
+  tagNumber: string;
+  products: OperationalTagSummaryProduct[];
+}
+
 export interface Stage {
   id: string;
   label: string;
@@ -41,6 +65,9 @@ export interface Stage {
   actionLabel?: string;
   lockedReason?: string;
   previewRows: StagePreviewRow[];
+  tagSummaryRows?: OperationalTagSummaryRow[];
+  confirmedCount?: number;
+  pendingCount?: number;
 }
 
 export interface OperationalProduct {
@@ -55,13 +82,6 @@ export interface OperationalModalData {
   stageId: 'altillos' | 'punto-venta';
   title: string;
   subtitle: string;
-  searchValue: string;
-  tagTitle: string;
-  tagDescription: string;
-  productCount: string;
-  confirmedCount: number;
-  pendingCount: number;
-  products: OperationalProduct[];
 }
 
 export interface PreVarianceLocation {
@@ -81,6 +101,8 @@ export interface PreVarianceModalData {
   kardex: number;
   unitCost: string;
   currentDifference: string;
+  confirmedLocations: number;
+  pendingLocations: number;
   locations: PreVarianceLocation[];
 }
 
@@ -125,16 +147,17 @@ export class AnalystDashboardPage implements OnInit {
   private dashboard = inject(AnalystDashboardFacade);
 
   usuario = this.auth.session;
+  contexto = this.dashboard.contexto;
 
   altillosStage = computed<Stage>(() => {
     const altillos = this.dashboard.altillos();
     if (!altillos) {
       return {
         id: 'altillos',
-        label: '1.2',
+        label: '1.1',
         title: 'Altillos - 100%',
         description: 'Todos los TAG de Altillo utilizados deben ser revisados.',
-        objective: 'Puede validar buscando por TAG o por SKU.',
+        objective: 'Puede validar buscando por TAG.',
         status: 'PENDIENTE',
         badge: '0%',
         actionLabel: 'Abrir validación',
@@ -156,13 +179,15 @@ export class AnalystDashboardPage implements OnInit {
 
     return {
       id: 'altillos',
-      label: '1.2',
+      label: '1.1',
       title: 'Altillos - 100%',
       description: 'Todos los TAG de Altillo utilizados deben ser revisados.',
-      objective: 'Puede validar buscando por TAG o por SKU.',
+      objective: 'Puede validar buscando por TAG.',
       status,
       badge,
       actionLabel,
+      confirmedCount: r.tagsConfirmados,
+      pendingCount: r.tagsPendientes,
       metrics: [
         { label: 'TAG usados', value: r.tagsUsados, hint: 'Universo a revisar', tone: 'neutral' },
         { label: 'Objetivo mínimo', value: r.objetivoPorcentaje, hint: '100%', tone: 'ok' },
@@ -175,6 +200,7 @@ export class AnalystDashboardPage implements OnInit {
         secondary: t.nombreZona || t.codigoZona || 'ALTILLO',
         status: t.estadoValidacion === 'CONFIRMADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
       })),
+      tagSummaryRows: this.buildTagSummary(altillos),
     };
   });
 
@@ -183,10 +209,10 @@ export class AnalystDashboardPage implements OnInit {
     if (!pv) {
       return {
         id: 'punto-venta',
-        label: '1.3',
+        label: '1.2',
         title: 'Punto de Venta - mínimo 30%',
         description: 'El Analista elige los TAG a revisar; el sistema controla el mínimo.',
-        objective: 'Puede validar buscando por TAG o por SKU.',
+        objective: 'Puede validar buscando por TAG.',
         status: 'PENDIENTE',
         badge: '0%',
         actionLabel: 'Abrir validación',
@@ -208,13 +234,15 @@ export class AnalystDashboardPage implements OnInit {
 
     return {
       id: 'punto-venta',
-      label: '1.3',
+      label: '1.2',
       title: 'Punto de Venta - mínimo 30%',
       description: 'El Analista elige los TAG a revisar; el sistema controla el mínimo.',
-      objective: 'Puede validar buscando por TAG o por SKU.',
+      objective: 'Puede validar buscando por TAG.',
       status,
       badge,
       actionLabel,
+      confirmedCount: r.tagsConfirmados,
+      pendingCount: r.tagsPendientes,
       metrics: [
         { label: 'TAG usados', value: r.tagsUsados, hint: 'Universo a revisar', tone: 'neutral' },
         { label: 'Objetivo mínimo', value: r.objetivoPorcentaje, hint: '30%', tone: 'warning' },
@@ -227,6 +255,7 @@ export class AnalystDashboardPage implements OnInit {
         secondary: t.nombreZona || t.codigoZona || 'PUNTO DE VENTA',
         status: t.estadoValidacion === 'CONFIRMADO' ? 'COMPLETADO' as StageStatus : 'PENDIENTE' as StageStatus,
       })),
+      tagSummaryRows: this.buildTagSummary(pv),
     };
   });
 
@@ -346,12 +375,10 @@ export class AnalystDashboardPage implements OnInit {
   }
 
   etapa1Label = 'ETAPA 1 - Validación operacional';
-  etapa1Objetivo = 'Comprobar la ejecución física realizada por Taxo. El Analista puede entrar por TAG o por SKU. Se muestra la cantidad inventariada para confirmarla o modificarla; no se muestra Kardex, teórico ni valorización.';
-  etapa1Route = 'ZONIFICACIÓN > ALTILLOS 100% > PDV MÍNIMO 30%';
+  etapa1Objetivo = 'Comprobar la ejecución física realizada por Taxo. El Analista entra por TAG. Se muestra la cantidad inventariada para confirmarla o modificarla; no se muestra Kardex, teórico ni valorización.';
 
   etapa2Label = 'ETAPA 2 - Validación contra Kardex';
   etapa2Objetivo = 'Revisar diferencias entre el físico vigente y Kardex. Desde aquí sí se muestra teórico, costo y diferencia valorizada.';
-  etapa2Route = 'PRE VARIANCE > RECUENTO';
 
   etapa1 = computed<Stage[]>(() => [
     this.altillosStage(),
@@ -363,83 +390,67 @@ export class AnalystDashboardPage implements OnInit {
     this.recuentoStage(),
   ]);
 
-  private construirAltillosModalData(): OperationalModalData {
-    const altillos = this.dashboard.altillos();
-    if (!altillos || altillos.tags.length === 0) {
-      return {
-        stageId: 'altillos',
-        title: 'Validación operacional - Analista Sodimac',
-        subtitle: 'Altillos 100% - busque por TAG o SKU.',
-        searchValue: '',
-        tagTitle: 'Sin TAG disponibles',
-        tagDescription: 'No hay datos de Altillos para esta jornada.',
-        productCount: '0 productos',
-        confirmedCount: 0,
-        pendingCount: 0,
-        products: [],
-      };
+  private buildTagSummary(bloque: ValidacionBloqueAnalista): OperationalTagSummaryRow[] {
+    const map = new Map<number, { numeroTag: number; c1: number; c2: number | null; productos: OperationalTagSummaryProduct[] }>();
+
+    for (const p of bloque.productos) {
+      const key = p.numeroTag ?? 0;
+      const hasC2 = typeof p.cantidadAnalista === 'number';
+
+      if (!map.has(key)) {
+        map.set(key, {
+          numeroTag: key,
+          c1: 0,
+          c2: null,
+          productos: [],
+        });
+      }
+
+      const entry = map.get(key)!;
+      entry.c1 += p.cantidadInventariada;
+      if (hasC2) {
+        entry.c2 = (entry.c2 ?? 0) + (p.cantidadAnalista as number);
+      }
+
+      entry.productos.push({
+        sku: p.sku,
+        product: p.descripcion ?? p.sku,
+        c1Units: p.cantidadInventariada,
+        c2Units: hasC2 ? `${p.cantidadAnalista}` : '-',
+        status: p.estadoValidacion === 'CONFIRMADO' ? 'COMPLETADO' : 'PENDIENTE',
+      });
     }
 
-    const primerTag = altillos.tags[0];
-    const productosDelTag = altillos.productos.filter(p => p.numeroTag === primerTag.numeroTag);
+    return Array.from(map.values()).map(v => {
+      const all = v.productos;
+      const allConfirmed = all.length > 0 && all.every(p => p.status === 'COMPLETADO');
+      return {
+        tag: String(v.numeroTag),
+        c1Units: v.c1,
+        taxoOperator: '-',
+        c2Units: v.c2 !== null ? `${v.c2}` : '-',
+        analyst: '-',
+        status: allConfirmed ? 'COMPLETADO' : 'PENDIENTE',
+        allProducts: all,
+        visibleProducts: all.slice(0, 5),
+        hiddenProductsCount: Math.max(0, all.length - 5),
+      };
+    });
+  }
 
+  private construirAltillosModalData(): OperationalModalData {
     return {
       stageId: 'altillos',
       title: 'Validación operacional - Analista Sodimac',
-      subtitle: 'Altillos 100% - busque por TAG o SKU.',
-      searchValue: String(primerTag.numeroTag ?? ''),
-      tagTitle: `TAG ${primerTag.numeroTag ?? ''} - ${primerTag.nombreZona || primerTag.codigoZona || 'ALTILLO'}`,
-      tagDescription: 'Lista completa de productos contados dentro del TAG.',
-      productCount: `${productosDelTag.length} producto${productosDelTag.length !== 1 ? 's' : ''}`,
-      confirmedCount: productosDelTag.filter(p => p.estadoValidacion === 'CONFIRMADO').length,
-      pendingCount: productosDelTag.filter(p => p.estadoValidacion === 'PENDIENTE').length,
-      products: productosDelTag.map(p => ({
-        sku: p.sku,
-        product: p.descripcion ?? p.sku,
-        quantity: p.cantidadInventariada,
-        newQuantity: p.cantidadAnalista ?? p.cantidadInventariada,
-        status: p.estadoValidacion === 'CONFIRMADO' ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
-      })),
+      subtitle: 'Altillos 100% - busque por TAG.',
     };
   }
 
   private construirPuntoVentaModalData(): OperationalModalData {
-    const pv = this.dashboard.puntoVenta();
-    if (!pv || pv.tags.length === 0) {
-      return {
-        stageId: 'punto-venta',
-        title: 'Validación operacional - Analista Sodimac',
-        subtitle: 'Punto de Venta 30% - busque por TAG o SKU.',
-        searchValue: '',
-        tagTitle: 'Sin TAG disponibles',
-        tagDescription: 'No hay datos de Punto de Venta para esta jornada.',
-        productCount: '0 productos',
-        confirmedCount: 0,
-        pendingCount: 0,
-        products: [],
-      };
-    }
-
-    const primerTag = pv.tags[0];
-    const productosDelTag = pv.productos.filter(p => p.numeroTag === primerTag.numeroTag);
-
     return {
       stageId: 'punto-venta',
       title: 'Validación operacional - Analista Sodimac',
-      subtitle: 'Punto de Venta 30% - busque por TAG o SKU.',
-      searchValue: String(primerTag.numeroTag ?? ''),
-      tagTitle: `TAG ${primerTag.numeroTag ?? ''} - ${primerTag.nombreZona || primerTag.codigoZona || 'PUNTO DE VENTA'}`,
-      tagDescription: 'Lista completa de productos contados dentro del TAG.',
-      productCount: `${productosDelTag.length} producto${productosDelTag.length !== 1 ? 's' : ''}`,
-      confirmedCount: productosDelTag.filter(p => p.estadoValidacion === 'CONFIRMADO').length,
-      pendingCount: productosDelTag.filter(p => p.estadoValidacion === 'PENDIENTE').length,
-      products: productosDelTag.map(p => ({
-        sku: p.sku,
-        product: p.descripcion ?? p.sku,
-        quantity: p.cantidadInventariada,
-        newQuantity: p.cantidadAnalista ?? p.cantidadInventariada,
-        status: p.estadoValidacion === 'CONFIRMADO' ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
-      })),
+      subtitle: 'Punto de Venta 30% - busque por TAG.',
     };
   }
 
@@ -447,8 +458,103 @@ export class AnalystDashboardPage implements OnInit {
   operationalModal = signal<OperationalModalData | null>(null);
   preVarianceModal = signal<PreVarianceModalData | null>(null);
   recountModal = signal<RecountModalData | null>(null);
-  searchMode = signal<SearchMode>('TAG');
+  tagProductsModal = signal<TagProductsModalData | null>(null);
+  operationalTagSearch = signal('');
+  operationalSearchedTag = signal<string | null>(null);
+  operationalProductSearch = signal('');
   showAddSku = signal(false);
+
+  operationalSelections = signal<Map<string, { decision: 'CONFIRMAR' | 'MODIFICAR'; quantity: number }>>(new Map());
+  operationalSaving = signal(false);
+  operationalSaveError = signal<string | null>(null);
+
+  operationalTagLabel = computed(() => {
+    const modal = this.operationalModal();
+    if (!modal) return 'Ingrese el TAG a validar';
+    return modal.stageId === 'altillos'
+      ? 'Ingrese el TAG de Altillo a validar'
+      : 'Ingrese el TAG de Punto de Venta a validar';
+  });
+
+  operationalTagHint = computed(() => {
+    const modal = this.operationalModal();
+    if (!modal) return '';
+    return modal.stageId === 'altillos'
+      ? 'Ingrese el número completo del TAG de Altillo. Si cambia el TAG, el resultado anterior se limpia automáticamente.'
+      : 'Ingrese el número completo del TAG de Punto de Venta. Si cambia el TAG, el resultado anterior se limpia automáticamente.';
+  });
+
+  tagResult = computed(() => {
+    const modal = this.operationalModal();
+    const searched = this.operationalSearchedTag();
+    if (!modal || !searched) return null;
+
+    const stageData = modal.stageId === 'altillos' ? this.dashboard.altillos() : this.dashboard.puntoVenta();
+    if (!stageData) return null;
+
+    const tag = stageData.tags.find(t => String(t.numeroTag ?? '').trim() === searched);
+    if (!tag) return null;
+
+    const allProducts = stageData.productos.filter(p => String(p.numeroTag ?? '').trim() === searched);
+    const productFilter = this.operationalProductSearch().trim().toLowerCase();
+    const filteredProducts = productFilter
+      ? allProducts.filter(p =>
+          (p.sku ?? '').toLowerCase().includes(productFilter) ||
+          (p.descripcion ?? '').toLowerCase().includes(productFilter))
+      : allProducts;
+
+    const confirmed = filteredProducts.filter(p => p.estadoValidacion === 'CONFIRMADO').length;
+    const pending = filteredProducts.length - confirmed;
+
+    return {
+      tagTitle: `TAG ${tag.numeroTag ?? ''} - ${tag.nombreZona || tag.codigoZona || (modal.stageId === 'altillos' ? 'ALTILLO' : 'PUNTO DE VENTA')}`,
+      tagDescription: 'Lista completa de productos contados dentro del TAG.',
+      productCount: `${allProducts.length} producto${allProducts.length !== 1 ? 's' : ''}`,
+      confirmedCount: confirmed,
+      pendingCount: pending,
+      totalProducts: allProducts.length,
+      visibleProducts: filteredProducts.length,
+      tagNumeroTag: tag.numeroTag,
+      tagIdTagBackend: tag.idTagBackend,
+      products: filteredProducts.map(p => {
+        const sel = this.operationalSelections().get(p.sku);
+        const isSelected = !!sel;
+        const selectionDecision = sel?.decision ?? null;
+        const isEditingQuantity = selectionDecision === 'MODIFICAR';
+        return {
+          sku: p.sku,
+          product: p.descripcion ?? p.sku,
+          quantity: p.cantidadInventariada,
+          newQuantity: sel ? sel.quantity : (p.cantidadAnalista ?? p.cantidadInventariada),
+          status: p.estadoValidacion === 'CONFIRMADO' ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
+          idProductoBackend: p.idProductoBackend,
+          isSelected,
+          selectionDecision,
+          isEditingQuantity,
+        };
+      }),
+    };
+  });
+
+  operationalTagNotFound = computed(() => {
+    return !!this.operationalSearchedTag() && !this.tagResult();
+  });
+
+  isAltillosModal = computed(() => {
+    const modal = this.operationalModal();
+    return modal?.stageId === 'altillos';
+  });
+
+  hasOperationalChanges = computed(() => {
+    return this.operationalSelections().size > 0;
+  });
+
+  hasModifiedOperationalProducts = computed(() => {
+    for (const sel of this.operationalSelections().values()) {
+      if (sel.decision === 'MODIFICAR') return true;
+    }
+    return false;
+  });
 
   private construirPreVarianceModalData(): PreVarianceModalData | null {
     const pv = this.dashboard.preVariance();
@@ -462,6 +568,15 @@ export class AnalystDashboardPage implements OnInit {
       return v < 0 ? `-$${formatted}` : `$${formatted}`;
     };
 
+    const locations = primerSku.ubicaciones.map(u => ({
+      origin: 'Contado',
+      zone: u.zona,
+      tag: String(u.numeroTag ?? ''),
+      quantity: u.cantidadInventariada,
+      newQuantity: u.cantidadPreVariance ?? u.cantidadInventariada,
+      status: u.cantidadPreVariance !== null ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
+    }));
+
     return {
       title: 'Revisión de Pre Variance - Analista Sodimac',
       subtitle: `${primerSku.sku} - ${primerSku.descripcion ?? primerSku.sku}`,
@@ -470,14 +585,9 @@ export class AnalystDashboardPage implements OnInit {
       kardex: primerSku.stockTeorico,
       unitCost: formatCurrency(primerSku.valorUnitario),
       currentDifference: formatCurrency(primerSku.diferenciaEnCosto),
-      locations: primerSku.ubicaciones.map(u => ({
-        origin: 'Contado',
-        zone: u.zona,
-        tag: String(u.numeroTag ?? ''),
-        quantity: u.cantidadInventariada,
-        newQuantity: u.cantidadPreVariance ?? u.cantidadInventariada,
-        status: u.cantidadPreVariance !== null ? 'CONFIRMADO' as const : 'PENDIENTE' as const,
-      })),
+      confirmedLocations: locations.filter(l => l.status === 'CONFIRMADO').length,
+      pendingLocations: locations.filter(l => l.status === 'PENDIENTE').length,
+      locations,
     };
   }
 
@@ -500,7 +610,7 @@ export class AnalystDashboardPage implements OnInit {
       recounted: rc.resumen.skuRecontados,
       countNumber: 3,
       largestDifference: formatCurrency(rc.resumen.mayorDiferenciaValor),
-      rows: rc.productos.slice(0, 10).map(p => ({
+      rows: rc.productos.map(p => ({
         sku: p.sku,
         product: p.descripcion ?? p.sku,
         physical: p.fisicoActual,
@@ -544,6 +654,17 @@ export class AnalystDashboardPage implements OnInit {
     }
   }
 
+  getTagStatusLabel(status: StageStatus): string {
+    switch (status) {
+      case 'COMPLETADO':
+        return 'CONFIRMADO';
+      case 'PENDIENTE':
+        return 'PENDIENTE';
+      case 'BLOQUEADO':
+        return 'BLOQUEADO';
+    }
+  }
+
   getMetricToneClass(tone?: MetricTone): string {
     switch (tone) {
       case 'ok':
@@ -563,11 +684,15 @@ export class AnalystDashboardPage implements OnInit {
     if (!this.isStageUnlocked(stage)) return;
     if (stage.id === 'altillos') {
       this.operationalModal.set(this.construirAltillosModalData());
-      this.searchMode.set('TAG');
+      this.operationalTagSearch.set('');
+      this.operationalSearchedTag.set(null);
+      this.operationalProductSearch.set('');
       this.showAddSku.set(false);
     } else if (stage.id === 'punto-venta') {
       this.operationalModal.set(this.construirPuntoVentaModalData());
-      this.searchMode.set('TAG');
+      this.operationalTagSearch.set('');
+      this.operationalSearchedTag.set(null);
+      this.operationalProductSearch.set('');
       this.showAddSku.set(false);
     } else if (stage.id === 'pre-variance') {
       const pvData = this.construirPreVarianceModalData();
@@ -584,7 +709,40 @@ export class AnalystDashboardPage implements OnInit {
 
   closeOperationalModal(): void {
     this.operationalModal.set(null);
+    this.operationalTagSearch.set('');
+    this.operationalSearchedTag.set(null);
+    this.operationalProductSearch.set('');
     this.showAddSku.set(false);
+    this.operationalSelections.set(new Map());
+    this.operationalSaving.set(false);
+    this.operationalSaveError.set(null);
+  }
+
+  updateOperationalTagSearch(value: string): void {
+    this.operationalTagSearch.set(value);
+    this.operationalSearchedTag.set(null);
+    this.operationalProductSearch.set('');
+    this.showAddSku.set(false);
+    this.operationalSelections.set(new Map());
+    this.operationalSaveError.set(null);
+  }
+
+  searchOperationalTag(): void {
+    const value = this.operationalTagSearch().trim();
+    this.operationalSearchedTag.set(value || null);
+    this.operationalProductSearch.set('');
+    this.showAddSku.set(false);
+    this.operationalSelections.set(new Map());
+    this.operationalSaveError.set(null);
+  }
+
+  clearOperationalTagSearch(): void {
+    this.operationalTagSearch.set('');
+    this.operationalSearchedTag.set(null);
+    this.operationalProductSearch.set('');
+    this.showAddSku.set(false);
+    this.operationalSelections.set(new Map());
+    this.operationalSaveError.set(null);
   }
 
   closePreVarianceModal(): void {
@@ -595,12 +753,93 @@ export class AnalystDashboardPage implements OnInit {
     this.recountModal.set(null);
   }
 
-  setSearchMode(mode: SearchMode): void {
-    this.searchMode.set(mode);
+  openTagProductsModal(row: OperationalTagSummaryRow): void {
+    this.tagProductsModal.set({
+      tagNumber: row.tag,
+      products: row.allProducts,
+    });
+  }
+
+  closeTagProductsModal(): void {
+    this.tagProductsModal.set(null);
   }
 
   toggleAddSku(): void {
     this.showAddSku.update(v => !v);
+  }
+
+  confirmProduct(sku: string, quantity: number): void {
+    this.operationalSelections.update(m => {
+      const next = new Map(m);
+      next.set(sku, { decision: 'CONFIRMAR', quantity });
+      return next;
+    });
+    this.operationalSaveError.set(null);
+  }
+
+  modifyProduct(sku: string, currentQuantity: number): void {
+    this.operationalSelections.update(m => {
+      const next = new Map(m);
+      next.set(sku, { decision: 'MODIFICAR', quantity: currentQuantity });
+      return next;
+    });
+    this.operationalSaveError.set(null);
+  }
+
+  updateDraftQuantity(sku: string, value: string): void {
+    const num = parseFloat(value);
+    if (isNaN(num) || num < 0) return;
+    this.operationalSelections.update(m => {
+      const next = new Map(m);
+      const existing = next.get(sku);
+      if (existing) {
+        next.set(sku, { ...existing, quantity: num });
+      }
+      return next;
+    });
+  }
+
+  async saveOperationalValidation(): Promise<void> {
+    const modal = this.operationalModal();
+    const result = this.tagResult();
+    const tagNumeroTag = result?.tagNumeroTag;
+    const tagIdTagBackend = result?.tagIdTagBackend ?? null;
+    if (!modal || !result || !tagNumeroTag) return;
+    if (!this.isAltillosModal()) return;
+
+    const selections = this.operationalSelections();
+    if (selections.size === 0) return;
+
+    this.operationalSaving.set(true);
+    this.operationalSaveError.set(null);
+
+    const productos = result.products
+      .filter(p => selections.has(p.sku))
+      .map(p => {
+        const sel = selections.get(p.sku)!;
+        return {
+          sku: p.sku,
+          idProductoBackend: p.idProductoBackend ?? null,
+          cantidadAnalista: sel.quantity,
+          decision: sel.decision,
+        };
+      });
+
+    const resultado = await this.dashboard.guardarValidacionAltillosTag('ALTILLOS', tagNumeroTag, tagIdTagBackend, productos);
+
+    this.operationalSaving.set(false);
+
+    if (!resultado.ok) {
+      this.operationalSaveError.set(resultado.error ?? 'Error al guardar');
+      return;
+    }
+
+    if (resultado.enviado === false && resultado.error) {
+      this.operationalSaveError.set(resultado.error);
+      return;
+    }
+
+    this.operationalSelections.set(new Map());
   }
 
   irAHome(): void {

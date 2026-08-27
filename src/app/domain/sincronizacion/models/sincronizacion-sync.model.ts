@@ -1,14 +1,16 @@
 import { TagFinalizadoPayload } from './tag-finalizado.model';
+import { ValidacionAnalistaPayload } from './validacion-analista.model';
 
 export type PerfilSync = 'OPERADOR' | 'ANALISTA_CLIENTE';
 export type EstadoSync = 'PENDIENTE' | 'ENVIADO' | 'ERROR';
+export type OperacionSync = 'PREPARACION' | 'TAG_FINALIZADO' | 'VALIDACION_OPERACIONAL';
 
 export interface SincronizacionSync {
   id: number;
   eventoId: number | null;
   pdaId: number | null;
   tipo: 'DESCARGA_A_PDA' | 'CARGA_DESDE_PDA';
-  operacion: 'PREPARACION' | 'TAG_FINALIZADO' | null;
+  operacion: OperacionSync | null;
   perfil: PerfilSync | null;
   iteracion: number | null;
   conteoId: number | null;
@@ -35,4 +37,11 @@ export interface GuardarSyncTagInput {
   operadorId: number;
   cargaUid: string;
   payload: TagFinalizadoPayload;
+}
+
+export interface GuardarSyncValidacionInput {
+  eventoId: number | null;
+  pdaId: number;
+  cargaUid: string;
+  payload: ValidacionAnalistaPayload;
 }

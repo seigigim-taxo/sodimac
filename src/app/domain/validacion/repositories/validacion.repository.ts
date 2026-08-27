@@ -52,9 +52,20 @@ export interface ProductoValidacionParaGuardar {
   flIncorporado: string;
 }
 
+export interface GuardarValidacionTagInput {
+  tipoValidacion: 'ALTILLOS' | 'PUNTO_VENTA';
+  numeroTag: number;
+  productos: {
+    sku: string;
+    idProductoBackend: number | null;
+    cantidadAnalista: number;
+  }[];
+}
+
 export interface ValidacionRepository {
   reemplazarJornada(input: JornadaValidacionParaGuardar): Promise<number>;
   getBloqueActivoPorTipo(tipoValidacion: string): Promise<ValidacionBloqueAnalista | null>;
+  guardarValidacionTag(input: GuardarValidacionTagInput): Promise<void>;
 }
 
 export const VALIDACION_REPOSITORY_TOKEN = new InjectionToken<ValidacionRepository>('ValidacionRepository');

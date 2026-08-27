@@ -2,6 +2,10 @@
 
 Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or default tooling, it is omitted.
 
+## Collaboration rules
+
+- Do not generate an implementation prompt unless the user explicitly asks for one. When the user asks for a prompt, generate it then and only then.
+
 ## Project kind
 
 - Ionic Angular **standalone** app (`ionic.config.json` → `"type": "angular-standalone"`).
@@ -59,6 +63,15 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - `counting-tag` (tag/zone selection), `counting` (working screen), and `tags-resumen` (summary) are the three counting pages.
 - `WriteQueue` (`src/app/core/utils/`) serializes concurrent SQLite writes from the counting UI.
 
+## Analyst validation flow
+
+- `AnalystDashboardFacade.guardarValidacionAltillosTag()` is the single entry point for saving analyst validations.
+- Flow: save local SQLite → sync WS → reload local data.
+- `SincronizarValidacionAnalistaUseCase` handles the WS sync via `sincronizaciones/validacion-analista.php`.
+- Local persistence: updates `sod_validacion_producto`, `sod_validacion_tag`, `sod_validacion_bloque` in a single transaction.
+- Sync queue: `sod_sincronizacion` with `operacion = 'VALIDACION_OPERACIONAL'`, `perfil = 'ANALISTA_CLIENTE'`.
+- UI: only Altillos is enabled in A0.10. Punto de Venta remains disabled until A0.11.
+
 ## Auth flow
 
 - `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error`, `isAuthenticated`, and `wasOfflineLogin` signals.
@@ -78,6 +91,22 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_mockup.php` for dev_mockup), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
 - The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
 - CORS is handled server-side; for local dev/Android the backend must be reachable on the IP used in `environment.ts`.
+
+## Validación Operacional (Analista)
+
+- Endpoint: `sincronizaciones/validacion-analista.php` (POST).
+- Implementa Q13 + Q14: crear/obtener Conteo 2 `VALIDACION` y guardar confirmaciones/modificaciones de Altillos/PDV.
+- Payload: `{ id_agenda, modo: 'TAG', tipo: 'ALTILLO'|'PDV', id_tag, login, motivo, items: [{ id_producto, decision, cantidad, uuid }] }`.
+- Reglas: `CONFIRMAR` = cantidad inventariada actual; `MODIFICAR` = nueva cantidad completa. No es ajuste +/-.
+- Backend guarda en transacción, marca versión anterior `SGO_ANALISTA` como `REEMPLAZADO` y crea nueva `VIGENTE`.
+- Dispositivo: `APP_ANALISTA`. Origen: `SGO_ANALISTA`.
+- Retry reutiliza el mismo `uuid` para idempotencia.
+- Cola local: `sod_sincronizacion` con `operacion = 'VALIDACION_OPERACIONAL'`, `perfil = 'ANALISTA_CLIENTE'`.
+- Use case: `SincronizarValidacionAnalistaUseCase` (`src/app/application/sincronizacion/`).
+- Repo sync: `guardarSyncValidacion()` en `SincronizacionRepository`.
+- Repo validación: `guardarValidacionTag()` en `ValidacionRepository` (actualiza `sod_validacion_producto`, `sod_validacion_tag`, `sod_validacion_bloque`).
+- Facade: `AnalystDashboardFacade.guardarValidacionAltillosTag()`.
+- UI: solo habilitado para Altillos. Punto de Venta queda deshabilitado hasta A0.11.
 
 ## PDA preparation contract
 

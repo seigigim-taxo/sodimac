@@ -4,17 +4,20 @@ import { AuthFacade } from '../auth/auth.facade';
 import { PdaFacade } from '../pda/pda.facade';
 import { TagFinalizadoPayload } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { SincronizarTagFinalizadoUseCase } from '../../application/sincronizacion/sincronizar-tag-finalizado.use-case';
+import { SincronizarValidacionAnalistaUseCase } from '../../application/sincronizacion/sincronizar-validacion-analista.use-case';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
 import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 import { VALIDACION_REPOSITORY_TOKEN } from '../../domain/validacion/repositories/validacion.repository';
 import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/repositories/pre-variance.repository';
 import { RECUENTO_REPOSITORY_TOKEN } from '../../domain/recuento/repositories/recuento.repository';
+import { ValidacionAnalistaPayload } from '../../domain/sincronizacion/models/validacion-analista.model';
 
 @Injectable({ providedIn: 'root' })
 export class AnalystDashboardFacade {
   private auth = inject(AuthFacade);
   private pda = inject(PdaFacade);
   private syncTag = inject(SincronizarTagFinalizadoUseCase);
+  private syncValidacion = inject(SincronizarValidacionAnalistaUseCase);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
   private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
   private validacionRepo = inject(VALIDACION_REPOSITORY_TOKEN);
@@ -227,5 +230,97 @@ export class AnalystDashboardFacade {
     const zona = tagCodigo ?? 'SINZONA';
     const pda = String(this.pda.pdaId() ?? 'PDA');
     return `${ctx.codigoTienda}-${ctx.fechaJornada}-AN-ITER2-${zona}-${zona}-${pda}-${ts}`;
+  }
+
+  async guardarValidacionAltillosTag(
+    tipoValidacion: 'ALTILLOS' | 'PUNTO_VENTA',
+    numeroTag: number,
+    idTagBackend: number | null,
+    productos: { sku: string; idProductoBackend: number | null; cantidadAnalista: number; decision: 'CONFIRMAR' | 'MODIFICAR' }[],
+  ): Promise<{ ok: boolean; enviado: boolean; error?: string }> {
+    const session = this.auth.session();
+    const ctx = this.contextoSignal();
+    if (!session || !ctx) return { ok: false, enviado: false, error: 'Sesión o contexto no disponible' };
+
+    if (!ctx.idAgenda) {
+      return { ok: false, enviado: false, error: 'No hay agenda activa. Sincroniza datos antes de guardar.' };
+    }
+    if (!idTagBackend) {
+      return { ok: false, enviado: false, error: 'TAG sin identificador backend. Sincroniza datos nuevamente.' };
+    }
+    for (const p of productos) {
+      if (!p.idProductoBackend) {
+        return { ok: false, enviado: false, error: `SKU ${p.sku} sin identificador backend. Sincroniza datos nuevamente.` };
+      }
+    }
+
+    try {
+      await this.validacionRepo.guardarValidacionTag({ tipoValidacion, numeroTag, productos });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar localmente';
+      return { ok: false, enviado: false, error: msg };
+    }
+
+    const eventoId = await this.resolverEventoId(ctx);
+
+    const now = new Date();
+    const cargaUid = this.generarCargaUidValidacion(ctx, numeroTag, now);
+
+    const payload: ValidacionAnalistaPayload = {
+      carga_uid: cargaUid,
+      id_agenda: ctx.idAgenda,
+      numero_agenda: ctx.numeroAgenda,
+      codigo_tienda: ctx.codigoTienda,
+      fecha_programada: ctx.fechaJornada,
+      pda_codigo: String(this.pda.pdaId() ?? 'PDA'),
+      operador_rut: session.rutNormalizado,
+      login: session.correo,
+      modo: 'TAG',
+      tipo: tipoValidacion === 'ALTILLOS' ? 'ALTILLO' : 'PDV',
+      id_tag: idTagBackend,
+      numero_tag: numeroTag,
+      motivo: 'Validación operacional Sodimac',
+      items: productos.map((p, idx) => {
+        const itemDate = new Date(now.getTime() + idx);
+        return {
+          id_producto: p.idProductoBackend!,
+          sku: p.sku,
+          decision: p.decision,
+          cantidad: p.cantidadAnalista,
+          detalle_uid: `${cargaUid}-DET-${idx + 1}-${this.formatPayloadTimestamp(itemDate)}`,
+          fecha_hora: this.formatDetalleFechaHora(itemDate),
+        };
+      }),
+    };
+
+    const resultado = await this.syncValidacion.execute({
+      eventoId,
+      pdaId: this.pda.pdaId() ?? 0,
+      cargaUid,
+      payload,
+    });
+
+    await this.cargarAltillosDesdeLocal();
+
+    if (resultado.ok) {
+      return { ok: true, enviado: resultado.enviado };
+    }
+
+    return { ok: false, enviado: false, error: resultado.error };
+  }
+
+  private generarCargaUidValidacion(ctx: ContextoAnalista, numeroTag: number, now: Date): string {
+    const ts = this.formatPayloadTimestamp(now);
+    return `${ctx.codigoTienda}-VA-${numeroTag}-${ts}`;
+  }
+
+  private formatPayloadTimestamp(date: Date): string {
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}${pad(date.getMilliseconds(), 3)}`;
+  }
+
+  private formatDetalleFechaHora(date: Date): string {
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
   }
 }
