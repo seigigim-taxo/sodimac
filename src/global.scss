@@ -1280,6 +1280,17 @@ ion-modal.buscador-modal {
   border-radius: 6px;
 }
 
+.modal-save-success {
+  margin-right: auto;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #0e6245;
+  background: #ecfdf3;
+  border: 1px solid #a6f4c5;
+  border-radius: 6px;
+}
+
 .modal-save-info {
   margin-right: auto;
   padding: 0.375rem 0.625rem;
@@ -1630,14 +1641,19 @@ ion-modal.buscador-modal {
 
 /* ── Tag Summary Card ── */
 .tag-summary-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
   background: var(--app-surface-hover);
   border: 1px solid var(--app-border);
   border-radius: 10px;
   padding: 0.625rem 0.875rem;
 }
 
-.tag-summary-top {
-  margin-bottom: 0.5rem;
+.tag-summary-left {
+  flex: 1;
+  min-width: 0;
 
   h4 {
     margin: 0;
@@ -1654,7 +1670,16 @@ ion-modal.buscador-modal {
   }
 }
 
-.tag-summary-stats { margin-bottom: 0.625rem; }
+.tag-summary-right {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+  padding-top: 0.125rem;
+}
 
 .product-count {
   font-size: 0.6875rem;
@@ -1666,13 +1691,23 @@ ion-modal.buscador-modal {
   padding: 0.25rem 0.5rem;
 }
 
+.counter--products {
+  font-size: 0.625rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  background: rgba(180, 83, 9, 0.10);
+  color: var(--app-warning);
+  border: 1px solid rgba(180, 83, 9, 0.25);
+}
+
 .modal-counters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .counter {
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 800;
   border-radius: 999px;
-  padding: 0.25rem 0.625rem;
+  padding: 0.25rem 0.5rem;
 }
 
 .counter--ok {
@@ -2271,4 +2306,16 @@ select.recount-filter-control { cursor: default; }
   .modal-filter { padding: 0.45rem 0.625rem; }
   .operational-table th { padding: 0.45rem 0.625rem; }
   .operational-table td { padding: 0.45rem 0.625rem; }
+}
+
+@media (max-width: 480px) {
+  .tag-summary-card {
+    flex-direction: column;
+  }
+
+  .tag-summary-right {
+    justify-content: flex-start;
+    margin-left: 0;
+    padding-top: 0;
+  }
 }

@@ -291,23 +291,21 @@
               [placeholder]="modal.stageId === 'altillos' ? 'Ej: 1000' : 'Ej: 2000'"
               [value]="operationalTagSearch()"
               (input)="updateOperationalTagSearch($any($event.target).value)"
-              (keydown.enter)="searchOperationalTag()" />
+              (blur)="commitTagSearch()" />
             <button class="operational-tag-clear" (click)="clearOperationalTagSearch()">&#10005;</button>
           </div>
           <p class="operational-search-hint">{{ operationalTagHint() }}</p>
 
           @if (tagResult(); as result) {
             <div class="tag-summary-card">
-              <div class="tag-summary-top">
+              <div class="tag-summary-left">
                 <h4>{{ result.tagTitle }}</h4>
                 <p>{{ result.tagDescription }}</p>
               </div>
-              <div class="tag-summary-stats">
-                <span class="product-count">{{ result.productCount }}</span>
-              </div>
-              <div class="modal-counters">
+              <div class="tag-summary-right">
+                <span class="counter counter--products">{{ result.productCount }}</span>
                 <span class="counter counter--ok">Confirmados {{ result.confirmedCount }}</span>
-                <span class="counter counter--warning">Pendientes de confirmar {{ result.pendingCount }}</span>
+                <span class="counter counter--warning">Pendientes {{ result.pendingCount }}</span>
               </div>
             </div>
 
@@ -409,22 +407,19 @@
             </div>
           }
 
-          @if (tagResult()) {
-            @if (isAltillosModal()) {
-              <div class="modal-readonly-note">
-                Confirme o modifique cada producto. Los cambios se guardan localmente y se envían al servidor.
-              </div>
-            } @else {
-              <div class="modal-readonly-note">
-                Las acciones de edición y guardado se habilitarán en A0.11.
-              </div>
-            }
+          @if (tagResult() && !isAltillosModal()) {
+            <div class="modal-readonly-note">
+              Las acciones de edición y guardado se habilitarán en A0.11.
+            </div>
           }
         </div>
 
         <div class="modal-footer">
           @if (operationalSaveError()) {
             <span class="modal-save-error">{{ operationalSaveError() }}</span>
+          }
+          @if (operationalSaveSuccess()) {
+            <span class="modal-save-success">{{ operationalSaveSuccess() }}</span>
           }
           @if (!isAltillosModal()) {
             <span class="modal-save-info">Punto de Venta se habilitará en A0.11</span>

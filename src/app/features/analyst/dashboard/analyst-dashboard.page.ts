@@ -461,12 +461,14 @@ export class AnalystDashboardPage implements OnInit {
   tagProductsModal = signal<TagProductsModalData | null>(null);
   operationalTagSearch = signal('');
   operationalSearchedTag = signal<string | null>(null);
+  operationalCommittedSearch = signal<string | null>(null);
   operationalProductSearch = signal('');
   showAddSku = signal(false);
 
   operationalSelections = signal<Map<string, { decision: 'CONFIRMAR' | 'MODIFICAR'; quantity: number }>>(new Map());
   operationalSaving = signal(false);
   operationalSaveError = signal<string | null>(null);
+  operationalSaveSuccess = signal<string | null>(null);
 
   operationalTagLabel = computed(() => {
     const modal = this.operationalModal();
@@ -537,7 +539,8 @@ export class AnalystDashboardPage implements OnInit {
   });
 
   operationalTagNotFound = computed(() => {
-    return !!this.operationalSearchedTag() && !this.tagResult();
+    const committed = this.operationalCommittedSearch();
+    return !!committed && !this.tagResult();
   });
 
   isAltillosModal = computed(() => {
@@ -686,14 +689,18 @@ export class AnalystDashboardPage implements OnInit {
       this.operationalModal.set(this.construirAltillosModalData());
       this.operationalTagSearch.set('');
       this.operationalSearchedTag.set(null);
+      this.operationalCommittedSearch.set(null);
       this.operationalProductSearch.set('');
       this.showAddSku.set(false);
+      this.operationalSaveSuccess.set(null);
     } else if (stage.id === 'punto-venta') {
       this.operationalModal.set(this.construirPuntoVentaModalData());
       this.operationalTagSearch.set('');
       this.operationalSearchedTag.set(null);
+      this.operationalCommittedSearch.set(null);
       this.operationalProductSearch.set('');
       this.showAddSku.set(false);
+      this.operationalSaveSuccess.set(null);
     } else if (stage.id === 'pre-variance') {
       const pvData = this.construirPreVarianceModalData();
       if (pvData) {
@@ -711,38 +718,56 @@ export class AnalystDashboardPage implements OnInit {
     this.operationalModal.set(null);
     this.operationalTagSearch.set('');
     this.operationalSearchedTag.set(null);
+    this.operationalCommittedSearch.set(null);
     this.operationalProductSearch.set('');
     this.showAddSku.set(false);
     this.operationalSelections.set(new Map());
     this.operationalSaving.set(false);
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   updateOperationalTagSearch(value: string): void {
     this.operationalTagSearch.set(value);
-    this.operationalSearchedTag.set(null);
+    const trimmed = value.trim();
+    if (trimmed.length >= 1) {
+      this.operationalSearchedTag.set(trimmed);
+    } else {
+      this.operationalSearchedTag.set(null);
+    }
+    this.operationalCommittedSearch.set(null);
     this.operationalProductSearch.set('');
     this.showAddSku.set(false);
     this.operationalSelections.set(new Map());
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   searchOperationalTag(): void {
     const value = this.operationalTagSearch().trim();
     this.operationalSearchedTag.set(value || null);
+    this.operationalCommittedSearch.set(value || null);
     this.operationalProductSearch.set('');
     this.showAddSku.set(false);
     this.operationalSelections.set(new Map());
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   clearOperationalTagSearch(): void {
     this.operationalTagSearch.set('');
     this.operationalSearchedTag.set(null);
+    this.operationalCommittedSearch.set(null);
     this.operationalProductSearch.set('');
     this.showAddSku.set(false);
     this.operationalSelections.set(new Map());
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
+  }
+
+  commitTagSearch(): void {
+    const value = this.operationalTagSearch().trim();
+    this.operationalCommittedSearch.set(value || null);
   }
 
   closePreVarianceModal(): void {
@@ -775,6 +800,7 @@ export class AnalystDashboardPage implements OnInit {
       return next;
     });
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   modifyProduct(sku: string, currentQuantity: number): void {
@@ -784,10 +810,12 @@ export class AnalystDashboardPage implements OnInit {
       return next;
     });
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   updateDraftQuantity(sku: string, value: string): void {
-    const num = parseFloat(value);
+    if (value === '' || value === '-') return;
+    const num = parseInt(value, 10);
     if (isNaN(num) || num < 0) return;
     this.operationalSelections.update(m => {
       const next = new Map(m);
@@ -797,6 +825,8 @@ export class AnalystDashboardPage implements OnInit {
       }
       return next;
     });
+    this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
   }
 
   async saveOperationalValidation(): Promise<void> {
@@ -812,6 +842,7 @@ export class AnalystDashboardPage implements OnInit {
 
     this.operationalSaving.set(true);
     this.operationalSaveError.set(null);
+    this.operationalSaveSuccess.set(null);
 
     const productos = result.products
       .filter(p => selections.has(p.sku))
@@ -837,6 +868,12 @@ export class AnalystDashboardPage implements OnInit {
     if (resultado.enviado === false && resultado.error) {
       this.operationalSaveError.set(resultado.error);
       return;
+    }
+
+    if (resultado.enviado === true) {
+      this.operationalSaveSuccess.set('Validación guardada y enviada correctamente.');
+    } else {
+      this.operationalSaveSuccess.set('Validación guardada localmente. Se enviará cuando haya conexión.');
     }
 
     this.operationalSelections.set(new Map());
