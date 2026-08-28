@@ -1,11 +1,11 @@
 {
   "status": "OK",
   "data": {
-    "version_code": 5,
-    "version_name": "1.0.3",
-    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.3.apk",
-    "sha256": "a12811f722a27e638a98a0c6ae4690d6a8b74c8159d24d370e15f50147c78e50",
+    "version_code": 6,
+    "version_name": "1.0.2",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.2-vc6.apk",
+    "sha256": "799ef3a9dc5c01275355e64e8a2e6222fb6fdd2def3202f8a80ee23ae01a9aa8",
     "obligatoria": false,
-    "notas": "Aviso al fallar la sincronizacion, UID por producto y actualizacion desde el menu"
+    "notas": "Aviso al fallar la sincronizacion, UID por producto, actualizacion desde el menu y correcciones de Home"
   }
 }
