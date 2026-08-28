@@ -106,3 +106,9 @@ app/src/main/assets/public
 app/src/main/assets/capacitor.config.json
 app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
+
+# Salida de "Generate Signed APK" de Android Studio. El .apk ya está ignorado
+# arriba, pero la carpeta deja subproductos de build --output-metadata.json,
+# baselineProfiles-- que ensucian cada git status y terminan commiteados sin
+# querer.
+/app/release/
