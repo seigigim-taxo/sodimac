@@ -4,7 +4,7 @@
     "version_code": 6,
     "version_name": "1.0.2",
     "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.2-vc6.apk",
-    "sha256": "799ef3a9dc5c01275355e64e8a2e6222fb6fdd2def3202f8a80ee23ae01a9aa8",
+    "sha256": "45a7e1c175da0b0445aad446babd48153e6ddcc254bf3f4bdb793b06b9abe56e",
     "obligatoria": false,
     "notas": "Aviso al fallar la sincronizacion, UID por producto, actualizacion desde el menu y correcciones de Home"
   }
