@@ -67,11 +67,41 @@ MIME es `application/vnd.android.package-archive`.
    `APP_VERSION` en `src/app/core/version.ts` — hoy son tres lugares que se
    pueden desincronizar.
 2. `npm run build && npx cap sync android && cd android && ./gradlew assembleRelease`
-3. Verificar que quedó firmada, que si falta `keystore.properties` sale sin
-   firmar **en silencio**:
+3. Verificar la firma **contra la huella oficial** (ver abajo). Este paso no es
+   opcional: si falta `keystore.properties`, Gradle compila igual y la APK sale
+   sin firmar **en silencio**.
    `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk`
 4. Renombrar a `sodimac-<version>.apk` y sacarle el hash: `sha256sum`
 5. Subir el APK a `/app/ws/sodimac/apk/`
 6. Recién ahí actualizar `version.json`. **En ese orden**: si el manifiesto
    apunta a un archivo que todavía no está, las PDA que consulten en el medio
    fallan la descarga.
+
+## La llave de firma
+
+Android exige que la firma coincida para actualizar una app instalada. Dos
+llaves distintas producen **dos apps incompatibles con el mismo nombre**: un
+equipo firmado con una no puede recibir la otra, hay que desinstalar, y eso
+borra los conteos que no se hayan sincronizado.
+
+Ya pasó una vez en desarrollo — se firmó desde dos máquinas con llaves
+distintas —, y por eso esta huella está escrita acá.
+
+**Huella oficial del certificado:**
+
+```
+SHA-256: f709151ddec5b2c02f2f405b55cf3d407f34886e1b85f7eb0ebd5c4dd381722d
+DN:      CN=Taxo, OU=Desarrollo, O=Taxo, L=Santiago, ST=Metropolitana, C=CL
+```
+
+No es un secreto: es la identidad pública de la llave. El secreto es el `.jks`
+y su contraseña, que viven fuera del repositorio.
+
+Después de cada `assembleRelease`, la salida de `apksigner verify
+--print-certs` tiene que mostrar ESA huella. **Si muestra otra, esa APK no se
+sube**: se instalaría bien y recién fallaría al intentar actualizarla, cuando
+los equipos ya están en terreno.
+
+La causa de raíz de que esto pueda pasar es que `keystore.properties` está en
+`.gitignore` —correctamente—, así que cada máquina firma con lo que tenga y
+nada avisa. Comparar contra esta huella es lo único que lo detecta a tiempo.
