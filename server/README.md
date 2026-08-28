@@ -64,18 +64,63 @@ MIME es `application/vnd.android.package-archive`.
 ## Al publicar una versión nueva
 
 1. Subir `versionCode` y `versionName` en `android/app/build.gradle`, y
-   `APP_VERSION` en `src/app/core/version.ts` — hoy son tres lugares que se
-   pueden desincronizar.
+   `APP_VERSION` en `src/app/core/version.ts` — son tres lugares que se
+   desincronizan solos. Ya pasó tras un merge: gradle en 1.0.1 y version.ts en
+   1.0.3.
+
+   El `versionCode` tiene que ser **estrictamente mayor** al instalado, aunque
+   el `versionName` se repita. Android compara el código, no el nombre: dos
+   APK distintas con el mismo código no se pueden actualizar entre sí.
+
 2. `npm run build && npx cap sync android && cd android && ./gradlew assembleRelease`
-3. Verificar la firma **contra la huella oficial** (ver abajo). Este paso no es
-   opcional: si falta `keystore.properties`, Gradle compila igual y la APK sale
-   sin firmar **en silencio**.
+
+   Revisar el diff de `AndroidManifest.xml` antes de seguir: `cap sync` lo
+   reescribe y ya borró `REQUEST_INSTALL_PACKAGES` una vez. Sin ese permiso la
+   autoactualización deja de funcionar y no hay ningún error que lo delate.
+
+3. Verificar la firma **contra la huella oficial** (ver abajo). No es opcional:
+   sin `keystore.properties`, Gradle compila igual y la APK sale sin firmar
+   **en silencio**.
    `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk`
-4. Renombrar a `sodimac-<version>.apk` y sacarle el hash: `sha256sum`
-5. Subir el APK a `/app/ws/sodimac/apk/`
+
+4. Renombrar a `sodimac-<versionName>-vc<versionCode>.apk` y sacarle el hash.
+
+   El `versionCode` va en el nombre a propósito: circularon dos APK distintas
+   llamadas `sodimac-1.0.2.apk`, y sin el código no hay forma de saber cuál
+   tiene instalada un equipo.
+
+   `sha256sum` en Git Bash antepone una barra al hash. Conviene:
+   `python -c "import hashlib;print(hashlib.sha256(open(r'RUTA','rb').read()).hexdigest())"`
+
+5. Subir el APK a `/var/www/html/app/ws/sodimac/apk/`, con **exactamente** el
+   nombre que va a declarar el manifiesto.
+
+   En WinSCP: modo **Binario** —en modo Texto se corrompe el APK y el hash no
+   coincide—, permisos **0644** —en 600 Apache devuelve 403— y subida a archivo
+   temporal activada, para que una transferencia cortada no quede servida bajo
+   el nombre real.
+
 6. Recién ahí actualizar `version.json`. **En ese orden**: si el manifiesto
    apunta a un archivo que todavía no está, las PDA que consulten en el medio
    fallan la descarga.
+
+7. **Verificar lo publicado, no lo local.** Es el paso que se saltea y el que
+   atrapa los errores que los anteriores no ven — un nombre mal escrito, una
+   subida a medias, permisos que devuelven 403:
+
+   ```bash
+   curl -s http://50.16.13.230/app/ws/sodimac/api/actualizaciones/version.json
+   curl -s -o bajada.apk http://50.16.13.230/app/ws/sodimac/apk/<nombre>.apk
+   ```
+
+   El hash de `bajada.apk` tiene que ser igual al del manifiesto. Si no
+   coincide —o si el APK pesa 196 bytes, que es el tamaño de la página de error
+   404— la actualización está rota aunque los archivos "se hayan subido bien".
+
+   Este paso existe porque ya pasó: el manifiesto quedó apuntando a
+   `sodimac-1.0.2-vc6.apk` y el archivo se subió como `sodimac-1.0.2.apk`. Todo
+   parecía correcto y la app habría reportado "la descarga falló", que apunta a
+   la red y no al nombre del archivo.
 
 ## La llave de firma
 
