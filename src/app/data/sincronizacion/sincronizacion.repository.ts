@@ -2,7 +2,7 @@ import { Injectable, inject, isDevMode } from '@angular/core';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { SincronizacionRepository } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
-import { GuardarSyncTagInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
+import { GuardarSyncTagInput, GuardarSyncValidacionInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
 import { ahoraSql, hoySql } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
@@ -66,11 +66,13 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
       `SELECT s.* FROM sod_sincronizacion s
-       JOIN sod_evento_inventario e ON e.id = s.evento_id
+       LEFT JOIN sod_evento_inventario e ON e.id = s.evento_id
        WHERE s.estado IN ('PENDIENTE', 'ERROR')
          AND s.tipo = 'CARGA_DESDE_PDA'
-         AND s.operacion = 'TAG_FINALIZADO'
-         AND substr(e.fecha_programada, 1, 10) = ?
+         AND (
+           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) = ?)
+           OR s.operacion = 'VALIDACION_OPERACIONAL'
+         )
        ORDER BY s.fecha_hora ASC`,
       [hoySql()]
     );
@@ -108,6 +110,32 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
     );
     if (isDevMode()) {
       console.log('[SincronizacionRepo] marcarError', { cargaUid, error });
+    }
+  }
+
+  async guardarSyncValidacion(input: GuardarSyncValidacionInput): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const payloadJson = JSON.stringify(input.payload);
+
+    await db.run(
+      `INSERT INTO sod_sincronizacion (
+         evento_id, pda_id, tipo, operacion, perfil, iteracion,
+         conteo_id, ubicacion_id, operador_id, carga_uid, payload_json, estado
+       ) VALUES (?, ?, 'CARGA_DESDE_PDA', 'VALIDACION_OPERACIONAL', 'ANALISTA_CLIENTE', 2, NULL, NULL, NULL, ?, ?, 'PENDIENTE')
+       ON CONFLICT (carga_uid) DO UPDATE SET
+         payload_json = excluded.payload_json,
+         estado = 'PENDIENTE',
+         error = NULL,
+         intentos = 0,
+         fecha_ultimo_intento = NULL,
+         fecha_envio = NULL`,
+      [
+        input.eventoId, input.pdaId,
+        input.cargaUid, payloadJson,
+      ]
+    );
+    if (isDevMode()) {
+      console.log('[SincronizacionRepo] guardarSyncValidacion', { cargaUid: input.cargaUid });
     }
   }
 

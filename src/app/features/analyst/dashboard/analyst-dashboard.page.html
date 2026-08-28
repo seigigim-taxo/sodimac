@@ -10,252 +10,738 @@
 <ion-content style="--background: var(--app-bg-gradient);">
   <div class="analyst-container">
 
-    @if (!contexto()) {
+    @if (!usuario()) {
       <section class="empty-state">
         <p>No hay datos de muestra disponibles. Inicia sincronización desde el menú.</p>
         <button class="btn btn-primary" (click)="irAHome()">Ir al inicio</button>
       </section>
     }
 
-    @if (contexto(); as ctx) {
+    @if (usuario(); as usr) {
       <section class="context-section">
-        <div class="context-card">
+          <div class="context-card">
           <div class="eyebrow">Jornada activa</div>
           <div class="context-row">
             <div class="context-main">
-              <h2 class="context-store">{{ ctx.codigoTienda }} · {{ ctx.nombreTienda }}</h2>
-              <p class="context-meta">{{ formatearFecha(ctx.fechaJornada) }}</p>
+              <h2 class="context-title">{{ usr.nombreCompleto }}</h2>
+              <p class="context-meta">{{ usr.correo }}</p>
             </div>
-            <div class="context-badge">
-              <span class="pill pill-blue">{{ ctx.numeroAgenda }}</span>
-              <p class="context-meta">Muestra: {{ ctx.nombreMuestra }}</p>
-            </div>
+            @if (contexto(); as ctx) {
+              <div class="context-store-card">
+                <div class="context-store-label">Tienda activa</div>
+                <div class="context-store-main">{{ ctx.codigoTienda }} - {{ ctx.nombreTienda }}</div>
+                <div class="context-store-meta">{{ ctx.numeroAgenda }}</div>
+              </div>
+            }
           </div>
         </div>
       </section>
 
-      @if (kpis(); as kpi) {
-        <section class="kpis-section">
-          <div class="kpis-grid">
-            <div class="kpi-card kpi-critical">
-              <div class="kpi-label">Diferencias pendientes</div>
-              <div class="kpi-value">{{ kpi.diferenciasPendientes }}</div>
-              <div class="kpi-hint">de {{ kpi.totalProductos }} productos</div>
-            </div>
-            <div class="kpi-card kpi-money">
-              <div class="kpi-label">Valor diferencias</div>
-              <div class="kpi-value">{{ formatearValor(kpi.valorDiferencias) }}</div>
-              <div class="kpi-hint">Impacto pendiente de validar</div>
-            </div>
-            <div class="kpi-card kpi-critical">
-              <div class="kpi-label">Diferencias críticas</div>
-              <div class="kpi-value">{{ kpi.diferenciasCriticas }}</div>
-              <div class="kpi-hint">Sobre 5 unidades de diferencia</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Reconteos realizados</div>
-              <div class="kpi-value">{{ kpi.reconteosRealizados }}</div>
-              <div class="kpi-hint">Durante esta validación</div>
-            </div>
-            <div class="kpi-card kpi-ok">
-              <div class="kpi-label">Diferencias resueltas</div>
-              <div class="kpi-value">{{ kpi.diferenciasResueltas }}</div>
-              <div class="kpi-hint">{{ kpi.totalProductos > 0 ? ((kpi.diferenciasResueltas * 100 / kpi.totalProductos) | number:'1.0-0') : 0 }}% del total</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Persisten con diferencia</div>
-              <div class="kpi-value">{{ kpi.persistenConDiferencia }}</div>
-              <div class="kpi-hint">Requieren revisión adicional</div>
-            </div>
+      <!-- ETAPA 1 -->
+      <section class="stage-header stage-header--operacional">
+        <div class="stage-header-content">
+          <div class="stage-number">1</div>
+          <div class="stage-info">
+            <h2 class="stage-title">{{ etapa1Label }}</h2>
+            <p class="stage-objective">{{ etapa1Objetivo }}</p>
           </div>
-        </section>
-      }
+        </div>
+      </section>
 
-      <section class="differences-section">
-        <div class="differences-card">
-          <div class="panel-header">
-            <div>
-              <h3 class="panel-title">Cola de diferencias</h3>
-              <p class="panel-subtitle">{{ filasFiltradas().length }} de {{ filas().length }} productos</p>
-            </div>
-            @if (registros().length > 0) {
-              <div class="sync-badge">
-                <span class="pill pill-green">{{ registrosEnviados().length }} enviados</span>
-                @if (registrosPendientes().length > 0) {
-                  <span class="pill pill-amber">{{ registrosPendientes().length }} pendientes</span>
+      <section class="stages-section">
+        @for (stage of etapa1(); track stage.id) {
+          <div class="stage-card"
+               [class.stage-card--locked]="stage.status === 'BLOQUEADO'"
+               [class.stage-card--completed]="stage.status === 'COMPLETADO'"
+               [class.stage-card--expanded]="stageExpanded() === stage.id">
+            <div class="stage-card-header" (click)="toggleStage(stage.id)">
+              <div class="stage-card-left">
+                <span class="stage-card-number">{{ stage.label }}</span>
+                <div class="stage-card-text">
+                  <h3 class="stage-card-title">{{ stage.title }}</h3>
+                  <p class="stage-card-desc">{{ stage.description }}</p>
+                </div>
+              </div>
+              <div class="stage-card-right">
+                @if (stage.confirmedCount !== undefined) {
+                  <span class="stage-pill stage-pill--confirmed">
+                    <span class="stage-pill-dot stage-pill-dot--confirmed"></span>
+                    {{ stage.confirmedCount }} CONFIRMADOS
+                  </span>
                 }
-                @if (registrosConError().length > 0) {
-                  <span class="pill pill-red">{{ registrosConError().length }} errores</span>
+                @if (stage.pendingCount !== undefined) {
+                  <span class="stage-pill stage-pill--pending">
+                    <span class="stage-pill-dot stage-pill-dot--pending"></span>
+                    {{ stage.pendingCount }} PENDIENTES
+                  </span>
+                }
+                <button class="expand-btn" [class.expand-btn--expanded]="stageExpanded() === stage.id">
+                  +
+                </button>
+              </div>
+            </div>
+
+            @if (stageExpanded() === stage.id) {
+              <div class="stage-card-body">
+                <p class="stage-card-objective">{{ stage.objective }}</p>
+
+                <div class="stage-metrics-grid">
+                  @for (metric of stage.metrics; track metric.label) {
+                    <div class="stage-metric-card" [class]="getMetricToneClass(metric.tone)">
+                      <div class="stage-metric-label">{{ metric.label }}</div>
+                      <div class="stage-metric-value">{{ metric.value }}</div>
+                      @if (metric.hint) {
+                        <div class="stage-metric-hint">{{ metric.hint }}</div>
+                      }
+                    </div>
+                  }
+                </div>
+
+                @if (stage.tagSummaryRows && stage.tagSummaryRows.length > 0) {
+                  <div class="stage-tag-summary-card">
+                    <div class="stage-tag-summary-header">
+                      <h4 class="stage-tag-summary-title">Resumen de TAG utilizados</h4>
+                      <span class="status-badge" [class]="getStageStatusClass(stage.status)">
+                        {{ getStageStatusLabel(stage.status) }}
+                      </span>
+                    </div>
+                    <div class="stage-tag-summary-scroll">
+                      <table class="stage-tag-summary-table">
+                        <thead>
+                          <tr>
+                            <th>TAG</th>
+                            <th>Productos contados</th>
+                            <th class="num">Unidades C1</th>
+                            <th>Operador Taxo</th>
+                            <th class="num">Unidades C2</th>
+                            <th>Analista</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of stage.tagSummaryRows; track row.tag) {
+                            <tr>
+                              <td class="stage-tag-summary-cell--tag">{{ row.tag }}</td>
+                              <td class="stage-tag-summary-cell--products">
+                                @for (product of row.visibleProducts; track product.sku) {
+                                  <div class="stage-tag-product-row">
+                                    <span class="stage-tag-product-sku">{{ product.sku }}</span>
+                                    <span class="stage-tag-product-name">{{ product.product }}</span>
+                                  </div>
+                                }
+                                @if (row.hiddenProductsCount > 0) {
+                                  <button class="stage-tag-more-btn" (click)="openTagProductsModal(row); $event.stopPropagation()">
+                                    Ver todos (+{{ row.hiddenProductsCount }})
+                                  </button>
+                                }
+                              </td>
+                              <td class="num stage-tag-summary-cell--num">{{ row.c1Units }}</td>
+                              <td class="stage-tag-summary-cell--muted">{{ row.taxoOperator }}</td>
+                              <td class="num stage-tag-summary-cell--num">{{ row.c2Units }}</td>
+                              <td class="stage-tag-summary-cell--muted">{{ row.analyst }}</td>
+                              <td>
+                                <span class="status-badge" [class]="getStageStatusClass(row.status)">
+                                  {{ getTagStatusLabel(row.status) }}
+                                </span>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                }
+
+                @if (stage.actionLabel && isStageUnlocked(stage)) {
+                  <div class="stage-action-row">
+                    <button class="btn btn-primary" (click)="abrirValidacion(stage); $event.stopPropagation()">
+                      {{ stage.actionLabel }}
+                    </button>
+                  </div>
                 }
               </div>
             }
           </div>
+        }
+      </section>
 
-          <div class="filters-bar">
-            <input class="filter-control filter-search"
-                   placeholder="Buscar SKU, producto o TAG…"
-                   [value]="filtroBusqueda()"
-                   (input)="filtroBusqueda.set($any($event.target).value)" />
-            <select class="filter-control"
-                    [value]="filtroZona()"
-                    (change)="filtroZona.set($any($event.target).value)">
-              <option value="TODAS">Todas las zonas</option>
-              @for (z of zonasDisponibles(); track z) {
-                <option [value]="z">{{ z }}</option>
-              }
-            </select>
-            <select class="filter-control"
-                    [value]="filtroEstado()"
-                    (change)="filtroEstado.set($any($event.target).value)">
-              <option value="TODOS">Todos los estados</option>
-              @for (e of estadosDisponibles(); track e) {
-                <option [value]="e">{{ e }}</option>
-              }
-            </select>
-            <button class="btn btn-primary" (click)="limpiarFiltros()">Limpiar</button>
-          </div>
+      <!-- SEPARADOR -->
+      <div class="layer-separator">
+        <div class="layer-separator-line"></div>
+        <span class="layer-separator-text">CAMBIO DE CAPA - DESDE AQUÍ SE UTILIZA KARDEX Y VALORIZACIÓN</span>
+        <div class="layer-separator-line"></div>
+      </div>
 
-          <div class="table-container">
-            <table class="diff-table">
-              <thead>
-                <tr>
-                  <th>Prioridad</th>
-                  <th>Zona / TAG</th>
-                  <th>SKU</th>
-                  <th>Producto</th>
-                  <th class="num">1er conteo</th>
-                  <th class="num">Kárdex</th>
-                  <th class="num">Dif. unid.</th>
-                  <th class="num">Dif. $</th>
-                  <th>Estado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (fila of filasFiltradas(); track fila.sku) {
-                  <tr>
-                    <td>
-                      <span class="status-badge"
-                            [class.status-critical]="fila.prioridad === 'ALTA'"
-                            [class.status-pending]="fila.prioridad === 'MEDIA'"
-                            [class.status-low]="fila.prioridad === 'BAJA'">
-                        {{ fila.prioridad }}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{{ fila.zona }}</strong>
-                      <span class="cell-muted">{{ fila.tag }}</span>
-                    </td>
-                    <td class="cell-sku">{{ fila.sku }}</td>
-                    <td class="cell-desc">{{ fila.descripcion }}</td>
-                    <td class="num">{{ fila.cantidadContada }}</td>
-                    <td class="num">{{ fila.stockSistema }}</td>
-                    <td class="num">{{ fila.diferenciaUnidades }}</td>
-                    <td class="num cell-amount">{{ formatearValor(fila.diferenciaValor) }}</td>
-                    <td>
-                      <span class="status-badge"
-                            [class.status-critical]="fila.estado === 'CRITICA'"
-                            [class.status-pending]="fila.estado === 'PENDIENTE'"
-                            [class.status-resolved]="fila.estado === 'SIN_DIFERENCIA'">
-                        {{ fila.estado }}
-                      </span>
-                    </td>
-                    <td>
-                      <button class="btn btn-sm btn-outline" (click)="abrirModal(fila)">Ver</button>
-                    </td>
-                  </tr>
-                }
-                @empty {
-                  <tr>
-                    <td colspan="10" class="empty-row">No se encontraron productos con los filtros seleccionados.</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+      <!-- ETAPA 2 -->
+      <section class="stage-header stage-header--kardex">
+        <div class="stage-header-content">
+          <div class="stage-number">2</div>
+          <div class="stage-info">
+            <h2 class="stage-title">{{ etapa2Label }}</h2>
+            <p class="stage-objective">{{ etapa2Objetivo }}</p>
           </div>
         </div>
       </section>
 
+      <section class="stages-section">
+        @for (stage of etapa2(); track stage.id) {
+          <div class="stage-card"
+               [class.stage-card--locked]="stage.status === 'BLOQUEADO'"
+               [class.stage-card--expanded]="stageExpanded() === stage.id">
+            <div class="stage-card-header" (click)="toggleStage(stage.id)">
+              <div class="stage-card-left">
+                <span class="stage-card-number">{{ stage.label }}</span>
+                <div class="stage-card-text">
+                  <h3 class="stage-card-title">{{ stage.title }}</h3>
+                  <p class="stage-card-desc">{{ stage.description }}</p>
+                </div>
+              </div>
+              <div class="stage-card-right">
+                <span class="status-badge" [class]="getStageStatusClass(stage.status)">
+                  {{ getStageStatusLabel(stage.status) }}
+                </span>
+                <button class="expand-btn" [class.expand-btn--expanded]="stageExpanded() === stage.id">
+                  +
+                </button>
+              </div>
+            </div>
+
+            @if (stageExpanded() === stage.id) {
+              <div class="stage-card-body">
+                <p class="stage-card-objective">{{ stage.objective }}</p>
+
+                <div class="stage-metrics-grid">
+                  @for (metric of stage.metrics; track metric.label) {
+                    <div class="stage-metric-card" [class]="getMetricToneClass(metric.tone)">
+                      <div class="stage-metric-label">{{ metric.label }}</div>
+                      <div class="stage-metric-value">{{ metric.value }}</div>
+                      @if (metric.hint) {
+                        <div class="stage-metric-hint">{{ metric.hint }}</div>
+                      }
+                    </div>
+                  }
+                </div>
+
+                @if (stage.status === 'BLOQUEADO' && stage.lockedReason) {
+                  <div class="locked-callout">
+                    <span class="locked-callout-icon">&#128274;</span>
+                    <p>{{ stage.lockedReason }}</p>
+                  </div>
+                }
+
+                @if (stage.previewRows.length > 0) {
+                  <div class="stage-preview">
+                    <div class="stage-preview-label">Vista previa</div>
+                    @for (row of stage.previewRows; track row.main) {
+                      <div class="stage-preview-row">
+                        <span class="stage-preview-main">{{ row.main }}</span>
+                        <span class="stage-preview-secondary">{{ row.secondary }}</span>
+                        <span class="status-badge" [class]="getStageStatusClass(row.status)">
+                          {{ getStageStatusLabel(row.status) }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (stage.actionLabel && isStageUnlocked(stage)) {
+                  <div class="stage-action-row">
+                    <button class="btn btn-primary" (click)="abrirValidacion(stage); $event.stopPropagation()">
+                      {{ stage.actionLabel }}
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+
       <footer class="footer-note">
-        Mockup funcional · Datos simulados desde el WS para evaluación de interfaz.
+        Flujo Analista - Validación operacional, Pre Variance y Recuento
       </footer>
     }
 
   </div>
 
-  @if (modalAbierto(); as abierto) {
-    <div class="modal-overlay" (click)="cerrarModal()">
+  <!-- MODAL VALIDACIÓN OPERACIONAL -->
+  @if (operationalModal(); as modal) {
+    <div class="modal-overlay analyst-modal-overlay" (click)="closeOperationalModal()">
       <div class="modal-dialog" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3>Reconteo · Perfil Analista</h3>
-          <button class="btn-close" (click)="cerrarModal()">✕</button>
+          <div class="modal-header-text">
+            <h3>{{ modal.title }}</h3>
+            <p>{{ modal.subtitle }}</p>
+          </div>
+          <button class="modal-close" (click)="closeOperationalModal()">&#10005;</button>
         </div>
-        @if (filaSeleccionada(); as fila) {
-          <div class="modal-body">
-            <div class="modal-product-card">
-              <div>
-                <h4>{{ fila.descripcion }}</h4>
-                <p><strong>SKU {{ fila.sku }}</strong> · {{ fila.zona }}</p>
+
+        <div class="modal-body">
+          <div class="rule-box">
+            Regla: primero revise la cantidad inventariada. Use Confirmar si es correcta o Modificar para ingresar una nueva cantidad. Solo se pueden agregar SKU pertenecientes a la muestra vigente.
+          </div>
+
+          <label class="operational-search-label">{{ operationalTagLabel() }}</label>
+          <div class="operational-tag-search">
+            <span class="operational-tag-prefix">TAG</span>
+            <input
+              class="operational-tag-input"
+              type="text"
+              inputmode="numeric"
+              [placeholder]="modal.stageId === 'altillos' ? 'Ej: 1000' : 'Ej: 2000'"
+              [value]="operationalTagSearch()"
+              (input)="updateOperationalTagSearch($any($event.target).value)"
+              (keydown.enter)="searchOperationalTag()" />
+            <button class="operational-tag-clear" (click)="clearOperationalTagSearch()">&#10005;</button>
+          </div>
+          <p class="operational-search-hint">{{ operationalTagHint() }}</p>
+
+          @if (tagResult(); as result) {
+            <div class="tag-summary-card">
+              <div class="tag-summary-top">
+                <h4>{{ result.tagTitle }}</h4>
+                <p>{{ result.tagDescription }}</p>
               </div>
-              <div class="modal-impact">
-                <strong>{{ formatearValor(fila.diferenciaValor) }}</strong>
-                <span>Impacto diferencia</span>
+              <div class="tag-summary-stats">
+                <span class="product-count">{{ result.productCount }}</span>
+              </div>
+              <div class="modal-counters">
+                <span class="counter counter--ok">Confirmados {{ result.confirmedCount }}</span>
+                <span class="counter counter--warning">Pendientes de confirmar {{ result.pendingCount }}</span>
               </div>
             </div>
 
-            <div class="modal-metrics">
-              <div class="modal-metric">
-                <label>PRIMER CONTEO</label>
-                <strong>{{ fila.cantidadContada }}</strong>
-              </div>
-              <div class="modal-metric">
-                <label>KÁRDEX / LÓGICO</label>
-                <strong>{{ fila.stockSistema }}</strong>
-              </div>
-              <div class="modal-metric">
-                <label>DIFERENCIA</label>
-                <strong>{{ fila.diferenciaUnidades }}</strong>
-              </div>
-            </div>
+            <input
+              class="modal-filter"
+              placeholder="Filtrar SKU o descripcion dentro de este TAG..."
+              [value]="operationalProductSearch()"
+              (input)="operationalProductSearch.set($any($event.target).value)" />
 
-            <div class="modal-tags-section">
-              <label class="modal-section-label">TAGs donde fue encontrado</label>
-              @for (tag of fila.tags; track tag.tagCodigo) {
-                <button class="tag-option"
-                        [class.tag-selected]="tagSeleccionado()?.tagCodigo === tag.tagCodigo"
-                        (click)="seleccionarTag(tag)">
-                  <span class="tag-zona">{{ tag.zonaNombre }}</span>
-                  <span class="tag-codigo">{{ tag.ubicacionCodigo }}</span>
-                  <span class="tag-cantidad">Contado: {{ tag.cantidadOperador }}</span>
-                </button>
-              }
-            </div>
-
-            @if (tagSeleccionado(); as tag) {
-              <div class="modal-input-section">
-                <label class="modal-section-label">Cantidad encontrada en {{ tag.ubicacionCodigo }}</label>
-                <input type="number"
-                       class="modal-input"
-                       [value]="cantidadAnalista()"
-                       (input)="onCantidadChange($event)"
-                       placeholder="Nuevo conteo"
-                       min="0" />
+            @if (result.products.length > 0) {
+              <div class="operational-table-container">
+                <table class="operational-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Producto</th>
+                      <th class="num">Cantidad inventariada</th>
+                      <th>Estado</th>
+                      <th>Acción</th>
+                      @if (hasModifiedOperationalProducts()) {
+                        <th class="num">Nueva cantidad</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (product of result.products; track product.sku) {
+                      <tr [class.row-selected]="product.isSelected" [class.row-confirmed]="product.selectionDecision === 'CONFIRMAR'" [class.row-modified]="product.selectionDecision === 'MODIFICAR'">
+                        <td class="cell-sku">{{ product.sku }}</td>
+                        <td class="cell-desc">{{ product.product }}</td>
+                        <td class="num">{{ product.quantity }}</td>
+                        <td>
+                          <span class="product-status" [class.product-status--confirmed]="product.status === 'CONFIRMADO'" [class.product-status--pending]="product.status === 'PENDIENTE'">
+                            {{ product.status }}
+                          </span>
+                        </td>
+                      <td>
+                        <div class="row-actions">
+                          @if (isAltillosModal()) {
+                            <button class="btn-action" [class.btn-action--active]="product.selectionDecision === 'CONFIRMAR'" (click)="confirmProduct(product.sku, product.quantity)">Confirmar</button>
+                            <button class="btn-action btn-action-secondary" [class.btn-action--active]="product.selectionDecision === 'MODIFICAR'" (click)="modifyProduct(product.sku, product.newQuantity)">Modificar</button>
+                          } @else {
+                            <button class="btn-action" disabled>Confirmar</button>
+                            <button class="btn-action btn-action-secondary" disabled>Modificar</button>
+                          }
+                        </div>
+                      </td>
+                      @if (hasModifiedOperationalProducts()) {
+                        <td class="num">
+                          @if (product.isEditingQuantity) {
+                            <input class="quantity-input" type="number" [value]="product.newQuantity"
+                              (input)="updateDraftQuantity(product.sku, $any($event.target).value)" />
+                          } @else {
+                            <input class="quantity-input" type="number" [value]="product.newQuantity" readonly disabled />
+                          }
+                        </td>
+                      }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <div class="empty-tag-message">
+                No hay productos para el filtro aplicado.
               </div>
             }
 
-            <div class="modal-note">
-              La captura queda disponible localmente si el dispositivo pierde conexión. Los conflictos de sincronización se resolverán en servidor.
+            <div class="add-sku-section">
+              <button class="btn-add-sku" (click)="toggleAddSku()" disabled>
+                + Incorporar SKU
+              </button>
+
+              @if (showAddSku()) {
+                <div class="add-sku-panel">
+                  <h4>Incorporar SKU de la muestra</h4>
+                  <p>Elija si desea incorporarlo en el TAG actual o cargar otro TAG de la misma etapa. Los SKU fuera de muestra no se muestran ni se contabilizan.</p>
+                  <div class="add-sku-options">
+                    <label class="radio-option">
+                      <input type="radio" name="addSku" value="mismo" checked />
+                      <span>Mismo TAG</span>
+                    </label>
+                    <label class="radio-option">
+                      <input type="radio" name="addSku" value="otro" />
+                      <span>Otro TAG</span>
+                    </label>
+                  </div>
+                  <div class="add-sku-input-row">
+                    <input class="add-sku-input" placeholder="Ingrese SKU o descripción" readonly />
+                    <button class="btn btn-secondary" (click)="toggleAddSku()">Cerrar</button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (operationalTagNotFound()) {
+            <div class="empty-tag-message">
+              No encontramos ese TAG en esta etapa.
+            </div>
+          }
+
+          @if (tagResult()) {
+            @if (isAltillosModal()) {
+              <div class="modal-readonly-note">
+                Confirme o modifique cada producto. Los cambios se guardan localmente y se envían al servidor.
+              </div>
+            } @else {
+              <div class="modal-readonly-note">
+                Las acciones de edición y guardado se habilitarán en A0.11.
+              </div>
+            }
+          }
+        </div>
+
+        <div class="modal-footer">
+          @if (operationalSaveError()) {
+            <span class="modal-save-error">{{ operationalSaveError() }}</span>
+          }
+          @if (!isAltillosModal()) {
+            <span class="modal-save-info">Punto de Venta se habilitará en A0.11</span>
+          }
+          <button class="btn btn-secondary" (click)="closeOperationalModal()">Cancelar</button>
+          @if (isAltillosModal()) {
+            <button class="btn btn-primary"
+              [disabled]="!hasOperationalChanges() || operationalSaving()"
+              (click)="saveOperationalValidation()">
+              {{ operationalSaving() ? 'Guardando...' : 'Guardar validación' }}
+            </button>
+          } @else {
+            <button class="btn btn-primary" disabled>Guardar validación</button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL PRE VARIANCE -->
+  @if (preVarianceModal(); as pvModal) {
+    <div class="modal-overlay analyst-modal-overlay" (click)="closePreVarianceModal()">
+      <div class="modal-dialog modal-dialog--wide" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-header-text">
+            <h3>{{ pvModal.title }}</h3>
+            <p>{{ pvModal.subtitle }}</p>
+          </div>
+          <button class="modal-close" (click)="closePreVarianceModal()">&#10005;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="rule-box">
+            Revisión contra Kardex: aquí se muestra teórico e impacto valorizado. La zona se mantiene según la ubicación contada; si excepcionalmente necesita corregirla, use Cambiar.
+          </div>
+
+          <div class="variance-summary-grid">
+            <div class="variance-metric">
+              <div class="variance-metric-label">Teórico Kardex</div>
+              <div class="variance-metric-value">{{ pvModal.kardex }}</div>
+            </div>
+            <div class="variance-metric">
+              <div class="variance-metric-label">Costo unitario</div>
+              <div class="variance-metric-value">{{ pvModal.unitCost }}</div>
+            </div>
+            <div class="variance-metric variance-metric--danger">
+              <div class="variance-metric-label">Diferencia actual</div>
+              <div class="variance-metric-value">{{ pvModal.currentDifference }}</div>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" (click)="cerrarModal()">Cancelar</button>
-            <button class="btn btn-primary"
-                    [disabled]="!tagSeleccionado() || cantidadAnalista() <= 0 || enviando()"
-                    (click)="registrarConteo()">
-              {{ enviando() ? 'Enviando...' : 'Registrar conteo' }}
-            </button>
+
+          <div class="variance-section">
+            <h4 class="variance-section-title">Ubicaciones del SKU</h4>
+            <p class="variance-section-desc">Las ubicaciones se muestran en una lista compacta, similar a las otras validaciones. La zona no se edita directamente.</p>
           </div>
-        }
+
+          <div class="variance-counters">
+            <span class="counter counter--ok">Confirmados {{ pvModal.confirmedLocations }}</span>
+            <span class="counter counter--warning">Pendientes de confirmar {{ pvModal.pendingLocations }}</span>
+          </div>
+
+          <div class="variance-table-container">
+            <table class="variance-table">
+              <thead>
+                <tr>
+                  <th>Origen</th>
+                  <th>Zona</th>
+                  <th>TAG</th>
+                  <th class="num">Cantidad inventariada</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                  <th class="num">Nueva cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (loc of pvModal.locations; track loc.tag) {
+                  <tr>
+                    <td>
+                      <div class="location-origin">
+                        <span class="location-origin-badge">&#9679; Contado</span>
+                        <span class="location-origin-sub">Ubicación {{ $index + 1 }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="location-zone">
+                        <strong>{{ loc.zone }}</strong>
+                        <span class="location-zone-sub">TAG {{ loc.tag }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <input class="tag-input" [value]="loc.tag" readonly />
+                    </td>
+                    <td class="num">{{ loc.quantity }}</td>
+                    <td>
+                      <span class="product-status product-status--confirmed">{{ loc.status }}</span>
+                    </td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="btn-action btn-action-secondary" disabled>Cambiar</button>
+                        <button class="btn-action" disabled>Confirmar</button>
+                        <button class="btn-action btn-action-secondary" disabled>Modificar</button>
+                      </div>
+                    </td>
+                    <td class="num">
+                      <input class="quantity-input" type="number" [value]="loc.newQuantity" readonly disabled />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <button class="btn-add-sku" disabled>+ Agregar otra ubicación</button>
+
+          <div class="variance-observation">
+            <label class="variance-observation-label">Observación del analista</label>
+            <textarea class="textarea-observation" rows="3" placeholder="Explique diferencias, situaciones detectadas o antecedentes relevantes para el informe."></textarea>
+            <p class="variance-observation-hint">La observación se habilitará cuando se implemente la escritura en A0.10.</p>
+          </div>
+        </div>
+
+          <div class="modal-readonly-note">
+            Filtros y selección de Pre Variance se implementarán en A0.9.3. Escrituras en A0.10.
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closePreVarianceModal()">Cancelar</button>
+            <button class="btn btn-primary" disabled>Guardar revisión de Pre Variance</button>
+          </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL RECUENTO -->
+  @if (recountModal(); as rcModal) {
+    <div class="modal-overlay analyst-modal-overlay" (click)="closeRecountModal()">
+      <div class="modal-dialog modal-dialog--wide" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-header-text">
+            <h3>{{ rcModal.title }}</h3>
+            <p>{{ rcModal.subtitle }}</p>
+          </div>
+          <button class="modal-close" (click)="closeRecountModal()">&#10005;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="rule-box">
+            Revise las diferencias restantes o amplíe temporalmente el universo a todas las diferencias. El resultado se registra como Conteo 3.
+          </div>
+
+          <div class="recount-summary-grid">
+            <div class="recount-metric">
+              <div class="recount-metric-label">Restantes</div>
+              <div class="recount-metric-value recount-metric-value--warning">{{ rcModal.remaining }}</div>
+              <div class="recount-metric-hint">Diferencias por revisar</div>
+            </div>
+            <div class="recount-metric">
+              <div class="recount-metric-label">Recontados</div>
+              <div class="recount-metric-value">{{ rcModal.recounted }}</div>
+              <div class="recount-metric-hint">Aún sin recuento</div>
+            </div>
+            <div class="recount-metric">
+              <div class="recount-metric-label">Conteo</div>
+              <div class="recount-metric-value recount-metric-value--purple">{{ rcModal.countNumber }}</div>
+              <div class="recount-metric-hint">Registro resultante</div>
+            </div>
+            <div class="recount-metric">
+              <div class="recount-metric-label">Mayor diferencia</div>
+              <div class="recount-metric-value recount-metric-value--danger">{{ rcModal.largestDifference }}</div>
+              <div class="recount-metric-hint">Dif. en costo maxima</div>
+            </div>
+          </div>
+
+          <div class="recount-filters">
+            <div class="recount-filter">
+              <label class="recount-filter-label">UNIVERSO</label>
+              <select class="recount-filter-control" disabled>
+                <option>Diferencias restantes</option>
+              </select>
+            </div>
+            <div class="recount-filter">
+              <label class="recount-filter-label">SKU / PRODUCTO</label>
+              <input class="recount-filter-control" placeholder="Buscar SKU o descripción" readonly disabled />
+            </div>
+            <div class="recount-filter">
+              <label class="recount-filter-label">TIPO DIFERENCIA</label>
+              <select class="recount-filter-control" disabled>
+                <option>Todos</option>
+              </select>
+            </div>
+            <div class="recount-filter">
+              <label class="recount-filter-label">DIF. EN COSTO DESDE</label>
+              <input class="recount-filter-control" placeholder="$ mínimo" readonly disabled />
+            </div>
+            <div class="recount-filter">
+              <label class="recount-filter-label">DIF. EN COSTO HASTA</label>
+              <input class="recount-filter-control" placeholder="$ máximo" readonly disabled />
+            </div>
+            <div class="recount-filter">
+              <label class="recount-filter-label">COSTO UNITARIO DESDE</label>
+              <input class="recount-filter-control" placeholder="$ mínimo" readonly disabled />
+            </div>
+            <div class="recount-filter recount-filter--action">
+              <button class="btn btn-secondary" disabled>Limpiar filtros</button>
+            </div>
+          </div>
+
+          <div class="recount-meta-row">
+            <span class="recount-meta-count">{{ rcModal.remaining }} registros visibles</span>
+            <span class="recount-meta-note">Los filtros solo cambian la vista; no alteran los datos guardados.</span>
+          </div>
+
+          <div class="recount-table-container">
+            <table class="recount-table">
+              <thead>
+                <tr>
+                  <th>SKU / Producto</th>
+                  <th class="num">Físico actual</th>
+                  <th class="num">Teórico</th>
+                  <th class="num">Dif. unid.</th>
+                  <th class="num">Costo unit.</th>
+                  <th class="num">Dif. en costo</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of rcModal.rows; track row.sku) {
+                  <tr>
+                    <td>
+                      <div class="recount-product">
+                        <span class="recount-product-name">{{ row.sku }}</span>
+                        <span class="recount-product-desc">{{ row.product }}</span>
+                      </div>
+                    </td>
+                    <td class="num">{{ row.physical }}</td>
+                    <td class="num">{{ row.theoretical }}</td>
+                    <td class="num">{{ row.unitDifference }}</td>
+                    <td class="num">{{ row.unitCost }}</td>
+                    <td class="num">{{ row.costDifference }}</td>
+                    <td>
+                      <span class="recount-status">{{ row.status }}</span>
+                    </td>
+                    <td>
+                      <button class="btn-recount" disabled>Recontar</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-readonly-note">
+            Filtros de Recuento se implementarán en A0.9.3. Escrituras en A0.10.
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeRecountModal()">Cancelar</button>
+          <button class="btn btn-primary" disabled>Cerrar recuento</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL PRODUCTOS ACUMULADOS POR TAG -->
+  @if (tagProductsModal(); as tpModal) {
+    <div class="modal-overlay analyst-modal-overlay" (click)="closeTagProductsModal()">
+      <div class="modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-header-text">
+            <h3>TAG {{ tpModal.tagNumber }} - Productos contados</h3>
+            <p>Lista completa de productos acumulados en este TAG.</p>
+          </div>
+          <button class="modal-close" (click)="closeTagProductsModal()">&#10005;</button>
+        </div>
+
+        <div class="modal-body">
+          @if (tpModal.products.length > 0) {
+            <div class="tag-products-table-container">
+              <table class="tag-products-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th class="num">Unidades C1</th>
+                    <th class="num">Unidades C2</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (product of tpModal.products; track product.sku) {
+                    <tr>
+                      <td class="tag-products-cell--sku">{{ product.sku }}</td>
+                      <td>{{ product.product }}</td>
+                      <td class="num">{{ product.c1Units }}</td>
+                      <td class="num">{{ product.c2Units }}</td>
+                      <td>
+                        <span class="status-badge" [class]="getStageStatusClass(product.status)">
+                          {{ getTagStatusLabel(product.status) }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="empty-tag-message">
+              No hay productos registrados para este TAG.
+            </div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeTagProductsModal()">Cerrar</button>
+        </div>
       </div>
     </div>
   }

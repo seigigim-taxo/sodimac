@@ -7,16 +7,23 @@ import { EVENTO_REPOSITORY_TOKEN, EventoParaGuardar } from '../../domain/evento/
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
+import { VALIDACION_REPOSITORY_TOKEN } from '../../domain/validacion/repositories/validacion.repository';
+import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/repositories/pre-variance.repository';
+import { RECUENTO_REPOSITORY_TOKEN } from '../../domain/recuento/repositories/recuento.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
-import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, UsuarioPreparado } from '../../domain/sincronizacion/models/preparacion.model';
+import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, PreVarianceAnalista, RecuentoAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
 type EstadoEvento = Evento['estado'];
 import { Session } from '../../domain/auth/models/session.model';
-import { partirRut } from '../../domain/auth/utils/rut.utils';
 import { CLAVE_ULTIMA_PREPARACION, META_REPOSITORY_TOKEN } from '../../domain/meta/repositories/meta.repository';
 import { hoySql } from '../../shared/utils/fecha.utils';
+import {
+  JornadaValidacionParaGuardar,
+  BloqueValidacionParaGuardar,
+} from '../../domain/validacion/repositories/validacion.repository';
+import { partirRut } from '../../domain/auth/utils/rut.utils';
 
 /*
  * Sincronización inicial: descarga los datos del backend y los escribe en
@@ -36,6 +43,9 @@ export class SincronizarDatosInicialesUseCase {
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private muestraDetalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
   private zonaRepo = inject(ZONA_REPOSITORY_TOKEN);
+  private validacionRepo = inject(VALIDACION_REPOSITORY_TOKEN);
+  private preVarianceRepo = inject(PRE_VARIANCE_REPOSITORY_TOKEN);
+  private recuentoRepo = inject(RECUENTO_REPOSITORY_TOKEN);
   private sqlite = inject(SqliteConnectionService);
   private metaRepo = inject(META_REPOSITORY_TOKEN);
 
@@ -99,7 +109,12 @@ export class SincronizarDatosInicialesUseCase {
       }))
     );
 
-    await this.guardarEventoYMuestra(datos);
+    if (usuario.tipoUsuario === 'ANALISTA_CLIENTE' && datos.analista) {
+      await this.guardarFlujoAnalista(datos, session.operadorId);
+    } else {
+      await this.guardarEventoYMuestra(datos);
+    }
+
     await this.guardarZonas(datos);
     await this.logDatabase();
 
@@ -117,22 +132,10 @@ export class SincronizarDatosInicialesUseCase {
     return { usuario, analista: datos.analista };
   }
 
-  /*
-   * La cadena es sucursal → evento → muestra, y cada eslabón es FK del
-   * siguiente. Si falta alguno de los datos, se corta sin escribir nada: es
-   * preferible una tienda sin evento a un evento con fecha inventada.
-   */
-  /*
-   * Qué evento local le corresponde a esta preparación.
-   *
-   * La identidad es la MUESTRA, no el día: una tienda puede tener varias
-   * asignaciones el mismo día y cada operador recibe la suya. Identificando el
-   * evento por (sucursal, fecha) —como se hacía antes— la asignación del
-   * segundo operador caía sobre el evento del primero.
-   *
-   * Sin muestra en la preparación no hay identidad que usar y se conserva el
-   * comportamiento anterior.
-   */
+  /* ========================================================================
+     FLUJO OPERADOR — se mantiene igual: evento + muestra + detalle productos
+     ======================================================================== */
+
   private async resolverEvento(
     datos: DatosPreparacion, sucursalId: number, evento: EventoParaGuardar
   ): Promise<number> {
@@ -154,10 +157,6 @@ export class SincronizarDatosInicialesUseCase {
     const evento = datos.evento;
     if (!tienda || !evento?.fechaProgramada) return;
 
-    /*
-     * El `sucursal_id` que manda el backend es suyo (48). El id local sale de
-     * traducir el código de tienda, que es la identidad compartida.
-     */
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
     if (sucursalId === null) return;
 
@@ -192,11 +191,152 @@ export class SincronizarDatosInicialesUseCase {
     console.log('[Sincronizar] Detalles guardados exitosamente');
   }
 
-  /*
-   * Las zonas vienen como tuplas [codigo, descripcion]. El codigo es el nombre
-   * de zona (VENTA, BODEGA, etc.) y la descripcion es su etiqueta para el
-   * operador. Se crea la zona ligada a la sucursal.
-   */
+  /* ========================================================================
+     FLUJO ANALISTA — preparación liviana: evento + validacion_operacional
+     No guarda muestra ni productos completos.
+     ======================================================================== */
+
+  private async guardarFlujoAnalista(datos: DatosPreparacion, operadorId: number): Promise<void> {
+    const tienda = datos.tiendas[0];
+    const evento = datos.evento;
+    if (!tienda || !evento?.fechaProgramada) return;
+
+    const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
+    if (sucursalId === null) return;
+
+    // Guardar evento liviano
+    const eventoId = await this.eventoRepo.asegurarEvento({
+      sucursalId,
+      fechaProgramada: evento.fechaProgramada,
+      estado: evento.estado as EstadoEvento,
+      nombre: datos.analista?.contexto?.nombreMuestra ?? '',
+    });
+
+    console.log('[SincronizarAnalista] Evento ID:', eventoId);
+
+    // Guardar validacion_operacional (altillos + punto_venta) en sod_validacion_*
+    if (datos.analista?.validacionOperacional) {
+      const va = datos.analista.validacionOperacional;
+      const ctx = datos.analista.contexto;
+
+      const bloques: BloqueValidacionParaGuardar[] = [];
+      if (va.altillos) {
+        bloques.push(this.mapearBloque('ALTILLOS', va.altillos));
+      }
+      if (va.puntoVenta) {
+        bloques.push(this.mapearBloque('PUNTO_VENTA', va.puntoVenta));
+      }
+
+      if (bloques.length > 0) {
+        const input: JornadaValidacionParaGuardar = {
+          eventoId,
+          sucursalId,
+          idAgenda: ctx.idAgenda,
+          numeroAgenda: ctx.numeroAgenda,
+          codigoMuestra: ctx.codigoMuestra,
+          nombreMuestra: ctx.nombreMuestra,
+          fechaJornada: ctx.fechaJornada,
+          bloques,
+        };
+
+        const jornadaId = await this.validacionRepo.reemplazarJornada(input);
+        console.log('[SincronizarAnalista] Jornada validacion ID:', jornadaId);
+
+        // Persistir Pre Variance en tablas propias
+        if (va.preVariance && va.preVariance.productos.length > 0) {
+          await this.preVarianceRepo.reemplazarPreVariance({
+            jornadaId,
+            productos: va.preVariance.productos.map(p => ({
+              idProductoBackend: p.idProductoBackend,
+              sku: p.sku,
+              descripcion: p.descripcion,
+              stockTeorico: p.stockTeorico,
+              valorUnitario: p.valorUnitario,
+              inventariadoAntesPreVariance: p.inventariadoAntesPreVariance,
+              fisicoVigente: p.fisicoVigente,
+              diferenciaUnidades: p.diferenciaUnidades,
+              diferenciaEnCosto: p.diferenciaEnCosto,
+              estadoPreVariance: p.estadoPreVariance,
+              ubicaciones: p.ubicaciones.map(u => ({
+                idTagBackend: u.idTagBackend,
+                numeroTag: u.numeroTag,
+                zona: u.zona,
+                cantidadInventariada: u.cantidadInventariada,
+                cantidadPreVariance: u.cantidadPreVariance,
+              })),
+            })),
+          });
+          console.log('[SincronizarAnalista] Pre Variance guardado:', va.preVariance.productos.length, 'SKUs');
+        }
+
+        // Persistir Recuento en tablas propias
+        if (va.recuento && va.recuento.productos.length > 0) {
+          await this.recuentoRepo.reemplazarRecuento({
+            jornadaId,
+            productos: va.recuento.productos.map(p => ({
+              idProductoBackend: p.idProductoBackend,
+              sku: p.sku,
+              descripcion: p.descripcion,
+              stockTeorico: p.stockTeorico,
+              valorUnitario: p.valorUnitario,
+              fisicoActual: p.fisicoActual,
+              diferenciaUnidades: p.diferenciaUnidades,
+              diferenciaEnCosto: p.diferenciaEnCosto,
+              esPreVariance: p.esPreVariance,
+              estadoRecuento: p.estadoRecuento,
+              ubicaciones: p.ubicaciones.map(u => ({
+                idTagBackend: u.idTagBackend,
+                numeroTag: u.numeroTag,
+                zona: u.zona,
+                cantidadInventariada: u.cantidadInventariada,
+                cantidadRecuento: u.cantidadRecuento,
+              })),
+            })),
+          });
+          console.log('[SincronizarAnalista] Recuento guardado:', va.recuento.productos.length, 'SKUs');
+        }
+      }
+    }
+  }
+
+  private mapearBloque(tipoValidacion: string, bloque: ValidacionBloqueAnalista): BloqueValidacionParaGuardar {
+    return {
+      tipoValidacion,
+      codigoZona: bloque.resumen.codigoZona,
+      nombreZona: bloque.resumen.nombreZona,
+      objetivoPorcentaje: bloque.resumen.objetivoPorcentaje,
+      tagsUsados: bloque.resumen.tagsUsados,
+      tagsConfirmados: bloque.resumen.tagsConfirmados,
+      tagsPendientes: bloque.resumen.tagsPendientes,
+      porcentaje: bloque.resumen.porcentaje,
+      cumple: bloque.resumen.cumple,
+      tags: bloque.tags.map(t => ({
+        idTagBackend: t.idTagBackend,
+        numeroTag: t.numeroTag,
+        codigoZona: t.codigoZona,
+        nombreZona: t.nombreZona,
+        productosTotal: t.productosTotal,
+        productosConfirmados: t.productosConfirmados,
+        estadoValidacion: t.estadoValidacion,
+      })),
+      productos: bloque.productos.map(p => ({
+        idTagBackend: p.idTagBackend,
+        numeroTag: p.numeroTag,
+        idProductoBackend: p.idProductoBackend,
+        sku: p.sku,
+        descripcion: p.descripcion,
+        cantidadInventariada: p.cantidadInventariada,
+        cantidadAnalista: p.cantidadAnalista,
+        estadoValidacion: p.estadoValidacion,
+        flIncorporado: p.flIncorporado,
+      })),
+    };
+  }
+
+  /* ========================================================================
+     COMÚN
+     ======================================================================== */
+
   private async guardarZonas(datos: DatosPreparacion): Promise<void> {
     const tienda = datos.tiendas[0];
     if (!tienda) return;

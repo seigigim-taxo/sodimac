@@ -61,6 +61,12 @@ import { AuthService } from './app/data/auth/auth.service';
 import { CapacitorSessionStorageRepository } from './app/data/auth/session-storage.repository';
 import { SqliteOperadorRepository } from './app/data/auth/operador.repository';
 import { SqliteSucursalRepository } from './app/data/sucursal/sucursal.repository';
+import { VALIDACION_REPOSITORY_TOKEN } from './app/domain/validacion/repositories/validacion.repository';
+import { SqliteValidacionRepository } from './app/data/validacion/validacion.repository';
+import { PRE_VARIANCE_REPOSITORY_TOKEN } from './app/domain/pre-variance/repositories/pre-variance.repository';
+import { SqlitePreVarianceRepository } from './app/data/pre-variance/pre-variance.repository';
+import { RECUENTO_REPOSITORY_TOKEN } from './app/domain/recuento/repositories/recuento.repository';
+import { SqliteRecuentoRepository } from './app/data/recuento/recuento.repository';
 
 /*
  * DB must complete before Auth or PDA query SQLite.
@@ -168,5 +174,8 @@ bootstrapApplication(AppComponent, {
     { provide: ACTUALIZACION_API_REPOSITORY_TOKEN, useClass: ActualizacionApiService },
     { provide: DESCARGA_REPOSITORY_TOKEN,          useClass: CapacitorDescargaService },
     { provide: INSTALADOR_REPOSITORY_TOKEN,        useClass: CapacitorInstaladorService },
+    { provide: VALIDACION_REPOSITORY_TOKEN,     useClass: SqliteValidacionRepository },
+    { provide: PRE_VARIANCE_REPOSITORY_TOKEN,  useClass: SqlitePreVarianceRepository },
+    { provide: RECUENTO_REPOSITORY_TOKEN,      useClass: SqliteRecuentoRepository },
   ],
 });

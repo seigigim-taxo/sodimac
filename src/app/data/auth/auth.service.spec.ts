@@ -49,7 +49,7 @@ describe('AuthService', () => {
     const response = await service.login(request);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      jasmine.stringContaining('/auth/login.php'),
+      jasmine.stringContaining('/auth/login_dev.php'),
       jasmine.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

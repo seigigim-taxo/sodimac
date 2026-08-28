@@ -2,6 +2,10 @@
 
 Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or default tooling, it is omitted.
 
+## Collaboration rules
+
+- Do not generate an implementation prompt unless the user explicitly asks for one. When the user asks for a prompt, generate it then and only then.
+
 ## Project kind
 
 - Ionic Angular **standalone** app (`ionic.config.json` → `"type": "angular-standalone"`).
@@ -15,7 +19,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Task | Command |
 |------|---------|
 | Dev server | `npm start` (serves the `development` configuration by default) |
-| Dev server (mock WS) | `ng serve --configuration=develop_ws` (uses `preparacion_ws.php` mock endpoint) |
+| Dev server (mockup) | `npm run start:mockup` (uses `login_mockup.php` + `preparacion_mockup.php`) |
 | Production build | `npm run build` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
@@ -28,7 +32,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Build + sync native assets | `npm run build` then `npx cap sync` |
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
-- `angular.json` defines a `develop_ws` configuration that swaps `environment.ts` → `environment.develop-ws.ts` (mock preparacion endpoint).
+- `angular.json` defines a `dev_mockup` configuration that swaps `environment.ts` → `environment.dev-mockup.ts` (login_mockup + preparacion_mockup endpoints).
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error.
 
@@ -59,6 +63,15 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - `counting-tag` (tag/zone selection), `counting` (working screen), and `tags-resumen` (summary) are the three counting pages.
 - `WriteQueue` (`src/app/core/utils/`) serializes concurrent SQLite writes from the counting UI.
 
+## Analyst validation flow
+
+- `AnalystDashboardFacade.guardarValidacionAltillosTag()` is the single entry point for saving analyst validations.
+- Flow: save local SQLite → sync WS → reload local data.
+- `SincronizarValidacionAnalistaUseCase` handles the WS sync via `sincronizaciones/validacion-analista.php`.
+- Local persistence: updates `sod_validacion_producto`, `sod_validacion_tag`, `sod_validacion_bloque` in a single transaction.
+- Sync queue: `sod_sincronizacion` with `operacion = 'VALIDACION_OPERACIONAL'`, `perfil = 'ANALISTA_CLIENTE'`.
+- UI: only Altillos is enabled in A0.10. Punto de Venta remains disabled until A0.11.
+
 ## Auth flow
 
 - `AuthFacade` (`src/app/state/auth/`) is the single public API: exposes `session`, `loading`, `error`, `isAuthenticated`, and `wasOfflineLogin` signals.
@@ -72,12 +85,28 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - Base URL is configured in `src/environments/environment.ts` and `environment.prod.ts` (`apiUrl`).
   - All environments: `http://50.16.13.230/app/ws/sodimac/api`
-  - `develop_ws` config: same base URL but `preparacionEndpoint` points to `preparacion_ws.php` (mock) instead of `preparacion.php`.
+  - `dev_mockup` config: same base URL but `authEndpoint` → `login_mockup.php` and `preparacionEndpoint` → `preparacion_mockup.php`.
 - `ApiService` (`src/app/core/http/api.service.ts`) unwraps `{ status: 'OK' | 'ERROR', msg, data }` and throws on `ERROR` or missing `data`.
 - `auth/login.php` is authentication-only. It must not prepare, mix, or return operational data.
-- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_ws.php` for mock), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
+- Operational PDA data must be downloaded through `preparacion.php` (or `preparacion_mockup.php` for dev_mockup), which returns a SQLite-ready contract. The endpoint is resolved from `environment.preparacionEndpoint`.
 - The WS may use internal queries to resolve user, store, agenda, sample, products, codes, and zones, but must deliver a clean, stable contract to the APK.
 - CORS is handled server-side; for local dev/Android the backend must be reachable on the IP used in `environment.ts`.
+
+## Validación Operacional (Analista)
+
+- Endpoint: `sincronizaciones/validacion-analista.php` (POST).
+- Implementa Q13 + Q14: crear/obtener Conteo 2 `VALIDACION` y guardar confirmaciones/modificaciones de Altillos/PDV.
+- Payload: `{ id_agenda, modo: 'TAG', tipo: 'ALTILLO'|'PDV', id_tag, login, motivo, items: [{ id_producto, decision, cantidad, uuid }] }`.
+- Reglas: `CONFIRMAR` = cantidad inventariada actual; `MODIFICAR` = nueva cantidad completa. No es ajuste +/-.
+- Backend guarda en transacción, marca versión anterior `SGO_ANALISTA` como `REEMPLAZADO` y crea nueva `VIGENTE`.
+- Dispositivo: `APP_ANALISTA`. Origen: `SGO_ANALISTA`.
+- Retry reutiliza el mismo `uuid` para idempotencia.
+- Cola local: `sod_sincronizacion` con `operacion = 'VALIDACION_OPERACIONAL'`, `perfil = 'ANALISTA_CLIENTE'`.
+- Use case: `SincronizarValidacionAnalistaUseCase` (`src/app/application/sincronizacion/`).
+- Repo sync: `guardarSyncValidacion()` en `SincronizacionRepository`.
+- Repo validación: `guardarValidacionTag()` en `ValidacionRepository` (actualiza `sod_validacion_producto`, `sod_validacion_tag`, `sod_validacion_bloque`).
+- Facade: `AnalystDashboardFacade.guardarValidacionAltillosTag()`.
+- UI: solo habilitado para Altillos. Punto de Venta queda deshabilitado hasta A0.11.
 
 ## PDA preparation contract
 
@@ -146,23 +175,36 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 ## Environment / build
 
-- Environment files in `src/environments/`: `environment.ts` (dev), `environment.prod.ts`, `environment.develop-ws.ts` (mock WS).
+- Environment files in `src/environments/`:
+  - `environment.ts` (development, uses `login_dev.php` + `preparacion_dev.php`)
+  - `environment.prod.ts` (production, uses `login.php` + `preparacion.php`)
+  - `environment.dev-mockup.ts` (mockup analista/operador, uses `login_mockup.php` + `preparacion_mockup.php`)
 - Production build replaces `environment.ts` with `environment.prod.ts` via `angular.json` `fileReplacements`.
-- `develop_ws` build replaces `environment.ts` with `environment.develop-ws.ts` (uses `preparacion_ws.php` mock endpoint).
+- `dev_mockup` build replaces `environment.ts` with `environment.dev-mockup.ts`.
+
+## Configurations
+
+| Configuration | Build Command | Serve Command | Login | Preparación |
+|---|---|---|---|---|
+| `production` | `ng build` | — | `login.php` | `preparacion.php` |
+| `development` | `ng build --configuration=development` | `ng serve` | `login_dev.php` | `preparacion_dev.php` |
+| `dev_mockup` | `ng build --configuration=dev_mockup` | `npm run start:mockup` | `login_mockup.php` | `preparacion_mockup.php` |
+| `ci` | `ng build --configuration=ci` | — | — | — |
 
 ## Mockup analista / operador
 
 Para probar el flujo mockup usar:
 
 ```bash
-ng serve --configuration=mockup
+npm run start:mockup
 ```
 
 Este environment apunta a:
 
-- `api/sincronizaciones/preparacion_mockup.php`
+- `auth/login_mockup.php`
+- `sincronizaciones/preparacion_mockup.php`
 
-El login sigue usando el endpoint normal configurado en la APK. La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
+La redirección post-sync depende de `usuario.tipo_usuario` devuelto por `preparacion_mockup.php`:
 
 - `OPERADOR` → `/home`
 - `ANALISTA_CLIENTE` → `/analyst-dashboard`

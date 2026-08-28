@@ -9,9 +9,22 @@ import {
   FilaAnalista,
   KpisAnalista,
   MuestraPreparada,
+  PreVarianceAnalista,
+  PreVarianceProductoAnalista,
+  PreVarianceResumenAnalista,
+  PreVarianceUbicacionAnalista,
+  RecuentoAnalista,
+  RecuentoProductoAnalista,
+  RecuentoResumenAnalista,
+  RecuentoUbicacionAnalista,
   TagAnalista,
   TiendaPreparada,
   UsuarioPreparado,
+  ValidacionBloqueAnalista,
+  ValidacionOperacionalAnalista,
+  ValidacionProductoAnalista,
+  ValidacionResumenAnalista,
+  ValidacionTagAnalista,
 } from '../../domain/sincronizacion/models/preparacion.model';
 
 /*
@@ -286,8 +299,9 @@ function parsearAnalista(raw: unknown): DatosAnalista | null {
 
   const kpis = parsearKpisAnalista(raw['kpis']);
   const filas = parsearFilasAnalista(raw['filas']);
+  const validacionOperacional = parsearValidacionOperacional(raw['validacion_operacional']);
 
-  return { contexto, kpis, filas };
+  return { contexto, kpis, filas, validacionOperacional };
 }
 
 function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
@@ -302,6 +316,7 @@ function parsearContextoAnalista(raw: unknown): ContextoAnalista | null {
     codigoMuestra: texto(raw, 'codigo_muestra', campo),
     nombreMuestra: textoOpcional(raw, 'nombre_muestra') ?? '',
     fechaJornada: textoOpcional(raw, 'fecha_jornada') ?? '',
+    idKardex: numeroOpcional(raw, 'id_kardex'),
   };
 }
 
@@ -363,5 +378,221 @@ function parsearTagsAnalista(raw: unknown): TagAnalista[] {
     zonaNombre: textoOpcional(t, 'zona_nombre') ?? '',
     zonaDescripcion: textoOpcional(t, 'zona_descripcion'),
     cantidadOperador: numeroOpcional(t, 'cantidad_operador') ?? 0,
+  }));
+}
+
+/*
+ * Validación operacional: parsea el bloque altillos (y futuros PDV,
+ * Pre Variance, Recuento) desde data.analista.validacion_operacional.
+ * Si no viene, devuelve null sin romper.
+ */
+function parsearValidacionOperacional(raw: unknown): ValidacionOperacionalAnalista | null {
+  if (!esJson(raw)) return null;
+
+  const altillos = parsearBloqueValidacion(raw['altillos']);
+  const puntoVenta = parsearBloqueValidacion(raw['punto_venta']);
+  const preVariance = parsearPreVarianceAnalista(raw['pre_variance']);
+  const recuento = parsearRecuentoAnalista(raw['recuento']);
+  return { altillos, puntoVenta, preVariance, recuento };
+}
+
+function parsearBloqueValidacion(raw: unknown): ValidacionBloqueAnalista {
+  const vacio: ValidacionBloqueAnalista = {
+    resumen: {
+      codigoZona: '',
+      nombreZona: '',
+      objetivoPorcentaje: 0,
+      tagsUsados: 0,
+      tagsConfirmados: 0,
+      tagsPendientes: 0,
+      porcentaje: 0,
+      cumple: false,
+    },
+    tags: [],
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenValidacion(raw['resumen']);
+  const tags = parsearTagsValidacion(raw['tags']);
+  const productos = parsearProductosValidacion(raw['productos']);
+
+  return { resumen, tags, productos };
+}
+
+function parsearResumenValidacion(raw: unknown): ValidacionResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    codigoZona: textoOpcional(r, 'codigo_zona') ?? '',
+    nombreZona: textoOpcional(r, 'nombre_zona') ?? '',
+    objetivoPorcentaje: numeroOpcional(r, 'objetivo_porcentaje') ?? 0,
+    tagsUsados: numeroOpcional(r, 'tags_usados') ?? 0,
+    tagsConfirmados: numeroOpcional(r, 'tags_confirmados') ?? 0,
+    tagsPendientes: numeroOpcional(r, 'tags_pendientes') ?? 0,
+    porcentaje: numeroOpcional(r, 'porcentaje') ?? 0,
+    cumple: r['cumple'] === true || r['cumple'] === 1,
+  };
+}
+
+function parsearTagsValidacion(raw: unknown): ValidacionTagAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((t) => ({
+    idTagBackend: enteroOpcional(t, 'id_tag'),
+    numeroTag: enteroOpcional(t, 'numero_tag'),
+    codigoZona: textoOpcional(t, 'codigo_zona') ?? '',
+    nombreZona: textoOpcional(t, 'nombre_zona') ?? '',
+    productosTotal: numeroOpcional(t, 'productos_total') ?? 0,
+    productosConfirmados: numeroOpcional(t, 'productos_confirmados') ?? 0,
+    estadoValidacion: (textoOpcional(t, 'estado_validacion') ?? textoOpcional(t, 'estado')) === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDIENTE',
+  }));
+}
+
+function parsearProductosValidacion(raw: unknown): ValidacionProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idTagBackend: enteroOpcional(p, 'id_tag'),
+    numeroTag: enteroOpcional(p, 'numero_tag'),
+    idProductoBackend: enteroOpcional(p, 'id_producto'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion_producto'),
+    cantidadInventariada: numeroOpcional(p, 'cantidad_inventariada') ?? 0,
+    cantidadAnalista: numeroOpcional(p, 'cantidad_analista'),
+    estadoValidacion: textoOpcional(p, 'estado_validacion') === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDIENTE',
+    flIncorporado: textoOpcional(p, 'fl_incorporado') === 'S' ? 'S' : 'N',
+  }));
+}
+
+/* ============================================================================
+   Pre Variance — parsers
+   ============================================================================ */
+
+function parsearPreVarianceAnalista(raw: unknown): PreVarianceAnalista {
+  const vacio: PreVarianceAnalista = {
+    resumen: {
+      skuTotal: 0,
+      skuPendientes: 0,
+      skuRevisados: 0,
+      diferenciaTotal: 0,
+      mayorDiferenciaValor: 0,
+      mayorDiferenciaSku: null,
+      mayorDiferenciaDescripcion: null,
+    },
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenPreVariance(raw['resumen']);
+  const productos = parsearProductosPreVariance(raw['productos']);
+
+  return { resumen, productos };
+}
+
+function parsearResumenPreVariance(raw: unknown): PreVarianceResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    skuTotal: numeroOpcional(r, 'sku_total') ?? 0,
+    skuPendientes: numeroOpcional(r, 'sku_pendientes') ?? 0,
+    skuRevisados: numeroOpcional(r, 'sku_revisados') ?? 0,
+    diferenciaTotal: numeroOpcional(r, 'diferencia_total') ?? 0,
+    mayorDiferenciaValor: numeroOpcional(r, 'mayor_diferencia_valor') ?? 0,
+    mayorDiferenciaSku: textoOpcional(r, 'mayor_diferencia_sku'),
+    mayorDiferenciaDescripcion: textoOpcional(r, 'mayor_diferencia_descripcion'),
+  };
+}
+
+function parsearProductosPreVariance(raw: unknown): PreVarianceProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idProductoBackend: enteroOpcional(p, 'id_producto_backend'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion'),
+    stockTeorico: numeroOpcional(p, 'stock_teorico') ?? 0,
+    valorUnitario: numeroOpcional(p, 'valor_unitario') ?? 0,
+    inventariadoAntesPreVariance: numeroOpcional(p, 'inventariado_antes_pre_variance') ?? 0,
+    fisicoVigente: numeroOpcional(p, 'fisico_vigente') ?? 0,
+    diferenciaUnidades: numeroOpcional(p, 'diferencia_unidades') ?? 0,
+    diferenciaEnCosto: numeroOpcional(p, 'diferencia_en_costo') ?? 0,
+    estadoPreVariance: textoOpcional(p, 'estado_pre_variance') === 'REVISADO' ? 'REVISADO' : 'PENDIENTE',
+    ubicaciones: parsearUbicacionesPreVariance(p['ubicaciones']),
+  }));
+}
+
+function parsearUbicacionesPreVariance(raw: unknown): PreVarianceUbicacionAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((u) => ({
+    idTagBackend: enteroOpcional(u, 'id_tag_backend'),
+    numeroTag: enteroOpcional(u, 'numero_tag'),
+    zona: textoOpcional(u, 'zona') ?? '',
+    cantidadInventariada: numeroOpcional(u, 'cantidad_inventariada') ?? 0,
+    cantidadPreVariance: numeroOpcional(u, 'cantidad_pre_variance'),
+  }));
+}
+
+/* ============================================================================
+   Recuento — parsers
+   ============================================================================ */
+
+function parsearRecuentoAnalista(raw: unknown): RecuentoAnalista {
+  const vacio: RecuentoAnalista = {
+    resumen: {
+      skuTotal: 0,
+      skuPendientes: 0,
+      skuRecontados: 0,
+      diferenciaTotal: 0,
+      mayorDiferenciaValor: 0,
+      mayorDiferenciaSku: null,
+      mayorDiferenciaDescripcion: null,
+    },
+    productos: [],
+  };
+
+  if (!esJson(raw)) return vacio;
+
+  const resumen = parsearResumenRecuento(raw['resumen']);
+  const productos = parsearProductosRecuento(raw['productos']);
+
+  return { resumen, productos };
+}
+
+function parsearResumenRecuento(raw: unknown): RecuentoResumenAnalista {
+  const r = esJson(raw) ? raw : {};
+  return {
+    skuTotal: numeroOpcional(r, 'sku_total') ?? 0,
+    skuPendientes: numeroOpcional(r, 'sku_pendientes') ?? 0,
+    skuRecontados: numeroOpcional(r, 'sku_recontados') ?? 0,
+    diferenciaTotal: numeroOpcional(r, 'diferencia_total') ?? 0,
+    mayorDiferenciaValor: numeroOpcional(r, 'mayor_diferencia_valor') ?? 0,
+    mayorDiferenciaSku: textoOpcional(r, 'mayor_diferencia_sku'),
+    mayorDiferenciaDescripcion: textoOpcional(r, 'mayor_diferencia_descripcion'),
+  };
+}
+
+function parsearProductosRecuento(raw: unknown): RecuentoProductoAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((p) => ({
+    idProductoBackend: enteroOpcional(p, 'id_producto_backend'),
+    sku: textoOpcional(p, 'sku') ?? '',
+    descripcion: textoOpcional(p, 'descripcion'),
+    stockTeorico: numeroOpcional(p, 'stock_teorico') ?? 0,
+    valorUnitario: numeroOpcional(p, 'valor_unitario') ?? 0,
+    fisicoActual: numeroOpcional(p, 'fisico_actual') ?? 0,
+    diferenciaUnidades: numeroOpcional(p, 'diferencia_unidades') ?? 0,
+    diferenciaEnCosto: numeroOpcional(p, 'diferencia_en_costo') ?? 0,
+    esPreVariance: p['es_pre_variance'] === true || p['es_pre_variance'] === 1,
+    estadoRecuento: textoOpcional(p, 'estado_recuento') === 'RECONTADO' ? 'RECONTADO' : 'PENDIENTE',
+    ubicaciones: parsearUbicacionesRecuento(p['ubicaciones']),
+  }));
+}
+
+function parsearUbicacionesRecuento(raw: unknown): RecuentoUbicacionAnalista[] {
+  const lista = comoLista(raw);
+  return lista.map((u) => ({
+    idTagBackend: enteroOpcional(u, 'id_tag_backend'),
+    numeroTag: enteroOpcional(u, 'numero_tag'),
+    zona: textoOpcional(u, 'zona') ?? '',
+    cantidadInventariada: numeroOpcional(u, 'cantidad_inventariada') ?? 0,
+    cantidadRecuento: numeroOpcional(u, 'cantidad_recuento'),
   }));
 }

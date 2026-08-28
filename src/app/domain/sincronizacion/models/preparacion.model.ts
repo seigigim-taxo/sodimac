@@ -111,6 +111,7 @@ export interface ContextoAnalista {
   codigoMuestra: string;
   nombreMuestra: string;
   fechaJornada: string;
+  idKardex: number | null;
 }
 
 export interface KpisAnalista {
@@ -158,10 +159,145 @@ export interface RegistroAnalista {
   error?: string;
 }
 
+/*
+ * Validación operacional — modelos para el bloque de validación que el
+ * analista revisa (Altillos, Punto de Venta, Pre Variance, Recuento).
+ * Se derivan de las Q11/Q12 del backend y se persisten en sod_validacion_*.
+ */
+export interface ValidacionResumenAnalista {
+  codigoZona: string;
+  nombreZona: string;
+  objetivoPorcentaje: number;
+  tagsUsados: number;
+  tagsConfirmados: number;
+  tagsPendientes: number;
+  porcentaje: number;
+  cumple: boolean;
+}
+
+export interface ValidacionTagAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  codigoZona: string;
+  nombreZona: string;
+  productosTotal: number;
+  productosConfirmados: number;
+  estadoValidacion: 'PENDIENTE' | 'CONFIRMADO';
+}
+
+export interface ValidacionProductoAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  idProductoBackend: number | null;
+  sku: string;
+  descripcion: string | null;
+  cantidadInventariada: number;
+  cantidadAnalista: number | null;
+  estadoValidacion: 'PENDIENTE' | 'CONFIRMADO';
+  flIncorporado: 'S' | 'N';
+}
+
+export interface ValidacionBloqueAnalista {
+  resumen: ValidacionResumenAnalista;
+  tags: ValidacionTagAnalista[];
+  productos: ValidacionProductoAnalista[];
+}
+
+export interface ValidacionOperacionalAnalista {
+  altillos: ValidacionBloqueAnalista;
+  puntoVenta: ValidacionBloqueAnalista;
+  preVariance: PreVarianceAnalista;
+  recuento: RecuentoAnalista;
+}
+
+/*
+ * Pre Variance — modelos para la revisión contra Kárdex.
+ * Diferencia valorizada absoluta estricta > $500.000.
+ */
+export interface PreVarianceResumenAnalista {
+  skuTotal: number;
+  skuPendientes: number;
+  skuRevisados: number;
+  diferenciaTotal: number;
+  mayorDiferenciaValor: number;
+  mayorDiferenciaSku: string | null;
+  mayorDiferenciaDescripcion: string | null;
+}
+
+export interface PreVarianceUbicacionAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  zona: string;
+  cantidadInventariada: number;
+  cantidadPreVariance: number | null;
+}
+
+export interface PreVarianceProductoAnalista {
+  idProductoBackend: number | null;
+  sku: string;
+  descripcion: string | null;
+  stockTeorico: number;
+  valorUnitario: number;
+  inventariadoAntesPreVariance: number;
+  fisicoVigente: number;
+  diferenciaUnidades: number;
+  diferenciaEnCosto: number;
+  estadoPreVariance: 'PENDIENTE' | 'REVISADO';
+  ubicaciones: PreVarianceUbicacionAnalista[];
+}
+
+export interface PreVarianceAnalista {
+  resumen: PreVarianceResumenAnalista;
+  productos: PreVarianceProductoAnalista[];
+}
+
+/*
+ * Recuento — modelos para la revisión contra Kárdex (Conteo 3).
+ * Excluye universo Pre Variance por defecto.
+ * Prioridad: C3_RECUENTO > C2_PRE_VARIANCE > C2_VALIDACION > C1_INICIAL.
+ */
+export interface RecuentoResumenAnalista {
+  skuTotal: number;
+  skuPendientes: number;
+  skuRecontados: number;
+  diferenciaTotal: number;
+  mayorDiferenciaValor: number;
+  mayorDiferenciaSku: string | null;
+  mayorDiferenciaDescripcion: string | null;
+}
+
+export interface RecuentoUbicacionAnalista {
+  idTagBackend: number | null;
+  numeroTag: number | null;
+  zona: string;
+  cantidadInventariada: number;
+  cantidadRecuento: number | null;
+}
+
+export interface RecuentoProductoAnalista {
+  idProductoBackend: number | null;
+  sku: string;
+  descripcion: string | null;
+  stockTeorico: number;
+  valorUnitario: number;
+  fisicoActual: number;
+  diferenciaUnidades: number;
+  diferenciaEnCosto: number;
+  esPreVariance: boolean;
+  estadoRecuento: 'PENDIENTE' | 'RECONTADO';
+  ubicaciones: RecuentoUbicacionAnalista[];
+}
+
+export interface RecuentoAnalista {
+  resumen: RecuentoResumenAnalista;
+  productos: RecuentoProductoAnalista[];
+}
+
 export interface DatosAnalista {
   contexto: ContextoAnalista;
   kpis: KpisAnalista;
   filas: FilaAnalista[];
+  validacionOperacional: ValidacionOperacionalAnalista | null;
 }
 
 export interface PreparacionRequest {
