@@ -184,7 +184,6 @@ export class AnalystDashboardFacade {
       codigo_muestra: ctx.codigoMuestra,
       id_agenda: ctx.idAgenda,
       numero_agenda: ctx.numeroAgenda,
-      ubicacion_codigo: ubicacionCodigo,
       detalles: [
         {
           // El analista manda un producto por carga, así que el id de línea es

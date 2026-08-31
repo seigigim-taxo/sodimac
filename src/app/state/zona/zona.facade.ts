@@ -31,10 +31,13 @@ export class ZonaFacade {
   readonly error             = this.errorSignal.asReadonly();
   readonly hasZones          = computed(() => this.zonesSignal().length > 0);
   readonly noZones           = computed(() => this.zonesSignal().length === 0 && !this.loadingSignal());
+  /*
+   * Ya no exige ubicacion precisa: ese campo se quito de la pantalla y ahora
+   * lo llena el propio TAG. Ver confirmZona.
+   */
   readonly canContinue       = computed(() =>
     this.tagValueSignal() !== '' &&
-    this.selectedZoneSignal() !== null &&
-    this.ubicacionPrecisaSignal().trim() !== ''
+    this.selectedZoneSignal() !== null
   );
 
   async loadZonas(sucursalId: number): Promise<void> {
@@ -99,8 +102,26 @@ export class ZonaFacade {
   async confirmZona(): Promise<void> {
     const zona = this.selectedZoneSignal();
     const tag  = this.tagValueSignal();
-    const ubicacionPrecisa = this.ubicacionPrecisaSignal().trim();
-    if (!zona || !tag || !ubicacionPrecisa) return;
+    if (!zona || !tag) return;
+
+    /*
+     * LA UBICACION ES EL TAG.
+     *
+     * Antes el operador tecleaba una ubicacion libre --"PASILLO A"-- en un
+     * campo aparte. Ese campo se quito de la pantalla y ya NO se manda al SGO:
+     * se verifico en el backend que tag-finalizado.php lo leia en una variable
+     * que nunca usaba, y que sgo-captura solo lo sumaba a un texto de
+     * observacion. El parametro p_codigo_ubicacion del procedimiento se llena
+     * con el nombre de zona, no con esto.
+     *
+     * ubicacionPrecisa se conserva en el estado --y en sod_conteo-- porque de
+     * ahi la leen tagEnSesionGuard y la restauracion de sesion tras un
+     * reinicio. Es un dato LOCAL: identifica la sesion de trabajo, no viaja.
+     * Se llena con el TAG, que es lo que identifica el lugar fisico.
+     */
+    const ubicacionPrecisa = tag;
+    this.ubicacionPrecisaSignal.set(ubicacionPrecisa);
+
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {

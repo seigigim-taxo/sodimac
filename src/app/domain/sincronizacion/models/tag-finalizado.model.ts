@@ -77,7 +77,6 @@ export interface TagFinalizadoPayload {
   codigo_muestra: string | null;
   id_agenda: number | null;
   numero_agenda: string | null;
-  ubicacion_codigo: string;
   detalles: TagFinalizadoDetallePayload[];
 }
 

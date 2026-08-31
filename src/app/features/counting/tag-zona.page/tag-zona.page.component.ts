@@ -26,7 +26,7 @@ import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
 
 /*
- * Pantalla previa al conteo: se ingresa/escanea el TAG, se ingresa la ubicación
+ * Pantalla previa al conteo: se ingresa/escanea el TAG
  * precisa y desde acá se pasa a contar. Separada de la pantalla de conteo para
  * que el operador pueda ir al resumen entre un TAG y el siguiente, sin
  * mezclarse con el escaneo.
@@ -59,7 +59,6 @@ import { NetworkService } from '../../../shared/services/network.service';
 })
 export class TagZonaPageComponent implements ViewWillEnter {
   @ViewChild('tagInputEl') tagInputEl!: ElementRef<HTMLIonInputElement>;
-  @ViewChild('ubicacionInputEl') ubicacionInputEl!: ElementRef<HTMLIonInputElement>;
 
   private router          = inject(Router);
   private alertController = inject(AlertController);
@@ -82,7 +81,6 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private tagLocked = signal(false);
   tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
   zonaConfirmada    = this.zonaFacade.selectedZone;
-  ubicacionPrecisa  = this.zonaFacade.ubicacionPrecisa;
   errorZona         = this.zonaFacade.error;
 
   tagsSugeridos       = this.conteoList.tagsReconteo;
@@ -152,11 +150,6 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.tagInputValue.set(stripEmojis(value));
   }
 
-  onUbicacionInput(event: Event): void {
-    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
-    this.zonaFacade.setUbicacionPrecisa(stripEmojis(value));
-  }
-
   /*
    * La zona ya no se elige: se deriva del número de TAG con los rangos que
    * vienen del WS. Por eso la validación de forma y la resolución de zona van
@@ -216,12 +209,6 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.tagInputValue.set('');
     this.zonaFacade.setTag(value);
     this.tagLocked.set(true);
-    /*
-     * El foco pasa a la ubicación precisa, que es el único campo que le queda
-     * por llenar. Antes lo hacía onZonaChange al elegir la zona; sin selector,
-     * el salto tiene que salir de acá.
-     */
-    setTimeout(() => this.ubicacionInputEl?.nativeElement?.setFocus?.(), 80);
   }
 
   seleccionarTagSugerido(tag: string): void {
@@ -249,7 +236,12 @@ export class TagZonaPageComponent implements ViewWillEnter {
   }
 
   async irAContar(): Promise<void> {
-    if (!this.tagConfirmado() || !this.zonaConfirmada() || !this.ubicacionPrecisa().trim()) return;
+    /*
+     * Ya no se exige ubicacionPrecisa: la fija confirmZona a partir del TAG, o
+     * sea DESPUES de esta guarda. Dejarla habria bloqueado el boton para
+     * siempre, porque en este punto siempre esta vacia.
+     */
+    if (!this.tagConfirmado() || !this.zonaConfirmada()) return;
     await this.zonaFacade.confirmZona();
     if (this.zonaFacade.error()) return;
     this.router.navigate(['/counting']);
