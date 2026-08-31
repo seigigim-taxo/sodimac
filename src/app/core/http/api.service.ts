@@ -108,10 +108,25 @@ export class ApiService {
         msg.includes('socket') ||
         msg.includes('load failed')
       ) {
-        return new NetworkError(err.message);
+        /*
+         * El mensaje se REEMPLAZA, no se reenvía. El original es el texto del
+         * navegador —"Failed to fetch", "Load failed"— y llegaba entero a la
+         * pantalla del operador, en inglés y sin decirle qué hacer.
+         *
+         * Tampoco le sirve a soporte: "Failed to fetch" es lo mismo que dice
+         * fetch para una red caída, un 404, un CORS y un socket cortado. No
+         * distingue ninguno.
+         *
+         * El texto original va a la consola con su tag, para que quede en el
+         * logcat del equipo — que es donde sí se puede diagnosticar.
+         */
+        console.error('[api] fallo de red:', err.name, err.message);
+        return new NetworkError('Sin conexión con el servidor. Revisa la red e intenta de nuevo.');
       }
       return err;
     }
-    return new NetworkError('Error de red desconocido');
+
+    console.error('[api] error no reconocido:', err);
+    return new NetworkError('No se pudo conectar con el servidor. Intenta de nuevo.');
   }
 }

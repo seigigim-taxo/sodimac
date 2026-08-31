@@ -13,7 +13,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, syncOutline, searchOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -169,7 +169,7 @@ export class HomePage implements ViewWillEnter {
   terminoElDeHoy = computed(() => this.eventosFinalizados().length > 0);
 
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, hourglassOutline, syncOutline, searchOutline });
+    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
