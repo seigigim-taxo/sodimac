@@ -16,7 +16,15 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content style="--background: var(--app-bg-gradient);">
+<!--
+  El fondo de toda la pantalla cambia de color con el resultado del escaneo.
+  Ver fondoScan.
+
+  Sin transicion a proposito: las variables CSS no se animan sin registrarlas
+  con @property, y ademas para una pistola el cambio instantaneo es mejor --lo
+  que se busca es que el ojo lo registre de reojo, no un degradado suave.
+-->
+<ion-content [style.--background]="fondoScan()">
   <!-- Franja de TAG: siempre visible arriba del conteo -->
   <div class="flex items-center justify-center gap-2 py-2.5 px-4"
     style="background: var(--app-success);">
@@ -26,6 +34,31 @@
   </div>
 
   <div class="page-inner py-6">
+
+    <!--
+      No se pudo abrir la sesion: el escaner queda bloqueado y esto lo explica.
+
+      Va arriba de todo y con sus botones, no al pie: es un estado que impide
+      trabajar, asi que el operador tiene que toparselo al entrar y no despues
+      de recorrer la pantalla buscando por que el escaner no responde.
+
+      El resultado del escaneo, en cambio, sigue pegado al input mas abajo: ese
+      es feedback de una lectura puntual y tiene que estar donde el operador ya
+      esta mirando.
+    -->
+    @if (errorSesion()) {
+    <div class="status-banner status-banner-error mb-4">
+      <span>No se pudo preparar el conteo de este TAG. Avisa a tu supervisor si vuelve a pasar.</span>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <ion-button expand="block" class="btn-accent" style="flex: 1;" (click)="reintentarSesion()">
+        Reintentar
+      </ion-button>
+      <ion-button expand="block" fill="outline" style="flex: 1;" (click)="volverAInicio()">
+        Volver a Inicio
+      </ion-button>
+    </div>
+    }
 
     <!-- Botón de resumen de avance -->
     <div class="card mb-4">
@@ -140,11 +173,13 @@
       <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
     </div>
     }
-    } @else {
-    <div class="status-banner status-banner-info mb-3">
-      <span>Escanea un SKU para registrar el conteo</span>
-    </div>
     }
+    <!--
+      Sin lectura reciente NO se muestra nada. Antes iba un "Escanea un SKU para
+      registrar el conteo" que ocupaba el mismo lugar que el resultado: el
+      operador tenia siempre un banner delante y dejaba de distinguir cuando
+      cambiaba. El espacio vacio hace que el ✓ o el ✗ salten a la vista.
+    -->
 
     <app-scan scanType="sku"
       [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
@@ -183,20 +218,6 @@
     </div>
     }
 
-    <!-- No se pudo abrir la sesión: el escáner queda bloqueado y acá se explica por qué. -->
-    @if (errorSesion()) {
-    <div class="status-banner status-banner-error mt-4">
-      <span>No se pudo preparar el conteo de este TAG. Avisa a tu supervisor si vuelve a pasar.</span>
-    </div>
-    <div class="flex gap-2 mt-3">
-      <ion-button expand="block" class="btn-accent" style="flex: 1;" (click)="reintentarSesion()">
-        Reintentar
-      </ion-button>
-      <ion-button expand="block" fill="outline" style="flex: 1;" (click)="volverAInicio()">
-        Volver a Inicio
-      </ion-button>
-    </div>
-    }
 
     @if (itemsView().length > 0) {
     <div class="mt-6">

@@ -173,6 +173,11 @@ export class CountingPageComponent implements ViewWillEnter {
   cantidad    = signal<number | null>(null);
   busquedaSku = signal('');
   lastScan    = signal<ResultadoScan | null>(null);
+  /*
+   * Solo el estado del destello, no el resultado entero: vive menos que
+   * lastScan y por eso no puede derivarse de el.
+   */
+  private destelloScan = signal<ResultadoScan['estado'] | null>(null);
   private lastScanTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
   finalizando = signal(false);
@@ -188,6 +193,29 @@ export class CountingPageComponent implements ViewWillEnter {
     descripcion: i.descripcion ?? i.sku,
     cantidad:    i.cantidadFisica,
   })));
+
+  /*
+   * Color de fondo de toda la pantalla, atado al mismo lastScan que el banner.
+   *
+   * Con pistola el operador no mira el texto: mira el producto. Un cambio de
+   * color ocupa toda la pantalla y se percibe por el rabillo del ojo, que es
+   * lo unico que llega a registrar entre disparo y disparo.
+   *
+   * Va translucido sobre el degradado normal --no lo reemplaza-- para que la
+   * pantalla siga siendo legible mientras dura.
+   *
+   * Dura MENOS que el banner de texto: ver DESTELLO_MS.
+   */
+  fondoScan = computed(() => {
+    const estado = this.destelloScan();
+    if (!estado) return 'var(--app-bg-gradient)';
+
+    const tinte = estado === 'OK'
+      ? 'rgba(45, 190, 120, 0.22)'
+      : 'rgba(239, 68, 68, 0.22)';
+
+    return `linear-gradient(${tinte}, ${tinte}), var(--app-bg-gradient)`;
+  });
 
   totalItems    = computed(() => this.itemsView().length);
   // Q contado del tag en curso: suma de unidades escaneadas, no cantidad de SKU distintos.
@@ -464,10 +492,37 @@ export class CountingPageComponent implements ViewWillEnter {
     });
   }
 
+  /*
+   * El destello del fondo dura poco; el aviso de texto NO se va.
+   *
+   * Son dos cosas distintas y por eso tienen tiempos distintos:
+   *
+   *   - El COLOR es la senal de que algo acaba de pasar. Tiene que ser breve,
+   *     porque si se queda deja de significar "recien" y con lecturas seguidas
+   *     la pantalla vive tenida.
+   *
+   *   - El TEXTO es el registro de la ultima lectura. Se queda con su valor
+   *     hasta que llegue otra: el operador que levanta la vista treinta
+   *     segundos despues todavia puede confirmar que ese SKU entro, o por que
+   *     no entro.
+   */
+  private readonly DESTELLO_MS = 3000;
+
   private setLastScan(scan: ResultadoScan): void {
     clearTimeout(this.lastScanTimeoutId);
     this.lastScan.set(scan);
-    this.lastScanTimeoutId = setTimeout(() => this.lastScan.set(null), 3000);
+    this.destelloScan.set(scan.estado);
+    this.lastScanTimeoutId = setTimeout(() => this.destelloScan.set(null), this.DESTELLO_MS);
+  }
+
+  /*
+   * Suelta el aviso al cerrar el TAG: lo que se leyo pertenece al TAG anterior
+   * y dejarlo colgado en el siguiente diria algo falso.
+   */
+  private limpiarAvisoScan(): void {
+    clearTimeout(this.lastScanTimeoutId);
+    this.lastScan.set(null);
+    this.destelloScan.set(null);
   }
 
   /*
@@ -566,6 +621,7 @@ export class CountingPageComponent implements ViewWillEnter {
   private doDescartarTag(): void {
     this.skuPendiente.set(null);
     this.conteo.reset();
+    this.limpiarAvisoScan();
     this.zonaFacade.clearTag();
     // Sin esto, volver a elegir el mismo TAG reutiliza el ubicacionId y el
     // atajo de ionViewWillEnter se saltaría el init de la sesión nueva.
@@ -652,6 +708,7 @@ export class CountingPageComponent implements ViewWillEnter {
 
       this.zonaFacade.reset();
       this.conteo.reset();
+    this.limpiarAvisoScan();
       this.router.navigate(['/counting-tag']);
     } finally {
       this.finalizando.set(false);
