@@ -133,7 +133,7 @@ export class CountingPageComponent implements ViewWillEnter {
   readonly CANTIDAD_ALTA = 2000;
 
   // Aviso en la propia tarjeta, mientras tipea: llega antes que el diálogo del guardado.
-  cantidadEsAlta = computed(() => this.cantidad() >= this.CANTIDAD_ALTA);
+  cantidadEsAlta = computed(() => (this.cantidad() ?? 0) >= this.CANTIDAD_ALTA);
 
   /*
    * El escáner se bloquea siempre que no haya una sesión utilizable, no solo
@@ -162,7 +162,15 @@ export class CountingPageComponent implements ViewWillEnter {
     return z ? { nombre: z.nombre, descripcion: z.descripcion } : null;
   });
 
-  cantidad    = signal(1);
+  /*
+   * NULL, no 1: el campo arranca VACÍO en cada SKU.
+   *
+   * Con un 1 precargado, el operador que tipea sobre el campo sin borrarlo
+   * primero termina con un 1 adelante --escribe 5 y queda 15--, y el que
+   * simplemente confirma registra una unidad que nunca contó. Vacío obliga a
+   * declarar la cantidad, que es justamente el punto de este modo.
+   */
+  cantidad    = signal<number | null>(null);
   busquedaSku = signal('');
   lastScan    = signal<ResultadoScan | null>(null);
   private lastScanTimeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -307,8 +315,19 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   onCantidadInput(event: Event): void {
-    const value = Number((event as CustomEvent<{ value: string | null }>).detail.value);
-    this.cantidad.set(Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1);
+    const crudo = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+
+    /*
+     * Vacío queda en null y NO cae a 1: el operador que borra el campo para
+     * escribir de nuevo veía reaparecer un 1 debajo del cursor.
+     */
+    if (crudo.trim() === '') {
+      this.cantidad.set(null);
+      return;
+    }
+
+    const value = Number(crudo);
+    this.cantidad.set(Number.isFinite(value) && value >= 0 ? Math.floor(value) : null);
   }
 
   onModoChange(event: Event): void {
@@ -338,7 +357,7 @@ export class CountingPageComponent implements ViewWillEnter {
       return;
     }
 
-    this.cantidad.set(1);
+    this.cantidad.set(null);
     this.skuPendiente.set({ codigo, medio: capturado.medio });
     // El foco lo cede ScanComponent vía [cederFoco]; acá se lo lleva la cantidad.
     setTimeout(() => void this.cantidadInput()?.setFocus(), 60);
@@ -348,9 +367,20 @@ export class CountingPageComponent implements ViewWillEnter {
     const pendiente = this.skuPendiente();
     if (pendiente === null) return;
 
+    /*
+     * Sin cantidad declarada no se escribe nada y la captura sigue abierta.
+     * Cero SÍ es válido --es la forma de declarar que del SKU no hay unidades--
+     * y por eso se compara contra null y no por falsy.
+     */
+    const cantidad = this.cantidad();
+    if (cantidad === null) {
+      void this.cantidadInput()?.setFocus();
+      return;
+    }
+
     // Si no se registró (canceló una confirmación) la captura sigue abierta: el
     // operador corrige la cantidad en vez de volver a leer el SKU.
-    if (!(await this.registrar(pendiente.codigo, this.cantidad(), pendiente.medio))) return;
+    if (!(await this.registrar(pendiente.codigo, cantidad, pendiente.medio))) return;
 
     this.cerrarCaptura();
   }
@@ -361,7 +391,8 @@ export class CountingPageComponent implements ViewWillEnter {
 
   private cerrarCaptura(): void {
     this.skuPendiente.set(null);
-    this.cantidad.set(1);
+    // Vacío, no 1: es el reset que prepara el campo para el SKU siguiente.
+    this.cantidad.set(null);
     // Devuelve el foco al escáner: sin esto el operador tiene que tocar la
     // pantalla entre lectura y lectura y la pistola deja de servir.
     this.scanComp()?.limpiar();

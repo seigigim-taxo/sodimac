@@ -27,6 +27,34 @@
 
   <div class="page-inner py-6">
 
+    <!--
+      Resultado del último escaneo, arriba de todo.
+
+      Estaba al final de la pantalla, debajo del escáner y de la lista de
+      productos. Con pistola el operador mira el producto y la pantalla de
+      reojo: un "no está en la muestra" al pie se lee tarde o no se lee, y para
+      cuando lo nota ya disparó el siguiente código.
+    -->
+    @if (lastScan(); as scan) {
+    @if (scan.estado === 'OK') {
+    <div class="status-banner status-banner-success mb-4">
+      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
+    </div>
+    } @else if (scan.estado === 'ERROR') {
+    <div class="status-banner status-banner-error mb-4">
+      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> — {{ scan.mensaje }}</span>
+    </div>
+    } @else {
+    <div class="status-banner status-banner-error mb-4">
+      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
+    </div>
+    }
+    } @else {
+    <div class="status-banner status-banner-info mb-4">
+      <span>Escanea un SKU para registrar el conteo</span>
+    </div>
+    }
+
     <!-- Botón de resumen de avance -->
     <div class="card mb-4">
       <button class="flex items-center justify-between w-full" (click)="toggleResumen()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
@@ -163,26 +191,6 @@
       <ion-button expand="block" fill="outline" style="flex: 1;" (click)="volverAInicio()">
         Volver a Inicio
       </ion-button>
-    </div>
-    }
-
-    @if (lastScan(); as scan) {
-    @if (scan.estado === 'OK') {
-    <div class="status-banner status-banner-success mt-4">
-      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
-    </div>
-    } @else if (scan.estado === 'ERROR') {
-    <div class="status-banner status-banner-error mt-4">
-      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> — {{ scan.mensaje }}</span>
-    </div>
-    } @else {
-    <div class="status-banner status-banner-error mt-4">
-      <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
-    </div>
-    }
-    } @else {
-    <div class="status-banner status-banner-info mt-4">
-      <span>Escanea un SKU para registrar el conteo</span>
     </div>
     }
 
