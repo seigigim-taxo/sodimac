@@ -19,11 +19,33 @@
 <ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
+    <!--
+      FRANJA DE AVISOS, primero y siempre.
+
+      Estaban repartidos: el del TAG debajo de su boton y el de zona mas abajo
+      todavia, asi que en una pantalla de 480x800 un error quedaba fuera de
+      vista apenas el teclado subia o la lista de zonas crecia.
+    -->
+    @if (tagError()) {
+    <div class="error-pill mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ tagError() }}</span>
+    </div>
+    }
+
+    @if (errorZona()) {
+    <div class="error-pill mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ errorZona() }}</span>
+    </div>
+    }
+
+
     <div class="flex flex-col gap-2 mb-4">
       <div class="flex items-center justify-between gap-3">
         <h2 class="page-title">Nuevo TAG</h2>
       </div>
-      <p class="page-subtitle">Escanea el TAG e ingresa la ubicación</p>
+      <p class="page-subtitle">Escanea el TAG para empezar a contar</p>
     </div>
 
     <!-- ===== 1. TAG ===== -->
@@ -80,12 +102,6 @@
       </ion-button>
       }
 
-      @if (tagError()) {
-      <div class="error-pill mt-4">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>{{ tagError() }}</span>
-      </div>
-      }
     </div>
 
     <!-- ===== 2. Zona (derivada, no se elige) ===== -->
@@ -111,30 +127,8 @@
     </div>
     }
 
-    <!-- ===== 3. Ubicación ===== -->
-    <div class="card mb-4">
-      <p class="field-label mb-2">Ubicación</p>
-      <ion-input #ubicacionInputEl [value]="ubicacionPrecisa()" [disabled]="!tagConfirmado()"
-        (ionInput)="onUbicacionInput($event)"
-        placeholder="Ej: PASILLO A, PASILLO B, CABECERA 3"
-        class="input-base">
-      </ion-input>
-      @if (!tagConfirmado()) {
-      <p class="hint-text">Confirma el TAG para habilitar la ubicación</p>
-      } @else {
-      <p class="hint-text">Ingresa la ubicación precisa dentro de la zona</p>
-      }
-    </div>
-
-    @if (errorZona()) {
-    <div class="error-pill mb-4">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>{{ errorZona() }}</span>
-    </div>
-    }
-
     <ion-button expand="block" class="btn-primary mt-2"
-      [disabled]="!(tagConfirmado() && zonaConfirmada() && ubicacionPrecisa().trim())"
+      [disabled]="!(tagConfirmado() && zonaConfirmada())"
       (click)="irAContar()">
       <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
       Ir a contar
