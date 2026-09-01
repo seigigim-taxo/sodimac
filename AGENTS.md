@@ -21,6 +21,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Dev server | `npm start` (serves the `development` configuration by default) |
 | Dev server (mockup) | `npm run start:mockup` (uses `login_mockup.php` + `preparacion_mockup.php`) |
 | Production build | `npm run build` |
+| Development build (for on-device testing) | `npm run build:dev` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
 | Tests once (CI) | `npm run test:ci` |
@@ -33,6 +34,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
 - `angular.json` defines a `dev_mockup` configuration that swaps `environment.ts` → `environment.dev-mockup.ts` (login_mockup + preparacion_mockup endpoints).
+- `angular.json` also defines `develop_ws` for both `build` and `serve`, pointing at the **same** target as `development`. It is a deliberate alias, not a leftover: external tooling still launches this project with `--configuration develop_ws`, and without the entry `ng serve` aborts with "Configuration 'develop_ws' ... is not set in the workspace". The name predates the current setup, when it meant "development against the real WS" — which is what `development` does today. Do not delete it for looking redundant; delete it only once nothing launches the app with that flag.
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error.
 
@@ -146,6 +148,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Android project exists under `android/` and is tracked in Git (build artifacts and IDE files are gitignored).
 - `capacitor.config.ts` sets `server.androidScheme: 'http'` to avoid mixed-content blocks when the backend is HTTP.
 - `AndroidManifest.xml` has `android:usesCleartextTraffic="true"` and references `network_security_config.xml`, which permits cleartext traffic for `192.168.1.9`, `ws.code`, `localhost`, and `127.0.0.1`.
+- **`npm run build` builds for PRODUCTION**, not development: `angular.json` sets `defaultConfiguration: production` for the `build` target, so a plain `ng build` swaps in `environment.prod.ts`. Installing that APK on a PDA to test dev behaviour silently hits the production endpoints — it looks like the feature is broken when it is only pointing elsewhere. Use `npm run build:dev` for anything you intend to install on a device for testing.
 - Always build before syncing: `npm run build; npx cap sync`.
 - No iOS platform committed yet. Add with `npx cap add ios` if needed.
 

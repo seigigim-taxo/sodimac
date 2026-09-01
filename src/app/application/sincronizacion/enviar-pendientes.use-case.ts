@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo.repository';
-import { TagFinalizadoPayload, TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
-import { ValidacionAnalistaPayload, ValidacionAnalistaResponse } from '../../domain/sincronizacion/models/validacion-analista.model';
+import { TagFinalizadoPayloadAlmacenado, TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { ValidacionAnalistaPayloadAlmacenado, ValidacionAnalistaResponse } from '../../domain/sincronizacion/models/validacion-analista.model';
 import { ApiService } from '../../core/http/api.service';
 
 export interface ResultadoEnviarPendientes {
@@ -30,14 +30,14 @@ export class EnviarPendientesUseCase {
 
       try {
         if (item.operacion === 'VALIDACION_OPERACIONAL') {
-          const payload: ValidacionAnalistaPayload = JSON.parse(item.payloadJson);
+          const payload: ValidacionAnalistaPayloadAlmacenado = JSON.parse(item.payloadJson);
           const response = await this.api.post<ValidacionAnalistaResponse>(
             'sincronizaciones/validacion-analista.php',
             payload,
           );
           await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.total_productos);
         } else {
-          const payload: TagFinalizadoPayload = JSON.parse(item.payloadJson);
+          const payload: TagFinalizadoPayloadAlmacenado = JSON.parse(item.payloadJson);
           const response = await this.api.post<TagFinalizadoResponse>(
             'sincronizaciones/tag-finalizado.php',
             payload,

@@ -14,6 +14,9 @@ Rutas absolutas en el servidor. `/var/www/html/` es la raíz web, o sea que
 server/api/actualizaciones/version.json
   → /var/www/html/app/ws/sodimac/api/actualizaciones/version.json
 
+server/api/actualizaciones/version_test.json
+  → /var/www/html/app/ws/sodimac/api/actualizaciones/version_test.json
+
 app/build/outputs/apk/release/app-release.apk
   → /var/www/html/app/ws/sodimac/apk/sodimac-<version>.apk
 ```
@@ -24,6 +27,22 @@ Las dos carpetas hay que crearlas: hoy sólo existen `api/auth` y
 Permisos: `755` en las carpetas y `644` en los archivos. Se suben como
 `ec2-user`, pero quien los sirve es Apache con otro usuario — si el archivo
 queda en `600`, la PDA recibe un 403 y el error no dice por qué.
+
+## Dos manifiestos: producción y prueba
+
+`version.json` es el que leen las PDAs en terreno. `version_test.json` lo lee
+sólo la build de desarrollo (`environment.ts`).
+
+Existen separados porque desarrollo y producción comparten `apiUrl`. Mientras
+los dos leían el mismo archivo, no había forma de probar la oferta de
+actualización sin ofrecérsela también a las PDAs reales: subir un
+`version_code` de prueba se lo mostraba a todo el mundo.
+
+Para probar la franja de actualización se toca `version_test.json` y nada más.
+`version.json` no se mueve, y los operadores no ven nada.
+
+Si `version_test.json` no existe, la consulta falla y la app de desarrollo
+simplemente no ofrece nada. No se rompe.
 
 El `version.json` **tiene que quedar colgando de `api/`**. Ahí el `.htaccess`
 del web service ya pone los headers de CORS, y Apache los aplica también a los

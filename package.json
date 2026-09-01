@@ -10,6 +10,7 @@
     "start:mockup": "ng serve --configuration=dev_mockup",
     "start:usb": "ng serve --host=0.0.0.0 --port=8100",
     "build": "ng build",
+    "build:dev": "ng build --configuration=development",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --configuration=ci",

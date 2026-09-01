@@ -385,6 +385,26 @@ describe('SqliteConteoRepository', () => {
       return repo.getPayloadSincronizacion(resumen);
     }
 
+    /*
+     * La version con la que se conto viaja en la carga, y es lo unico que
+     * permite atribuir despues un dato raro en el SGO a un APK concreto. Sin
+     * esta asercion, borrar las dos lineas del payload deja los tests en verde
+     * y la regresion solo aparece mirando una carga en el servidor.
+     *
+     * En el navegador no hay App.getInfo(), asi que AppInfoService degrada a la
+     * constante: lo que se verifica aca es el cableado --que el campo llegue al
+     * payload-- y no el valor, que ya cubre app-info.service.spec.ts.
+     */
+    it('lleva la version de la app con que se conto', async () => {
+      await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'AF001', 'ESCANER');
+      await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+      const payload = await payloadDelTag();
+
+      expect(payload.version_app).toBeTruthy();
+      expect(typeof payload.version_code).toBe('number');
+    });
+
     it('cada producto trae el suyo', async () => {
       await repo.upsert(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'AF001', 'ESCANER');
       await repo.upsert(CONTEO_ID, UBICACION_ID, OTRO_PRODUCTO_ID, OPERADOR_ID, PDA_ID, 5, 'AF002', 'ESCANER');

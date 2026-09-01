@@ -645,6 +645,26 @@ ion-title {
     color: var(--app-warning);
   }
 
+  /*
+   * Franja que además de avisar ofrece una acción.
+   *
+   * Va en DOS filas —texto arriba, botones abajo— y no en una. En la pantalla
+   * de 480px de la PDA, dos botones en la misma línea le dejan al texto una
+   * columna de cuatro palabras: "Hay una / versión / nueva de la / app (1.0.5)."
+   * El aviso deja de leerse de un vistazo, que es lo único que tiene que hacer.
+   */
+  .status-banner-acciones {
+    @apply flex-col items-stretch gap-2;
+
+    .banner-linea {
+      @apply flex items-center gap-2;
+    }
+
+    .banner-acciones {
+      @apply flex items-center justify-center gap-1;
+    }
+  }
+
   .btn-manual-input {
     --background: var(--app-primary);
     --background-hover: var(--app-primary-hover);

@@ -84,6 +84,12 @@
                   "with": "src/environments/environment.dev-mockup.ts"
                 }
               ]
+            },
+            "develop_ws": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
             }
           },
           "defaultConfiguration": "production"
@@ -102,6 +108,9 @@
             },
             "dev_mockup": {
               "buildTarget": "app:build:dev_mockup"
+            },
+            "develop_ws": {
+              "buildTarget": "app:build:development"
             }
           },
           "defaultConfiguration": "development"

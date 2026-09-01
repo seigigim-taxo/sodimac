@@ -32,7 +32,7 @@ import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
 import { App } from '@capacitor/app';
-import { ActualizacionFacade } from './state/actualizacion/actualizacion.facade';
+import { OfertaActualizacionService } from './shared/services/oferta-actualizacion.service';
 
 @Component({
   selector: 'app-root',
@@ -64,8 +64,8 @@ export class AppComponent {
   private vigenciaDia = inject(VigenciaDiaService);
   private enviarPendientes = inject(EnviarPendientesFacade);
   private respaldo = inject(RespaldoFacade);
-  private actualizacion = inject(ActualizacionFacade);
   private alertController = inject(AlertController);
+  private oferta = inject(OfertaActualizacionService);
   private toastController = inject(ToastController);
   private router   = inject(Router);
   private location = inject(Location);
@@ -191,131 +191,17 @@ export class AppComponent {
   /*
    * ACTUALIZACIÓN DE LA APP
    *
-   * El flujo completo vive acá porque el menú se cierra al tocar la opción y
-   * todo lo que sigue tiene que ser una alerta: es lo único que queda visible.
-   *
-   * La primera vez el operador pasa por Ajustes a conceder "instalar apps
-   * desconocidas" —Android lo exige a mano, una vez por equipo—. Se le explica
-   * antes de mandarlo, y al volver retoma solo: no tiene que buscar el botón
-   * otra vez.
+   * El flujo entero —confirmación, permiso de Android, reintento al volver de
+   * Ajustes— vive en OfertaActualizacionService. Acá quedó solo la entrada del
+   * menú, porque hay otra: la franja de Inicio, que ofrece lo mismo cuando la
+   * app detecta sola que hay versión nueva.
    */
-  buscandoActualizacion    = computed(() => this.actualizacion.buscando());
-  descargandoActualizacion = computed(() => this.actualizacion.descargando());
-  porcentajeActualizacion  = computed(() => this.actualizacion.porcentaje());
+  buscandoActualizacion    = this.oferta.buscando;
+  descargandoActualizacion = this.oferta.descargando;
+  porcentajeActualizacion  = this.oferta.porcentaje;
 
   async buscarActualizacion(): Promise<void> {
-    if (this.actualizacion.buscando() || this.actualizacion.descargando()) return;
-
-    const hay = await this.actualizacion.buscar();
-
-    if (!hay) {
-      const error = this.actualizacion.error();
-      await this.mostrarAlertaRespaldo(
-        error ? 'No se pudo consultar' : 'La app está al día',
-        error ?? `Estás usando la última versión disponible (${APP_VERSION}).`
-      );
-      return;
-    }
-
-    const version = this.actualizacion.disponible()!;
-    const alert = await this.alertController.create({
-      header: `Versión ${version.versionName} disponible`,
-      /*
-       * Sin lista de cambios. Las notas del manifiesto las escribe quien
-       * publica la APK y salen en lenguaje de desarrollo —"UID por producto"—,
-       * que al operador no le dice nada y le ocupa el lugar de lo único que sí
-       * necesita saber: que no pierde su trabajo y que la app se va a cerrar.
-       */
-      message: [
-        'Tus conteos no se pierden.',
-        'La app se va a cerrar para instalarse. Volvé a entrar cuando termine.',
-      ].join('\n\n'),
-      cssClass: 'alerta-respaldo',
-      buttons: [
-        // Posponer sólo si la versión no es obligatoria. Con obligatoria en
-        // true el operador no puede seguir trabajando con una versión que el
-        // servidor marcó como no apta.
-        ...(version.obligatoria ? [] : [{ text: 'Ahora no', role: 'cancel' }]),
-        { text: 'Actualizar', role: 'confirm', handler: () => { void this.doActualizar(); } },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async doActualizar(): Promise<void> {
-    const resultado = await this.actualizacion.actualizar();
-
-    switch (resultado.estado) {
-      case 'INSTALANDO':
-        // El instalador de Android ya está en pantalla y va a cerrar la app.
-        // No hay nada más que decir ni ningún callback de éxito que esperar.
-        return;
-
-      case 'SIN_PERMISO':
-        await this.pedirPermisoInstalacion();
-        return;
-
-      case 'DESCARGA_CORRUPTA':
-        await this.mostrarAlertaRespaldo(
-          'La descarga falló',
-          'El archivo llegó incompleto, seguramente por la señal.\n\nProbá de nuevo con mejor cobertura.'
-        );
-        return;
-
-      case 'ERROR':
-        await this.mostrarAlertaRespaldo('No se pudo actualizar', resultado.mensaje);
-        return;
-    }
-  }
-
-  /*
-   * Android no avisa cuándo el operador concedió el permiso: vuelve con el
-   * botón de atrás y listo. Por eso se engancha el retorno de la app a primer
-   * plano y se reintenta ahí, en vez de pedirle que toque "Actualizar" otra vez
-   * sin explicarle por qué.
-   */
-  private async pedirPermisoInstalacion(): Promise<void> {
-    const alert = await this.alertController.create({
-      header: 'Falta un permiso de Android',
-      message: [
-        'Android pide autorización para instalar la app. Se concede una sola vez.',
-        '',
-        'Al continuar vas a ver una pantalla de Ajustes: activá el interruptor y volvé con el botón de atrás.',
-        '',
-        'La actualización sigue sola desde ahí.',
-      ].join('\n'),
-      cssClass: 'alerta-respaldo',
-      buttons: [
-        { text: 'Ahora no', role: 'cancel' },
-        {
-          text: 'Ir a Ajustes',
-          role: 'confirm',
-          handler: () => { void this.irAAjustesYReintentar(); },
-        },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async irAAjustesYReintentar(): Promise<void> {
-    const listener = await App.addListener('appStateChange', async ({ isActive }) => {
-      if (!isActive) return;
-
-      // Se suelta antes de seguir: si el operador vuelve a salir y entrar
-      // mientras corre la descarga, no se dispara una segunda.
-      await listener.remove();
-
-      if (await this.actualizacion.puedeInstalar()) {
-        await this.doActualizar();
-      } else {
-        await this.mostrarAlertaRespaldo(
-          'El permiso sigue sin estar',
-          'No se activó la autorización para instalar.\n\nProbá de nuevo desde "Actualizar la app" en el menú.'
-        );
-      }
-    });
-
-    await this.actualizacion.abrirAjustesInstalacion();
+    await this.oferta.buscarYResponder();
   }
 
   private async mostrarAlertaRespaldo(header: string, message: string): Promise<void> {

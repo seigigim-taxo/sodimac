@@ -83,4 +83,24 @@ describe('BuscarActualizacionUseCase', () => {
   it('informa la versión instalada aunque no haya nada que ofrecer', async () => {
     expect((await uc.execute()).versionInstalada).toBe(3);
   });
+
+  /*
+   * El único modo real de que la oferta se quede pegada después de actualizar.
+   *
+   * versionInstalada devuelve 0 cuando no puede leer el dato del sistema —en
+   * web, o si App.getInfo() no trae un entero—. Con 0, CUALQUIER versión del
+   * servidor es más nueva y la oferta no se va nunca.
+   *
+   * Queda documentado y no "arreglado": 0 es lo correcto para la consulta
+   * manual del menú, donde no saber la versión instalada y ofrecer igual es
+   * mejor que no ofrecer nada. Lo que no hay que hacer es apoyar más
+   * decisiones automáticas sobre este número sin distinguir "no lo sé" de "es
+   * vieja" — la franja de Inicio ya depende de esto.
+   */
+  it('con la versión instalada desconocida (0) ofrece igual', async () => {
+    versionInstalada.and.resolveTo(0);
+    consultar.and.resolveTo(version(4));
+
+    expect((await uc.execute()).hayActualizacion).toBeTrue();
+  });
 });

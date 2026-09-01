@@ -1,4 +1,5 @@
 import { Injectable, inject, isDevMode } from '@angular/core';
+import { AppInfoService } from '../../core/app-info.service';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { ConteoRepository } from '../../domain/conteo/repositories/conteo.repository';
@@ -62,6 +63,7 @@ const SELECT_RONDA = `
 @Injectable({ providedIn: 'root' })
 export class SqliteConteoRepository implements ConteoRepository {
   private connection = inject(SqliteConnectionService);
+  private appInfo    = inject(AppInfoService);
 
   // ─────────────────────────── la ronda ───────────────────────────
 
@@ -888,6 +890,14 @@ export class SqliteConteoRepository implements ConteoRepository {
       lecturas:       lecturasPorDetalle.get(row['detalle_id'] as number) ?? [],
     }));
 
+    /*
+     * La version con la que se conto. Se resuelve aca, al armar el payload, y
+     * no al cerrar el TAG: es la misma en los dos momentos --instalar una
+     * actualizacion mata la app-- y aca no hay que persistirla en ninguna
+     * columna nueva.
+     */
+    const version = await this.appInfo.version();
+
     return {
       carga_uid:         cargaUid,
       codigo_tienda:     meta['codigo_tienda']     as string,
@@ -899,6 +909,8 @@ export class SqliteConteoRepository implements ConteoRepository {
       operador_rut:      meta['operador_rut']      as string,
       operador_login:    meta['operador_login']    as string,
       pda_codigo:        meta['pda_codigo']        as string,
+      version_app:       version.nombre,
+      version_code:      version.codigo,
       codigo_muestra:    (meta['codigo_muestra'] as string | null) ?? null,
       id_agenda:         (meta['id_agenda'] as number | null) ?? null,
       numero_agenda:     (meta['numero_agenda'] as string | null) ?? null,

@@ -1,8 +1,8 @@
-import { Injectable, isDevMode } from '@angular/core';
-import { App } from '@capacitor/app';
+import { Injectable, inject, isDevMode } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { InstaladorRepository } from '../../domain/actualizacion/repositories/actualizacion.repository';
 import { Actualizador } from './actualizador.plugin';
+import { AppInfoService } from '../../core/app-info.service';
 
 /*
  * El instalador del sistema, detrás de la interfaz del dominio.
@@ -13,6 +13,8 @@ import { Actualizador } from './actualizador.plugin';
  */
 @Injectable({ providedIn: 'root' })
 export class CapacitorInstaladorService implements InstaladorRepository {
+  private appInfo = inject(AppInfoService);
+
   private get enDispositivo(): boolean {
     return Capacitor.isNativePlatform();
   }
@@ -22,13 +24,19 @@ export class CapacitorInstaladorService implements InstaladorRepository {
    * código. Esa se escribe a mano y puede quedar desincronizada del
    * build.gradle; lo que Android compara para decidir si una APK es más nueva
    * es este número y ningún otro.
+   *
+   * Se delega en AppInfoService y no se lee App.getInfo() acá. Cuando estaban
+   * las dos lecturas ya se comportaban distinto: esta no atrapaba el error, así
+   * que un plugin que no responde tiraba la excepción hacia arriba y rompía la
+   * consulta de actualizaciones, mientras que la otra degradaba a 0.
+   *
+   * El 0 significa "no se pudo leer", y aguas arriba eso vale como "cualquier
+   * versión del servidor es más nueva" (ver BuscarActualizacionUseCase). Es
+   * deliberado para la consulta manual del menú, pero por eso mismo no puede
+   * haber dos caminos que decidan cuándo devolverlo.
    */
   async versionInstalada(): Promise<number> {
-    if (!this.enDispositivo) return 0;
-
-    const info = await App.getInfo();
-    const build = Number(info.build);
-    return Number.isInteger(build) ? build : 0;
+    return (await this.appInfo.version()).codigo;
   }
 
   async puedeInstalar(): Promise<boolean> {
