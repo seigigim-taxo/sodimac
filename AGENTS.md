@@ -33,6 +33,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 
 - `angular.json` defines a `ci` configuration for both `build` and `test` that disables progress and, for tests, disables watch and uses `ChromeHeadless`.
 - `angular.json` defines a `dev_mockup` configuration that swaps `environment.ts` → `environment.dev-mockup.ts` (login_mockup + preparacion_mockup endpoints).
+- `angular.json` also defines `develop_ws` for both `build` and `serve`, pointing at the **same** target as `development`. It is a deliberate alias, not a leftover: external tooling still launches this project with `--configuration develop_ws`, and without the entry `ng serve` aborts with "Configuration 'develop_ws' ... is not set in the workspace". The name predates the current setup, when it meant "development against the real WS" — which is what `development` does today. Do not delete it for looking redundant; delete it only once nothing launches the app with that flag.
 - Build output directory is `www` (used by Capacitor as `webDir`).
 - Component style budgets: `4kb` warning / `8kb` error.
 
