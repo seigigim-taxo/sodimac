@@ -21,6 +21,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 | Dev server | `npm start` (serves the `development` configuration by default) |
 | Dev server (mockup) | `npm run start:mockup` (uses `login_mockup.php` + `preparacion_mockup.php`) |
 | Production build | `npm run build` |
+| Development build (for on-device testing) | `npm run build:dev` |
 | Dev build + watch | `npm run watch` |
 | Tests (watch mode, Chrome) | `npm test` |
 | Tests once (CI) | `npm run test:ci` |
@@ -147,6 +148,7 @@ Compact repo guide for OpenCode sessions. If a fact is obvious from filenames or
 - Android project exists under `android/` and is tracked in Git (build artifacts and IDE files are gitignored).
 - `capacitor.config.ts` sets `server.androidScheme: 'http'` to avoid mixed-content blocks when the backend is HTTP.
 - `AndroidManifest.xml` has `android:usesCleartextTraffic="true"` and references `network_security_config.xml`, which permits cleartext traffic for `192.168.1.9`, `ws.code`, `localhost`, and `127.0.0.1`.
+- **`npm run build` builds for PRODUCTION**, not development: `angular.json` sets `defaultConfiguration: production` for the `build` target, so a plain `ng build` swaps in `environment.prod.ts`. Installing that APK on a PDA to test dev behaviour silently hits the production endpoints — it looks like the feature is broken when it is only pointing elsewhere. Use `npm run build:dev` for anything you intend to install on a device for testing.
 - Always build before syncing: `npm run build; npx cap sync`.
 - No iOS platform committed yet. Add with `npx cap add ios` if needed.
 
