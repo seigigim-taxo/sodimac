@@ -40,8 +40,9 @@ describe('AppComponent', () => {
           },
         },
         {
-          // El menú ofrece actualizar la app; sin este doble el componente no
-          // se puede construir.
+          // El menú ofrece actualizar la app. El doble va sobre el facade y no
+          // sobre OfertaActualizacionService: el servicio es real y lo que se
+          // corta es su acceso al mundo (red e instalador de Android).
           provide: ActualizacionFacade,
           useValue: {
             buscando: signal(false),
@@ -50,6 +51,7 @@ describe('AppComponent', () => {
             error: signal(null),
             disponible: signal(null),
             buscar: jasmine.createSpy('buscar').and.resolveTo(false),
+            hayActualizacion: signal(false),
           },
         },
         { provide: ThemeFacade, useValue: { isDark: signal(false), toggle: jasmine.createSpy('toggle') } },

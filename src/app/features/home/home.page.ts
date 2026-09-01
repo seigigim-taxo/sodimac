@@ -24,6 +24,7 @@ import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
+import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 
 
 @Component({
@@ -53,8 +54,28 @@ export class HomePage implements ViewWillEnter {
   private nuevoConteo        = inject(NuevoConteoFacade);
   private buscador           = inject(BuscadorService);
   private network            = inject(NetworkService);
+  private oferta             = inject(OfertaActualizacionService);
 
   isOnline = this.network.isOnline;
+
+  /*
+   * Version nueva para ofrecer. La consulta se dispara al entrar a esta
+   * pantalla --ver ionViewWillEnter-- porque en Inicio nunca hay un TAG
+   * abierto: la app se CIERRA para instalarse, y ofrecerlo a mitad de un
+   * conteo seria ofrecerle al operador perder el hilo.
+   */
+  hayVersionNueva     = this.oferta.ofrecible;
+  versionDisponible   = this.oferta.disponible;
+  descargandoVersion  = this.oferta.descargando;
+  porcentajeVersion   = this.oferta.porcentaje;
+
+  ofrecerActualizacion(): void {
+    void this.oferta.ofrecer();
+  }
+
+  descartarActualizacion(): void {
+    this.oferta.descartar();
+  }
 
   /*
    * Nombre del conteo recién asignado, para señalarlo en la lista. La PDA no
@@ -203,6 +224,17 @@ export class HomePage implements ViewWillEnter {
   }
 
   ionViewWillEnter(): void {
+    /*
+     * Se consulta por version nueva ACA y no en el arranque de la app: entrar a
+     * Inicio es la senial de que el operador no esta contando. El servicio
+     * espacia las consultas, asi que entrar y salir varias veces no le pega al
+     * servidor cada vez.
+     *
+     * Sin await y sin catch: si falla, no se ofrece nada y listo. Una consulta
+     * de version no puede demorar ni romper la carga de la pantalla.
+     */
+    void this.oferta.buscarEnSilencio();
+
     const session = this.auth.session();
     if (!session) return;
     void this.sucursalFacade.loadSucursales(session.operadorId);

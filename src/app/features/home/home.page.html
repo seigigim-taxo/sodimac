@@ -27,6 +27,33 @@
       DEBAJO del boton que lo produce, asi que el operador tocaba "Actualizar",
       no veia nada, y volvia a tocar.
     -->
+    <!--
+      Version nueva disponible. Va como franja y no como alerta emergente: el
+      operador entra a Inicio para empezar a trabajar, y un popup automatico lo
+      obliga a despacharlo antes de poder hacer nada. La franja se queda ahi
+      hasta que la toque.
+
+      La obligatoria no trae "Ahora no": el servidor marco esa version como no
+      apta para seguir trabajando.
+    -->
+    @if (hayVersionNueva()) {
+    <div class="status-banner status-banner-info mb-4">
+      <ion-icon name="sync-outline"></ion-icon>
+      <span>
+        Hay una versión nueva de la app<strong>{{ versionDisponible()?.versionName ? ' (' + versionDisponible()?.versionName + ')' : '' }}</strong>.
+        @if (descargandoVersion()) {
+        Descargando{{ porcentajeVersion() !== null ? ' ' + porcentajeVersion() + '%' : '' }}…
+        }
+      </span>
+      @if (!descargandoVersion()) {
+      <ion-button fill="clear" size="small" (click)="ofrecerActualizacion()">Actualizar</ion-button>
+      @if (!versionDisponible()?.obligatoria) {
+      <ion-button fill="clear" size="small" (click)="descartarActualizacion()">Ahora no</ion-button>
+      }
+      }
+    </div>
+    }
+
     @if (avisoNuevoConteo(); as nombre) {
     <div class="status-banner status-banner-info mb-4">
       <ion-icon name="sync-outline"></ion-icon>
