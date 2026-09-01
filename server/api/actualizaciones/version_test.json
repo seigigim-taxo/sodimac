@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "data": {
+    "version_code": 9,
+    "version_name": "1.0.5",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.4-vc8.apk",
+    "sha256": "b71c9b7db60d7fdf3c23d05e42038f895d9860bd12685a4993f95cb4ba86edea",
+    "obligatoria": false,
+    "notas": "Manifiesto de PRUEBA. Solo lo leen las builds de desarrollo."
+  }
+}

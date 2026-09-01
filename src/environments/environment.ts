@@ -7,9 +7,20 @@ export const environment = {
   apiUrl: 'http://50.16.13.230/app/ws/sodimac/api',
   authEndpoint: 'auth/login_dev.php',
   preparacionEndpoint: 'sincronizaciones/preparacion_dev.php',
-  // Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
-  // de api/ para heredar CORS. Ver server/README.md.
-  actualizacionEndpoint: 'actualizaciones/version.json',
+  /*
+   * Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
+   * de api/ para heredar CORS. Ver server/README.md.
+   *
+   * Desarrollo apunta a un manifiesto APARTE del de produccion. Los dos
+   * environments comparten apiUrl, asi que mientras los dos leyeran
+   * version.json no habia forma de probar la oferta de actualizacion sin
+   * ofrecersela tambien a las PDAs en terreno: se toca version_test.json, se
+   * prueba, y lo que ven los operadores no se movio nunca.
+   *
+   * Si version_test.json no existe en el servidor, la consulta falla y
+   * simplemente no se ofrece nada — la app sigue funcionando igual.
+   */
+  actualizacionEndpoint: 'actualizaciones/version_test.json',
   alwaysSyncAfterLogin: false
 };
 
