@@ -74,11 +74,46 @@ export interface TagFinalizadoPayload {
   operador_rut: string;
   operador_login: string;
   pda_codigo: string;
+
+  /*
+   * Con qué versión de la app se contó este TAG.
+   *
+   * Viaja con la carga y no en un log aparte porque la pregunta llega meses
+   * después y sobre una carga puntual: "esta viene rara, ¿de qué versión
+   * salió?". Un log local no responde eso — la PDA ya se formateó, o es otra.
+   *
+   * Se lee del sistema, no de la constante APP_VERSION (ver AppInfoService).
+   * Van los dos: `version_app` es lo que una persona reconoce, `version_code`
+   * es lo único que ordena de verdad.
+   */
+  version_app: string;
+  version_code: number;
+
   codigo_muestra: string | null;
   id_agenda: number | null;
   numero_agenda: string | null;
   detalles: TagFinalizadoDetallePayload[];
 }
+
+/*
+ * El mismo payload, pero LEÍDO de sod_sincronizacion.
+ *
+ * Un payload que se arma hoy siempre trae la versión; uno que quedó guardado
+ * como PENDIENTE antes de que existiera el campo, no. Son dos verdades
+ * distintas y por eso son dos tipos.
+ *
+ * Sin esta distinción, `JSON.parse(payloadJson) as TagFinalizadoPayload` le
+ * promete al compilador un `version_app: string` que en esas filas viejas es
+ * `undefined`: el primero que lo lea —comparar, recortar, mostrarlo— se lleva
+ * un undefined en runtime sin que nada lo haya advertido.
+ *
+ * Los campos siguen siendo obligatorios al CONSTRUIR, que es donde importa:
+ * si mañana aparece otro lugar que arme un payload y se olvide de la versión,
+ * el compilador lo detiene.
+ */
+export type TagFinalizadoPayloadAlmacenado =
+  Omit<TagFinalizadoPayload, 'version_app' | 'version_code'> &
+  Partial<Pick<TagFinalizadoPayload, 'version_app' | 'version_code'>>;
 
 export interface TagFinalizadoResponse {
   carga_uid: string;

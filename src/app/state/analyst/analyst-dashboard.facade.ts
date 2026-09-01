@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista, PreVarianceAnalista, RecuentoAnalista, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { AuthFacade } from '../auth/auth.facade';
+import { AppInfoService } from '../../core/app-info.service';
 import { PdaFacade } from '../pda/pda.facade';
 import { TagFinalizadoPayload, detalleUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { SincronizarTagFinalizadoUseCase } from '../../application/sincronizacion/sincronizar-tag-finalizado.use-case';
@@ -17,6 +18,7 @@ import { ValidacionAnalistaPayload } from '../../domain/sincronizacion/models/va
 export class AnalystDashboardFacade {
   private auth = inject(AuthFacade);
   private pda = inject(PdaFacade);
+  private appInfo = inject(AppInfoService);
   private syncTag = inject(SincronizarTagFinalizadoUseCase);
   private syncValidacion = inject(SincronizarValidacionAnalistaUseCase);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
@@ -169,6 +171,9 @@ export class AnalystDashboardFacade {
     const now = new Date();
     const ts = ahoraSqlMs(now);
     const cargaUid = this.generarCargaUid(ctx, tagCodigo, now);
+    // La misma version que viaja en las cargas del operador: si hay que
+    // rastrear una carga rara, no importa cual de los dos perfiles la genero.
+    const version = await this.appInfo.version();
 
     const payload: TagFinalizadoPayload = {
       carga_uid: cargaUid,
@@ -181,6 +186,8 @@ export class AnalystDashboardFacade {
       operador_rut: session.rutNormalizado,
       operador_login: session.correo,
       pda_codigo: String(this.pda.pdaId() ?? 'PDA'),
+      version_app: version.nombre,
+      version_code: version.codigo,
       codigo_muestra: ctx.codigoMuestra,
       id_agenda: ctx.idAgenda,
       numero_agenda: ctx.numeroAgenda,
@@ -280,6 +287,7 @@ export class AnalystDashboardFacade {
 
     const now = new Date();
     const cargaUid = this.generarCargaUidValidacion(ctx, numeroTag, now);
+    const version = await this.appInfo.version();
 
     const payload: ValidacionAnalistaPayload = {
       carga_uid: cargaUid,
@@ -288,6 +296,8 @@ export class AnalystDashboardFacade {
       codigo_tienda: ctx.codigoTienda,
       fecha_programada: ctx.fechaJornada,
       pda_codigo: String(this.pda.pdaId() ?? 'PDA'),
+      version_app: version.nombre,
+      version_code: version.codigo,
       operador_rut: session.rutNormalizado,
       login: session.correo,
       modo: 'TAG',
