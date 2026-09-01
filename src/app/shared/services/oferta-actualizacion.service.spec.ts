@@ -28,10 +28,12 @@ describe('OfertaActualizacionService', () => {
   let buscar: jasmine.Spy;
   let disponible: ReturnType<typeof signal<VersionDisponible | null>>;
   let hayActualizacion: ReturnType<typeof signal<boolean>>;
+  let instalada: ReturnType<typeof signal<number>>;
 
   beforeEach(() => {
     disponible = signal<VersionDisponible | null>(null);
     hayActualizacion = signal(false);
+    instalada = signal(8);
     buscar = jasmine.createSpy('buscar').and.callFake(async () => hayActualizacion());
 
     TestBed.configureTestingModule({
@@ -43,6 +45,7 @@ describe('OfertaActualizacionService', () => {
             buscar,
             disponible,
             hayActualizacion,
+            instalada,
             buscando: signal(false),
             descargando: signal(false),
             porcentaje: signal(null),
@@ -99,6 +102,30 @@ describe('OfertaActualizacionService', () => {
       disponible.set(VERSION(9));
 
       expect(servicio.ofrecible()).toBeTrue();
+    });
+
+    /*
+     * Con la version instalada desconocida (0) la comparacion dice que
+     * cualquier version del servidor es mas nueva. La consulta del menu ofrece
+     * igual --el operador pregunto-- pero esta franja se pinta sola y se
+     * quedaria puesta para siempre.
+     */
+    it('no ofrece nada si no se pudo leer la version instalada', () => {
+      hayActualizacion.set(true);
+      disponible.set(VERSION(9));
+      instalada.set(0);
+
+      expect(servicio.ofrecible()).toBeFalse();
+    });
+
+    // Ni siquiera una obligatoria, que es la que no se puede descartar: dejarla
+    // pasar seria dejar al operador con un aviso que no se va ni tocandolo.
+    it('tampoco una obligatoria con la version instalada desconocida', () => {
+      hayActualizacion.set(true);
+      disponible.set(VERSION(9, true));
+      instalada.set(0);
+
+      expect(servicio.ofrecible()).toBeFalse();
     });
 
     /*

@@ -57,6 +57,18 @@ export class OfertaActualizacionService {
   readonly ofrecible = computed(() => {
     if (!this.actualizacion.hayActualizacion()) return false;
 
+    /*
+     * Con la versión instalada desconocida NO se ofrece nada acá.
+     *
+     * `instalada` en 0 significa "no se pudo leer del sistema", y para la
+     * comparación eso hace que cualquier versión del servidor parezca más
+     * nueva. En la consulta del menú da igual —el operador preguntó, y ofrecer
+     * sin saber es mejor que no contestar—, pero esta franja se pinta sola: se
+     * quedaría puesta para siempre, y una franja que no se va es una que el
+     * operador aprende a ignorar, incluida la vez que sí importa.
+     */
+    if (this.actualizacion.instalada() <= 0) return false;
+
     const version = this.actualizacion.disponible();
     if (!version) return false;
 
