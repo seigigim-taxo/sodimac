@@ -91,3 +91,10 @@ __pycache__/
 *.jks
 *.keystore
 keystore.properties
+
+# Paquete de release: la APK firmada y su hash, listos para subir al servidor.
+# No van al repo --25 MB por build-- y ademas se regeneran con
+# `npm run build && npx cap sync android && ./gradlew assembleRelease`.
+# Lo que si se versiona es el version.json, que es el manifiesto.
+/dist-release/
+
