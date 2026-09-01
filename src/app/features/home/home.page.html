@@ -37,19 +37,23 @@
       apta para seguir trabajando.
     -->
     @if (hayVersionNueva()) {
-    <div class="status-banner status-banner-info mb-4">
-      <ion-icon name="sync-outline"></ion-icon>
-      <span>
-        Hay una versión nueva de la app<strong>{{ versionDisponible()?.versionName ? ' (' + versionDisponible()?.versionName + ')' : '' }}</strong>.
-        @if (descargandoVersion()) {
-        Descargando{{ porcentajeVersion() !== null ? ' ' + porcentajeVersion() + '%' : '' }}…
-        }
-      </span>
+    <div class="status-banner status-banner-info status-banner-acciones mb-4">
+      <div class="banner-linea">
+        <ion-icon name="sync-outline"></ion-icon>
+        <span>
+          Hay una versión nueva de la app<strong>{{ versionDisponible()?.versionName ? ' (' + versionDisponible()?.versionName + ')' : '' }}</strong>.
+          @if (descargandoVersion()) {
+          Descargando{{ porcentajeVersion() !== null ? ' ' + porcentajeVersion() + '%' : '' }}…
+          }
+        </span>
+      </div>
       @if (!descargandoVersion()) {
-      <ion-button fill="clear" size="small" (click)="ofrecerActualizacion()">Actualizar</ion-button>
-      @if (!versionDisponible()?.obligatoria) {
-      <ion-button fill="clear" size="small" (click)="descartarActualizacion()">Ahora no</ion-button>
-      }
+      <div class="banner-acciones">
+        @if (!versionDisponible()?.obligatoria) {
+        <ion-button fill="clear" size="small" (click)="descartarActualizacion()">Ahora no</ion-button>
+        }
+        <ion-button fill="clear" size="small" (click)="ofrecerActualizacion()">Actualizar</ion-button>
+      </div>
       }
     </div>
     }
