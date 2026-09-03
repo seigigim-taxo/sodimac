@@ -61,7 +61,11 @@
     @if (avisoNuevoConteo(); as nombre) {
     <div class="status-banner status-banner-info mb-4">
       <ion-icon name="sync-outline"></ion-icon>
+      @if (conteoReabierto()) {
+      <span>Se reabrió tu conteo: <strong>{{ nombre }}</strong>. Puedes seguir contando.</span>
+      } @else {
       <span>Tienes un conteo nuevo: <strong>{{ nombre }}</strong>. Selecciónalo para empezar.</span>
+      }
     </div>
     }
 

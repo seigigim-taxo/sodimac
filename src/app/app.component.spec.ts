@@ -11,6 +11,7 @@ import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/database.repository';
 import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { ActualizacionFacade } from './state/actualizacion/actualizacion.facade';
+import { ActualizarMuestraService } from './shared/services/actualizar-muestra.service';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
@@ -70,6 +71,17 @@ describe('AppComponent', () => {
           useValue: { iniciar: jasmine.createSpy('iniciar') },
         },
         { provide: 'AlertController', useValue: { create: jasmine.createSpy('create').and.returnValue(Promise.resolve({ present: jasmine.createSpy('present') })) } },
+        {
+          // El menú ofrece actualizar la muestra. Se dobla el servicio entero
+          // —no sus dependencias internas (EventoFacade, ConteoFacade, etc.)—
+          // porque este test es un smoke test de construcción, no de esa
+          // lógica: eso ya está probado en actualizar-muestra.service.spec.ts.
+          provide: ActualizarMuestraService,
+          useValue: {
+            actualizando: signal(false),
+            actualizar: jasmine.createSpy('actualizar').and.resolveTo(undefined),
+          },
+        },
       ],
     }).compileComponents();
 

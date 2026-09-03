@@ -22,6 +22,7 @@ import { hoySql } from '../../shared/utils/fecha.utils';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
+import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacion.util';
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
@@ -86,6 +87,7 @@ export class HomePage implements ViewWillEnter {
   // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
   buscandoConteo = this.nuevoConteo.buscando;
   sinNovedad     = this.nuevoConteo.sinNovedad;
+  conteoReabierto = this.nuevoConteo.reabierto;
   errorAsignacion = this.nuevoConteo.error;
 
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
@@ -305,8 +307,11 @@ export class HomePage implements ViewWillEnter {
    * El conteo del evento ya se finalizó y la PDA queda a la espera: acá se le
    * pregunta al SGO si hay trabajo nuevo, que puede ser de otra jornada.
    *
-   * No reabre el conteo anterior. Un evento finalizado está cerrado; lo que
-   * viene es otro evento con su propia muestra.
+   * Puede REABRIR el conteo anterior en vez de traer uno nuevo: si el SGO
+   * responde con el mismo codigo_muestra del evento que este operador acaba de
+   * cerrar, es que ese cierre fue prematuro —no había nada nuevo esperando— y
+   * BuscarOReabrirConteoUseCase lo deshace por su cuenta. `conteoReabierto`
+   * distingue ese caso del de un conteo genuinamente nuevo para el mensaje.
    */
   async buscarNuevoConteo(): Promise<void> {
     const session = this.auth.session();
@@ -315,26 +320,7 @@ export class HomePage implements ViewWillEnter {
     const asignacion = await this.nuevoConteo.buscar(session);
     if (!asignacion) return;
 
-    /*
-     * El conteo nuevo puede ser en OTRA TIENDA: al operador se lo asignan por
-     * jornada, no por local.
-     *
-     * Por eso hay que recargar las tiendas y pararse en la del conteo antes de
-     * pedir sus eventos. Sin esto, la pantalla seguía mostrando el local
-     * anterior y recargaba SUS eventos, así que el conteo recién insertado no
-     * aparecía nunca: el aviso lo nombraba y no había tarjeta que seleccionar.
-     */
-    await this.sucursalFacade.loadSucursales(session.operadorId);
-    const tiendaDelConteo = this.sucursalFacade.stores().find((s) => s.id === asignacion.sucursalId);
-    if (tiendaDelConteo) this.sucursalFacade.selectSucursal(tiendaDelConteo);
-
-    /*
-     * Se suelta el evento terminado antes de recargar. Sin esto el operador no
-     * podría elegir el nuevo: puedeSeleccionar bloquea el cambio mientras haya
-     * otro evento seleccionado.
-     */
-    await this.eventoFacade.limpiarSeleccion();
-    await this.eventoFacade.loadEventos(asignacion.sucursalId);
+    await pararseEnAsignacion(asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
 
     /*
      * No se selecciona ni se navega: el operador elige su evento y decide

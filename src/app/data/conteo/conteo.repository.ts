@@ -126,6 +126,17 @@ export class SqliteConteoRepository implements ConteoRepository {
     if (isDevMode()) console.log('[ConteoRepo] cerrarRonda', { conteoId });
   }
 
+  async reabrirRonda(conteoId: number): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_conteo
+       SET estado = 'ABIERTO', fecha_cierre = NULL
+       WHERE id = ? AND estado = 'FINALIZADO'`,
+      [conteoId]
+    );
+    if (isDevMode()) console.log('[ConteoRepo] reabrirRonda', { conteoId });
+  }
+
   // ────────────────────────── las líneas ──────────────────────────
 
   /*

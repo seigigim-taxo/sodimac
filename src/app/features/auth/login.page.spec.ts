@@ -91,6 +91,20 @@ describe('LoginPage', () => {
     expect(component.passwordControl?.touched).toBeTrue();
   });
 
+  /*
+   * La contraseña son los primeros 6 dígitos del RUT: ni menos ni más. El
+   * maxlength del input frena la escritura letra por letra, pero eso no se
+   * puede probar acá —es DOM real, no el FormControl—; lo que sí se prueba es
+   * que el formulario en sí, si llegara un valor más largo (pegado, o puesto
+   * a mano), lo rechaza igual.
+   */
+  it('should reject a password longer than 6 characters', () => {
+    component.form.setValue({ rut: '12345678-5', password: '1234567' });
+
+    expect(component.passwordControl?.hasError('maxlength')).toBeTrue();
+    expect(component.form.invalid).toBeTrue();
+  });
+
   it('should format RUT while typing', () => {
     const input = document.createElement('input');
     input.value = '123456789';

@@ -139,7 +139,7 @@ export class OfertaActualizacionService {
        */
       message: [
         'Tus conteos no se pierden.',
-        'La app se va a cerrar para instalarse. Volvé a entrar cuando termine.',
+        'La app se va a cerrar para instalarse. Vuelve a entrar cuando termine.',
       ].join('\n\n'),
       cssClass: 'alerta-respaldo',
       buttons: [
@@ -173,7 +173,7 @@ export class OfertaActualizacionService {
       case 'DESCARGA_CORRUPTA':
         await this.avisar(
           'La descarga falló',
-          'El archivo llegó incompleto, seguramente por la señal.\n\nProbá de nuevo con mejor cobertura.'
+          'El archivo llegó incompleto, seguramente por la señal.\n\nPrueba de nuevo con mejor cobertura.'
         );
         return;
 
@@ -195,7 +195,7 @@ export class OfertaActualizacionService {
       message: [
         'Android pide autorización para instalar la app. Se concede una sola vez.',
         '',
-        'Al continuar vas a ver una pantalla de Ajustes: activá el interruptor y volvé con el botón de atrás.',
+        'Al continuar vas a ver una pantalla de Ajustes: activa el interruptor y vuelve con el botón de atrás.',
         '',
         'La actualización sigue sola desde ahí.',
       ].join('\n'),
@@ -225,7 +225,7 @@ export class OfertaActualizacionService {
       } else {
         await this.avisar(
           'El permiso sigue sin estar',
-          'No se activó la autorización para instalar.\n\nProbá de nuevo desde "Actualizar la app" en el menú.'
+          'No se activó la autorización para instalar.\n\nPrueba de nuevo desde "Actualizar la app" en el menú.'
         );
       }
     });

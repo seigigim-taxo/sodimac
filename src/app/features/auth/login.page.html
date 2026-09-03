@@ -39,10 +39,19 @@
             type="password"
             placeholder="••••••"
             autocomplete="current-password"
+            maxlength="6"
             class="input-base"
           ></ion-input>
           @if (passwordControl?.touched && passwordControl?.hasError('required')) {
             <span class="block text-[13px] mt-2 ml-1" style="color: var(--app-error-text);">La contraseña es obligatoria</span>
+          }
+          <!--
+            maxlength="6" en el input ya frena la escritura letra por letra; este
+            mensaje cubre el caso que ese atributo no cubre — pegar un texto más
+            largo, que en algunos WebView de Android no se trunca solo.
+          -->
+          @if (passwordControl?.touched && passwordControl?.hasError('maxlength')) {
+            <span class="block text-[13px] mt-2 ml-1" style="color: var(--app-error-text);">La contraseña son 6 dígitos</span>
           }
         </div>
 

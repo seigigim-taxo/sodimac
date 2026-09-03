@@ -20,7 +20,7 @@ import {
   IonSpinner,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
@@ -33,6 +33,7 @@ import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
 import { App } from '@capacitor/app';
 import { OfertaActualizacionService } from './shared/services/oferta-actualizacion.service';
+import { ActualizarMuestraService } from './shared/services/actualizar-muestra.service';
 
 @Component({
   selector: 'app-root',
@@ -66,6 +67,7 @@ export class AppComponent {
   private respaldo = inject(RespaldoFacade);
   private alertController = inject(AlertController);
   private oferta = inject(OfertaActualizacionService);
+  private actualizarMuestra = inject(ActualizarMuestraService);
   private toastController = inject(ToastController);
   private router   = inject(Router);
   private location = inject(Location);
@@ -95,7 +97,7 @@ export class AppComponent {
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
       paperPlaneOutline, saveOutline,
-      cloudDownloadOutline,
+      cloudDownloadOutline, refreshOutline,
     });
 
     this.router.events.subscribe((evento) => {
@@ -145,6 +147,16 @@ export class AppComponent {
       position: 'top',
     });
     await toast.present();
+  }
+
+  /*
+   * Estado para el ítem del menú: mismo criterio que "Actualizar la app" —
+   * se deshabilita mientras corre, no se oculta nunca.
+   */
+  actualizandoMuestra = this.actualizarMuestra.actualizando;
+
+  async actualizarMuestraMenu(): Promise<void> {
+    await this.actualizarMuestra.actualizar();
   }
 
   async logout(): Promise<void> {
