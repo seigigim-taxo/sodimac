@@ -17,7 +17,14 @@ export type ResultadoActualizarMuestra =
    */
   | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
   /** Se consultó al SGO y es la misma muestra que ya había, sin nada que reabrir. */
-  | { estado: 'SIN_CAMBIOS' };
+  | { estado: 'SIN_CAMBIOS' }
+  /*
+   * El cierre (si hacía falta) salió bien, pero la búsqueda de la maestra
+   * nueva falló — sin red, o el SGO no respondió. Es un resultado distinto
+   * de BLOQUEADO: acá el evento SÍ se tocó, y el operador se queda sin
+   * saber si hay maestra nueva o no, no sin haber tocado nada.
+   */
+  | { estado: 'ERROR_BUSQUEDA'; mensaje: string };
 
 /*
  * "Volvé a preguntarle al SGO por la muestra de hoy" — a pedido, desde el
@@ -94,7 +101,22 @@ export class ActualizarMuestraUseCase {
       }
     }
 
-    const resultado = await this.buscarOReabrirUC.execute(session);
+    let resultado;
+    try {
+      resultado = await this.buscarOReabrirUC.execute(session);
+    } catch (err) {
+      /*
+       * El mensaje NO reenvía el de la excepción tal cual: acá abajo puede
+       * venir cualquier cosa —desde un error de red hasta el nombre de una
+       * ronda en la base—, y lo único que le importa al operador es que no
+       * se pudo confirmar si hay una maestra nueva. Distinto de BLOQUEADO:
+       * el cierre de arriba, si hacía falta, ya se hizo.
+       */
+      return {
+        estado: 'ERROR_BUSQUEDA',
+        mensaje: 'No se pudo consultar si hay una maestra nueva. Vuelve a intentar desde el menú.',
+      };
+    }
 
     return resultado.tipo === 'SIN_NOVEDAD'
       ? { estado: 'SIN_CAMBIOS' }

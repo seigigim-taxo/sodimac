@@ -27,6 +27,15 @@ import { Evento } from '../../domain/evento/models/evento.model';
  * Las líneas de sod_conteo_detalle no se mueven: los TAGs que ya se cerraron y
  * sincronizaron durante ese conteo siguen SINCRONIZADOS. Reabrir la ronda solo
  * habilita a abrir TAGs nuevos sobre ella, igual que si nunca se hubiera cerrado.
+ *
+ * EL CASO SIN NINGUNA RONDA
+ *
+ * Un evento que se cerró sin que el operador llegara a abrir ningún TAG no deja
+ * fila en sod_conteo: FinalizarEventoUseCase solo cierra la ronda "si (ronda)"
+ * existe — con cero TAGs no hay ninguna. Ahí no hay nada que deshacer, pero
+ * tampoco es un error: se abre la ronda 1 igual que si el evento nunca hubiera
+ * pasado por EN_ANALISIS. Encontrado probando en dispositivo un evento recién
+ * asignado, sin ningún conteo iniciado.
  */
 @Injectable({ providedIn: 'root' })
 export class ReabrirEventoUseCase {
@@ -43,11 +52,16 @@ export class ReabrirEventoUseCase {
     }
 
     const ronda = await this.conteoRepo.getUltimaRonda(eventoId);
-    if (!ronda || ronda.estado !== 'FINALIZADO') {
-      throw new Error('El evento no tiene una ronda cerrada que reabrir.');
+
+    if (ronda) {
+      if (ronda.estado !== 'FINALIZADO') {
+        throw new Error('El evento no tiene una ronda cerrada que reabrir.');
+      }
+      await this.conteoRepo.reabrirRonda(ronda.id);
+    } else {
+      await this.conteoRepo.abrirRonda(eventoId, 1);
     }
 
-    await this.conteoRepo.reabrirRonda(ronda.id);
     await this.eventoRepo.updateEstado(eventoId, 'ABIERTO');
 
     return { ...evento, estado: 'ABIERTO' };

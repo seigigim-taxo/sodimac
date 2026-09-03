@@ -18,7 +18,7 @@ describe('ReabrirEventoUseCase', () => {
   let eventoRepo: jasmine.SpyObj<EventoRepository>;
 
   beforeEach(() => {
-    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getUltimaRonda', 'reabrirRonda']);
+    conteoRepo = jasmine.createSpyObj('ConteoRepository', ['getUltimaRonda', 'reabrirRonda', 'abrirRonda']);
     eventoRepo = jasmine.createSpyObj('EventoRepository', ['getById', 'updateEstado']);
 
     eventoRepo.getById.and.resolveTo(evento());
@@ -28,6 +28,10 @@ describe('ReabrirEventoUseCase', () => {
       fechaApertura: '2026-09-02 08:05:00', fechaCierre: '2026-09-02 12:00:00',
     });
     conteoRepo.reabrirRonda.and.resolveTo();
+    conteoRepo.abrirRonda.and.resolveTo({
+      id: 9, eventoId: 1, iteracion: 1, estado: 'ABIERTO',
+      fechaApertura: '2026-09-02 09:00:00', fechaCierre: null,
+    });
 
     TestBed.configureTestingModule({
       providers: [
@@ -68,11 +72,22 @@ describe('ReabrirEventoUseCase', () => {
     await expectAsync(useCase.execute(1)).toBeRejectedWithError(/en análisis/);
   });
 
-  it('no hace nada si no hay una ronda cerrada que reabrir', async () => {
+  /*
+   * El caso que rompió en dispositivo: un evento asignado hoy, sin que el
+   * operador llegara a abrir ningún TAG. FinalizarEventoUseCase lo cerró sin
+   * ronda que cerrar —"si (ronda)" nunca se cumplió— así que acá no hay nada
+   * que deshacer, pero tampoco es un error: se abre la ronda 1 igual que si
+   * el evento nunca hubiera pasado por EN_ANALISIS.
+   */
+  it('sin ninguna ronda previa, abre la ronda 1 en vez de fallar', async () => {
     conteoRepo.getUltimaRonda.and.resolveTo(null);
 
-    await expectAsync(useCase.execute(1)).toBeRejectedWithError(/ronda cerrada/);
-    expect(eventoRepo.updateEstado).not.toHaveBeenCalled();
+    const resultado = await useCase.execute(1);
+
+    expect(conteoRepo.abrirRonda).toHaveBeenCalledWith(1, 1);
+    expect(conteoRepo.reabrirRonda).not.toHaveBeenCalled();
+    expect(eventoRepo.updateEstado).toHaveBeenCalledWith(1, 'ABIERTO');
+    expect(resultado.estado).toBe('ABIERTO');
   });
 
   it('no reabre si la última ronda ya está ABIERTA (estado inconsistente)', async () => {

@@ -139,5 +139,22 @@ describe('ActualizarMuestraUseCase', () => {
 
       expect(resultado).toEqual({ estado: 'ACTUALIZADA', asignacion });
     });
+
+    /*
+     * Encontrado probando en dispositivo: BuscarOReabrirConteoUseCase puede
+     * lanzar (sin red, o un estado inconsistente en la base) DESPUÉS de que
+     * el cierre de arriba ya haya pasado. El mensaje que llega al operador no
+     * repite el de la excepción tal cual —puede ser cualquier detalle
+     * interno—, siempre habla de "no se pudo consultar la maestra".
+     */
+    it('devuelve ERROR_BUSQUEDA con mensaje propio si buscarOReabrirUC lanza', async () => {
+      buscar.and.rejectWith(new Error('El evento no tiene una ronda cerrada que reabrir.'));
+
+      const resultado = await uc.execute(SESION, null, PDA_ID);
+
+      expect(resultado.estado).toBe('ERROR_BUSQUEDA');
+      expect((resultado as { mensaje: string }).mensaje).not.toContain('ronda');
+      expect((resultado as { mensaje: string }).mensaje).toContain('maestra nueva');
+    });
   });
 });

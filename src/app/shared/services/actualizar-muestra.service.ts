@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { AlertController } from '@ionic/angular/standalone';
+import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraUseCase } from '../../application/asignacion/actualizar-muestra.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
@@ -34,6 +34,13 @@ import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacio
  * Si el resultado es BLOQUEADO, en cambio, no se toca nada: el operador sigue
  * exactamente donde estaba, con su TAG intacto — es lo que el aviso le pide
  * resolver antes de reintentar.
+ *
+ * POR QUÉ HAY UN LOADING DE PANTALLA COMPLETA
+ *
+ * El botón vive en <ion-menu-toggle>: tocarlo cierra el menú al instante, así
+ * que el spinner inline del propio ítem del menú no llega a verse nunca — el
+ * operador toca, el menú se cierra, y no hay ninguna señal de que algo esté
+ * pasando hasta que aparece el aviso final. El loading cubre esa ventana.
  */
 @Injectable({ providedIn: 'root' })
 export class ActualizarMuestraService {
@@ -45,6 +52,7 @@ export class ActualizarMuestraService {
   private conteo           = inject(ConteoFacade);
   private router           = inject(Router);
   private alertController = inject(AlertController);
+  private loadingController = inject(LoadingController);
 
   private actualizandoSignal = signal(false);
   readonly actualizando = this.actualizandoSignal.asReadonly();
@@ -60,9 +68,20 @@ export class ActualizarMuestraService {
     }
 
     this.actualizandoSignal.set(true);
+    const loading = await this.loadingController.create({
+      message: 'Consultando al SGO…',
+      spinner: 'crescent',
+    });
+    await loading.present();
     try {
       const eventoActual = this.eventoFacade.selectedEvent();
       const resultado = await this.actualizarUC.execute(session, eventoActual, pdaId);
+      /*
+       * Se saca ANTES de mostrar cualquier aviso: si quedara abajo, en el
+       * finally, el aviso terminaría apilado encima del loading en vez de
+       * mostrarse solo.
+       */
+      await loading.dismiss();
 
       switch (resultado.estado) {
         case 'BLOQUEADO':
@@ -89,8 +108,23 @@ export class ActualizarMuestraService {
           await this.limpiarContextoDeConteo();
           await this.avisar('Ya tienes la maestra vigente', 'El SGO no tiene una maestra distinta a la que ya tienes.');
           return;
+
+        case 'ERROR_BUSQUEDA':
+          /*
+           * El cierre (si hacía falta) ya pasó — mismo refresco que SIN_CAMBIOS,
+           * por la misma razón: sin esto la lista seguiría mostrando ABIERTO un
+           * evento que la base ya tiene como EN_ANALISIS.
+           */
+          if (eventoActual) {
+            await this.eventoFacade.limpiarSeleccion();
+            await this.eventoFacade.loadEventos(eventoActual.sucursalId);
+          }
+          await this.limpiarContextoDeConteo();
+          await this.avisar('No se pudo actualizar', resultado.mensaje);
+          return;
       }
     } catch (err) {
+      await loading.dismiss();
       await this.avisar('No se pudo actualizar', err instanceof Error ? err.message : 'Error al consultar al SGO.');
     } finally {
       this.actualizandoSignal.set(false);

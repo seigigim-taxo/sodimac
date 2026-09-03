@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { AlertController } from '@ionic/angular/standalone';
+import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraService } from './actualizar-muestra.service';
 import { ActualizarMuestraUseCase, ResultadoActualizarMuestra } from '../../application/asignacion/actualizar-muestra.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
@@ -39,6 +39,9 @@ describe('ActualizarMuestraService', () => {
   let conteoFacade: jasmine.SpyObj<ConteoFacade>;
   let router: jasmine.SpyObj<Router>;
   let alertCreate: jasmine.Spy;
+  let loadingCreate: jasmine.Spy;
+  let loadingPresent: jasmine.Spy;
+  let loadingDismiss: jasmine.Spy;
 
   beforeEach(() => {
     ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS' });
@@ -63,6 +66,10 @@ describe('ActualizarMuestraService', () => {
 
     alertCreate = jasmine.createSpy('create').and.resolveTo({ present: () => Promise.resolve() });
 
+    loadingPresent = jasmine.createSpy('present').and.resolveTo();
+    loadingDismiss = jasmine.createSpy('dismiss').and.resolveTo(true);
+    loadingCreate  = jasmine.createSpy('create').and.resolveTo({ present: loadingPresent, dismiss: loadingDismiss });
+
     TestBed.configureTestingModule({
       providers: [
         ActualizarMuestraService,
@@ -74,6 +81,7 @@ describe('ActualizarMuestraService', () => {
         { provide: ConteoFacade, useValue: conteoFacade },
         { provide: Router, useValue: router },
         { provide: AlertController, useValue: { create: alertCreate } },
+        { provide: LoadingController, useValue: { create: loadingCreate } },
       ],
     });
     servicio = TestBed.inject(ActualizarMuestraService);
@@ -96,6 +104,44 @@ describe('ActualizarMuestraService', () => {
 
       expect(ejecutar).not.toHaveBeenCalled();
       expect(alertCreate).toHaveBeenCalled();
+    });
+
+    it('no muestra el loading si falta sesión o PDA: no hay nada que esperar', async () => {
+      session.and.returnValue(null);
+
+      await servicio.actualizar();
+
+      expect(loadingCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  /*
+   * El botón vive en <ion-menu-toggle>: tocarlo cierra el menú al instante, y
+   * con eso se pierde el spinner inline del propio ítem. Sin este loading el
+   * operador no tiene ninguna señal de que algo está pasando hasta el aviso
+   * final.
+   */
+  describe('loading de pantalla completa', () => {
+    it('se muestra apenas arranca la consulta', async () => {
+      await servicio.actualizar();
+
+      expect(loadingCreate).toHaveBeenCalled();
+      expect(loadingPresent).toHaveBeenCalled();
+    });
+
+    it('se saca antes de mostrar el aviso de resultado', async () => {
+      await servicio.actualizar();
+
+      expect(loadingDismiss).toHaveBeenCalled();
+      expect(alertCreate).toHaveBeenCalled();
+    });
+
+    it('se saca también si el caso de uso lanza', async () => {
+      ejecutar.and.rejectWith(new Error('Sin conexión con el servidor.'));
+
+      await servicio.actualizar();
+
+      expect(loadingDismiss).toHaveBeenCalled();
     });
   });
 
@@ -193,6 +239,35 @@ describe('ActualizarMuestraService', () => {
 
       const [args] = alertCreate.calls.mostRecent().args;
       expect(args.header).toBe('Ya tienes la maestra vigente');
+    });
+  });
+
+  describe('resultado ERROR_BUSQUEDA', () => {
+    /*
+     * Mismo refresco que SIN_CAMBIOS y por la misma razón: el cierre, si
+     * hacía falta, ya pasó dentro de ActualizarMuestraUseCase antes de que
+     * fallara la búsqueda — sin esto la lista seguiría mostrando ABIERTO un
+     * evento que la base ya tiene como EN_ANALISIS.
+     */
+    it('con evento previo, refresca sus eventos igual que SIN_CAMBIOS', async () => {
+      eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
+      ejecutar.and.resolveTo({ estado: 'ERROR_BUSQUEDA', mensaje: 'No se pudo consultar si hay una maestra nueva.' });
+
+      await servicio.actualizar();
+
+      expect(eventoFacade.limpiarSeleccion).toHaveBeenCalled();
+      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(1);
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('avisa con el mensaje que arma el caso de uso', async () => {
+      ejecutar.and.resolveTo({ estado: 'ERROR_BUSQUEDA', mensaje: 'No se pudo consultar si hay una maestra nueva.' });
+
+      await servicio.actualizar();
+
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('No se pudo actualizar');
+      expect(args.message).toBe('No se pudo consultar si hay una maestra nueva.');
     });
   });
 

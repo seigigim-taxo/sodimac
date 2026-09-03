@@ -91,7 +91,6 @@ export class BuscarNuevoConteoUseCase {
     }
 
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
-    if (isDevMode()) console.log('[BuscarNuevoConteo]', { codigoTienda, sucursalId, codigoMuestra });
 
     /*
      * Si la tienda todavía no existe localmente, la muestra tampoco puede
@@ -102,11 +101,21 @@ export class BuscarNuevoConteoUseCase {
     if (sucursalId !== null) {
       const existente = await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalId);
       /*
+       * Un solo argumento string: el puente de consola de Capacitor no
+       * serializa bien un objeto pasado como segundo argumento (queda como
+       * "[object Object]" en logcat) — sí lo hace con un string ya armado.
+       */
+      if (isDevMode()) {
+        console.log(`[BuscarNuevoConteo] ${JSON.stringify({ codigoTienda, sucursalId, codigoMuestraSGO: codigoMuestra, eventoCoincidente: existente })}`);
+      }
+      /*
        * Ya la tenemos: el SGO todavía no programó nada nuevo. Es el resultado
        * normal de esta consulta, no un error — el operador que terminó temprano
        * la va a tocar varias veces antes de que aparezca la jornada siguiente.
        */
       if (existente !== null) return { asignacion: null, eventoCoincidenteId: existente };
+    } else if (isDevMode()) {
+      console.log(`[BuscarNuevoConteo] ${JSON.stringify({ codigoTienda, sucursalId, codigoMuestraSGO: codigoMuestra })}`);
     }
 
     /*
