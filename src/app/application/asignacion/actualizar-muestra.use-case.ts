@@ -3,14 +3,20 @@ import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-cont
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Session } from '../../domain/auth/models/session.model';
 import { FinalizarEventoUseCase } from '../conteo/finalizar-evento.use-case';
-import { BuscarNuevoConteoUseCase } from './buscar-nuevo-conteo.use-case';
+import { BuscarOReabrirConteoUseCase } from './buscar-o-reabrir-conteo.use-case';
 
 export type ResultadoActualizarMuestra =
   /** Hay un TAG en curso o sin sincronizar. El mensaje ya viene armado. */
   | { estado: 'BLOQUEADO'; motivo: string }
-  /** El SGO tenía una muestra distinta y quedó persistida. */
+  /*
+   * El SGO tenía una muestra distinta y quedó persistida, O el código
+   * coincidía con el evento que este mismo flujo acaba de cerrar y se
+   * deshizo ese cierre. Para el operador el resultado práctico es el mismo:
+   * hay un evento ABIERTO con el que seguir — no se distingue acá cuál de
+   * los dos pasó (ver BuscarOReabrirConteoUseCase para esa distinción).
+   */
   | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
-  /** Se consultó al SGO y es la misma muestra que ya había. */
+  /** Se consultó al SGO y es la misma muestra que ya había, sin nada que reabrir. */
   | { estado: 'SIN_CAMBIOS' };
 
 /*
@@ -49,6 +55,17 @@ export type ResultadoActualizarMuestra =
  * mensajes de bloqueo también son los que ese caso de uso ya redacta —no se
  * inventa texto nuevo acá.
  *
+ * POR QUÉ TAMBIÉN PUEDE REABRIR
+ *
+ * Si el cierre de acá arriba era prematuro —el SGO todavía no tiene nada
+ * distinto y le devuelve el mismo codigo_muestra del evento que se acaba de
+ * cerrar—, dejarlo en EN_ANALISIS sin más lo varaba: SIN_CAMBIOS le decía "ya
+ * tenés la muestra vigente" con el evento cerrado y ningún camino local para
+ * retomarlo. Por eso se llama a BuscarOReabrirConteoUseCase —el mismo
+ * orquestador que usa el botón "Actualizar" de Home— en vez de a
+ * BuscarNuevoConteoUseCase directo: la decisión de "¿corresponde reabrir?" es
+ * una sola y vive ahí, no se vuelve a escribir acá.
+ *
  * LO QUE NUNCA HACE
  *
  * Ni cerrar el evento ni traer la muestra nueva mandan algo al SGO: el primero
@@ -58,8 +75,8 @@ export type ResultadoActualizarMuestra =
  */
 @Injectable({ providedIn: 'root' })
 export class ActualizarMuestraUseCase {
-  private finalizarUC = inject(FinalizarEventoUseCase);
-  private buscarUC    = inject(BuscarNuevoConteoUseCase);
+  private finalizarUC        = inject(FinalizarEventoUseCase);
+  private buscarOReabrirUC   = inject(BuscarOReabrirConteoUseCase);
 
   async execute(
     session: Session,
@@ -77,14 +94,11 @@ export class ActualizarMuestraUseCase {
       }
     }
 
-    /*
-     * eventoCoincidenteId no se usa acá: reabrir el evento que se acaba de
-     * cerrar es una decisión de BuscarOReabrirConteoUseCase, exclusiva del
-     * botón "Actualizar" de Home. Acá "mismo código" es, tal cual, sin cambios.
-     */
-    const { asignacion } = await this.buscarUC.execute(session);
+    const resultado = await this.buscarOReabrirUC.execute(session);
 
-    return asignacion ? { estado: 'ACTUALIZADA', asignacion } : { estado: 'SIN_CAMBIOS' };
+    return resultado.tipo === 'SIN_NOVEDAD'
+      ? { estado: 'SIN_CAMBIOS' }
+      : { estado: 'ACTUALIZADA', asignacion: resultado.asignacion };
   }
 
   /*
