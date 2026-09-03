@@ -57,7 +57,14 @@ export class LoginPage implements OnInit {
 
   form = this.fb.group({
     rut:      ['', [Validators.required, this.rutValidator]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
+    /*
+     * La contraseña son los primeros 6 dígitos del RUT: ni menos ni más.
+     * maxLength va junto al maxlength del input y no en su lugar — el atributo
+     * HTML es el freno que el operador siente al escribir, pero se puede
+     * saltear pegando texto; el validador del formulario es el que de verdad
+     * lo garantiza.
+     */
+    password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]],
   });
 
   constructor() {

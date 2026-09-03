@@ -22,6 +22,7 @@ import { hoySql } from '../../shared/utils/fecha.utils';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
+import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacion.util';
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
@@ -315,26 +316,7 @@ export class HomePage implements ViewWillEnter {
     const asignacion = await this.nuevoConteo.buscar(session);
     if (!asignacion) return;
 
-    /*
-     * El conteo nuevo puede ser en OTRA TIENDA: al operador se lo asignan por
-     * jornada, no por local.
-     *
-     * Por eso hay que recargar las tiendas y pararse en la del conteo antes de
-     * pedir sus eventos. Sin esto, la pantalla seguía mostrando el local
-     * anterior y recargaba SUS eventos, así que el conteo recién insertado no
-     * aparecía nunca: el aviso lo nombraba y no había tarjeta que seleccionar.
-     */
-    await this.sucursalFacade.loadSucursales(session.operadorId);
-    const tiendaDelConteo = this.sucursalFacade.stores().find((s) => s.id === asignacion.sucursalId);
-    if (tiendaDelConteo) this.sucursalFacade.selectSucursal(tiendaDelConteo);
-
-    /*
-     * Se suelta el evento terminado antes de recargar. Sin esto el operador no
-     * podría elegir el nuevo: puedeSeleccionar bloquea el cambio mientras haya
-     * otro evento seleccionado.
-     */
-    await this.eventoFacade.limpiarSeleccion();
-    await this.eventoFacade.loadEventos(asignacion.sucursalId);
+    await pararseEnAsignacion(asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
 
     /*
      * No se selecciona ni se navega: el operador elige su evento y decide

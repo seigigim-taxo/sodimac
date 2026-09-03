@@ -64,6 +64,29 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!--
+          Actualizar maestra: volver a preguntarle al SGO por la muestra de
+          hoy sin esperar a que termine la jornada. Solo para el operador —el
+          analista trabaja con una preparación liviana que no tiene este
+          concepto de muestra completa.
+
+          Igual que "Actualizar la app": siempre visible, nunca desaparece. Si
+          hay un TAG en curso o algo sin sincronizar, no se bloquea el botón
+          acá —eso lo decide la acción misma, y el aviso explica qué hacer—;
+          ocultarlo condicionalmente dejaría al operador sin saber si existe.
+        -->
+        @if (isOperator()) {
+        <ion-menu-toggle>
+          <ion-item button (click)="actualizarMuestraMenu()" [disabled]="actualizandoMuestra()" class="menu-theme-item">
+            <ion-icon slot="start" name="refresh-outline"></ion-icon>
+            <ion-label>{{ actualizandoMuestra() ? 'Actualizando…' : 'Actualizar maestra' }}</ion-label>
+            @if (actualizandoMuestra()) {
+            <ion-spinner slot="end" name="crescent"></ion-spinner>
+            }
+          </ion-item>
+        </ion-menu-toggle>
+        }
+
         <!-- Respaldo de la base local -->
         <ion-menu-toggle>
           <ion-item button (click)="respaldarBase()" [disabled]="generandoRespaldo()" class="menu-theme-item">
