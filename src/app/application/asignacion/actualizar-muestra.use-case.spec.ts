@@ -31,7 +31,7 @@ describe('ActualizarMuestraUseCase', () => {
 
   beforeEach(() => {
     finalizar = jasmine.createSpy('finalizar').and.resolveTo({ estado: 'EN_ANALISIS', totalMuestra: 0, contados: 0 });
-    buscar    = jasmine.createSpy('buscar').and.resolveTo(null);
+    buscar    = jasmine.createSpy('buscar').and.resolveTo({ asignacion: null, eventoCoincidenteId: null });
 
     TestBed.configureTestingModule({
       providers: [
@@ -112,7 +112,7 @@ describe('ActualizarMuestraUseCase', () => {
 
   describe('resultado de la búsqueda', () => {
     it('devuelve ACTUALIZADA con la asignación cuando el SGO trae una muestra distinta', async () => {
-      buscar.and.resolveTo(asignacion);
+      buscar.and.resolveTo({ asignacion, eventoCoincidenteId: null });
 
       const resultado = await uc.execute(SESION, null, PDA_ID);
 
@@ -120,7 +120,20 @@ describe('ActualizarMuestraUseCase', () => {
     });
 
     it('devuelve SIN_CAMBIOS cuando el SGO no tiene nada nuevo', async () => {
-      buscar.and.resolveTo(null);
+      buscar.and.resolveTo({ asignacion: null, eventoCoincidenteId: null });
+
+      const resultado = await uc.execute(SESION, null, PDA_ID);
+
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS' });
+    });
+
+    /*
+     * Reabrir el evento recién cerrado es una decisión exclusiva del botón
+     * "Actualizar" de Home (BuscarOReabrirConteoUseCase) — acá "mismo código"
+     * sigue siendo, tal cual, SIN_CAMBIOS.
+     */
+    it('SIN_CAMBIOS aunque el código coincida con un evento propio: no reabre nada', async () => {
+      buscar.and.resolveTo({ asignacion: null, eventoCoincidenteId: 30 });
 
       const resultado = await uc.execute(SESION, null, PDA_ID);
 

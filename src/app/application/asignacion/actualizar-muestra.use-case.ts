@@ -77,7 +77,12 @@ export class ActualizarMuestraUseCase {
       }
     }
 
-    const asignacion = await this.buscarUC.execute(session);
+    /*
+     * eventoCoincidenteId no se usa acá: reabrir el evento que se acaba de
+     * cerrar es una decisión de BuscarOReabrirConteoUseCase, exclusiva del
+     * botón "Actualizar" de Home. Acá "mismo código" es, tal cual, sin cambios.
+     */
+    const { asignacion } = await this.buscarUC.execute(session);
 
     return asignacion ? { estado: 'ACTUALIZADA', asignacion } : { estado: 'SIN_CAMBIOS' };
   }

@@ -63,7 +63,12 @@ describe('BuscarNuevoConteoUseCase', () => {
      * va a tocar varias veces antes de que el SGO programe la jornada siguiente.
      */
     it('no informa nada nuevo', async () => {
-      expect(await uc.execute(SESION)).toBeNull();
+      expect((await uc.execute(SESION)).asignacion).toBeNull();
+    });
+
+    // El evento que coincide se expone para que el orquestador decida si conviene reabrirlo.
+    it('expone el evento local que coincide con el código', async () => {
+      expect((await uc.execute(SESION)).eventoCoincidenteId).toBe(12);
     });
 
     /*
@@ -83,12 +88,13 @@ describe('BuscarNuevoConteoUseCase', () => {
       // null la primera vez —no existe— y el id del evento recién creado después.
       getEventoIdPorCodigo.and.returnValues(Promise.resolve(null), Promise.resolve(30));
 
-      const asignacion = await uc.execute(SESION);
+      const resultado = await uc.execute(SESION);
 
       expect(persistir).toHaveBeenCalled();
-      expect(asignacion).toEqual({
+      expect(resultado.asignacion).toEqual({
         eventoId: 30, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-28',
       });
+      expect(resultado.eventoCoincidenteId).toBeNull();
     });
 
     /*
@@ -119,11 +125,11 @@ describe('BuscarNuevoConteoUseCase', () => {
       getIdPorCodigo.and.resolveTo(9);
       getEventoIdPorCodigo.and.returnValues(Promise.resolve(null), Promise.resolve(31));
 
-      const asignacion = await uc.execute(SESION);
+      const resultado = await uc.execute(SESION);
 
       expect(getIdPorCodigo).toHaveBeenCalledWith('4088');
       expect(getEventoIdPorCodigo).toHaveBeenCalledWith('MUE-OTRA-TIENDA', 9);
-      expect(asignacion?.sucursalId).toBe(9);
+      expect(resultado.asignacion?.sucursalId).toBe(9);
     });
 
     /*
@@ -134,10 +140,10 @@ describe('BuscarNuevoConteoUseCase', () => {
     it('si la tienda no existe localmente, persiste igual', async () => {
       getIdPorCodigo.and.returnValues(Promise.resolve(null), Promise.resolve(15));
 
-      const asignacion = await uc.execute(SESION);
+      const resultado = await uc.execute(SESION);
 
       expect(persistir).toHaveBeenCalled();
-      expect(asignacion?.sucursalId).toBe(15);
+      expect(resultado.asignacion?.sucursalId).toBe(15);
     });
   });
 
@@ -150,14 +156,16 @@ describe('BuscarNuevoConteoUseCase', () => {
     it('sin muestra, no informa nada y no escribe', async () => {
       descargar.and.resolveTo(preparacion(null));
 
-      expect(await uc.execute(SESION)).toBeNull();
+      const resultado = await uc.execute(SESION);
+      expect(resultado.asignacion).toBeNull();
+      expect(resultado.eventoCoincidenteId).toBeNull();
       expect(persistir).not.toHaveBeenCalled();
     });
 
     it('sin tienda, tampoco', async () => {
       descargar.and.resolveTo(preparacion('MUE-NUEVA', null));
 
-      expect(await uc.execute(SESION)).toBeNull();
+      expect((await uc.execute(SESION)).asignacion).toBeNull();
       expect(persistir).not.toHaveBeenCalled();
     });
   });

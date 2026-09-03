@@ -87,6 +87,7 @@ export class HomePage implements ViewWillEnter {
   // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
   buscandoConteo = this.nuevoConteo.buscando;
   sinNovedad     = this.nuevoConteo.sinNovedad;
+  conteoReabierto = this.nuevoConteo.reabierto;
   errorAsignacion = this.nuevoConteo.error;
 
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
@@ -306,8 +307,11 @@ export class HomePage implements ViewWillEnter {
    * El conteo del evento ya se finalizó y la PDA queda a la espera: acá se le
    * pregunta al SGO si hay trabajo nuevo, que puede ser de otra jornada.
    *
-   * No reabre el conteo anterior. Un evento finalizado está cerrado; lo que
-   * viene es otro evento con su propia muestra.
+   * Puede REABRIR el conteo anterior en vez de traer uno nuevo: si el SGO
+   * responde con el mismo codigo_muestra del evento que este operador acaba de
+   * cerrar, es que ese cierre fue prematuro —no había nada nuevo esperando— y
+   * BuscarOReabrirConteoUseCase lo deshace por su cuenta. `conteoReabierto`
+   * distingue ese caso del de un conteo genuinamente nuevo para el mensaje.
    */
   async buscarNuevoConteo(): Promise<void> {
     const session = this.auth.session();

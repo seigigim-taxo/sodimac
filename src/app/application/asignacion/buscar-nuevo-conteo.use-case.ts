@@ -51,13 +51,30 @@ import { Session } from '../../domain/auth/models/session.model';
  * dejaron de ser editables. Lo que viene es trabajo nuevo, con su propia
  * muestra, y puede ser de otra jornada.
  */
+export interface ResultadoBusquedaConteo {
+  /** Conteo nuevo a tomar, o null si no hay trabajo nuevo que ofrecer. */
+  asignacion: AsignacionConteo | null;
+  /*
+   * Evento local que YA tiene el mismo codigo_muestra que acaba de devolver el
+   * SGO, cuando existe. Null en cualquier otro caso (código nuevo, o
+   * preparación incompleta).
+   *
+   * Se expone para que quien orquesta la búsqueda (ver
+   * BuscarOReabrirConteoUseCase) pueda decidir si ese evento es uno que el
+   * propio operador acaba de cerrar y conviene reabrir, sin tener que repetir
+   * la descarga de preparación ni la comparación de códigos —dos lecturas de
+   * "¿es la misma muestra?" que terminan desalineándose con el tiempo.
+   */
+  eventoCoincidenteId: number | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BuscarNuevoConteoUseCase {
   private sincronizar  = inject(SincronizarDatosInicialesUseCase);
   private muestraRepo  = inject(MUESTRA_REPOSITORY_TOKEN);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
 
-  async execute(session: Session): Promise<AsignacionConteo | null> {
+  async execute(session: Session): Promise<ResultadoBusquedaConteo> {
     const datos = await this.sincronizar.descargar(session);
 
     const codigoMuestra = datos.muestra?.codigoMuestra?.trim();
@@ -70,7 +87,7 @@ export class BuscarNuevoConteoUseCase {
      */
     if (!codigoMuestra || !codigoTienda) {
       if (isDevMode()) console.log('[BuscarNuevoConteo] preparación sin muestra o sin tienda');
-      return null;
+      return { asignacion: null, eventoCoincidenteId: null };
     }
 
     const sucursalId = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
@@ -89,7 +106,7 @@ export class BuscarNuevoConteoUseCase {
        * normal de esta consulta, no un error — el operador que terminó temprano
        * la va a tocar varias veces antes de que aparezca la jornada siguiente.
        */
-      if (existente !== null) return null;
+      if (existente !== null) return { asignacion: null, eventoCoincidenteId: existente };
     }
 
     /*
@@ -117,10 +134,13 @@ export class BuscarNuevoConteoUseCase {
      * "no hay nada nuevo" justo después de haber insertado una jornada.
      */
     return {
-      eventoId:        eventoId ?? 0,
-      sucursalId:      sucursalFinal ?? 0,
-      nombre:          nombre && nombre !== '' ? nombre : `Conteo ${eventoId ?? ''}`.trim(),
-      fechaProgramada: (datos.evento?.fechaProgramada ?? '').slice(0, 10),
+      asignacion: {
+        eventoId:        eventoId ?? 0,
+        sucursalId:      sucursalFinal ?? 0,
+        nombre:          nombre && nombre !== '' ? nombre : `Conteo ${eventoId ?? ''}`.trim(),
+        fechaProgramada: (datos.evento?.fechaProgramada ?? '').slice(0, 10),
+      },
+      eventoCoincidenteId: null,
     };
   }
 }

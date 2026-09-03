@@ -35,6 +35,14 @@ export interface ConteoRepository {
   /* ABIERTO → FINALIZADO. A partir de acá sus líneas dejan de ser editables. */
   cerrarRonda(conteoId: number): Promise<void>;
 
+  /*
+   * FINALIZADO → ABIERTO. Inverso exacto de cerrarRonda, para deshacer el
+   * cierre de una ronda que se cerró antes de tiempo (ver ReabrirEventoUseCase).
+   * Limpia fecha_cierre: una ronda reabierta no tiene fecha de cierre hasta
+   * que se vuelva a cerrar.
+   */
+  reabrirRonda(conteoId: number): Promise<void>;
+
   // ────────────────────────── las líneas ──────────────────────────
 
   /*
