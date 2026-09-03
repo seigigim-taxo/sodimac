@@ -1,4 +1,5 @@
 import { Component, inject, computed, signal } from '@angular/core';
+import { contarTagsDistintos } from '../../../domain/conteo/utils/tag.utils';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import {
@@ -137,6 +138,14 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     return conteos.length > 0 ? conteos[0] : null;
   });
 
+  /*
+   * TAGs distintos de TODO el evento, para el avance de arriba.
+   *
+   * La etiqueta ya decía "Tags distintos usados" pero mostraba la cantidad de
+   * filas: con un TAG reabierto, prometía una cosa y mostraba otra.
+   */
+  tagsDistintosEvento = computed(() => contarTagsDistintos(this.resumenesEvento()));
+
   // Resumen global de la iteración actual
   resumenGlobalIteracion = computed(() => {
     const conteos = this.resumenesIteracionActual();
@@ -150,7 +159,11 @@ export class TagsResumenPageComponent implements ViewWillEnter {
       totalUnidades,
       totalProductos,
       tagsFinalizados,
-      totalTags: conteos.length,
+      /*
+       * TAGs distintos, no filas. Un mismo TAG contado dos veces es una sola
+       * ubicación recorrida.
+       */
+      tagsDistintos: contarTagsDistintos(conteos),
     };
   });
 
