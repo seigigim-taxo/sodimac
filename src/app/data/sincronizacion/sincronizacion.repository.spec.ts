@@ -3,11 +3,12 @@ import { SqliteSincronizacionRepository } from './sincronizacion.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_SCHEMA_SQL } from '../../core/database/sodimac.schema';
 import { ConexionFalsa, crearConexionEnMemoria } from '../../../testing/sqlite-en-memoria';
-import { hoySql } from '../../shared/utils/fecha.utils';
+import { hoySql, manianaSql } from '../../shared/utils/fecha.utils';
 
 /*
  * La regla que se prueba acá es de negocio, no técnica: un conteo vale para la
- * jornada a la que pertenece, y si no alcanzó a subir ese día se da por perdido.
+ * jornada a la que pertenece, y si no alcanzó a subir mientras esa jornada
+ * estaba vigente —hoy o mañana— se da por perdido.
  *
  * Es fácil de deshacer sin querer —basta con "arreglar" la consulta para que
  * devuelva todos los pendientes— y el efecto sería mandarle al SGO conteos con
@@ -62,6 +63,29 @@ describe('SqliteSincronizacionRepository', () => {
       const pendientes = await repo.listarPendientes();
 
       expect(pendientes.map((p) => p.cargaUid)).toEqual(['UID-HOY']);
+    });
+
+    /*
+     * El operador puede adelantar la jornada de mañana. Antes del corte por
+     * ventana operativa, un TAG cerrado contra esa jornada nunca calificaba
+     * como pendiente: se cerraba bien, quedaba PENDIENTE y no se ofrecía para
+     * envío jamás. Se perdía en silencio.
+     */
+    it('también ofrece los de la jornada de mañana', async () => {
+      await pendienteDeEvento(2, manianaSql(), 'UID-MANIANA');
+
+      const pendientes = await repo.listarPendientes();
+
+      expect(pendientes.map((p) => p.cargaUid)).toEqual(['UID-MANIANA']);
+    });
+
+    it('con hoy y mañana mezclados, ofrece los dos', async () => {
+      await pendienteDeEvento(1, hoySql(), 'UID-HOY');
+      await pendienteDeEvento(2, manianaSql(), 'UID-MANIANA');
+
+      const pendientes = await repo.listarPendientes();
+
+      expect(pendientes.map((p) => p.cargaUid).sort()).toEqual(['UID-HOY', 'UID-MANIANA']);
     });
 
     /*

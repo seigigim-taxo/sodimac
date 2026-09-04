@@ -3,7 +3,7 @@ import { SqliteConnectionService } from '../../core/database/sqlite-connection.s
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { SincronizacionRepository } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { GuardarSyncTagInput, GuardarSyncValidacionInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
-import { ahoraSql, hoySql } from '../../shared/utils/fecha.utils';
+import { ahoraSql, hoySql, manianaSql } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteSincronizacionRepository implements SincronizacionRepository {
@@ -49,12 +49,17 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
   }
 
   /*
-   * Pendientes que TODAVÍA se pueden enviar: solo los del día en curso.
+   * Pendientes que TODAVÍA se pueden enviar: los de la ventana operativa.
    *
    * Un conteo vale para la jornada a la que pertenece. Si no alcanzó a subir
-   * ese mismo día, se da por perdido y no se manda después: llegar al SGO con
-   * fecha corrida ensucia el análisis de diferencias más de lo que aporta
-   * recuperar el dato.
+   * mientras esa jornada estaba vigente, se da por perdido y no se manda
+   * después: llegar al SGO con fecha corrida ensucia el análisis de diferencias
+   * más de lo que aporta recuperar el dato.
+   *
+   * Mañana entra en el corte porque el operador puede adelantar esa jornada.
+   * Cuando el filtro era solo el día en curso, un TAG cerrado contra el evento
+   * de mañana no aparecía nunca acá: se cerraba bien, quedaba PENDIENTE y no se
+   * ofrecía para envío jamás. Se perdía en silencio.
    *
    * Las filas no se borran ni se marcan — quedan en la tabla como registro de
    * lo que no llegó. Simplemente dejan de ofrecerse para envío.
@@ -70,11 +75,11 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
        WHERE s.estado IN ('PENDIENTE', 'ERROR')
          AND s.tipo = 'CARGA_DESDE_PDA'
          AND (
-           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) = ?)
+           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) IN (?, ?))
            OR s.operacion = 'VALIDACION_OPERACIONAL'
          )
        ORDER BY s.fecha_hora ASC`,
-      [hoySql()]
+      [hoySql(), manianaSql()]
     );
     return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
   }

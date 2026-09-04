@@ -7,11 +7,11 @@ import { ZONA_REPOSITORY_TOKEN, ZonaRepository } from '../../domain/zona/reposit
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Zona } from '../../domain/zona/models/zona.model';
 import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.model';
-import { hoySql } from '../../shared/utils/fecha.utils';
+import { hoySql, manianaSql } from '../../shared/utils/fecha.utils';
 
 /*
- * La fecha va calculada y no fija: restaurar la sesión solo aplica al evento
- * del día en curso, así que un literal dejaría el spec verde hoy y roto mañana.
+ * Las fechas van calculadas y no fijas: la restauración depende de la ventana
+ * operativa, así que un literal dejaría el spec verde hoy y roto mañana.
  */
 const EVENTO: Evento = {
   id: 5, sucursalId: 1, nombre: 'Inventario agosto',
@@ -19,7 +19,21 @@ const EVENTO: Evento = {
   fechaRegistro: `${hoySql()} 08:00:00`,
 };
 
-const EVENTO_DE_AYER: Evento = { ...EVENTO, fechaProgramada: '2026-08-25' };
+const ayer = () => {
+  const f = new Date();
+  f.setDate(f.getDate() - 1);
+  return hoySql(f);
+};
+
+const pasadoManiana = () => {
+  const f = new Date();
+  f.setDate(f.getDate() + 2);
+  return hoySql(f);
+};
+
+const EVENTO_DE_AYER: Evento = { ...EVENTO, fechaProgramada: ayer() };
+const EVENTO_DE_MANIANA: Evento = { ...EVENTO, id: 6, fechaProgramada: manianaSql() };
+const EVENTO_PASADO_MANIANA: Evento = { ...EVENTO, id: 7, fechaProgramada: pasadoManiana() };
 
 const ZONA: Zona = {
   id: 3, sucursalId: 1, nombre: 'SALA_VENTAS',
@@ -154,5 +168,46 @@ describe('RecuperarSesionTrabajoUseCase', () => {
 
       expect(await useCase.execute(7, 1)).toBeNull();
     });
+  });
+
+  /*
+   * La jornada de mañana SÍ se restaura: el operador puede adelantarla, y si
+   * cierra la app a mitad de un TAG tiene que poder retomarla al volver.
+   *
+   * Es el cambio de comportamiento de esta rama. Antes el corte era el día en
+   * curso y esta sesión se perdía.
+   */
+  describe('la jornada adelantada de mañana', () => {
+    beforeEach(() => {
+      storage.obtener.and.resolveTo(EVENTO_DE_MANIANA.id);
+      eventoRepo.getById.and.resolveTo(EVENTO_DE_MANIANA);
+    });
+
+    it('se restaura', async () => {
+      const r = await useCase.execute(7, 1);
+
+      expect(r?.evento.fechaProgramada).toBe(manianaSql());
+    });
+
+    it('se restaura con el TAG que había quedado abierto', async () => {
+      conteoRepo.getSesionEnCurso.and.resolveTo(SESION);
+
+      const r = await useCase.execute(7, 1);
+
+      expect(r?.conteo?.tag).toBe('104');
+    });
+  });
+
+  /*
+   * Pasado mañana queda afuera. Marca el borde superior de la ventana: sin
+   * esto, "no es de ayer" habría alcanzado y cualquier fecha futura entraría.
+   */
+  it('un evento de pasado mañana no se restaura', async () => {
+    // El id tiene que venir de algún lado, si no el null saldría de no haber
+    // evento y el test pasaría sin probar la ventana.
+    storage.obtener.and.resolveTo(EVENTO_PASADO_MANIANA.id);
+    eventoRepo.getById.and.resolveTo(EVENTO_PASADO_MANIANA);
+
+    expect(await useCase.execute(7, 1)).toBeNull();
   });
 });

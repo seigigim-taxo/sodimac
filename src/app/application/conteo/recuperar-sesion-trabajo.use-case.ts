@@ -5,7 +5,7 @@ import { EVENTO_SELECCIONADO_STORAGE_TOKEN } from '../../domain/evento/repositor
 import { ZONA_REPOSITORY_TOKEN } from '../../domain/zona/repositories/zona.repository';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Zona } from '../../domain/zona/models/zona.model';
-import { hoySql } from '../../shared/utils/fecha.utils';
+import { enVentanaOperativa } from '../../shared/utils/fecha.utils';
 
 /*
  * `conteo` en null significa "hay evento pero no hay TAG abierto": el operador
@@ -57,16 +57,20 @@ export class RecuperarSesionTrabajoUseCase {
     if (!evento) return null;
 
     /*
-     * Cada jornada arranca limpia. Un evento de otro día no se restaura, aunque
-     * siga ABIERTO en la base y aunque haya quedado un TAG a medio contar.
+     * Un evento fuera de la ventana no se restaura, aunque siga ABIERTO en la
+     * base y aunque haya quedado un TAG a medio contar.
      *
      * Sin esto, el operador que dejó un TAG abierto el lunes se lo encontraba
      * abierto el martes —después del cierre de sesión, del login y de la
      * descarga— y seguía sumando unidades sobre la jornada equivocada. Las tres
      * fuentes de arriba sobreviven al cambio de día, así que el corte va acá,
      * donde ya están resueltas.
+     *
+     * La ventana incluye mañana: el operador que quedó a mitad de la jornada
+     * adelantada tiene que poder retomarla al volver a abrir la app. Lo que el
+     * corte sigue descartando es lo de ayer, que es lo que causaba el bug.
      */
-    if (evento.fechaProgramada.slice(0, 10) !== hoySql()) return null;
+    if (!enVentanaOperativa(evento.fechaProgramada)) return null;
 
     /*
      * Un evento terminado se restaura igual, pero SIN sesión de TAG: no hay
