@@ -18,7 +18,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { EventoFacade, Evento } from '../../state/evento/evento.facade';
-import { hoySql } from '../../shared/utils/fecha.utils';
+import { enVentanaOperativa, hoySql, manianaSql } from '../../shared/utils/fecha.utils';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
@@ -93,15 +93,18 @@ export class HomePage implements ViewWillEnter {
   // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
   // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
   /*
-   * El historial también se acota al día: la jornada empieza limpia y lo de
-   * ayer ya no es asunto del operador. Sin esto, "conteos finalizados" iba
-   * creciendo sin fin y mezclaba jornadas.
+   * El historial se acota a la misma ventana que las tarjetas: lo de ayer ya no
+   * es asunto del operador. Sin esto, "conteos finalizados" iba creciendo sin
+   * fin y mezclaba jornadas.
+   *
+   * Tiene que ser la MISMA regla que eventosVisibles, no una parecida: si el
+   * historial cortara en hoy, el operador que termina la jornada de mañana vería
+   * desaparecer el conteo que acaba de cerrar.
    */
-  eventosFinalizados = computed(() => {
-    const hoy = hoySql();
-    return this.resumenFacade.cerrados()
-      .filter((c) => c.evento.fechaProgramada.slice(0, 10) === hoy);
-  });
+  eventosFinalizados = computed(() =>
+    this.resumenFacade.cerrados()
+      .filter((c) => enVentanaOperativa(c.evento.fechaProgramada))
+  );
 
   /*
    * Paginado del historial: crece una jornada tras otra y no cabe entero en la
@@ -139,27 +142,41 @@ export class HomePage implements ViewWillEnter {
   selectedEvent = this.eventoFacade.selectedEvent;
 
   /*
-   * Solo el conteo abierto. Es el único sobre el que el operador puede actuar:
-   * los terminados quedan EN_ANALISIS y los vencidos no son seleccionables, así
-   * que mostrarlos solo agrega ruido y tarjetas atenuadas que no responden.
+   * Los eventos que el operador puede elegir: hoy y mañana.
    *
-   * Si hubiera más de uno abierto, manda el más nuevo — el de id mayor.
-   */
-  /*
-   * Solo el evento del día en curso. Cada jornada la app arranca como si fuera
-   * la primera: si quedó el evento de ayer en la base, no se ofrece.
+   * Solo los ABIERTOS. Es sobre los únicos que puede actuar — los terminados
+   * quedan EN_ANALISIS y los vencidos no son seleccionables— así que mostrarlos
+   * agrega ruido y tarjetas atenuadas que no responden.
+   *
+   * Antes era uno solo, el del día. Ahora son hasta dos tarjetas porque se pidió
+   * que se pueda adelantar la jornada del día siguiente. Lo de ayer sigue sin
+   * ofrecerse: cada jornada la app arranca como si fuera la primera.
+   *
+   * Se muestra UNA por día, la más nueva. Si el SGO dejó dos eventos abiertos
+   * para la misma fecha, dos tarjetas idénticas no le dicen nada al operador y
+   * elegir la equivocada manda el conteo al evento viejo.
+   *
+   * Ordenadas por fecha, así hoy queda siempre arriba.
    *
    * La comparación es contra la fecha LOCAL, no UTC — ver hoySql(). Con
    * toISOString() la PDA pasaba al día siguiente a las 20:00 hora Chile y el
    * evento del día desaparecía en plena jornada.
    */
   eventosVisibles = computed<Evento[]>(() => {
-    const hoy = hoySql();
-    const delDia = this.events().filter(
-      (e) => e.estado === 'ABIERTO' && e.fechaProgramada.slice(0, 10) === hoy
+    const abiertos = this.events().filter(
+      (e) => e.estado === 'ABIERTO' && enVentanaOperativa(e.fechaProgramada)
     );
-    if (delDia.length === 0) return [];
-    return [delDia.reduce((masNuevo, e) => (e.id > masNuevo.id ? e : masNuevo))];
+
+    const masNuevoPorDia = new Map<string, Evento>();
+    for (const evento of abiertos) {
+      const dia = evento.fechaProgramada.slice(0, 10);
+      const previo = masNuevoPorDia.get(dia);
+      if (!previo || evento.id > previo.id) masNuevoPorDia.set(dia, evento);
+    }
+
+    return [...masNuevoPorDia.values()].sort((a, b) =>
+      a.fechaProgramada.localeCompare(b.fechaProgramada)
+    );
   });
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;
@@ -254,6 +271,25 @@ export class HomePage implements ViewWillEnter {
    * marcado como vencido durante las últimas 4 horas del turno, justo cuando el
    * operador todavía estaba contando.
    */
+  /*
+   * "Hoy" o "Mañana" para la tarjeta.
+   *
+   * Con dos jornadas en pantalla, la fecha sola no alcanza: obliga al operador
+   * a saber qué día es y a comparar dos strings casi idénticos —2026-08-28 y
+   * 2026-08-29— en la pantalla chica de una PDA, muchas veces con guantes y
+   * apurado. Elegir mal manda el conteo a la jornada equivocada.
+   *
+   * Devuelve null fuera de la ventana en vez de inventar "Pasado mañana" o
+   * "Ayer": esas tarjetas no deberían llegar acá, y si llegan es mejor que se
+   * vea solo la fecha cruda a que una etiqueta les dé un aire de normalidad.
+   */
+  diaRelativo(evento: Evento): 'Hoy' | 'Mañana' | null {
+    const dia = evento.fechaProgramada.slice(0, 10);
+    if (dia === hoySql()) return 'Hoy';
+    if (dia === manianaSql()) return 'Mañana';
+    return null;
+  }
+
   esVencido(evento: Evento): boolean {
     return evento.fechaProgramada.slice(0, 10) < hoySql();
   }
@@ -262,18 +298,23 @@ export class HomePage implements ViewWillEnter {
     return evento.estado === 'CERRADO';
   }
 
+  /*
+   * No se puede seleccionar un evento vencido, cerrado o en análisis (en
+   * análisis = PDA bloqueada esperando respuesta del SGO).
+   *
+   * SÍ se puede cambiar de una jornada a otra mientras no se haya empezado a
+   * contar. Acá había además una regla que lo impedía —"si ya hay uno elegido y
+   * es distinto, no dejar cambiar"— que era inofensiva cuando se mostraba un
+   * solo evento y encierra al operador en el primer toque ahora que son dos.
+   *
+   * Quién impide cambiar de jornada a mitad de un trabajo es noSesionActivaGuard,
+   * que bloquea /home entero mientras haya un conteo EN_CURSO. O sea que estar
+   * en esta pantalla ya prueba que no hay ningún TAG abierto. La guarda además
+   * cubre el botón atrás de Android y los deep links, que una condición en el
+   * componente no puede ver.
+   */
   puedeSeleccionar(evento: Evento): boolean {
-    // No se puede seleccionar un evento vencido, cerrado o en análisis
-    // (en análisis = PDA bloqueada esperando respuesta del SGO)
-    if (this.esVencido(evento) || this.esCerrado(evento) || this.enAnalisis(evento)) {
-      return false;
-    }
-    // Si ya hay un evento seleccionado y es diferente, no permitir cambiar
-    const actual = this.selectedEvent();
-    if (actual && actual.id !== evento.id) {
-      return false;
-    }
-    return true;
+    return !this.esVencido(evento) && !this.esCerrado(evento) && !this.enAnalisis(evento);
   }
 
   private static readonly ESTADO_LABELS: Record<Evento['estado'], string> = {
