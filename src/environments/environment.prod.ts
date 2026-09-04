@@ -6,5 +6,6 @@ export const environment = {
   // Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
   // de api/ para heredar CORS. Ver server/README.md.
   actualizacionEndpoint: 'actualizaciones/version.json',
-  alwaysSyncAfterLogin: false
+  alwaysSyncAfterLogin: false,
+  enviarVentanaLocal: false
 };

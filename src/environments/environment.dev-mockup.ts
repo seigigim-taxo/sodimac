@@ -6,5 +6,8 @@ export const environment = {
   // Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
   // de api/ para heredar CORS. Ver server/README.md.
   actualizacionEndpoint: 'actualizaciones/version.json',
-  alwaysSyncAfterLogin: false
+  alwaysSyncAfterLogin: false,
+  // El mockup no implementa el contrato de jornadas (jornadas[]); mandar la
+  // fecha local no serviría de nada y solo confundiría qué environment hace qué.
+  enviarVentanaLocal: false
 };

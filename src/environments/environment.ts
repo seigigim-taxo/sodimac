@@ -21,7 +21,16 @@ export const environment = {
    * simplemente no se ofrece nada — la app sigue funcionando igual.
    */
   actualizacionEndpoint: 'actualizaciones/version_test.json',
-  alwaysSyncAfterLogin: false
+  alwaysSyncAfterLogin: false,
+  /*
+   * Solo desarrollo: la app manda su propia fecha calculada (fecha_local) en
+   * la preparación, y preparacion_dev.php la usa en vez de su reloj para
+   * decidir la ventana hoy/mañana. Sirve para alinear la ventana con agendas
+   * de prueba ya sembradas en fechas fijas, sin esperar al día real ni tocar
+   * la hora del dispositivo. En producción va en false y ni se manda el campo
+   * — preparacion.php tampoco lo lee.
+   */
+  enviarVentanaLocal: true
 };
 
 /*
