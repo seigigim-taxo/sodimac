@@ -92,11 +92,6 @@ __pycache__/
 *.keystore
 keystore.properties
 
-# Configuraciones locales de build/IDE (varían por PC; no commitear)
-package-lock.json
-android/gradle.properties
-android/capacitor.settings.gradle
-android/app/capacitor.build.gradle
 
 # Paquete de release: la APK firmada y su hash, listos para subir al servidor.
 # No van al repo --25 MB por build-- y ademas se regeneran con
