@@ -12,12 +12,5 @@
         </provider>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!--
-      Autoactualización: deja que la app le entregue una APK al instalador del
-      sistema. Declararlo acá NO alcanza — desde Android 8 el operador tiene que
-      concederlo además a mano en Ajustes, una vez por equipo. Sin esta línea,
-      esa pantalla de Ajustes ni siquiera existe para esta app.
-    -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
