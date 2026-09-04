@@ -20,9 +20,11 @@ export type ResultadoBuscarOReabrir =
  * acaba de cerrar— sigue siendo lo último asignado.
  *
  * Uso exclusivo del botón "Actualizar" de Home. "Actualizar maestra" del menú
- * lateral llama a BuscarNuevoConteoUseCase directo y no pasa por acá: ese botón
- * puede dispararse desde cualquier pantalla, no solo después de cerrar un
- * conteo, y no le corresponde reabrir nada por su cuenta.
+ * lateral usa EvaluarJornadasUseCase y no pasa por acá: ese botón puede
+ * dispararse desde cualquier pantalla y sin ningún evento elegido, con hasta
+ * dos jornadas (hoy y mañana) que hay que evaluar por separado — la
+ * semántica de "una sola respuesta, deteniéndose en la primera novedad" que
+ * tiene este caso de uso no le sirve.
  */
 @Injectable({ providedIn: 'root' })
 export class BuscarOReabrirConteoUseCase {

@@ -3,20 +3,21 @@ import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-cont
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Session } from '../../domain/auth/models/session.model';
 import { FinalizarEventoUseCase } from '../conteo/finalizar-evento.use-case';
-import { BuscarOReabrirConteoUseCase } from './buscar-o-reabrir-conteo.use-case';
+import { EvaluarJornadasUseCase, ResultadoJornada } from './evaluar-jornadas.use-case';
 
 export type ResultadoActualizarMuestra =
   /** Hay un TAG en curso o sin sincronizar. El mensaje ya viene armado. */
   | { estado: 'BLOQUEADO'; motivo: string }
   /*
-   * El SGO tenía una muestra distinta y quedó persistida, O el código
-   * coincidía con el evento que este mismo flujo acaba de cerrar y se
-   * deshizo ese cierre. Para el operador el resultado práctico es el mismo:
-   * hay un evento ABIERTO con el que seguir — no se distingue acá cuál de
-   * los dos pasó (ver BuscarOReabrirConteoUseCase para esa distinción).
+   * Con evento seleccionado: el SGO tenía una muestra distinta PARA ESA
+   * FECHA y quedó persistida, O el código coincidía con el evento que este
+   * mismo flujo acaba de cerrar y se deshizo ese cierre. Para el operador el
+   * resultado práctico es el mismo: hay un evento ABIERTO con el que seguir
+   * — no se distingue acá cuál de los dos pasó (ver EvaluarJornadasUseCase
+   * para esa distinción).
    */
   | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
-  /** Se consultó al SGO y es la misma muestra que ya había, sin nada que reabrir. */
+  /** Con evento seleccionado: es la misma muestra que ya había para esa fecha. */
   | { estado: 'SIN_CAMBIOS' }
   /*
    * El cierre (si hacía falta) salió bien, pero la búsqueda de la maestra
@@ -24,7 +25,14 @@ export type ResultadoActualizarMuestra =
    * de BLOQUEADO: acá el evento SÍ se tocó, y el operador se queda sin
    * saber si hay maestra nueva o no, no sin haber tocado nada.
    */
-  | { estado: 'ERROR_BUSQUEDA'; mensaje: string };
+  | { estado: 'ERROR_BUSQUEDA'; mensaje: string }
+  /*
+   * SIN evento seleccionado: cada jornada de la ventana (hoy, mañana) se
+   * evaluó por separado y trae su propio resultado — no hay uno solo que
+   * "gane", porque no hay ninguna fecha en particular que el operador haya
+   * elegido.
+   */
+  | { estado: 'VENTANA'; resultados: ResultadoJornada[] };
 
 /*
  * "Volvé a preguntarle al SGO por la muestra de hoy" — a pedido, desde el
@@ -68,10 +76,28 @@ export type ResultadoActualizarMuestra =
  * distinto y le devuelve el mismo codigo_muestra del evento que se acaba de
  * cerrar—, dejarlo en EN_ANALISIS sin más lo varaba: SIN_CAMBIOS le decía "ya
  * tenés la muestra vigente" con el evento cerrado y ningún camino local para
- * retomarlo. Por eso se llama a BuscarOReabrirConteoUseCase —el mismo
- * orquestador que usa el botón "Actualizar" de Home— en vez de a
- * BuscarNuevoConteoUseCase directo: la decisión de "¿corresponde reabrir?" es
- * una sola y vive ahí, no se vuelve a escribir acá.
+ * retomarlo. Por eso EvaluarJornadasUseCase distingue "nuevo" de "reabrir"
+ * con el MISMO criterio que BuscarOReabrirConteoUseCase —el que usa el botón
+ * "Actualizar" de Home—, aunque no comparte código con él: es una regla
+ * chica, duplicada a propósito (ver el porqué en EvaluarJornadasUseCase) en
+ * vez de forzar a los dos casos de uso a depender de una sola función.
+ *
+ * POR QUÉ ES POR JORNADA Y NO UNA SOLA CONSULTA
+ *
+ * "Actualizar maestra" puede dispararse SIN ningún evento elegido —el
+ * operador entra al menú desde Inicio sin haber tocado ninguna tarjeta— y ahí
+ * hay hasta DOS jornadas en juego, hoy y mañana, cada una con su propio
+ * estado en el SGO. Preguntar "¿hay algo nuevo?" de forma genérica y quedarse
+ * con la primera respuesta escondería la otra jornada: si hoy no cambió pero
+ * mañana sí, el operador se enteraría recién al día siguiente.
+ *
+ * Por eso EvaluarJornadasUseCase evalúa cada jornada por separado y siempre
+ * se corre entero (ver más abajo). Lo que cambia según haya o no un evento
+ * elegido es solo qué se hace con esos resultados:
+ *  - CON evento: se toma el que coincide con la fecha de ESE evento —cada
+ *    jornada es independiente, así que actualizar una no debe leer ni tocar
+ *    la otra.
+ *  - SIN evento: se informan las dos, cada una con su resultado.
  *
  * LO QUE NUNCA HACE
  *
@@ -82,8 +108,8 @@ export type ResultadoActualizarMuestra =
  */
 @Injectable({ providedIn: 'root' })
 export class ActualizarMuestraUseCase {
-  private finalizarUC        = inject(FinalizarEventoUseCase);
-  private buscarOReabrirUC   = inject(BuscarOReabrirConteoUseCase);
+  private finalizarUC       = inject(FinalizarEventoUseCase);
+  private evaluarJornadasUC = inject(EvaluarJornadasUseCase);
 
   async execute(
     session: Session,
@@ -101,9 +127,9 @@ export class ActualizarMuestraUseCase {
       }
     }
 
-    let resultado;
+    let resultados;
     try {
-      resultado = await this.buscarOReabrirUC.execute(session);
+      resultados = await this.evaluarJornadasUC.execute(session);
     } catch (err) {
       /*
        * El mensaje NO reenvía el de la excepción tal cual: acá abajo puede
@@ -118,9 +144,29 @@ export class ActualizarMuestraUseCase {
       };
     }
 
-    return resultado.tipo === 'SIN_NOVEDAD'
-      ? { estado: 'SIN_CAMBIOS' }
-      : { estado: 'ACTUALIZADA', asignacion: resultado.asignacion };
+    /*
+     * Sin evento elegido no hay una sola fecha que priorizar: se informan las
+     * dos jornadas con su propio resultado y quien orquesta la pantalla
+     * decide qué mostrar.
+     */
+    if (!eventoActual) {
+      return { estado: 'VENTANA', resultados };
+    }
+
+    /*
+     * Con evento elegido, la acción es sobre ESA fecha únicamente: que la
+     * otra jornada haya cambiado no es asunto de esta llamada — el operador
+     * la va a ver la próxima vez que actualice sin nada seleccionado, o
+     * cuando la tarjeta correspondiente aparezca sola en Home.
+     */
+    const fecha = eventoActual.fechaProgramada.slice(0, 10);
+    const propio = resultados.find((r) => r.fecha === fecha);
+
+    if (!propio || propio.resultado.tipo === 'SIN_NOVEDAD') {
+      return { estado: 'SIN_CAMBIOS' };
+    }
+
+    return { estado: 'ACTUALIZADA', asignacion: propio.resultado.asignacion };
   }
 
   /*

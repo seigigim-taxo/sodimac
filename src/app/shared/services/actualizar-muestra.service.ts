@@ -2,12 +2,14 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraUseCase } from '../../application/asignacion/actualizar-muestra.use-case';
+import { ResultadoJornada } from '../../application/asignacion/evaluar-jornadas.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ConteoFacade } from '../../state/conteo/conteo.facade';
 import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacion.util';
+import { hoySql, manianaSql } from '../utils/fecha.utils';
 
 /*
  * "Actualizar muestra" desde el menú lateral: volver a preguntarle al SGO por
@@ -122,6 +124,29 @@ export class ActualizarMuestraService {
           await this.limpiarContextoDeConteo();
           await this.avisar('No se pudo actualizar', resultado.mensaje);
           return;
+
+        /*
+         * Sin evento elegido: hoy y mañana se evaluaron por separado y cada
+         * una trae su propio resultado — no hay una sola asignación que
+         * "ganó", así que el aviso lista las dos.
+         *
+         * Si CUALQUIERA de las dos tuvo novedad, la pantalla se para en esa
+         * asignación (hoy antes que mañana, mismo criterio que el resto de la
+         * app) para que Home quede mostrando la tienda y los eventos
+         * correctos. Si las dos están sin novedad, no hay nada que parar.
+         */
+        case 'VENTANA': {
+          const conNovedad = resultado.resultados.find(
+            (r) => r.resultado.tipo === 'NUEVO' || r.resultado.tipo === 'REABIERTO'
+          );
+          if (conNovedad && conNovedad.resultado.tipo !== 'SIN_NOVEDAD') {
+            await pararseEnAsignacion(conNovedad.resultado.asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
+          }
+          await this.limpiarContextoDeConteo();
+          const titulo = conNovedad ? 'Maestra actualizada' : 'Ya tienes la maestra vigente';
+          await this.avisar(titulo, this.describirVentana(resultado.resultados));
+          return;
+        }
       }
     } catch (err) {
       await loading.dismiss();
@@ -134,6 +159,38 @@ export class ActualizarMuestraService {
   private async limpiarContextoDeConteo(): Promise<void> {
     if (this.conteo.enCurso()) this.conteo.reset();
     await this.router.navigate(['/home']);
+  }
+
+  /*
+   * Arma el mensaje del caso VENTANA: una línea por jornada, "Hoy"/"Mañana"
+   * antes de la fecha por el mismo motivo que la tarjeta de Home —comparar dos
+   * fechas casi idénticas en la pantalla chica de una PDA es donde se lee mal.
+   * Fuera de esa ventana (no debería pasar, pero por las dudas) se muestra la
+   * fecha cruda en vez de inventar una etiqueta.
+   */
+  private describirVentana(resultados: ResultadoJornada[]): string {
+    if (resultados.length === 0) {
+      return 'No hay jornadas asignadas para hoy ni para mañana.';
+    }
+
+    const etiqueta = (fecha: string): string => {
+      if (fecha === hoySql()) return 'Hoy';
+      if (fecha === manianaSql()) return 'Mañana';
+      return fecha;
+    };
+
+    const linea = ({ fecha, resultado }: ResultadoJornada): string => {
+      switch (resultado.tipo) {
+        case 'NUEVO':
+          return `${etiqueta(fecha)}: jornada nueva — ${resultado.asignacion.nombre}.`;
+        case 'REABIERTO':
+          return `${etiqueta(fecha)}: se reabrió tu conteo — ${resultado.asignacion.nombre}.`;
+        case 'SIN_NOVEDAD':
+          return `${etiqueta(fecha)}: sin cambios.`;
+      }
+    };
+
+    return resultados.map(linea).join(' ');
   }
 
   private async avisar(header: string, message: string): Promise<void> {

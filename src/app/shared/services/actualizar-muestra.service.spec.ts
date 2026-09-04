@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraService } from './actualizar-muestra.service';
 import { ActualizarMuestraUseCase, ResultadoActualizarMuestra } from '../../application/asignacion/actualizar-muestra.use-case';
+import { ResultadoJornada } from '../../application/asignacion/evaluar-jornadas.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
@@ -279,6 +280,53 @@ describe('ActualizarMuestraService', () => {
 
       const [args] = alertCreate.calls.mostRecent().args;
       expect(args.message).toBe('Sin conexión con el servidor.');
+    });
+  });
+
+  describe('resultado VENTANA (sin evento seleccionado)', () => {
+    const hoy: ResultadoJornada = { fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } };
+    const manianaNueva: ResultadoJornada = {
+      fecha: '2026-09-03',
+      resultado: { tipo: 'NUEVO', asignacion: { ...asignacion, fechaProgramada: '2026-09-03' } },
+    };
+
+    it('avisa con las dos jornadas cuando ninguna tiene novedad', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }] });
+
+      await servicio.actualizar();
+
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('Ya tienes la maestra vigente');
+      expect(args.message).toContain('sin cambios');
+    });
+
+    it('avisa "Maestra actualizada" y se para en la jornada con novedad', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, manianaNueva] });
+      sucursalFacade.stores.and.returnValue([{ id: 5, codigoTienda: '4724', nombre: 'HC BIOBIO' } as never]);
+
+      await servicio.actualizar();
+
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('Maestra actualizada');
+      expect(args.message).toContain('AMPOLLETAS AUTO');
+      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(asignacion.sucursalId);
+    });
+
+    // No se para en ninguna asignación si las dos jornadas están sin novedad.
+    it('no se para en ninguna tienda cuando ninguna jornada tiene novedad', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }] });
+
+      await servicio.actualizar();
+
+      expect(sucursalFacade.selectSucursal).not.toHaveBeenCalled();
+    });
+
+    it('siempre navega a Inicio', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy] });
+
+      await servicio.actualizar();
+
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
     });
   });
 
