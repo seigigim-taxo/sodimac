@@ -28,6 +28,32 @@
       no veia nada, y volvia a tocar.
     -->
     <!--
+      Cambió el día mientras la app estaba abierta. La jornada anterior se
+      cerró sola y hay que decirlo: el operador dejó un evento elegido y quizás
+      un TAG a medio contar, y sin este cartel vuelve, no encuentra nada de eso
+      y no entiende por qué.
+
+      Dice explícitamente que lo sin enviar no se manda. Es la parte que duele y
+      esconderla solo la haría aparecer más tarde, cuando ya no se pueda hacer
+      nada.
+
+      Va primera de todas las franjas: es la más disruptiva de las tres —cambia
+      lo que el operador tenía elegido— así que no puede quedar debajo del
+      aviso de versión nueva o del de conteo nuevo encontrado.
+    -->
+    @if (jornadaCerrada(); as diaCerrado) {
+    <div class="status-banner status-banner-warning mb-4">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>
+        Cambió el día: la jornada del <strong>{{ diaCerrado }}</strong> se cerró.
+        Lo que haya quedado sin enviar de ese día ya no se envía.
+        Selecciona la jornada de hoy para seguir.
+      </span>
+      <ion-button fill="clear" size="small" (click)="descartarAvisoJornadaCerrada()">Entendido</ion-button>
+    </div>
+    }
+
+    <!--
       Version nueva disponible. Va como franja y no como alerta emergente: el
       operador entra a Inicio para empezar a trabajar, y un popup automatico lo
       obliga a despacharlo antes de poder hacer nada. La franja se queda ahi

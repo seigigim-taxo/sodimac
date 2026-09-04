@@ -26,6 +26,7 @@ import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacio
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
+import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 
 
 @Component({
@@ -56,8 +57,19 @@ export class HomePage implements ViewWillEnter {
   private buscador           = inject(BuscadorService);
   private network            = inject(NetworkService);
   private oferta             = inject(OfertaActualizacionService);
+  private vigenciaDia        = inject(VigenciaDiaService);
 
   isOnline = this.network.isOnline;
+
+  /*
+   * La jornada que se cerró sola al cambiar el día. La calcula VigenciaDiaService,
+   * que es quien detecta el cambio al volver del segundo plano.
+   */
+  jornadaCerrada = this.vigenciaDia.jornadaCerrada;
+
+  descartarAvisoJornadaCerrada(): void {
+    this.vigenciaDia.descartarAvisoJornadaCerrada();
+  }
 
   /*
    * Version nueva para ofrecer. La consulta se dispara al entrar a esta
