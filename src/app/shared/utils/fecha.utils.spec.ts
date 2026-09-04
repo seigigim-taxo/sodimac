@@ -1,4 +1,4 @@
-import { ahoraSql, ahoraSqlMs, hoySql, selloUid } from './fecha.utils';
+import { ahoraSql, ahoraSqlMs, enVentanaOperativa, hoySql, manianaSql, selloUid } from './fecha.utils';
 
 /*
  * Se prueban con una fecha inyectada, no con la del reloj: el bug que motivó
@@ -109,6 +109,95 @@ describe('fecha.utils', () => {
 
     it('conserva el orden entre capturas del mismo segundo', () => {
       expect(selloUid('2026-08-27 09:22:26.100') < selloUid('2026-08-27 09:22:26.340')).toBeTrue();
+    });
+  });
+
+  describe('manianaSql', () => {
+    it('devuelve el dia siguiente', () => {
+      expect(manianaSql(new Date(2026, 7, 31, 10, 0, 0))).toBe('2026-09-01');
+    });
+
+    /*
+     * Se usa setDate y no sumar 86.400.000 ms justamente por estos dos casos:
+     * el calendario resuelve el fin de mes y el bisiesto, la aritmetica de
+     * milisegundos no.
+     */
+    it('cruza el fin de mes', () => {
+      expect(manianaSql(new Date(2026, 0, 31))).toBe('2026-02-01');
+    });
+
+    it('cruza el fin de anio', () => {
+      expect(manianaSql(new Date(2026, 11, 31, 23, 59, 59))).toBe('2027-01-01');
+    });
+
+    it('resuelve el 29 de febrero de un bisiesto', () => {
+      expect(manianaSql(new Date(2028, 1, 28))).toBe('2028-02-29');
+    });
+  });
+
+  /*
+   * La ventana con la que trabaja el operador: HOY y MANANA.
+   *
+   * Reemplaza al `=== hoySql()` que estaba repetido en cuatro pantallas. El
+   * riesgo de tenerlo repetido era que la app se contradijera --mostrar una
+   * jornada que despues no dejara sincronizar-- con solo olvidar un lugar.
+   */
+  describe('enVentanaOperativa', () => {
+    const HOY = '2026-08-31';
+
+    it('acepta hoy', () => {
+      expect(enVentanaOperativa('2026-08-31', HOY)).toBeTrue();
+    });
+
+    it('acepta manana', () => {
+      expect(enVentanaOperativa('2026-09-01', HOY)).toBeTrue();
+    });
+
+    // Al cambiar el dia lo anterior se da por cerrado, incluso lo que no
+    // alcanzo a sincronizarse. Es una regla de negocio, no un descuido.
+    it('rechaza ayer', () => {
+      expect(enVentanaOperativa('2026-08-30', HOY)).toBeFalse();
+    });
+
+    it('rechaza pasado manana', () => {
+      expect(enVentanaOperativa('2026-09-02', HOY)).toBeFalse();
+    });
+
+    // El evento llega del backend con hora en algunos casos.
+    it('tolera que la fecha venga con hora', () => {
+      expect(enVentanaOperativa('2026-09-01 08:30:00', HOY)).toBeTrue();
+    });
+
+    describe('bordes de calendario', () => {
+      it('fin de mes', () => {
+        expect(enVentanaOperativa('2026-09-01', '2026-08-31')).toBeTrue();
+      });
+
+      it('fin de anio', () => {
+        expect(enVentanaOperativa('2027-01-01', '2026-12-31')).toBeTrue();
+      });
+    });
+
+    describe('entradas que no sirven', () => {
+      it('cadena vacia', () => {
+        expect(enVentanaOperativa('', HOY)).toBeFalse();
+      });
+
+      // Sin esto, un `hoy` malformado haria que siguienteDia devolviera '' y
+      // una fecha vacia entrara en la ventana por coincidencia.
+      it('un hoy malformado no valida nada', () => {
+        expect(enVentanaOperativa('2026-09-01', 'no-es-fecha')).toBeFalse();
+      });
+    });
+
+    /*
+     * Sin el segundo argumento usa el reloj real. Se compara contra hoySql()
+     * y manianaSql() en vez de contra una fecha fija: un test con fecha fija
+     * pasa hoy y falla maniana.
+     */
+    it('sin argumento usa el dia real', () => {
+      expect(enVentanaOperativa(hoySql())).toBeTrue();
+      expect(enVentanaOperativa(manianaSql())).toBeTrue();
     });
   });
 });

@@ -25,6 +25,55 @@ export function hoySql(fecha: Date = new Date()): string {
   return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`;
 }
 
+/**
+ * `YYYY-MM-DD` local del día siguiente.
+ *
+ * Se calcula con setDate y no sumando 86.400.000 ms: en un cambio de horario
+ * de verano un día dura 23 o 25 horas, y sumar segundos daría la fecha
+ * equivocada justo ese día. setDate deja que el calendario resuelva además el
+ * fin de mes y el año bisiesto.
+ */
+export function manianaSql(fecha: Date = new Date()): string {
+  const siguiente = new Date(fecha);
+  siguiente.setDate(siguiente.getDate() + 1);
+  return hoySql(siguiente);
+}
+
+/**
+ * ¿Esta fecha programada entra en la ventana con la que trabaja el operador?
+ *
+ * La ventana es HOY y MAÑANA: se pidió que el operador pueda adelantar la
+ * jornada del día siguiente. Ayer queda afuera — al cambiar el día lo anterior
+ * se da por cerrado, incluso lo que no alcanzó a sincronizarse.
+ *
+ * Vive en UNA función y no repetida en cada pantalla a propósito. Escrita
+ * cuatro veces como `=== hoySql()` —Home, el historial, la restauración de
+ * sesión y los TAGs pendientes— bastaba con olvidar una para que la app se
+ * contradijera: mostrar una jornada que después no deja sincronizar.
+ *
+ * Tolera que la fecha venga con hora (`2026-08-31 08:00:00`): se compara solo
+ * la parte del día.
+ */
+export function enVentanaOperativa(fechaProgramada: string, hoy: string = hoySql()): boolean {
+  const dia = (fechaProgramada ?? '').slice(0, 10);
+  if (dia === '') return false;
+
+  return dia === hoy || dia === siguienteDia(hoy);
+}
+
+/*
+ * El día siguiente a una fecha YA en formato `YYYY-MM-DD`.
+ *
+ * Se deriva del `hoy` recibido y no del reloj: así quien pasa un `hoy`
+ * explícito —los tests, o una pantalla que ya lo calculó— obtiene una ventana
+ * coherente con ESE día y no con la fecha real de la máquina.
+ */
+function siguienteDia(dia: string): string {
+  const [anio, mes, num] = dia.split('-').map(Number);
+  if (!anio || !mes || !num) return '';
+  return manianaSql(new Date(anio, mes - 1, num));
+}
+
 /** `YYYY-MM-DD HH:MM:SS` local. Reemplaza a `CURRENT_TIMESTAMP` de SQLite. */
 export function ahoraSql(fecha: Date = new Date()): string {
   return `${hoySql(fecha)} ${pad(fecha.getHours())}:${pad(fecha.getMinutes())}:${pad(fecha.getSeconds())}`;
