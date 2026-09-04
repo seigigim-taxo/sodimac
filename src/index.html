@@ -17,6 +17,48 @@
   <!-- add to homescreen for ios -->
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+  <script>
+    /*
+     * Teclado físico — deshabilita el teclado virtual en plataformas nativas.
+     * MutationObserver intercepta cada <input>/<textarea> (nativos o ion-input)
+     * antes de que Android pueda reaccionar al focus, usando inputmode="none".
+     * El observer vive antes de Angular para cubrir también los elementos
+     * generados durante el bootstrap inicial.
+     */
+    (function () {
+      if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
+
+      var SELECTOR = 'ion-input, input, textarea';
+
+      function marcarInput(el) {
+        if (el.getAttribute && el.getAttribute('inputmode') !== 'none') {
+          el.setAttribute('inputmode', 'none');
+        }
+      }
+
+      function escanear(root) {
+        root.querySelectorAll(SELECTOR).forEach(marcarInput);
+      }
+
+      var observer = new MutationObserver(function (mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var added = mutations[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var node = added[j];
+            if (node.nodeType !== 1) continue;
+            if (node.matches && node.matches(SELECTOR)) marcarInput(node);
+            if (node.querySelectorAll) escanear(node);
+          }
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', function () {
+        escanear(document.body);
+        observer.observe(document.body, { childList: true, subtree: true });
+      });
+    })();
+  </script>
 </head>
 
 <body>
