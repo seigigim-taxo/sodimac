@@ -12,7 +12,7 @@ import { PRE_VARIANCE_REPOSITORY_TOKEN } from '../../domain/pre-variance/reposit
 import { RECUENTO_REPOSITORY_TOKEN } from '../../domain/recuento/repositories/recuento.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_DB_NAME, SODIMAC_TABLE_NAMES } from '../../core/database/sodimac.schema';
-import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, PreVarianceAnalista, RecuentoAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
+import { DatosAnalista, DatosPreparacion, EtapaSincronizacion, JornadaPreparada, PreVarianceAnalista, RecuentoAnalista, UsuarioPreparado, ValidacionBloqueAnalista } from '../../domain/sincronizacion/models/preparacion.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 
 type EstadoEvento = Evento['estado'];
@@ -112,7 +112,7 @@ export class SincronizarDatosInicialesUseCase {
     if (usuario.tipoUsuario === 'ANALISTA_CLIENTE' && datos.analista) {
       await this.guardarFlujoAnalista(datos, session.operadorId);
     } else {
-      await this.guardarEventoYMuestra(datos);
+      await this.guardarJornadas(datos);
     }
 
     await this.guardarZonas(datos);
@@ -133,13 +133,13 @@ export class SincronizarDatosInicialesUseCase {
   }
 
   /* ========================================================================
-     FLUJO OPERADOR — se mantiene igual: evento + muestra + detalle productos
+     FLUJO OPERADOR — una jornada por día: evento + muestra + detalle productos
      ======================================================================== */
 
   private async resolverEvento(
-    datos: DatosPreparacion, sucursalId: number, evento: EventoParaGuardar
+    jornada: JornadaPreparada, sucursalId: number, evento: EventoParaGuardar
   ): Promise<number> {
-    const codigoMuestra = datos.muestra?.codigoMuestra;
+    const codigoMuestra = jornada.muestra?.codigoMuestra;
     if (!codigoMuestra) {
       return this.eventoRepo.asegurarEvento(evento);
     }
@@ -152,43 +152,61 @@ export class SincronizarDatosInicialesUseCase {
     return this.eventoRepo.crearEvento(evento);
   }
 
-  private async guardarEventoYMuestra(datos: DatosPreparacion): Promise<void> {
-    const tienda = datos.tiendas[0];
-    const evento = datos.evento;
-    if (!tienda || !evento?.fechaProgramada) return;
+  /*
+   * Se guardan TODAS las jornadas que llegaron, no solo la del día.
+   *
+   * La preparación es lo único que baja datos, y corre una vez al entrar. Si
+   * dejáramos la de mañana sin escribir, el operador que sigue trabajando
+   * después de medianoche se quedaría sin muestra y sin nada que contar hasta
+   * volver a tener señal. Guardar las dos es lo que hace que la app siga siendo
+   * offline al cruzar el día.
+   *
+   * Escribir las dos NO es lo mismo que trabajar las dos: cuál está activa lo
+   * decide la selección del operador, más arriba.
+   *
+   * En serie y no con Promise.all a propósito: resolverEvento consulta y
+   * después escribe, así que dos jornadas en paralelo sobre la misma tienda
+   * podrían leer las dos "no existe" y crear dos eventos para la misma fecha.
+   */
+  private async guardarJornadas(datos: DatosPreparacion): Promise<void> {
+    for (const jornada of datos.jornadas) {
+      await this.guardarJornada(jornada);
+    }
+  }
 
-    const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
+  private async guardarJornada(jornada: JornadaPreparada): Promise<void> {
+    const sucursalId = await this.sucursalRepo.getIdPorCodigo(jornada.tienda.codigoTienda);
     if (sucursalId === null) return;
 
-    const eventoId = await this.resolverEvento(datos, sucursalId, {
+    const eventoId = await this.resolverEvento(jornada, sucursalId, {
       sucursalId,
-      fechaProgramada: evento.fechaProgramada,
-      estado: evento.estado as EstadoEvento,
-      nombre: datos.muestra?.nombreMuestra ?? '',
+      fechaProgramada: jornada.evento.fechaProgramada,
+      estado: jornada.evento.estado as EstadoEvento,
+      nombre: jornada.muestra?.nombreMuestra ?? '',
     });
 
-    console.log('[Sincronizar] Evento ID:', eventoId);
-    console.log('[Sincronizar] Detalles a guardar:', datos.muestra?.detalles?.length ?? 0);
+    console.log('[Sincronizar] Jornada', jornada.evento.fechaProgramada, '— Evento ID:', eventoId);
 
-    if (!datos.muestra) return;
+    if (!jornada.muestra) return;
 
     const muestraId = await this.muestraRepo.asegurarMuestra({
-      codigoMuestra: datos.muestra.codigoMuestra,
+      codigoMuestra: jornada.muestra.codigoMuestra,
       eventoId,
       sucursalId,
-      nombre: datos.muestra.nombreMuestra,
+      nombre: jornada.muestra.nombreMuestra,
       iteracion: 1,
       estado: 'ACTIVA',
-      idAgenda: datos.muestra.idAgenda,
-      numeroAgenda: datos.muestra.numeroAgenda,
+      idAgenda: jornada.muestra.idAgenda,
+      numeroAgenda: jornada.muestra.numeroAgenda,
     });
 
-    console.log('[Sincronizar] Muestra ID:', muestraId);
-    console.log('[Sincronizar] Detalles a guardar:', datos.muestra.detalles.length);
+    await this.muestraDetalleRepo.reemplazarDetalles(muestraId, jornada.muestra.detalles);
 
-    await this.muestraDetalleRepo.reemplazarDetalles(muestraId, datos.muestra.detalles);
-    
-    console.log('[Sincronizar] Detalles guardados exitosamente');
+    console.log(
+      '[Sincronizar] Jornada', jornada.evento.fechaProgramada,
+      '— Muestra ID:', muestraId,
+      '—', jornada.muestra.detalles.length, 'detalles guardados'
+    );
   }
 
   /* ========================================================================
@@ -197,18 +215,22 @@ export class SincronizarDatosInicialesUseCase {
      ======================================================================== */
 
   private async guardarFlujoAnalista(datos: DatosPreparacion, operadorId: number): Promise<void> {
-    const tienda = datos.tiendas[0];
-    const evento = datos.evento;
-    if (!tienda || !evento?.fechaProgramada) return;
+    /*
+     * El analista revisa UNA jornada, la que el backend seleccionó: su
+     * preparación es liviana y trae una sola. La ventana de dos días es del
+     * operador, que es quien cuenta.
+     */
+    const jornada = datos.jornadas[0];
+    if (!jornada) return;
 
-    const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
+    const sucursalId = await this.sucursalRepo.getIdPorCodigo(jornada.tienda.codigoTienda);
     if (sucursalId === null) return;
 
     // Guardar evento liviano
     const eventoId = await this.eventoRepo.asegurarEvento({
       sucursalId,
-      fechaProgramada: evento.fechaProgramada,
-      estado: evento.estado as EstadoEvento,
+      fechaProgramada: jornada.evento.fechaProgramada,
+      estado: jornada.evento.estado as EstadoEvento,
       nombre: datos.analista?.contexto?.nombreMuestra ?? '',
     });
 
@@ -337,12 +359,23 @@ export class SincronizarDatosInicialesUseCase {
      COMÚN
      ======================================================================== */
 
+  /*
+   * Las zonas se guardan para cada tienda que aparezca en las jornadas.
+   *
+   * El backend manda UNA lista de zonas para toda la respuesta, pero
+   * sod_zona las guarda por sucursal. Mientras las dos jornadas sean de la
+   * misma tienda esto escribe una sola vez; si algún día vinieran de tiendas
+   * distintas, la segunda jornada tendría zonas en vez de quedarse sin
+   * ninguna y sin que nadie se entere.
+   *
+   * Si no hay jornadas se cae a la tienda del maestro: el operador sin trabajo
+   * asignado igual necesita sus zonas cargadas.
+   */
   private async guardarZonas(datos: DatosPreparacion): Promise<void> {
-    const tienda = datos.tiendas[0];
-    if (!tienda) return;
-
-    const sucursalId = await this.sucursalRepo.getIdPorCodigo(tienda.codigoTienda);
-    if (sucursalId === null) return;
+    const codigos = new Set(datos.jornadas.map((j) => j.tienda.codigoTienda));
+    if (codigos.size === 0 && datos.tiendas[0]) {
+      codigos.add(datos.tiendas[0].codigoTienda);
+    }
 
     const zonasParaGuardar = datos.zonas.map(z => ({
       nombre: z.codigo,
@@ -351,7 +384,12 @@ export class SincronizarDatosInicialesUseCase {
       tagHasta: z.tagHasta,
     }));
 
-    await this.zonaRepo.reemplazarDeSucursal(sucursalId, zonasParaGuardar);
+    for (const codigoTienda of codigos) {
+      const sucursalId = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
+      if (sucursalId === null) continue;
+
+      await this.zonaRepo.reemplazarDeSucursal(sucursalId, zonasParaGuardar);
+    }
   }
 
   private async logDatabase(): Promise<void> {

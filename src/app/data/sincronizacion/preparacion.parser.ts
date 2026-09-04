@@ -7,6 +7,7 @@ import {
   DetalleMuestraPreparado,
   EventoPreparado,
   FilaAnalista,
+  JornadaPreparada,
   KpisAnalista,
   MuestraPreparada,
   PreVarianceAnalista,
@@ -169,8 +170,8 @@ function parsearTiendas(raw: unknown): TiendaPreparada[] {
  * Parsea un código de producto desde el array codigos[].
  * El campo codigo_lectura es obligatorio.
  */
-function parsearCodigoProducto(codigoRaw: Json, indexProducto: number, indexCodigo: number): CodigoProductoPreparado {
-  const campo = `data.productos[${indexProducto}].codigos[${indexCodigo}]`;
+function parsearCodigoProducto(codigoRaw: Json, campoProducto: string, indexCodigo: number): CodigoProductoPreparado {
+  const campo = `${campoProducto}.codigos[${indexCodigo}]`;
   return {
     codigoLectura: texto(codigoRaw, 'codigo_lectura', campo),
     tipoCodigo: textoOpcional(codigoRaw, 'tipo_codigo'),
@@ -179,19 +180,22 @@ function parsearCodigoProducto(codigoRaw: Json, indexProducto: number, indexCodi
 }
 
 /*
- * La muestra viene como objeto suelto y los productos como array separado
- * en `data.productos`. Se agrupan los detalles por muestra.
+ * La muestra y sus productos vienen dentro de la jornada a la que pertenecen.
+ *
+ * Antes eran `data.muestras` y `data.productos`, dos campos hermanos que se
+ * emparejaban por venir juntos en la respuesta. Con dos jornadas eso ya no
+ * alcanza, y el backend los metió adentro de cada una.
  */
-function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): MuestraPreparada | null {
+function parsearMuestra(muestraRaw: unknown, productosRaw: unknown, campo: string): MuestraPreparada | null {
   const muestra = esJson(muestraRaw) ? muestraRaw : null;
   if (!muestra) return null;
 
-  const codigo = texto(muestra, 'codigo_muestra', 'data.muestras');
+  const codigo = texto(muestra, 'codigo_muestra', `${campo}.muestra`);
 
   const productos = comoLista(productosRaw);
 
   const detalles: DetalleMuestraPreparado[] = productos.map((p, i) => {
-    const campoProducto = `data.productos[${i}]`;
+    const campoProducto = `${campo}.productos[${i}]`;
 
     /* codigos[] es obligatorio desde el servidor real */
     const codigosRaw = p['codigos'];
@@ -204,7 +208,7 @@ function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): Mues
 
     const codigos = codigosRaw
       .filter((c): c is Json => esJson(c))
-      .map((c, j) => parsearCodigoProducto(c, i, j));
+      .map((c, j) => parsearCodigoProducto(c, campoProducto, j));
 
     if (codigos.length === 0) {
       throw new ContractError(
@@ -238,23 +242,95 @@ function parsearPrimeraMuestra(muestraRaw: unknown, productosRaw: unknown): Mues
 /*
  * Un estado desconocido sí es error: la columna no tiene CHECK, así que un valor
  * inventado entraría a la base y rompería la lógica de bloqueo y reconteo.
+ *
+ * En cambio un evento SIN FECHA se descarta en silencio devolviendo null. No es
+ * lo mismo: un estado inventado corrompe datos, mientras que un evento sin día
+ * simplemente no se puede trabajar ni guardar —sod_evento usa la fecha como
+ * parte de su identidad— y antes igual terminaba descartado, solo que más
+ * adelante y por partida doble.
  */
-function parsearEvento(raw: unknown): EventoPreparado | null {
-  const primero = comoLista(raw)[0];
-  if (!primero) return null;
+function parsearEvento(raw: unknown, campo: string): EventoPreparado | null {
+  if (!esJson(raw)) return null;
 
-  const estado = textoOpcional(primero, 'estado') ?? 'ABIERTO';
+  const estado = textoOpcional(raw, 'estado') ?? 'ABIERTO';
   if (!ESTADOS_EVENTO.includes(estado as EstadoEvento)) {
     throw new ContractError(
-      'data.eventos.estado',
+      `${campo}.estado`,
       `"${estado}" no es un estado válido (${ESTADOS_EVENTO.join(', ')})`
     );
   }
 
-  return {
-    fechaProgramada: aFechaIso(textoOpcional(primero, 'fecha_programada')),
-    estado,
-  };
+  const fechaProgramada = aFechaIso(textoOpcional(raw, 'fecha_programada'));
+  if (!fechaProgramada) return null;
+
+  return { fechaProgramada, estado };
+}
+
+/*
+ * En qué tienda se trabaja esta jornada.
+ *
+ * El evento trae `sucursal_id`, que es el id del backend; la app se identifica
+ * por `codigoTienda`, así que hay que cruzarlo contra el maestro de tiendas del
+ * operador. Se resuelve acá, en el borde, y no aguas adentro: el id del backend
+ * no entra al dominio, que ya decidió que su identidad es el código.
+ *
+ * Si el id no está en el maestro —el backend admite una agenda apuntando a una
+ * tienda que el operador no tiene asignada— se usa la primera. Es lo mismo que
+ * termina haciendo el backend en ese caso, y es preferible a descartar la
+ * jornada: perder trabajo asignado en silencio es peor que mostrarlo con la
+ * tienda principal.
+ */
+function tiendaDeJornada(eventoRaw: Json, tiendas: TiendaPreparada[]): TiendaPreparada | null {
+  if (tiendas.length === 0) return null;
+
+  const idTienda = enteroOpcional(eventoRaw, 'sucursal_id');
+  return tiendas.find((t) => t.idTienda === idTienda) ?? tiendas[0];
+}
+
+/*
+ * Las jornadas: hoy y mañana.
+ *
+ * Tres cosas que pasan acá y conviene tener a la vista:
+ *
+ * - Una jornada sin evento utilizable se descarta, pero las demás siguen. Que
+ *   el día de mañana venga mal no es motivo para dejar al operador sin el de
+ *   hoy.
+ * - Se queda una sola por fecha. El backend ya lo garantiza; se repite acá
+ *   porque `idJornada()` ES la fecha, y dos jornadas con el mismo día harían
+ *   que seleccionar una fuera ambiguo.
+ * - Se ordenan por fecha. Así "hoy" queda siempre primero en pantalla sin que
+ *   la UI dependa del orden en que el SQL las haya devuelto.
+ *
+ * Lo que NO se hace acá es filtrar por la ventana operativa. Que una fecha esté
+ * vencida es una regla de negocio; este archivo solo traduce lo que llegó.
+ */
+function parsearJornadas(raw: unknown, tiendas: TiendaPreparada[]): JornadaPreparada[] {
+  const porFecha = new Map<string, JornadaPreparada>();
+
+  comoLista(raw).forEach((jornadaRaw, i) => {
+    const campo = `data.jornadas[${i}]`;
+
+    const eventoRaw = jornadaRaw['evento'];
+    if (!esJson(eventoRaw)) return;
+
+    const evento = parsearEvento(eventoRaw, `${campo}.evento`);
+    if (!evento) return;
+
+    const tienda = tiendaDeJornada(eventoRaw, tiendas);
+    if (!tienda) return;
+
+    if (porFecha.has(evento.fechaProgramada)) return;
+
+    porFecha.set(evento.fechaProgramada, {
+      evento,
+      tienda,
+      muestra: parsearMuestra(jornadaRaw['muestra'], jornadaRaw['productos'], campo),
+    });
+  });
+
+  return [...porFecha.values()].sort((a, b) =>
+    a.evento.fechaProgramada.localeCompare(b.evento.fechaProgramada)
+  );
 }
 
 /*
@@ -276,12 +352,12 @@ function parsearZonas(raw: unknown): { codigo: string; descripcion: string | nul
 
 export function parsearPreparacion(raw: unknown): DatosPreparacion {
   const data = objeto(raw, 'data');
+  const tiendas = parsearTiendas(data['tiendas']);
 
   return {
     usuario: parsearUsuario(data['usuario']),
-    tiendas: parsearTiendas(data['tiendas']),
-    muestra: parsearPrimeraMuestra(data['muestras'], data['productos']),
-    evento: parsearEvento(data['eventos']),
+    tiendas,
+    jornadas: parsearJornadas(data['jornadas'], tiendas),
     zonas: parsearZonas(data['zonas_tienda']),
     analista: parsearAnalista(data['analista']),
   };

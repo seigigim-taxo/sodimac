@@ -69,12 +69,19 @@ export interface MuestraPreparada {
 }
 
 /*
- * `fechaProgramada` puede venir null: el backend todavía no la define.
+ * El día de trabajo.
+ *
+ * `fechaProgramada` NO es opcional. Antes lo era, y las dos únicas cosas que
+ * hacían con un evento sin fecha era descartarlo (`if (!evento?.fechaProgramada)
+ * return`). Un evento sin día no se puede ni mostrar ni guardar —sod_evento la
+ * usa como parte de su identidad— así que ahora el parser directamente no lo
+ * construye, y a cambio nadie más aguas abajo tiene que preguntar.
+ *
  * `fechaEjecucion` y `fechaRegistro` no se piden — las pone el dispositivo al
  * iniciar el conteo.
  */
 export interface EventoPreparado {
-  fechaProgramada: string | null;
+  fechaProgramada: string;
   estado: string;
 }
 
@@ -89,11 +96,57 @@ export interface ZonaPreparada {
   tagHasta: number | null;
 }
 
+/*
+ * Un día de trabajo completo: el evento, la muestra que le toca y en qué tienda.
+ *
+ * Es la unidad que el operador elige en pantalla. Existe porque la preparación
+ * pasó a traer HOY y MAÑANA, y antes evento y muestra colgaban sueltos de
+ * DatosPreparacion, emparejados solo por venir en la misma respuesta. Con dos
+ * jornadas ese emparejamiento implícito ya no se sostiene: hay que poder decir
+ * QUÉ muestra es de QUÉ día sin depender del orden de dos arrays paralelos.
+ *
+ * `muestra` es null en el flujo del analista, que recibe una preparación
+ * liviana sin productos.
+ *
+ * `tienda` viaja acá y no se toma de `tiendas[0]` porque nada garantiza que las
+ * dos jornadas sean de la misma tienda. Hoy en la práctica lo son, pero el
+ * backend manda un `sucursal_id` por evento y esa es la respuesta correcta;
+ * asumir la primera de la lista es justo el bug de "el conteo es de otra
+ * tienda" que ya nos tocó arreglar una vez.
+ */
+export interface JornadaPreparada {
+  evento: EventoPreparado;
+  muestra: MuestraPreparada | null;
+  tienda: TiendaPreparada;
+}
+
+/*
+ * La identidad de una jornada es su día.
+ *
+ * El backend garantiza una sola jornada por fecha, y la fecha es además lo
+ * único que el operador ve para distinguirlas ("hoy" / "mañana"). También es lo
+ * que sod_evento usa como clave junto con la sucursal, así que elegir cualquier
+ * otra cosa obligaría a traducir entre dos identidades.
+ *
+ * Se expone como función y no se lee `.evento.fechaProgramada` suelto por el
+ * código para que, si algún día la identidad pasa a ser el id de agenda, haya
+ * un solo lugar que cambiar.
+ */
+export function idJornada(jornada: JornadaPreparada): string {
+  return jornada.evento.fechaProgramada;
+}
+
+/*
+ * `jornadas` reemplaza a `muestra` + `evento`.
+ *
+ * Puede venir vacío y eso NO es un error: significa que el operador no tiene
+ * trabajo asignado ni para hoy ni para mañana. Antes esa situación llegaba como
+ * un 401 confundido con "credenciales inválidas".
+ */
 export interface DatosPreparacion {
   usuario: UsuarioPreparado;
   tiendas: TiendaPreparada[];
-  muestra: MuestraPreparada | null;
-  evento: EventoPreparado | null;
+  jornadas: JornadaPreparada[];
   zonas: ZonaPreparada[];
   analista: DatosAnalista | null;
 }

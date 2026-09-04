@@ -4,6 +4,7 @@ import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/mues
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
 import { Session } from '../../domain/auth/models/session.model';
+import { JornadaPreparada } from '../../domain/sincronizacion/models/preparacion.model';
 
 /*
  * "¿Me toca otro conteo?" — lo que pregunta el operador que ya terminó el suyo
@@ -12,16 +13,17 @@ import { Session } from '../../domain/auth/models/session.model';
  * CÓMO SE AVERIGUA
  *
  * Se llama al MISMO endpoint de preparación que se usa al iniciar sesión y se
- * mira si el código de muestra que devuelve ya está en la base. Si no está, el
- * SGO asignó una jornada nueva y se insertan los datos; si está, lo que hay en
- * el servidor es lo mismo que la PDA ya tiene y no se escribe nada.
+ * recorren las jornadas que devuelve —hoy y mañana— mirando si el código de
+ * muestra de cada una ya está en la base. La primera que no esté es trabajo que
+ * el SGO asignó y la PDA no tiene, y se insertan los datos; si están todas, lo
+ * que hay en el servidor es lo mismo que la PDA ya tiene y no se escribe nada.
  *
  * LA TIENDA SALE DE LA RESPUESTA, NO DEL OPERADOR
  *
  * El conteo siguiente puede ser en OTRA tienda: al operador se lo asignan por
  * jornada, no por local. Por eso la sucursal contra la que se compara —y la que
- * se devuelve— se resuelve del código de tienda que trae la preparación, y no
- * de la que el operador tiene abierta en pantalla.
+ * se devuelve— sale de la jornada misma, y no de la que el operador tiene
+ * abierta en pantalla.
  *
  * Comparar contra la tienda abierta daba dos fallas juntas: la muestra ya
  * conocida de otra tienda se veía como nueva y se reinsertaba en cada consulta,
@@ -56,8 +58,12 @@ export interface ResultadoBusquedaConteo {
   asignacion: AsignacionConteo | null;
   /*
    * Evento local que YA tiene el mismo codigo_muestra que acaba de devolver el
-   * SGO, cuando existe. Null en cualquier otro caso (código nuevo, o
-   * preparación incompleta).
+   * SGO para la jornada de HOY, cuando existe. Null en cualquier otro caso
+   * (código nuevo, o preparación incompleta).
+   *
+   * Se limita a la jornada de hoy —no a mañana— porque es la única que tiene
+   * sentido reabrir: es la que el operador puede haber cerrado él mismo hace un
+   * rato y seguir necesitando ahora, no un evento que todavía no empieza.
    *
    * Se expone para que quien orquesta la búsqueda (ver
    * BuscarOReabrirConteoUseCase) pueda decidir si ese evento es uno que el
@@ -77,79 +83,93 @@ export class BuscarNuevoConteoUseCase {
   async execute(session: Session): Promise<ResultadoBusquedaConteo> {
     const datos = await this.sincronizar.descargar(session);
 
-    const codigoMuestra = datos.muestra?.codigoMuestra?.trim();
-    const codigoTienda  = datos.tiendas?.[0]?.codigoTienda?.trim();
+    let eventoCoincidenteHoy: number | null = null;
 
-    /*
-     * Sin muestra o sin tienda no hay trabajo que tomar. Escribir igual pisaría
-     * lo que la PDA ya tiene con una preparación incompleta, y el operador
-     * puede volver a consultar pero no puede deshacer eso.
-     */
-    if (!codigoMuestra || !codigoTienda) {
-      if (isDevMode()) console.log('[BuscarNuevoConteo] preparación sin muestra o sin tienda');
-      return { asignacion: null, eventoCoincidenteId: null };
-    }
+    for (const jornada of datos.jornadas) {
+      const codigoMuestra = jornada.muestra?.codigoMuestra?.trim();
+      const codigoTienda  = jornada.tienda.codigoTienda?.trim();
 
-    const sucursalId = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
+      /*
+       * Sin muestra o sin tienda no hay trabajo que tomar en ESTA jornada.
+       * Escribir igual pisaría lo que la PDA ya tiene con una preparación
+       * incompleta; se saltea y se sigue buscando en la siguiente.
+       */
+      if (!codigoMuestra || !codigoTienda) continue;
 
-    /*
-     * Si la tienda todavía no existe localmente, la muestra tampoco puede
-     * existir: es la primera vez que a esta PDA le toca ese local, o sea
-     * trabajo nuevo por definición. Se salta la comparación y se persiste,
-     * que es justamente lo que crea la tienda.
-     */
-    if (sucursalId !== null) {
-      const existente = await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalId);
+      const sucursalId = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
+
       /*
        * Un solo argumento string: el puente de consola de Capacitor no
        * serializa bien un objeto pasado como segundo argumento (queda como
        * "[object Object]" en logcat) — sí lo hace con un string ya armado.
        */
       if (isDevMode()) {
-        console.log(`[BuscarNuevoConteo] ${JSON.stringify({ codigoTienda, sucursalId, codigoMuestraSGO: codigoMuestra, eventoCoincidente: existente })}`);
+        console.log(`[BuscarNuevoConteo] ${JSON.stringify({ fecha: jornada.evento.fechaProgramada, codigoTienda, sucursalId, codigoMuestraSGO: codigoMuestra })}`);
       }
+
       /*
-       * Ya la tenemos: el SGO todavía no programó nada nuevo. Es el resultado
-       * normal de esta consulta, no un error — el operador que terminó temprano
-       * la va a tocar varias veces antes de que aparezca la jornada siguiente.
+       * Si la tienda todavía no existe localmente, la muestra tampoco puede
+       * existir: es la primera vez que a esta PDA le toca ese local, o sea
+       * trabajo nuevo por definición. Se salta la comparación y se persiste,
+       * que es justamente lo que crea la tienda.
        */
-      if (existente !== null) return { asignacion: null, eventoCoincidenteId: existente };
-    } else if (isDevMode()) {
-      console.log(`[BuscarNuevoConteo] ${JSON.stringify({ codigoTienda, sucursalId, codigoMuestraSGO: codigoMuestra })}`);
+      if (sucursalId !== null) {
+        const existente = await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalId);
+        if (existente !== null) {
+          /*
+           * Ya la tenemos: el SGO todavía no programó nada nuevo PARA ESTA
+           * jornada. Si es la de hoy, se guarda el evento coincidente por si
+           * conviene reabrirlo; de cualquier forma se sigue buscando en las
+           * jornadas siguientes (mañana podría ser nueva).
+           */
+          if (jornada === datos.jornadas[0]) eventoCoincidenteHoy = existente;
+          continue;
+        }
+      }
+
+      /*
+       * Hay jornada nueva. Se persisten TODAS las jornadas de la respuesta —no
+       * solo esta— con el mismo camino que la sincronización de inicio de
+       * sesión: si además de la de hoy vino la de mañana, queda bajada y el
+       * operador puede cruzar la medianoche sin señal.
+       */
+      await this.sincronizar.persistir(session, datos);
+      return { asignacion: await this.describir(jornada), eventoCoincidenteId: null };
     }
 
     /*
-     * Hay jornada nueva. Se persiste con el mismo camino que la sincronización
-     * de inicio de sesión —evento, muestra, detalles y zonas— en vez de una
-     * inserción propia: dos rutas de escritura sobre las mismas tablas se
-     * separan en cuanto una de las dos cambie.
+     * Ninguna jornada trae algo que la PDA no tenga: el resultado normal de
+     * esta consulta, no un error — el operador que terminó temprano la va a
+     * tocar varias veces antes de que el SGO programe la jornada siguiente.
      */
-    await this.sincronizar.persistir(session, datos);
+    if (isDevMode() && eventoCoincidenteHoy === null) console.log('[BuscarNuevoConteo] sin trabajo nuevo');
+    return { asignacion: null, eventoCoincidenteId: eventoCoincidenteHoy };
+  }
 
-    /*
-     * Se relee la tienda DESPUÉS de persistir: si era desconocida, recién ahora
-     * existe y recién ahora tiene id local.
-     */
-    const sucursalFinal = await this.sucursalRepo.getIdPorCodigo(codigoTienda);
+  /*
+   * La asignación que se le informa a la pantalla, releída DESPUÉS de
+   * persistir: si la tienda era desconocida, recién ahora existe y recién
+   * ahora tiene id local.
+   *
+   * Se informa la asignación aunque no se haya podido releer el evento: el
+   * trabajo YA quedó escrito, y devolver null haría que la pantalla dijera
+   * "no hay nada nuevo" justo después de haber insertado una jornada.
+   */
+  private async describir(jornada: JornadaPreparada): Promise<AsignacionConteo> {
+    const codigoMuestra = jornada.muestra?.codigoMuestra?.trim() ?? '';
+
+    const sucursalFinal = await this.sucursalRepo.getIdPorCodigo(jornada.tienda.codigoTienda);
     const eventoId = sucursalFinal !== null
       ? await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalFinal)
       : null;
 
-    const nombre = datos.muestra?.nombreMuestra?.trim();
+    const nombre = jornada.muestra?.nombreMuestra?.trim();
 
-    /*
-     * Se informa la asignación aunque no se haya podido releer el evento: el
-     * trabajo YA quedó escrito, y devolver null haría que la pantalla dijera
-     * "no hay nada nuevo" justo después de haber insertado una jornada.
-     */
     return {
-      asignacion: {
-        eventoId:        eventoId ?? 0,
-        sucursalId:      sucursalFinal ?? 0,
-        nombre:          nombre && nombre !== '' ? nombre : `Conteo ${eventoId ?? ''}`.trim(),
-        fechaProgramada: (datos.evento?.fechaProgramada ?? '').slice(0, 10),
-      },
-      eventoCoincidenteId: null,
+      eventoId:        eventoId ?? 0,
+      sucursalId:      sucursalFinal ?? 0,
+      nombre:          nombre && nombre !== '' ? nombre : `Conteo ${eventoId ?? ''}`.trim(),
+      fechaProgramada: jornada.evento.fechaProgramada.slice(0, 10),
     };
   }
 }

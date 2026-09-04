@@ -31,12 +31,17 @@ describe('preparacion.parser', () => {
               zona_operativa: '测试',
             },
           ],
-          eventos: {
-            fecha_programada: '2026-01-01',
-            estado: 'ABIERTO',
-          },
-          muestras: null,
-          productos: [],
+          jornadas: [
+            {
+              evento: {
+                sucursal_id: 1,
+                fecha_programada: '2026-01-01',
+                estado: 'ABIERTO',
+              },
+              muestra: null,
+              productos: [],
+            },
+          ],
           zonas_tienda: [],
         },
       };
@@ -69,12 +74,17 @@ describe('preparacion.parser', () => {
               zona_operativa: '测试',
             },
           ],
-          eventos: {
-            fecha_programada: '2026-01-01',
-            estado: 'ABIERTO',
-          },
-          muestras: null,
-          productos: [],
+          jornadas: [
+            {
+              evento: {
+                sucursal_id: 1,
+                fecha_programada: '2026-01-01',
+                estado: 'ABIERTO',
+              },
+              muestra: null,
+              productos: [],
+            },
+          ],
           zonas_tienda: [],
           analista: {
             contexto: {
@@ -131,12 +141,17 @@ describe('preparacion.parser', () => {
               zona_operativa: '测试',
             },
           ],
-          eventos: {
-            fecha_programada: '2026-01-01',
-            estado: 'ABIERTO',
-          },
-          muestras: null,
-          productos: [],
+          jornadas: [
+            {
+              evento: {
+                sucursal_id: 1,
+                fecha_programada: '2026-01-01',
+                estado: 'ABIERTO',
+              },
+              muestra: null,
+              productos: [],
+            },
+          ],
           zonas_tienda: [],
           analista: {
             contexto: {
@@ -190,12 +205,17 @@ describe('preparacion.parser', () => {
               zona_operativa: '测试',
             },
           ],
-          eventos: {
-            fecha_programada: '2026-01-01',
-            estado: 'ABIERTO',
-          },
-          muestras: null,
-          productos: [],
+          jornadas: [
+            {
+              evento: {
+                sucursal_id: 1,
+                fecha_programada: '2026-01-01',
+                estado: 'ABIERTO',
+              },
+              muestra: null,
+              productos: [],
+            },
+          ],
           zonas_tienda: [],
           analista: {
             contexto: {
@@ -252,6 +272,163 @@ describe('preparacion.parser', () => {
       expect(result.analista!.filas[0].tags.length).toBe(1);
       expect(result.analista!.filas[0].tags[0].tagCodigo).toBe('001');
       expect(result.analista!.filas[0].tags[0].ubicacionCodigo).toBe('TAG-001');
+    });
+  });
+
+  /*
+   * El contrato de dos jornadas. Se arma con un helper y no con fixtures
+   * completos porque lo que se prueba es el armado de jornadas, y 60 lineas de
+   * usuario y tienda repetidas cuatro veces solo esconden la diferencia entre
+   * un caso y el siguiente.
+   */
+  describe('jornadas', () => {
+    const USUARIO = {
+      login: 'test@test.cl',
+      rut: '12345678-9',
+      rut_normalizado: '123456789',
+      nombres: 'Test',
+      cargo: 'Operador de Inventario',
+      tipo_usuario: 'OPERADOR',
+      autenticado: true,
+    };
+
+    const TIENDA = {
+      id_tienda: 1,
+      codigo_tienda: 'TI001',
+      nombre_tienda: 'Tienda Test',
+      zona_operativa: null,
+    };
+
+    const producto = (sku: string) => ({
+      sku,
+      id_muestra_det: 1,
+      descripcion: 'Producto ' + sku,
+      stock_sistema: 10,
+      codigos: [{ codigo_lectura: sku, tipo_codigo: 'SKU', codigo_barras: null }],
+    });
+
+    const jornada = (fecha: string, codigoMuestra: string | null, extra: object = {}) => ({
+      evento: { sucursal_id: 1, fecha_programada: fecha, estado: 'ABIERTO', ...extra },
+      muestra: codigoMuestra === null ? null : { id_muestra: 1, codigo_muestra: codigoMuestra },
+      productos: codigoMuestra === null ? [] : [producto('SKU-' + fecha)],
+    });
+
+    const parsear = (jornadas: unknown, tiendas: object[] = [TIENDA]) =>
+      parsearPreparacion({ usuario: USUARIO, tiendas, jornadas, zonas_tienda: [] });
+
+    it('parsea las dos jornadas, cada una con su muestra', () => {
+      const r = parsear([jornada('2026-08-31', 'M-HOY'), jornada('2026-09-01', 'M-MANANA')]);
+
+      expect(r.jornadas.length).toBe(2);
+      expect(r.jornadas[0].muestra?.codigoMuestra).toBe('M-HOY');
+      expect(r.jornadas[1].muestra?.codigoMuestra).toBe('M-MANANA');
+    });
+
+    // Lo que el contrato viejo no podia expresar: que producto es de que dia.
+    it('mantiene cada producto en la jornada a la que pertenece', () => {
+      const r = parsear([jornada('2026-08-31', 'M-HOY'), jornada('2026-09-01', 'M-MANANA')]);
+
+      expect(r.jornadas[0].muestra?.detalles[0].sku).toBe('SKU-2026-08-31');
+      expect(r.jornadas[1].muestra?.detalles[0].sku).toBe('SKU-2026-09-01');
+    });
+
+    it('ordena por fecha aunque lleguen al reves', () => {
+      const r = parsear([jornada('2026-09-01', 'M-MANANA'), jornada('2026-08-31', 'M-HOY')]);
+
+      expect(r.jornadas.map((j) => j.evento.fechaProgramada)).toEqual(['2026-08-31', '2026-09-01']);
+    });
+
+    // idJornada() ES la fecha, asi que dos con el mismo dia harian ambigua la
+    // seleccion. El backend ya deduplica; esto es el cinturon.
+    it('se queda con una sola jornada por fecha', () => {
+      const r = parsear([jornada('2026-08-31', 'M-PRIMERA'), jornada('2026-08-31', 'M-SEGUNDA')]);
+
+      expect(r.jornadas.length).toBe(1);
+      expect(r.jornadas[0].muestra?.codigoMuestra).toBe('M-PRIMERA');
+    });
+
+    it('acepta una sola jornada', () => {
+      expect(parsear([jornada('2026-08-31', 'M-HOY')]).jornadas.length).toBe(1);
+    });
+
+    /*
+     * Sin trabajo asignado. NO es un error: antes esta situacion llegaba como
+     * un 401 que la app confundia con credenciales invalidas.
+     */
+    it('acepta la lista vacia', () => {
+      expect(parsear([]).jornadas).toEqual([]);
+      expect(parsear(null).jornadas).toEqual([]);
+      expect(parsear(undefined).jornadas).toEqual([]);
+    });
+
+    it('acepta una jornada sin muestra, como la del analista', () => {
+      const r = parsear([jornada('2026-08-31', null)]);
+
+      expect(r.jornadas.length).toBe(1);
+      expect(r.jornadas[0].muestra).toBeNull();
+    });
+
+    describe('jornadas que no se pueden trabajar', () => {
+      // Un evento sin dia no se puede ni mostrar ni guardar: sod_evento usa la
+      // fecha como parte de su identidad.
+      it('descarta la que no trae fecha', () => {
+        const sinFecha = { evento: { sucursal_id: 1, estado: 'ABIERTO' }, muestra: null, productos: [] };
+
+        expect(parsear([sinFecha]).jornadas).toEqual([]);
+      });
+
+      // Lo importante del caso: que se pierda maniana no puede dejar al
+      // operador sin hoy.
+      it('descarta solo la mala y conserva la buena', () => {
+        const sinFecha = { evento: { sucursal_id: 1, estado: 'ABIERTO' }, muestra: null, productos: [] };
+        const r = parsear([jornada('2026-08-31', 'M-HOY'), sinFecha]);
+
+        expect(r.jornadas.length).toBe(1);
+        expect(r.jornadas[0].evento.fechaProgramada).toBe('2026-08-31');
+      });
+
+      it('descarta la que viene sin evento', () => {
+        expect(parsear([{ muestra: null, productos: [] }]).jornadas).toEqual([]);
+      });
+
+      // Sin tienda no hay codigo_tienda con que resolver la sucursal en SQLite.
+      it('descarta todo si no hay tiendas', () => {
+        expect(parsear([jornada('2026-08-31', 'M-HOY')], []).jornadas).toEqual([]);
+      });
+    });
+
+    /*
+     * Un estado inventado si es error, a diferencia de la fecha faltante: la
+     * columna no tiene CHECK, asi que entraria a la base y romperia la logica
+     * de bloqueo y reconteo. El mensaje tiene que decir en que jornada fue.
+     */
+    it('falla con un estado desconocido, nombrando la jornada', () => {
+      const mala = jornada('2026-09-01', 'M-MANANA', { estado: 'INVENTADO' });
+
+      expect(() => parsear([jornada('2026-08-31', 'M-HOY'), mala]))
+        .toThrowMatching((e: Error) => /data\.jornadas\[1\]\.evento\.estado/.test(e.message));
+    });
+
+    describe('tienda de la jornada', () => {
+      const OTRA = { id_tienda: 7, codigo_tienda: 'TI007', nombre_tienda: 'Otra', zona_operativa: null };
+
+      it('resuelve la tienda cruzando sucursal_id contra el maestro', () => {
+        const r = parsear([jornada('2026-08-31', 'M-HOY')]);
+
+        expect(r.jornadas[0].tienda.codigoTienda).toBe('TI001');
+      });
+
+      /*
+       * El maestro de tiendas hoy llega con una sola —parsearTiendas se queda
+       * con la primera—, asi que una agenda de otra sucursal cae en el
+       * fallback. Se usa la principal en vez de descartar la jornada: perder
+       * trabajo asignado en silencio es peor que mostrarlo con otra tienda.
+       */
+      it('usa la primera tienda cuando el sucursal_id no esta en el maestro', () => {
+        const r = parsear([jornada('2026-08-31', 'M-HOY', { sucursal_id: 999 })], [OTRA]);
+
+        expect(r.jornadas[0].tienda.codigoTienda).toBe('TI007');
+      });
     });
   });
 });

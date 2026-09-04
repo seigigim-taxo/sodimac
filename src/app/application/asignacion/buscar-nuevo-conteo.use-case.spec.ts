@@ -21,13 +21,31 @@ import { Session } from '../../domain/auth/models/session.model';
 
 const SESION: Session = { operadorId: 1, rutNormalizado: '12345678', correo: 'op@sodimac.cl' } as Session;
 
-function preparacion(codigoMuestra: string | null, codigoTienda: string | null = '4066') {
+/*
+ * `codigoTienda: null` construye una jornada con la tienda en blanco, no sin
+ * tienda: el modelo garantiza que toda jornada trae una, porque el parser
+ * descarta las que no. Lo que se prueba con eso sigue siendo lo mismo — una
+ * jornada que no se puede trabajar.
+ */
+function jornada(codigoMuestra: string | null, codigoTienda: string | null = '4066', fecha = '2026-08-28') {
   return {
-    evento:  { fechaProgramada: '2026-08-28' },
-    tiendas: codigoTienda === null ? [] : [{ codigoTienda }],
+    evento:  { fechaProgramada: fecha, estado: 'ABIERTO' },
+    tienda:  { codigoTienda: codigoTienda ?? '' },
     muestra: codigoMuestra === null ? null : {
       codigoMuestra, nombreMuestra: 'RADIOS', idAgenda: 1644, numeroAgenda: 'AG-01', detalles: [],
     },
+  };
+}
+
+function preparacion(codigoMuestra: string | null, codigoTienda: string | null = '4066') {
+  return { tiendas: [{ codigoTienda: codigoTienda ?? '' }], jornadas: [jornada(codigoMuestra, codigoTienda)] } as never;
+}
+
+/* La respuesta de dos días: hoy y mañana, cada una con su muestra. */
+function preparacionDeDosDias(muestraHoy: string, muestraManiana: string) {
+  return {
+    tiendas: [{ codigoTienda: '4066' }],
+    jornadas: [jornada(muestraHoy, '4066', '2026-08-28'), jornada(muestraManiana, '4066', '2026-08-29')],
   } as never;
 }
 
@@ -167,6 +185,79 @@ describe('BuscarNuevoConteoUseCase', () => {
 
       expect((await uc.execute(SESION)).asignacion).toBeNull();
       expect(persistir).not.toHaveBeenCalled();
+    });
+  });
+
+  /*
+   * La ventana de dos días. Lo que se verifica es cuál de las dos jornadas se
+   * le informa al operador, que es lo único que la pantalla puede mostrar.
+   */
+  describe('cuando la preparación trae hoy y mañana', () => {
+    beforeEach(() => descargar.and.resolveTo(preparacionDeDosDias('MUE-HOY', 'MUE-MANIANA')));
+
+    // Con las dos nuevas gana la de hoy: es la que puede empezar a contar ahora.
+    it('informa la de hoy cuando las dos son nuevas', async () => {
+      getEventoIdPorCodigo.and.resolveTo(null);
+
+      const resultado = await uc.execute(SESION);
+
+      expect(resultado.asignacion?.fechaProgramada).toBe('2026-08-28');
+    });
+
+    /*
+     * El caso que el contrato viejo no podía resolver: la de hoy ya se
+     * trabajó y la nueva es la de mañana. Antes solo llegaba una jornada, así
+     * que este trabajo quedaba invisible hasta el día siguiente.
+     */
+    it('informa la de mañana cuando la de hoy ya está en la base', async () => {
+      getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : null));
+
+      const resultado = await uc.execute(SESION);
+
+      expect(resultado.asignacion?.fechaProgramada).toBe('2026-08-29');
+      expect(resultado.asignacion?.nombre).toBe('RADIOS');
+    });
+
+    it('no informa nada cuando las dos ya están en la base', async () => {
+      getEventoIdPorCodigo.and.resolveTo(12);
+
+      const resultado = await uc.execute(SESION);
+      expect(resultado.asignacion).toBeNull();
+      expect(persistir).not.toHaveBeenCalled();
+    });
+
+    // El evento coincidente que se expone para reabrir es el de HOY, no el de mañana.
+    it('expone el evento coincidente de hoy cuando las dos ya están en la base', async () => {
+      getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : 34));
+
+      expect((await uc.execute(SESION)).eventoCoincidenteId).toBe(12);
+    });
+
+    /*
+     * Se persiste la respuesta COMPLETA, no solo la jornada detectada como
+     * nueva: es lo que deja bajada la de mañana para cruzar la medianoche sin
+     * señal.
+     */
+    it('persiste las dos jornadas, no solo la nueva', async () => {
+      getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : null));
+
+      await uc.execute(SESION);
+
+      const datos = persistir.calls.mostRecent().args[1] as { jornadas: unknown[] };
+      expect(datos.jornadas.length).toBe(2);
+    });
+
+    // Que mañana venga incompleta no puede tapar el trabajo de hoy.
+    it('salta la jornada sin muestra y sigue con la otra', async () => {
+      descargar.and.resolveTo({
+        tiendas: [{ codigoTienda: '4066' }],
+        jornadas: [jornada(null, '4066', '2026-08-28'), jornada('MUE-MANIANA', '4066', '2026-08-29')],
+      } as never);
+      getEventoIdPorCodigo.and.resolveTo(null);
+
+      const resultado = await uc.execute(SESION);
+
+      expect(resultado.asignacion?.fechaProgramada).toBe('2026-08-29');
     });
   });
 });
