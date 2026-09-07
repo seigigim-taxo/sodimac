@@ -35,11 +35,12 @@
           <ion-input
             formControlName="password"
             aria-label="Contraseña"
-            type="password"
+            type="text"
             autocomplete="off"
             placeholder="••••••"
             maxlength="6"
             class="input-base"
+            style="-webkit-text-security: disc;"
           ></ion-input>
           @if (passwordControl?.touched && passwordControl?.hasError('required')) {
             <span class="block text-[13px] mt-2 ml-1" style="color: var(--app-error-text);">La contraseña es obligatoria</span>
