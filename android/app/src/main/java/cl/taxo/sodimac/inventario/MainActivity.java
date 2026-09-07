@@ -1,7 +1,9 @@
 package cl.taxo.sodimac.inventario;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
@@ -34,5 +36,25 @@ public class MainActivity extends BridgeActivity {
                 // teclado lo sigue controlando el inputmode="none" del HTML.
             }
         }
+
+        // El campo de contraseña (type="password") hace que el WebView reabra
+        // el IME al escribir, cambiando el inputType y saltándose
+        // setShowSoftInputOnFocus. Para cubrirlo, ocultamos el teclado siempre
+        // que el foco cambie dentro de la WebView.
+        hideSoftInputOnFocus(webView);
+    }
+
+    private void hideSoftInputOnFocus(final WebView webView) {
+        if (webView == null) return;
+        final InputMethodManager imm =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        webView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus && imm != null) {
+                    imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
+                }
+            }
+        });
     }
 }
