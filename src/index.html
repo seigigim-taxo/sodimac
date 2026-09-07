@@ -32,18 +32,51 @@
       var SELECTOR = 'ion-input, input, textarea';
 
       function marcarInput(el) {
-        if (el.getAttribute && el.getAttribute('inputmode') !== 'none') {
+        if (el && el.setAttribute && el.getAttribute('inputmode') !== 'none') {
           el.setAttribute('inputmode', 'none');
+          // ion-input crea su <input> nativo dentro del shadow DOM: míralo también ahí
+          if (el.shadowRoot) {
+            el.shadowRoot.querySelectorAll('input, textarea').forEach(marcarInput);
+          }
         }
       }
 
       function escanear(root) {
+        if (!root) return;
         root.querySelectorAll(SELECTOR).forEach(marcarInput);
+        // host de ion-input cuyo shadow DOM ya se montó
+        root.querySelectorAll('ion-input').forEach(function (h) {
+          if (h.shadowRoot) {
+            h.shadowRoot.querySelectorAll('input, textarea').forEach(marcarInput);
+          }
+        });
       }
+
+      function internoActivo() {
+        var el = document.activeElement;
+        var guard = 0;
+        while (el && el.shadowRoot && el.shadowRoot.activeElement && guard++ < 8) {
+          el = el.shadowRoot.activeElement;
+        }
+        return (el && el.matches && el.matches('input, textarea')) ? el : null;
+      }
+
+      // Captura el focus: marca el <input> interno real justo antes de que
+      // Android decida mostrar el teclado, aunque Angular haya re-aplicado
+      // inputmode="text" tras un re-render.
+      document.addEventListener('focusin', function () {
+        var interno = internoActivo();
+        if (interno) marcarInput(interno);
+      }, true);
 
       var observer = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
-          var added = mutations[i].addedNodes;
+          var m = mutations[i];
+          if (m.type === 'attributes') {
+            marcarInput(m.target);
+            continue;
+          }
+          var added = m.addedNodes;
           for (var j = 0; j < added.length; j++) {
             var node = added[j];
             if (node.nodeType !== 1) continue;
@@ -55,7 +88,12 @@
 
       document.addEventListener('DOMContentLoaded', function () {
         escanear(document.body);
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['inputmode']
+        });
       });
     })();
   </script>
