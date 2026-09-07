@@ -61,15 +61,11 @@ export interface ResultadoBusquedaConteo {
    * SGO para la jornada de HOY, cuando existe. Null en cualquier otro caso
    * (código nuevo, o preparación incompleta).
    *
-   * Se limita a la jornada de hoy —no a mañana— porque es la única que tiene
-   * sentido reabrir: es la que el operador puede haber cerrado él mismo hace un
-   * rato y seguir necesitando ahora, no un evento que todavía no empieza.
-   *
-   * Se expone para que quien orquesta la búsqueda (ver
-   * BuscarOReabrirConteoUseCase) pueda decidir si ese evento es uno que el
-   * propio operador acaba de cerrar y conviene reabrir, sin tener que repetir
-   * la descarga de preparación ni la comparación de códigos —dos lecturas de
-   * "¿es la misma muestra?" que terminan desalineándose con el tiempo.
+   * Ya no se usa para decidir si conviene "reabrir" —el conteo dejó de
+   * cerrarse a nivel de evento, así que no hay nada que reabrir—, pero se deja
+   * expuesto: sigue siendo información válida ("ya tenemos esta muestra") y
+   * sacarlo obligaría a repetir la descarga de preparación y la comparación de
+   * códigos en cualquier lugar que la necesite en el futuro.
    */
   eventoCoincidenteId: number | null;
 }

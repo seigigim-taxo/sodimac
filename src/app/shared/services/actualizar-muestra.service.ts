@@ -4,7 +4,6 @@ import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraUseCase } from '../../application/asignacion/actualizar-muestra.use-case';
 import { ResultadoJornada } from '../../application/asignacion/evaluar-jornadas.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { PdaFacade } from '../../state/pda/pda.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ConteoFacade } from '../../state/conteo/conteo.facade';
@@ -21,21 +20,16 @@ import { hoySql, manianaSql } from '../utils/fecha.utils';
  * sentido ofrecerlo. Acá el operador puede estar en Conteos, en medio de la
  * pantalla de TAG, o en Inicio: la lógica no puede asumir dónde está parado.
  *
- * QUÉ HACE DESPUÉS DE UN RESULTADO NO BLOQUEADO
+ * QUÉ HACE DESPUÉS DE CADA RESULTADO
  *
- * Si ActualizarMuestraUseCase llegó a cerrar el evento (estaba ABIERTO o
- * RECONTEO), la pantalla en la que el operador esté parado quedó mirando un
- * evento que el SGO ya no reconoce como el actual. Si encima quedó una sesión
- * de TAG en memoria —abierta pero vacía, la única que el guardián deja pasar—
- * esa sesión ahora apunta a una ronda que puede estar cerrada. Por eso, en
- * cualquier resultado que no sea BLOQUEADO, se limpia esa sesión y se navega a
- * Inicio: es la misma limpieza que ya hace "Descartar TAG", aplicada acá
- * porque el cierre no lo disparó el operador tocando ese botón, lo disparó
- * esta acción.
- *
- * Si el resultado es BLOQUEADO, en cambio, no se toca nada: el operador sigue
- * exactamente donde estaba, con su TAG intacto — es lo que el aviso le pide
- * resolver antes de reintentar.
+ * El conteo ya no se cierra a nivel de evento, así que esta acción no toca ni
+ * el evento actual ni el TAG en curso del operador — solo descarga y, si hay
+ * novedad, persiste. Por eso solo navega a Inicio y limpia el contexto de
+ * conteo cuando SÍ apareció algo nuevo (ACTUALIZADA, o VENTANA con alguna
+ * jornada nueva): ahí sí conviene pararse en la asignación nueva y mostrar
+ * Home con la tienda correcta. Cuando no hay novedad (SIN_CAMBIOS,
+ * ERROR_BUSQUEDA, o VENTANA sin nada nuevo), el operador sigue exactamente
+ * donde estaba — no hay nada que invalide la pantalla en la que se encuentra.
  *
  * POR QUÉ HAY UN LOADING DE PANTALLA COMPLETA
  *
@@ -48,7 +42,6 @@ import { hoySql, manianaSql } from '../utils/fecha.utils';
 export class ActualizarMuestraService {
   private actualizarUC    = inject(ActualizarMuestraUseCase);
   private auth             = inject(AuthFacade);
-  private pda              = inject(PdaFacade);
   private eventoFacade     = inject(EventoFacade);
   private sucursalFacade   = inject(SucursalFacade);
   private conteo           = inject(ConteoFacade);
@@ -63,9 +56,8 @@ export class ActualizarMuestraService {
     if (this.actualizandoSignal()) return;
 
     const session = this.auth.session();
-    const pdaId   = this.pda.pdaId();
-    if (!session || pdaId === null) {
-      await this.avisar('No se pudo actualizar', 'Falta la sesión o la PDA. Vuelve a entrar y prueba de nuevo.');
+    if (!session) {
+      await this.avisar('No se pudo actualizar', 'Falta la sesión. Vuelve a entrar y prueba de nuevo.');
       return;
     }
 
@@ -77,7 +69,7 @@ export class ActualizarMuestraService {
     await loading.present();
     try {
       const eventoActual = this.eventoFacade.selectedEvent();
-      const resultado = await this.actualizarUC.execute(session, eventoActual, pdaId);
+      const resultado = await this.actualizarUC.execute(session, eventoActual);
       /*
        * Se saca ANTES de mostrar cualquier aviso: si quedara abajo, en el
        * finally, el aviso terminaría apilado encima del loading en vez de
@@ -86,10 +78,6 @@ export class ActualizarMuestraService {
       await loading.dismiss();
 
       switch (resultado.estado) {
-        case 'BLOQUEADO':
-          await this.avisar('No se pudo actualizar', resultado.motivo);
-          return;
-
         case 'ACTUALIZADA':
           await pararseEnAsignacion(resultado.asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
           await this.limpiarContextoDeConteo();
@@ -97,31 +85,10 @@ export class ActualizarMuestraService {
           return;
 
         case 'SIN_CAMBIOS':
-          /*
-           * Si había un evento y seguía abierto, ActualizarMuestraUseCase ya lo
-           * cerró aunque la muestra no haya cambiado — el operador pidió cerrar
-           * y volver a preguntar, y eso se cumplió igual. Sin refrescar acá, la
-           * lista de eventos seguiría mostrándolo como ABIERTO.
-           */
-          if (eventoActual) {
-            await this.eventoFacade.limpiarSeleccion();
-            await this.eventoFacade.loadEventos(eventoActual.sucursalId);
-          }
-          await this.limpiarContextoDeConteo();
           await this.avisar('Ya tienes la maestra vigente', 'El SGO no tiene una maestra distinta a la que ya tienes.');
           return;
 
         case 'ERROR_BUSQUEDA':
-          /*
-           * El cierre (si hacía falta) ya pasó — mismo refresco que SIN_CAMBIOS,
-           * por la misma razón: sin esto la lista seguiría mostrando ABIERTO un
-           * evento que la base ya tiene como EN_ANALISIS.
-           */
-          if (eventoActual) {
-            await this.eventoFacade.limpiarSeleccion();
-            await this.eventoFacade.loadEventos(eventoActual.sucursalId);
-          }
-          await this.limpiarContextoDeConteo();
           await this.avisar('No se pudo actualizar', resultado.mensaje);
           return;
 
@@ -133,16 +100,14 @@ export class ActualizarMuestraService {
          * Si CUALQUIERA de las dos tuvo novedad, la pantalla se para en esa
          * asignación (hoy antes que mañana, mismo criterio que el resto de la
          * app) para que Home quede mostrando la tienda y los eventos
-         * correctos. Si las dos están sin novedad, no hay nada que parar.
+         * correctos. Si las dos están sin novedad, no se navega a ningún lado.
          */
         case 'VENTANA': {
-          const conNovedad = resultado.resultados.find(
-            (r) => r.resultado.tipo === 'NUEVO' || r.resultado.tipo === 'REABIERTO'
-          );
-          if (conNovedad && conNovedad.resultado.tipo !== 'SIN_NOVEDAD') {
+          const conNovedad = resultado.resultados.find((r) => r.resultado.tipo === 'NUEVO');
+          if (conNovedad && conNovedad.resultado.tipo === 'NUEVO') {
             await pararseEnAsignacion(conNovedad.resultado.asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
+            await this.limpiarContextoDeConteo();
           }
-          await this.limpiarContextoDeConteo();
           const titulo = conNovedad ? 'Maestra actualizada' : 'Ya tienes la maestra vigente';
           await this.avisar(titulo, this.describirVentana(resultado.resultados));
           return;
@@ -179,16 +144,10 @@ export class ActualizarMuestraService {
       return fecha;
     };
 
-    const linea = ({ fecha, resultado }: ResultadoJornada): string => {
-      switch (resultado.tipo) {
-        case 'NUEVO':
-          return `${etiqueta(fecha)}: jornada nueva — ${resultado.asignacion.nombre}.`;
-        case 'REABIERTO':
-          return `${etiqueta(fecha)}: se reabrió tu conteo — ${resultado.asignacion.nombre}.`;
-        case 'SIN_NOVEDAD':
-          return `${etiqueta(fecha)}: sin cambios.`;
-      }
-    };
+    const linea = ({ fecha, resultado }: ResultadoJornada): string =>
+      resultado.tipo === 'NUEVO'
+        ? `${etiqueta(fecha)}: jornada nueva — ${resultado.asignacion.nombre}.`
+        : `${etiqueta(fecha)}: sin cambios.`;
 
     return resultados.map(linea).join(' ');
   }

@@ -5,7 +5,6 @@ import { ActualizarMuestraService } from './actualizar-muestra.service';
 import { ActualizarMuestraUseCase, ResultadoActualizarMuestra } from '../../application/asignacion/actualizar-muestra.use-case';
 import { ResultadoJornada } from '../../application/asignacion/evaluar-jornadas.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
-import { PdaFacade } from '../../state/pda/pda.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ConteoFacade } from '../../state/conteo/conteo.facade';
@@ -34,7 +33,6 @@ describe('ActualizarMuestraService', () => {
   let servicio: ActualizarMuestraService;
   let ejecutar: jasmine.Spy<(...args: unknown[]) => Promise<ResultadoActualizarMuestra>>;
   let session: jasmine.Spy<() => Session | null>;
-  let pdaId: jasmine.Spy<() => number | null>;
   let eventoFacade: jasmine.SpyObj<EventoFacade>;
   let sucursalFacade: jasmine.SpyObj<SucursalFacade>;
   let conteoFacade: jasmine.SpyObj<ConteoFacade>;
@@ -48,7 +46,6 @@ describe('ActualizarMuestraService', () => {
     ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS' });
 
     session = jasmine.createSpy('session').and.returnValue(SESION);
-    pdaId   = jasmine.createSpy('pdaId').and.returnValue(4);
 
     eventoFacade = jasmine.createSpyObj('EventoFacade', ['selectedEvent', 'limpiarSeleccion', 'loadEventos']);
     eventoFacade.selectedEvent.and.returnValue(null);
@@ -76,7 +73,6 @@ describe('ActualizarMuestraService', () => {
         ActualizarMuestraService,
         { provide: ActualizarMuestraUseCase, useValue: { execute: ejecutar } },
         { provide: AuthFacade, useValue: { session } },
-        { provide: PdaFacade, useValue: { pdaId } },
         { provide: EventoFacade, useValue: eventoFacade },
         { provide: SucursalFacade, useValue: sucursalFacade },
         { provide: ConteoFacade, useValue: conteoFacade },
@@ -88,7 +84,7 @@ describe('ActualizarMuestraService', () => {
     servicio = TestBed.inject(ActualizarMuestraService);
   });
 
-  describe('sin sesión o sin PDA', () => {
+  describe('sin sesión', () => {
     it('avisa y no consulta si falta la sesión', async () => {
       session.and.returnValue(null);
 
@@ -98,16 +94,7 @@ describe('ActualizarMuestraService', () => {
       expect(alertCreate).toHaveBeenCalled();
     });
 
-    it('avisa y no consulta si falta la PDA', async () => {
-      pdaId.and.returnValue(null);
-
-      await servicio.actualizar();
-
-      expect(ejecutar).not.toHaveBeenCalled();
-      expect(alertCreate).toHaveBeenCalled();
-    });
-
-    it('no muestra el loading si falta sesión o PDA: no hay nada que esperar', async () => {
+    it('no muestra el loading: no hay nada que esperar', async () => {
       session.and.returnValue(null);
 
       await servicio.actualizar();
@@ -143,27 +130,6 @@ describe('ActualizarMuestraService', () => {
       await servicio.actualizar();
 
       expect(loadingDismiss).toHaveBeenCalled();
-    });
-  });
-
-  describe('resultado BLOQUEADO', () => {
-    beforeEach(() => {
-      ejecutar.and.resolveTo({ estado: 'BLOQUEADO', motivo: 'Aún queda 1 TAG en curso — finalízalo primero.' });
-    });
-
-    it('avisa con el motivo tal cual lo devolvió el caso de uso', async () => {
-      await servicio.actualizar();
-
-      const [args] = alertCreate.calls.mostRecent().args;
-      expect(args.message).toBe('Aún queda 1 TAG en curso — finalízalo primero.');
-    });
-
-    // El operador sigue exactamente donde estaba: nada se toca.
-    it('no navega ni limpia la sesión de conteo', async () => {
-      await servicio.actualizar();
-
-      expect(router.navigate).not.toHaveBeenCalled();
-      expect(conteoFacade.reset).not.toHaveBeenCalled();
     });
   });
 
@@ -213,26 +179,18 @@ describe('ActualizarMuestraService', () => {
 
   describe('resultado SIN_CAMBIOS', () => {
     /*
-     * Aunque la muestra no cambió, si había un evento ABIERTO/RECONTEO,
-     * ActualizarMuestraUseCase ya lo cerró como parte del intento. Sin
-     * refrescar acá, la lista seguiría mostrándolo como abierto.
+     * Nada cambió y el conteo ya no se cierra a nivel de evento: no hay
+     * ninguna razón para refrescar la lista de eventos ni sacar al operador
+     * de la pantalla en la que esté.
      */
-    it('con evento previo, refresca sus eventos y limpia la sesión', async () => {
+    it('no navega ni refresca eventos, con o sin evento previo', async () => {
       eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
 
       await servicio.actualizar();
 
-      expect(eventoFacade.limpiarSeleccion).toHaveBeenCalled();
-      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(1);
-      expect(router.navigate).toHaveBeenCalledWith(['/home']);
-    });
-
-    it('sin evento previo, no intenta refrescar nada', async () => {
-      eventoFacade.selectedEvent.and.returnValue(null);
-
-      await servicio.actualizar();
-
+      expect(eventoFacade.limpiarSeleccion).not.toHaveBeenCalled();
       expect(eventoFacade.loadEventos).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
     });
 
     it('avisa que ya tiene la maestra vigente', async () => {
@@ -244,21 +202,15 @@ describe('ActualizarMuestraService', () => {
   });
 
   describe('resultado ERROR_BUSQUEDA', () => {
-    /*
-     * Mismo refresco que SIN_CAMBIOS y por la misma razón: el cierre, si
-     * hacía falta, ya pasó dentro de ActualizarMuestraUseCase antes de que
-     * fallara la búsqueda — sin esto la lista seguiría mostrando ABIERTO un
-     * evento que la base ya tiene como EN_ANALISIS.
-     */
-    it('con evento previo, refresca sus eventos igual que SIN_CAMBIOS', async () => {
+    // No se tocó nada antes de que fallara la búsqueda: no hay nada que refrescar.
+    it('no navega ni refresca eventos', async () => {
       eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
       ejecutar.and.resolveTo({ estado: 'ERROR_BUSQUEDA', mensaje: 'No se pudo consultar si hay una maestra nueva.' });
 
       await servicio.actualizar();
 
-      expect(eventoFacade.limpiarSeleccion).toHaveBeenCalled();
-      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(1);
-      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+      expect(eventoFacade.limpiarSeleccion).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
     });
 
     it('avisa con el mensaje que arma el caso de uso', async () => {
@@ -321,12 +273,21 @@ describe('ActualizarMuestraService', () => {
       expect(sucursalFacade.selectSucursal).not.toHaveBeenCalled();
     });
 
-    it('siempre navega a Inicio', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy] });
+    it('navega a Inicio cuando hay novedad', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [manianaNueva] });
 
       await servicio.actualizar();
 
       expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    // Nada cambió: no hay razón para sacar al operador de donde esté parado.
+    it('no navega cuando ninguna jornada tiene novedad', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy] });
+
+      await servicio.actualizar();
+
+      expect(router.navigate).not.toHaveBeenCalled();
     });
   });
 

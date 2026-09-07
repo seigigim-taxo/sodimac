@@ -1,38 +1,34 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { GetResumenEventoUseCase, ResumenEvento } from '../../application/conteo/get-resumen-evento.use-case';
-import { FinalizarEventoUseCase, ResultadoFinalizarEvento } from '../../application/conteo/finalizar-evento.use-case';
 import { GetTrazabilidadEventoUseCase } from '../../application/conteo/get-trazabilidad-evento.use-case';
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { Evento } from '../../domain/evento/models/evento.model';
-export type { ResumenEvento, ResultadoFinalizarEvento };
+export type { ResumenEvento };
 
-/* Un evento ya cerrado junto con su resumen reconstruido desde sod_conteo. */
+/* Un evento junto con su resumen reconstruido desde sod_conteo. */
 export interface EventoConResumen {
   evento:  Evento;
   resumen: ResumenEvento;
 }
 
 /*
- * Resumen a nivel de evento: el avance de la ronda activa y el cierre del
- * conteo. Existe para que las pantallas no inyecten casos de uso directo —
- * los componentes hablan solo con facades.
+ * Resumen a nivel de evento: el avance de la ronda activa, y el historial de
+ * lo que ya se contó. Existe para que las pantallas no inyecten casos de uso
+ * directo — los componentes hablan solo con facades.
  */
 @Injectable({ providedIn: 'root' })
 export class ResumenEventoFacade {
   private getResumenUC      = inject(GetResumenEventoUseCase);
-  private finalizarUC       = inject(FinalizarEventoUseCase);
   private getTrazabilidadUC = inject(GetTrazabilidadEventoUseCase);
 
   private avanceSignal          = signal<ResumenEvento | null>(null);
-  private cerradosSignal        = signal<EventoConResumen[]>([]);
-  private finalizandoSig        = signal(false);
+  private conAvanceSignal       = signal<EventoConResumen[]>([]);
   private errorSignal           = signal<string | null>(null);
   private trazabilidadSignal    = signal<ConteoTrazabilidadItem[]>([]);
   private trazabilidadLoadingSig = signal(false);
 
   readonly avance            = this.avanceSignal.asReadonly();
-  readonly cerrados          = this.cerradosSignal.asReadonly();
-  readonly finalizando       = this.finalizandoSig.asReadonly();
+  readonly conAvance         = this.conAvanceSignal.asReadonly();
   readonly error             = this.errorSignal.asReadonly();
   readonly trazabilidad      = this.trazabilidadSignal.asReadonly();
   readonly trazabilidadLoading = this.trazabilidadLoadingSig.asReadonly();
@@ -40,15 +36,14 @@ export class ResumenEventoFacade {
   /*
    * Suelta todo lo cargado. Los datos que viven acá son de UN operador —las
    * consultas filtran por operador_id—, pero los signals son de la app y
-   * sobreviven al logout: sin esto, quien entra después ve los conteos
-   * finalizados del turno anterior hasta que alguna pantalla los recargue.
+   * sobreviven al logout: sin esto, quien entra después ve el historial del
+   * turno anterior hasta que alguna pantalla lo recargue.
    */
   reset(): void {
     this.avanceSignal.set(null);
-    this.cerradosSignal.set([]);
+    this.conAvanceSignal.set([]);
     this.trazabilidadSignal.set([]);
     this.errorSignal.set(null);
-    this.finalizandoSig.set(false);
     this.trazabilidadLoadingSig.set(false);
   }
 
@@ -77,42 +72,31 @@ export class ResumenEventoFacade {
   }
 
   /*
-   * Resumen de los eventos ya cerrados o en análisis. La consulta es una por
-   * evento, así que vive acá y no en la pantalla: es orquestación de datos, y
-   * en un componente quedaba como un Promise.all dentro de un effect.
+   * Resumen de los eventos que ya tienen algo que mostrar: el historial de
+   * Home ("Conteos finalizados") deja de depender del estado del evento —el
+   * conteo ya no se "cierra" a nivel de evento— y pasa a mostrarse apenas hay
+   * al menos UN TAG finalizado. No hace falta que esté todo sincronizado ni
+   * que el operador haya declarado nada por su cuenta.
+   *
+   * La consulta es una por evento, así que vive acá y no en la pantalla: es
+   * orquestación de datos, y en un componente quedaba como un Promise.all
+   * dentro de un effect.
    */
-  async cargarCerrados(eventos: Evento[], operadorId: number, pdaId: number): Promise<void> {
-    const cerrados = eventos.filter((e) => e.estado === 'CERRADO' || e.estado === 'EN_ANALISIS');
-    if (cerrados.length === 0) {
-      this.cerradosSignal.set([]);
+  async cargarConAvance(eventos: Evento[], operadorId: number, pdaId: number): Promise<void> {
+    if (eventos.length === 0) {
+      this.conAvanceSignal.set([]);
       return;
     }
 
     try {
-      this.cerradosSignal.set(await Promise.all(cerrados.map(async (evento) => ({
+      const conResumen = await Promise.all(eventos.map(async (evento) => ({
         evento,
         resumen: await this.getResumenUC.execute(evento.id, operadorId, pdaId),
-      }))));
+      })));
+      this.conAvanceSignal.set(conResumen.filter((er) => er.resumen.tagsFinalizados > 0));
     } catch (err) {
-      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar los conteos finalizados');
-      this.cerradosSignal.set([]);
-    }
-  }
-
-  /*
-   * Cierra el conteo del evento. Devuelve null si no se pudo: el detalle queda
-   * en error() para que la pantalla decida cómo mostrarlo.
-   */
-  async finalizarEvento(eventoId: number, operadorId: number, pdaId: number): Promise<ResultadoFinalizarEvento | null> {
-    this.errorSignal.set(null);
-    this.finalizandoSig.set(true);
-    try {
-      return await this.finalizarUC.execute(eventoId, operadorId, pdaId);
-    } catch (err) {
-      this.errorSignal.set(err instanceof Error ? err.message : 'Error al finalizar el conteo');
-      return null;
-    } finally {
-      this.finalizandoSig.set(false);
+      this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar el historial de conteos');
+      this.conAvanceSignal.set([]);
     }
   }
 }

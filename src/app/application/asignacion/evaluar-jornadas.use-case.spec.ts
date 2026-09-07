@@ -3,10 +3,7 @@ import { EvaluarJornadasUseCase } from './evaluar-jornadas.use-case';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
-import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
-import { ReabrirEventoUseCase } from '../conteo/reabrir-evento.use-case';
 import { Session } from '../../domain/auth/models/session.model';
-import { Evento } from '../../domain/evento/models/evento.model';
 
 /*
  * A diferencia de BuscarNuevoConteoUseCase (que se detiene en la primera
@@ -33,27 +30,18 @@ function preparacionDeDosDias(muestraHoy: string | null, muestraManiana: string 
   } as never;
 }
 
-const EVENTO_EN_ANALISIS: Evento = {
-  id: 12, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-28', fechaEjecucion: null,
-  estado: 'EN_ANALISIS', fechaRegistro: '2026-08-28 08:00:00',
-};
-
 describe('EvaluarJornadasUseCase', () => {
   let uc: EvaluarJornadasUseCase;
   let descargar: jasmine.Spy;
   let persistir: jasmine.Spy;
   let getEventoIdPorCodigo: jasmine.Spy;
   let getIdPorCodigo: jasmine.Spy;
-  let getById: jasmine.Spy;
-  let reabrir: jasmine.Spy;
 
   beforeEach(() => {
     descargar = jasmine.createSpy('descargar').and.resolveTo(preparacionDeDosDias('MUE-HOY', 'MUE-MANIANA'));
     persistir = jasmine.createSpy('persistir').and.resolveTo({ usuario: {}, analista: null });
     getEventoIdPorCodigo = jasmine.createSpy('getEventoIdPorCodigo').and.resolveTo(null);
     getIdPorCodigo = jasmine.createSpy('getIdPorCodigo').and.resolveTo(4);
-    getById = jasmine.createSpy('getById').and.resolveTo(null);
-    reabrir = jasmine.createSpy('reabrir');
 
     TestBed.configureTestingModule({
       providers: [
@@ -61,8 +49,6 @@ describe('EvaluarJornadasUseCase', () => {
         { provide: SincronizarDatosInicialesUseCase, useValue: { descargar, persistir } },
         { provide: MUESTRA_REPOSITORY_TOKEN,  useValue: { getEventoIdPorCodigo } },
         { provide: SUCURSAL_REPOSITORY_TOKEN, useValue: { getIdPorCodigo } },
-        { provide: EVENTO_REPOSITORY_TOKEN,   useValue: { getById } },
-        { provide: ReabrirEventoUseCase,      useValue: { execute: reabrir } },
       ],
     });
     uc = TestBed.inject(EvaluarJornadasUseCase);
@@ -112,31 +98,16 @@ describe('EvaluarJornadasUseCase', () => {
   });
 
   /*
-   * Reabrir: la jornada coincide con un evento propio que sigue EN_ANALISIS
-   * —el mismo cierre prematuro que resuelve BuscarOReabrirConteoUseCase para
-   * el botón "Actualizar" de Home, pero acá evaluado por jornada.
+   * El conteo ya no se cierra a nivel de evento, así que un código de muestra
+   * que ya está en la base es siempre SIN_NOVEDAD — no hay ningún estado del
+   * evento local que cambie esa respuesta (antes existía un caso "reabrir" si
+   * el evento local estaba EN_ANALISIS; ya no puede llegar a ese estado).
    */
-  it('reabre la jornada que coincide con un evento propio en análisis', async () => {
+  it('un código de muestra ya conocido es siempre sin novedad', async () => {
     getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : null));
-    getById.and.resolveTo(EVENTO_EN_ANALISIS);
-    reabrir.and.resolveTo({ id: 12, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-28' });
 
     const resultados = await uc.execute(SESION);
 
-    expect(reabrir).toHaveBeenCalledWith(12);
-    expect(resultados[0].resultado).toEqual({
-      tipo: 'REABIERTO',
-      asignacion: { eventoId: 12, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-28' },
-    });
-  });
-
-  it('no reabre si el evento coincidente no está EN_ANALISIS', async () => {
-    getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : null));
-    getById.and.resolveTo({ ...EVENTO_EN_ANALISIS, estado: 'ABIERTO' });
-
-    const resultados = await uc.execute(SESION);
-
-    expect(reabrir).not.toHaveBeenCalled();
     expect(resultados[0].resultado).toEqual({ tipo: 'SIN_NOVEDAD' });
   });
 

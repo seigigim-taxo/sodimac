@@ -126,7 +126,7 @@
       </div>
 
       <!-- Acciones según estado -->
-      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && !modoSoloLectura()) {
+      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo)) {
       <div class="mt-4 pt-4 flex flex-col gap-2" style="border-top: 1px solid var(--app-border);">
         <!-- Fila 1: Editar + Eliminar -->
         <div class="flex gap-2">
@@ -144,25 +144,6 @@
           <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
           Sincronizar
         </ion-button>
-      </div>
-      }
-      @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo) && modoSoloLectura()) {
-      <div class="flex gap-2 mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
-        <ion-button fill="outline" size="small" style="flex: 1; justify-content: center;" (click)="sincronizarReal(conteo)">
-          <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
-          Sincronizar
-        </ion-button>
-        <ion-button fill="outline" size="small" color="danger" style="flex: 1; justify-content: center;" (click)="eliminarReal(conteo)">
-          <ion-icon slot="start" name="trash-outline"></ion-icon>
-          Eliminar
-        </ion-button>
-      </div>
-      }
-      @if (modoSoloLectura() && conteo.estado === 'FINALIZADO') {
-      <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
-        <p class="text-xs text-center" style="color: var(--app-text-muted);">
-          Evento en análisis — acciones no disponibles
-        </p>
       </div>
       }
       @if (isSyncing(conteo)) {
@@ -267,36 +248,26 @@
     }
 
     <div class="mb-8">
-      @if (conteoCerrado()) {
-      <!-- Ya finalizado: la pantalla queda de solo lectura y lo dice explícitamente. -->
-      <div class="status-banner status-banner-success">
-        <ion-icon name="checkmark-done-outline"></ion-icon>
-        <span>{{ estadoEventoLabel() }}</span>
-      </div>
-      } @else {
-      <ion-button expand="block" class="btn-accent" [disabled]="!puedeFinalizarEvento() || finalizandoEvento()"
-        (click)="finalizarEventoReal()">
-        <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
-        Finalizar conteo
-      </ion-button>
       <!--
-        Los dos pendientes se avisan por separado: un TAG en curso hay que
-        terminar de contarlo, uno finalizado ya está contado y lo que falta es
-        subirlo. Sin distinguirlos, el operador ve el botón apagado y no sabe
-        qué hacer.
+        Ya no hay un botón de "Finalizar conteo": el conteo no se cierra a
+        nivel de evento, lo único que importa es que cada TAG llegue al SGO.
+        Los dos pendientes se avisan por separado porque el operador tiene
+        que hacer cosas distintas con cada uno — uno EN_CURSO hay que
+        terminarlo de contar, uno FINALIZADO ya está contado y lo que falta
+        es subirlo.
       -->
       @if (enCursoReal().length > 0) {
       <p class="hint-text text-center">
-        Quedan {{ enCursoReal().length }} TAG(s) en curso — finalízalos antes de cerrar el conteo
+        Quedan {{ enCursoReal().length }} TAG(s) en curso
       </p>
       }
       @if (finalizadosReal().length > 0) {
       <p class="hint-text text-center">
-        Hay {{ finalizadosReal().length }} TAG(s) sin sincronizar — súbelos antes de cerrar el conteo
+        Hay {{ finalizadosReal().length }} TAG(s) sin sincronizar
       </p>
       <!--
-        La salida al bloqueo, acá mismo. Mandarlo a subirlos de a uno cuando son
-        diez es pedirle que se saltee alguno, que es justo lo que hay que evitar.
+        Mandarlo a subirlos de a uno cuando son diez es pedirle que se saltee
+        alguno, que es justo lo que hay que evitar.
       -->
       <ion-button expand="block" class="btn-primary mt-2" [disabled]="sincronizandoTodos()"
         (click)="sincronizarTodos()">
@@ -308,7 +279,6 @@
         Sincronizar los {{ finalizadosReal().length }} pendientes
         }
       </ion-button>
-      }
       }
     </div>
 

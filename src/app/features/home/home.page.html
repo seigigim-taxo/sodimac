@@ -87,11 +87,7 @@
     @if (avisoNuevoConteo(); as nombre) {
     <div class="status-banner status-banner-info mb-4">
       <ion-icon name="sync-outline"></ion-icon>
-      @if (conteoReabierto()) {
-      <span>Se reabrió tu conteo: <strong>{{ nombre }}</strong>. Puedes seguir contando.</span>
-      } @else {
       <span>Tienes un conteo nuevo: <strong>{{ nombre }}</strong>. Selecciónalo para empezar.</span>
-      }
     </div>
     }
 
@@ -292,12 +288,7 @@
         <div class="flex items-center justify-between gap-3 mb-3">
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold truncate" style="color: var(--app-text);">{{ item.evento.nombre }}</span>
-            <span class="text-[12px]" style="color: var(--app-text-muted);">{{ estadoEfectivoLabel(item.evento) }}</span>
           </div>
-          <span class="badge" [class.badge-success]="item.evento.estado === 'CERRADO'"
-            [class.badge-warning]="item.evento.estado === 'EN_ANALISIS'">
-            {{ item.evento.estado === 'CERRADO' ? 'Cerrado' : 'En análisis' }}
-          </span>
         </div>
         <div class="h-px mb-3" style="background: var(--app-border);"></div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">

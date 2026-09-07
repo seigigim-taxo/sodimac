@@ -1,23 +1,21 @@
 import { TestBed } from '@angular/core/testing';
 import { ResumenEventoFacade } from './resumen-evento.facade';
 import { GetResumenEventoUseCase, ResumenEvento } from '../../application/conteo/get-resumen-evento.use-case';
-import { FinalizarEventoUseCase } from '../../application/conteo/finalizar-evento.use-case';
 import { GetTrazabilidadEventoUseCase } from '../../application/conteo/get-trazabilidad-evento.use-case';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 
-function evento(id: number, estado: Evento['estado']): Evento {
+function evento(id: number): Evento {
   return {
     id, sucursalId: 1, nombre: `Evento ${id}`,
-    fechaProgramada: '2026-08-03', fechaEjecucion: null, estado,
+    fechaProgramada: '2026-08-03', fechaEjecucion: null, estado: 'ABIERTO',
     fechaRegistro: '2026-08-03 10:00:00',
   };
 }
 
-const RESUMEN: ResumenEvento = {
-  totalMuestra: 10, contados: 8,
-  tagsFinalizados: 3, iteracion: 1, qContado: 42,
-};
+function resumen(tagsFinalizados: number): ResumenEvento {
+  return { totalMuestra: 10, contados: 8, tagsFinalizados, iteracion: 1, qContado: 42 };
+}
 
 const TRAZA: ConteoTrazabilidadItem = {
   iteracion: 1, conteoId: 1, tag: '104',
@@ -30,21 +28,18 @@ const TRAZA: ConteoTrazabilidadItem = {
 describe('ResumenEventoFacade', () => {
   let facade: ResumenEventoFacade;
   let getResumen: jasmine.SpyObj<GetResumenEventoUseCase>;
-  let finalizar: jasmine.SpyObj<FinalizarEventoUseCase>;
   let trazabilidad: jasmine.SpyObj<GetTrazabilidadEventoUseCase>;
 
   beforeEach(() => {
     getResumen = jasmine.createSpyObj('GetResumenEventoUseCase', ['execute']);
-    finalizar = jasmine.createSpyObj('FinalizarEventoUseCase', ['execute']);
     trazabilidad = jasmine.createSpyObj('GetTrazabilidadEventoUseCase', ['execute']);
-    getResumen.execute.and.resolveTo(RESUMEN);
+    getResumen.execute.and.resolveTo(resumen(3));
     trazabilidad.execute.and.resolveTo([]);
 
     TestBed.configureTestingModule({
       providers: [
         ResumenEventoFacade,
         { provide: GetResumenEventoUseCase, useValue: getResumen },
-        { provide: FinalizarEventoUseCase, useValue: finalizar },
         { provide: GetTrazabilidadEventoUseCase, useValue: trazabilidad },
       ],
     });
@@ -54,45 +49,39 @@ describe('ResumenEventoFacade', () => {
   it('carga el avance de la ronda activa', async () => {
     await facade.cargarAvance(1, 1, 1);
 
-    expect(facade.avance()).toEqual(RESUMEN);
+    expect(facade.avance()).toEqual(resumen(3));
     expect(facade.error()).toBeNull();
   });
 
-  it('solo pide resumen de los eventos cerrados o en análisis', async () => {
-    await facade.cargarCerrados(
-      [evento(1, 'ABIERTO'), evento(2, 'CERRADO'), evento(3, 'EN_ANALISIS'), evento(4, 'RECONTEO')],
-      1, 1
+  /*
+   * El criterio ya no es el estado del evento —el conteo dejó de cerrarse a
+   * nivel de evento—, sino si tiene al menos un TAG finalizado.
+   */
+  it('solo se queda con los eventos que tienen al menos un TAG finalizado', async () => {
+    getResumen.execute.and.callFake(async (eventoId: number) =>
+      eventoId === 2 ? resumen(0) : resumen(1)
     );
 
-    expect(getResumen.execute).toHaveBeenCalledTimes(2);
-    expect(facade.cerrados().map((c) => c.evento.id)).toEqual([2, 3]);
+    await facade.cargarConAvance([evento(1), evento(2), evento(3)], 1, 1);
+
+    expect(getResumen.execute).toHaveBeenCalledTimes(3);
+    expect(facade.conAvance().map((c) => c.evento.id)).toEqual([1, 3]);
   });
 
-  it('no consulta nada si no hay eventos cerrados', async () => {
-    await facade.cargarCerrados([evento(1, 'ABIERTO')], 1, 1);
+  it('no consulta nada si no hay eventos', async () => {
+    await facade.cargarConAvance([], 1, 1);
 
     expect(getResumen.execute).not.toHaveBeenCalled();
-    expect(facade.cerrados()).toEqual([]);
+    expect(facade.conAvance()).toEqual([]);
   });
 
-  it('devuelve el resultado al finalizar el conteo', async () => {
-    finalizar.execute.and.resolveTo({ estado: 'EN_ANALISIS', totalMuestra: 10, contados: 10 });
+  it('captura el error sin propagarlo, y deja la lista vacía', async () => {
+    getResumen.execute.and.rejectWith(new Error('Base local no disponible'));
 
-    const resultado = await facade.finalizarEvento(1, 1, 1);
+    await facade.cargarConAvance([evento(1)], 1, 1);
 
-    expect(resultado?.estado).toBe('EN_ANALISIS');
-    expect(facade.finalizando()).toBeFalse();
-  });
-
-  it('captura el error de finalizar sin propagarlo a la pantalla', async () => {
-    finalizar.execute.and.rejectWith(new Error('Aún quedan TAGs en curso'));
-
-    const resultado = await facade.finalizarEvento(1, 1, 1);
-
-    expect(resultado).toBeNull();
-    expect(facade.error()).toBe('Aún quedan TAGs en curso');
-    // Aunque falle, el flag de "finalizando" tiene que quedar abajo.
-    expect(facade.finalizando()).toBeFalse();
+    expect(facade.error()).toBe('Base local no disponible');
+    expect(facade.conAvance()).toEqual([]);
   });
 
   it('carga la trazabilidad del evento', async () => {

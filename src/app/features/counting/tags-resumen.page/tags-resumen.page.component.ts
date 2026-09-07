@@ -41,8 +41,10 @@ import { NetworkService } from '../../../shared/services/network.service';
  * (EN_CURSO / FINALIZADO / SINCRONIZADO), leídos de sod_conteo. Las pestañas
  * separan las iteraciones cuando hay más de una.
  *
- * Desde acá también se cierra el conteo del evento, que es lo que lo deja
- * EN_ANALISIS o CERRADO.
+ * El conteo ya no se "cierra" a nivel de evento — lo que importa es que cada
+ * TAG llegue al SGO, no que el operador declare "terminé". Esta pantalla
+ * queda siempre editable; lo único que ofrece al final es subir lo que
+ * todavía no viajó.
  */
 @Component({
   selector: 'app-tags-resumen',
@@ -167,43 +169,9 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     };
   });
 
-  // Modo solo lectura: cuando el evento está en EN_ANALISIS, no se permiten acciones destructivas
-  modoSoloLectura = computed(() => {
-    const estado = this.currentEvent()?.estado;
-    return estado === 'EN_ANALISIS';
-  });
-
   enCursoReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'EN_CURSO'));
   finalizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'FINALIZADO'));
   sincronizadosReal = computed(() => this.resumenesIteracionActual().filter((c) => c.estado === 'SINCRONIZADO'));
-  /*
-   * El conteo del evento ya se cerró: quedó EN_ANALISIS (faltaron SKUs) o
-   * CERRADO. En ambos casos esta pantalla pasa a ser de solo lectura — no se
-   * puede volver a finalizar lo que ya está finalizado.
-   */
-  conteoCerrado = computed(() => {
-    const estado = this.currentEvent()?.estado;
-    return estado === 'EN_ANALISIS' || estado === 'CERRADO';
-  });
-  estadoEventoLabel = computed(() =>
-    this.currentEvent()?.estado === 'CERRADO' ? 'Conteo cerrado' : 'Conteo cerrado — evento en análisis'
-  );
-
-  // No se puede cerrar el evento con algún TAG todavía en curso.
-  /*
-   * Solo se puede cerrar el conteo con TODO sincronizado. Un TAG FINALIZADO
-   * está contado pero no viajó al SGO: cerrar ahí dejaría trabajo que el
-   * servidor nunca recibe.
-   *
-   * El caso de uso valida lo mismo y es el que manda — esto solo evita ofrecer
-   * un botón que va a fallar.
-   */
-  puedeFinalizarEvento = computed(() =>
-    !this.conteoCerrado() &&
-    this.resumenesEvento().length > 0 &&
-    this.resumenesEvento().every((c) => c.estado === 'SINCRONIZADO')
-  );
-  finalizandoEvento = this.resumenFacade.finalizando;
 
   // ── trazabilidad (detalle por SKU) ──
   trazabilidadCompleta = this.resumenFacade.trazabilidad;
@@ -405,47 +373,6 @@ export class TagsResumenPageComponent implements ViewWillEnter {
       ],
     });
     await alert.present();
-  }
-
-  async finalizarEventoReal(): Promise<void> {
-    if (!this.puedeFinalizarEvento()) return;
-    const evento = this.currentEvent();
-    const operadorId = this.auth.session()?.operadorId;
-    const pdaId = this.pda.pdaId();
-    if (!evento || !operadorId || !pdaId) return;
-
-    const alert = await this.alertController.create({
-      header: 'Finalizar conteo',
-      message: 'Vas a cerrar el conteo de este evento. Esta acción no se puede deshacer. ¿Confirmas?',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Finalizar', role: 'confirm', handler: () => { void this.doFinalizarEventoReal(evento.id, operadorId, pdaId); } },
-      ],
-    });
-    await alert.present();
-  }
-
-  private async doFinalizarEventoReal(eventoId: number, operadorId: number, pdaId: number): Promise<void> {
-    const resultado = await this.resumenFacade.finalizarEvento(eventoId, operadorId, pdaId);
-
-    if (!resultado) {
-      await this.avisar(this.resumenFacade.error() ?? 'Error al finalizar el conteo', 'danger');
-      return;
-    }
-
-    // El evento cambió de estado en base: sin releerlo, Home y esta misma
-    // pantalla seguirían tratándolo como ABIERTO (y Home no ofrecería
-    // "Sincronizar" para abrir la iteración siguiente).
-    await this.eventoFacade.refreshSelected();
-    /*
-     * No se informa si faltaron SKUs: el evento queda en análisis y es el SGO
-     * quien evalúa el resultado y decide si hay otra iteración.
-     */
-    await this.avisar(
-      `Conteo finalizado — ${resultado.contados} SKU(s) contados, evento en análisis`,
-      'success'
-    );
-    this.router.navigate(['/home']);
   }
 
   private async avisar(message: string, color: 'success' | 'danger'): Promise<void> {

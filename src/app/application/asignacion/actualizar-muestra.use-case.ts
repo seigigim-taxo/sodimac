@@ -2,28 +2,18 @@ import { Injectable, inject } from '@angular/core';
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Session } from '../../domain/auth/models/session.model';
-import { FinalizarEventoUseCase } from '../conteo/finalizar-evento.use-case';
 import { EvaluarJornadasUseCase, ResultadoJornada } from './evaluar-jornadas.use-case';
 
 export type ResultadoActualizarMuestra =
-  /** Hay un TAG en curso o sin sincronizar. El mensaje ya viene armado. */
-  | { estado: 'BLOQUEADO'; motivo: string }
   /*
    * Con evento seleccionado: el SGO tenía una muestra distinta PARA ESA
-   * FECHA y quedó persistida, O el código coincidía con el evento que este
-   * mismo flujo acaba de cerrar y se deshizo ese cierre. Para el operador el
-   * resultado práctico es el mismo: hay un evento ABIERTO con el que seguir
-   * — no se distingue acá cuál de los dos pasó (ver EvaluarJornadasUseCase
-   * para esa distinción).
+   * FECHA y quedó persistida.
    */
   | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
   /** Con evento seleccionado: es la misma muestra que ya había para esa fecha. */
   | { estado: 'SIN_CAMBIOS' }
   /*
-   * El cierre (si hacía falta) salió bien, pero la búsqueda de la maestra
-   * nueva falló — sin red, o el SGO no respondió. Es un resultado distinto
-   * de BLOQUEADO: acá el evento SÍ se tocó, y el operador se queda sin
-   * saber si hay maestra nueva o no, no sin haber tocado nada.
+   * La búsqueda de la maestra nueva falló — sin red, o el SGO no respondió.
    */
   | { estado: 'ERROR_BUSQUEDA'; mensaje: string }
   /*
@@ -40,47 +30,24 @@ export type ResultadoActualizarMuestra =
  *
  * POR QUÉ HACE FALTA
  *
- * El SGO puede reasignarle al operador una muestra distinta en pleno día. Hoy
- * la única forma de que la PDA se entere es terminando el conteo en curso: la
- * consulta a preparación sólo se ofrece cuando no queda nada abierto. Este caso
- * de uso es esa misma consulta, pero disparable en cualquier momento.
+ * El SGO puede reasignarle al operador una muestra distinta en pleno día. Este
+ * caso de uso es la misma consulta que trae la preparación al iniciar sesión,
+ * pero disparable en cualquier momento.
  *
- * POR QUÉ SE CIERRA EL EVENTO ANTES DE PREGUNTAR
+ * POR QUÉ YA NO CIERRA NADA
  *
- * Preguntarle al SGO no manda nada — sólo descarga y persiste. Pero si la
- * respuesta trae un código de muestra nuevo, SincronizarDatosInicialesUseCase
- * puede terminar creando un evento distinto (ver BuscarNuevoConteoUseCase). Si
- * el de ahora se queda ABIERTO, la PDA termina con dos eventos abiertos el
- * mismo día — el viejo, sin declararlo nunca terminado, y el nuevo. Cerrarlo
- * antes dijo la 8.31 "solo para finalizar bien el proceso": es dejar la casa
- * ordenada antes de traer la muestra nueva, no un requisito técnico de la
- * descarga en sí.
+ * Antes esta acción cerraba el evento actual antes de preguntar —para no
+ * terminar con dos eventos ABIERTOS el mismo día si la respuesta traía una
+ * muestra nueva—, y eso exigía además que no quedara ningún TAG en curso ni
+ * sin sincronizar (si no, la acción se bloqueaba).
  *
- * POR QUÉ EL GUARDIÁN ES FinalizarEventoUseCase Y NO UNO PROPIO
- *
- * Ese caso de uso ya exige exactamente lo que hace falta acá: cero TAGs
- * EN_CURSO y cero FINALIZADO sin sincronizar. Un TAG que el operador abrió pero
- * todavía no escaneó nada no dejó fila en sod_conteo_detalle —esas filas se
- * crean recién con el primer scan (ver IniciarSesionConteoUseCase)— así que ni
- * siquiera aparece en esa consulta: queda descartado solo, sin necesidad de un
- * caso especial para "TAG vacío".
- *
- * Reusarlo entero, en vez de escribir una consulta paralela, evita que las dos
- * definiciones de "¿se puede cerrar esto?" se desalineen con el tiempo. Los
- * mensajes de bloqueo también son los que ese caso de uso ya redacta —no se
- * inventa texto nuevo acá.
- *
- * POR QUÉ TAMBIÉN PUEDE REABRIR
- *
- * Si el cierre de acá arriba era prematuro —el SGO todavía no tiene nada
- * distinto y le devuelve el mismo codigo_muestra del evento que se acaba de
- * cerrar—, dejarlo en EN_ANALISIS sin más lo varaba: SIN_CAMBIOS le decía "ya
- * tenés la muestra vigente" con el evento cerrado y ningún camino local para
- * retomarlo. Por eso EvaluarJornadasUseCase distingue "nuevo" de "reabrir"
- * con el MISMO criterio que BuscarOReabrirConteoUseCase —el que usa el botón
- * "Actualizar" de Home—, aunque no comparte código con él: es una regla
- * chica, duplicada a propósito (ver el porqué en EvaluarJornadasUseCase) en
- * vez de forzar a los dos casos de uso a depender de una sola función.
+ * Eso dejó de existir: el conteo ya no se "cierra" a nivel de evento —lo que
+ * importa es que cada TAG viaje al SGO, no que el operador declare
+ * explícitamente "terminé". El evento queda ABIERTO todo el tiempo que haga
+ * falta, y las muestras nuevas que aparezcan se agregan a la misma jornada sin
+ * que el operador tenga que cerrar nada primero. Por eso ya no hace falta un
+ * guardián que bloquee la acción por TAGs pendientes: preguntarle al SGO no
+ * toca el TAG en curso ni el evento actual, sólo descarga y persiste.
  *
  * POR QUÉ ES POR JORNADA Y NO UNA SOLA CONSULTA
  *
@@ -92,7 +59,7 @@ export type ResultadoActualizarMuestra =
  * mañana sí, el operador se enteraría recién al día siguiente.
  *
  * Por eso EvaluarJornadasUseCase evalúa cada jornada por separado y siempre
- * se corre entero (ver más abajo). Lo que cambia según haya o no un evento
+ * se corre entera (ver ese archivo). Lo que cambia según haya o no un evento
  * elegido es solo qué se hace con esos resultados:
  *  - CON evento: se toma el que coincide con la fecha de ESE evento —cada
  *    jornada es independiente, así que actualizar una no debe leer ni tocar
@@ -101,32 +68,15 @@ export type ResultadoActualizarMuestra =
  *
  * LO QUE NUNCA HACE
  *
- * Ni cerrar el evento ni traer la muestra nueva mandan algo al SGO: el primero
- * es una transición de estado local (ABIERTO → EN_ANALISIS) y el segundo es una
- * descarga. Lo único que "envía" datos en esta app es "Enviar pendientes", que
- * este caso de uso ni toca ni necesita tocar.
+ * Ni traer la muestra nueva manda nada al SGO: es una descarga. Lo único que
+ * "envía" datos en esta app es "Enviar pendientes", que este caso de uso ni
+ * toca ni necesita tocar.
  */
 @Injectable({ providedIn: 'root' })
 export class ActualizarMuestraUseCase {
-  private finalizarUC       = inject(FinalizarEventoUseCase);
   private evaluarJornadasUC = inject(EvaluarJornadasUseCase);
 
-  async execute(
-    session: Session,
-    eventoActual: Evento | null,
-    pdaId: number
-  ): Promise<ResultadoActualizarMuestra> {
-    if (eventoActual && this.sigueAbierto(eventoActual)) {
-      try {
-        await this.finalizarUC.execute(eventoActual.id, session.operadorId, pdaId);
-      } catch (err) {
-        return {
-          estado: 'BLOQUEADO',
-          motivo: err instanceof Error ? err.message : 'No se pudo cerrar el conteo en curso.',
-        };
-      }
-    }
-
+  async execute(session: Session, eventoActual: Evento | null): Promise<ResultadoActualizarMuestra> {
     let resultados;
     try {
       resultados = await this.evaluarJornadasUC.execute(session);
@@ -135,8 +85,7 @@ export class ActualizarMuestraUseCase {
        * El mensaje NO reenvía el de la excepción tal cual: acá abajo puede
        * venir cualquier cosa —desde un error de red hasta el nombre de una
        * ronda en la base—, y lo único que le importa al operador es que no
-       * se pudo confirmar si hay una maestra nueva. Distinto de BLOQUEADO:
-       * el cierre de arriba, si hacía falta, ya se hizo.
+       * se pudo confirmar si hay una maestra nueva.
        */
       return {
         estado: 'ERROR_BUSQUEDA',
@@ -167,16 +116,5 @@ export class ActualizarMuestraUseCase {
     }
 
     return { estado: 'ACTUALIZADA', asignacion: propio.resultado.asignacion };
-  }
-
-  /*
-   * ABIERTO y RECONTEO son los dos estados en los que FinalizarEventoUseCase
-   * todavía tiene algo que hacer. CERRADO y EN_ANALISIS ya están, en los
-   * hechos, terminados: no hace falta volver a intentarlo, y evitarlo acá deja
-   * de depender de leer el texto de la excepción que ese caso de uso lanzaría
-   * para "ya está finalizado".
-   */
-  private sigueAbierto(evento: Evento): boolean {
-    return evento.estado !== 'CERRADO' && evento.estado !== 'EN_ANALISIS';
   }
 }

@@ -3,9 +3,7 @@ import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-cont
 import { JornadaPreparada } from '../../domain/sincronizacion/models/preparacion.model';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
-import { EVENTO_REPOSITORY_TOKEN } from '../../domain/evento/repositories/evento.repository';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
-import { ReabrirEventoUseCase } from '../conteo/reabrir-evento.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 
 /** Un resultado por jornada, con la fecha para poder ubicarlo. */
@@ -13,7 +11,6 @@ export interface ResultadoJornada {
   fecha: string;
   resultado:
     | { tipo: 'SIN_NOVEDAD' }
-    | { tipo: 'REABIERTO'; asignacion: AsignacionConteo }
     | { tipo: 'NUEVO'; asignacion: AsignacionConteo };
 }
 
@@ -26,24 +23,26 @@ export interface ResultadoJornada {
  * puede dispararse sin ningún evento elegido, y ahí se pidió que las dos
  * jornadas se informen de forma independiente.
  *
- * Existe aparte y no reutiliza a BuscarNuevoConteoUseCase/
- * BuscarOReabrirConteoUseCase a propósito: esos dos ya están probados y en
- * uso por el flujo de Home, con su semántica de "para en la primera"
- * funcionando bien ahí. Bifurcar esa lógica para que además sirva acá
- * arriesgaba romper un camino ya validado por una necesidad que es de otro
- * llamador. Se duplica la comparación (que es chica) en vez de eso.
+ * Existe aparte y no reutiliza a BuscarNuevoConteoUseCase a propósito: ese ya
+ * está probado y en uso por el flujo de Home, con su semántica de "para en la
+ * primera" funcionando bien ahí. Bifurcar esa lógica para que además sirva
+ * acá arriesgaba romper un camino ya validado por una necesidad que es de
+ * otro llamador. Se duplica la comparación (que es chica) en vez de eso.
  *
- * Persiste la respuesta COMPLETA si CUALQUIER jornada resultó nueva —igual
- * que los otros dos casos de uso—: así, si hoy no tenía nada pero mañana sí,
- * mañana queda descargada aunque el resultado de hoy sea SIN_NOVEDAD.
+ * Ya NO distingue "nuevo" de "reabrir": el conteo dejó de cerrarse a nivel de
+ * evento, así que un evento local nunca llega a EN_ANALISIS por acción del
+ * operador — no hay nada que "reabrir". Si el código de muestra ya está en la
+ * base, es SIN_NOVEDAD y punto.
+ *
+ * Persiste la respuesta COMPLETA si CUALQUIER jornada resultó nueva: así, si
+ * hoy no tenía nada pero mañana sí, mañana queda descargada aunque el
+ * resultado de hoy sea SIN_NOVEDAD.
  */
 @Injectable({ providedIn: 'root' })
 export class EvaluarJornadasUseCase {
   private sincronizar = inject(SincronizarDatosInicialesUseCase);
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
-  private eventoRepo = inject(EVENTO_REPOSITORY_TOKEN);
-  private reabrirUC = inject(ReabrirEventoUseCase);
 
   async execute(session: Session): Promise<ResultadoJornada[]> {
     const datos = await this.sincronizar.descargar(session);
@@ -59,7 +58,7 @@ export class EvaluarJornadasUseCase {
       jornada: JornadaPreparada;
       /* false = sin muestra o sin tienda: no hay nada que comparar. */
       evaluable: boolean;
-      eventoLocalId: number | null;
+      esNueva: boolean;
     }[] = [];
 
     for (const jornada of datos.jornadas) {
@@ -68,7 +67,7 @@ export class EvaluarJornadasUseCase {
 
       // Jornada incompleta (sin muestra o sin tienda): no hay nada que evaluar.
       if (!codigoMuestra || !codigoTienda) {
-        evaluaciones.push({ jornada, evaluable: false, eventoLocalId: null });
+        evaluaciones.push({ jornada, evaluable: false, esNueva: false });
         continue;
       }
 
@@ -78,10 +77,10 @@ export class EvaluarJornadasUseCase {
         ? await this.muestraRepo.getEventoIdPorCodigo(codigoMuestra, sucursalId)
         : null;
 
-      evaluaciones.push({ jornada, evaluable: true, eventoLocalId });
+      evaluaciones.push({ jornada, evaluable: true, esNueva: eventoLocalId === null });
     }
 
-    const hayNuevas = evaluaciones.some((e) => e.evaluable && e.eventoLocalId === null);
+    const hayNuevas = evaluaciones.some((e) => e.esNueva);
     if (hayNuevas) await this.sincronizar.persistir(session, datos);
 
     /*
@@ -89,44 +88,15 @@ export class EvaluarJornadasUseCase {
      * porque NUEVO necesita releer el evento recién creado (ver describir()).
      */
     const resultados: ResultadoJornada[] = [];
-    for (const { jornada, evaluable, eventoLocalId } of evaluaciones) {
+    for (const { jornada, evaluable, esNueva } of evaluaciones) {
       const fecha = jornada.evento.fechaProgramada;
 
-      if (!evaluable) {
+      if (!evaluable || !esNueva) {
         resultados.push({ fecha, resultado: { tipo: 'SIN_NOVEDAD' } });
         continue;
       }
 
-      if (eventoLocalId === null) {
-        resultados.push({ fecha, resultado: { tipo: 'NUEVO', asignacion: await this.describir(jornada) } });
-        continue;
-      }
-
-      /*
-       * Ya la teníamos. Reabrir solo tiene sentido si ese evento es el que
-       * este mismo flujo cerró hace un momento y sigue EN_ANALISIS —si sigue
-       * ABIERTO/RECONTEO no hay nada que deshacer, y si ya está CERRADO es
-       * porque el SGO se pronunció, eso no se pisa.
-       */
-      const eventoLocal = await this.eventoRepo.getById(eventoLocalId);
-      if (!eventoLocal || eventoLocal.estado !== 'EN_ANALISIS') {
-        resultados.push({ fecha, resultado: { tipo: 'SIN_NOVEDAD' } });
-        continue;
-      }
-
-      const reabierto = await this.reabrirUC.execute(eventoLocalId);
-      resultados.push({
-        fecha,
-        resultado: {
-          tipo: 'REABIERTO',
-          asignacion: {
-            eventoId:        reabierto.id,
-            sucursalId:      reabierto.sucursalId,
-            nombre:          reabierto.nombre,
-            fechaProgramada: reabierto.fechaProgramada,
-          },
-        },
-      });
+      resultados.push({ fecha, resultado: { tipo: 'NUEVO', asignacion: await this.describir(jornada) } });
     }
 
     return resultados;

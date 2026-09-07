@@ -99,22 +99,26 @@ export class HomePage implements ViewWillEnter {
   // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
   buscandoConteo = this.nuevoConteo.buscando;
   sinNovedad     = this.nuevoConteo.sinNovedad;
-  conteoReabierto = this.nuevoConteo.reabierto;
   errorAsignacion = this.nuevoConteo.error;
 
-  // Eventos ya cerrados/en análisis, con su resumen calculado en vivo: no se
-  // guarda un snapshot del cierre, se reconstruye desde sod_conteo.
   /*
+   * Eventos con al menos un TAG finalizado, con su resumen calculado en vivo
+   * desde sod_conteo — no se guarda ningún snapshot.
+   *
+   * Ya no depende de que el evento esté "cerrado": el conteo dejó de cerrarse
+   * a nivel de evento, así que un evento en curso con trabajo ya finalizado
+   * entra igual al historial.
+   *
    * El historial se acota a la misma ventana que las tarjetas: lo de ayer ya no
    * es asunto del operador. Sin esto, "conteos finalizados" iba creciendo sin
    * fin y mezclaba jornadas.
    *
    * Tiene que ser la MISMA regla que eventosVisibles, no una parecida: si el
-   * historial cortara en hoy, el operador que termina la jornada de mañana vería
-   * desaparecer el conteo que acaba de cerrar.
+   * historial cortara en hoy, el operador que sigue trabajando la jornada de
+   * mañana vería desaparecer lo que ya finalizó.
    */
   eventosFinalizados = computed(() =>
-    this.resumenFacade.cerrados()
+    this.resumenFacade.conAvance()
       .filter((c) => enVentanaOperativa(c.evento.fechaProgramada))
   );
 
@@ -251,7 +255,7 @@ export class HomePage implements ViewWillEnter {
     const pdaId      = this.pda.pdaId();
     if (!operadorId || !pdaId) return;
 
-    void this.resumenFacade.cargarCerrados(eventos, operadorId, pdaId);
+    void this.resumenFacade.cargarConAvance(eventos, operadorId, pdaId);
   }
 
   ionViewWillEnter(): void {
@@ -357,14 +361,8 @@ export class HomePage implements ViewWillEnter {
   }
 
   /*
-   * El conteo del evento ya se finalizó y la PDA queda a la espera: acá se le
-   * pregunta al SGO si hay trabajo nuevo, que puede ser de otra jornada.
-   *
-   * Puede REABRIR el conteo anterior en vez de traer uno nuevo: si el SGO
-   * responde con el mismo codigo_muestra del evento que este operador acaba de
-   * cerrar, es que ese cierre fue prematuro —no había nada nuevo esperando— y
-   * BuscarOReabrirConteoUseCase lo deshace por su cuenta. `conteoReabierto`
-   * distingue ese caso del de un conteo genuinamente nuevo para el mensaje.
+   * No hay nada asignado para trabajar (sinTrabajoHoy): acá se le pregunta al
+   * SGO si hay algo nuevo, que puede ser de otra jornada o de otra tienda.
    */
   async buscarNuevoConteo(): Promise<void> {
     const session = this.auth.session();
