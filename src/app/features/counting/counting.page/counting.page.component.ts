@@ -35,6 +35,7 @@ import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
 import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
+import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -90,6 +91,7 @@ type ModoCaptura = 'uno' | 'cantidad';
     IonSpinner,
     IonTitle,
     IonToolbar,
+    HeaderStatusComponent,
   ],
 })
 export class CountingPageComponent implements ViewWillEnter {

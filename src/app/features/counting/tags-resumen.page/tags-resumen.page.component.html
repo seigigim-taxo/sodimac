@@ -4,11 +4,7 @@
       <ion-back-button defaultHref="/home"></ion-back-button>
     </ion-buttons>
     <ion-title>
-      @if (isOnline()) {
-        <span style="color: var(--app-success);">● En línea</span>
-      } @else {
-        <span style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
-      }
+      <app-header-status [isOnline]="isOnline()" />
     </ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="abrirBuscador()" aria-label="Buscar SKU">

@@ -26,6 +26,7 @@ import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacio
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
+import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
 
 @Component({
@@ -42,6 +43,7 @@ import { OfertaActualizacionService } from '../../shared/services/oferta-actuali
     IonSpinner,
     IonTitle,
     IonToolbar,
+    HeaderStatusComponent,
   ],
 })
 export class HomePage implements ViewWillEnter {
