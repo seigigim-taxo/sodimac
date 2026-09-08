@@ -135,17 +135,19 @@
 
     <!-- ===== Modo de captura ===== -->
     <!--
-      Es una decisión por SKU, no una preferencia de la pantalla: el operador la
-      cambia según el producto que tenga delante. Por eso vive acá arriba del
-      escáner y no en el menú de ajustes.
+      Pegajoso entre TAGs: el modo que el operador elige acá queda como
+      preferencia de la PDA (AjustesFacade) hasta que lo cambie, no solo
+      mientras dura este TAG. Por eso el selector va arriba del escáner y no en
+      el menú de ajustes: es a la vez la vista y el control de ese estado, así
+      que tiene que estar donde el operador ya está mirando cuando lo cambia.
     -->
     <div class="mb-4">
       <ion-segment [value]="modoCaptura()" (ionChange)="onModoChange($event)" mode="md">
-        <ion-segment-button value="uno">
-          <ion-label>Uno a uno</ion-label>
-        </ion-segment-button>
         <ion-segment-button value="cantidad">
           <ion-label>Por cantidad</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="uno">
+          <ion-label>Uno a uno</ion-label>
         </ion-segment-button>
       </ion-segment>
     </div>

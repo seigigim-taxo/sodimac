@@ -61,17 +61,6 @@ interface ResultadoScan {
   mensaje?: string;
 }
 
-/*
- * Cómo se cuenta el próximo SKU. Es una decisión por lectura, no una
- * configuración de la pantalla: el operador la cambia según el producto que
- * tenga delante.
- *
- *  - 'uno'      → una lectura suma una unidad y el foco vuelve al escáner.
- *  - 'cantidad' → la lectura solo captura el SKU; las unidades se tipean después
- *                 y recién ahí se registra.
- */
-type ModoCaptura = 'uno' | 'cantidad';
-
 @Component({
   selector: 'app-counting-page',
   templateUrl: './counting.page.component.html',
@@ -116,7 +105,14 @@ export class CountingPageComponent implements ViewWillEnter {
   private scanComp      = viewChild(ScanComponent);
   private cantidadInput = viewChild<IonInput>('cantidadInput');
 
-  modoCaptura = signal<ModoCaptura>('uno');
+  /*
+   * Con qué modo cae este TAG. No es un signal propio: se lee directo de
+   * AjustesFacade, que es lo que lo hace pegajoso entre TAGs y no solo dentro
+   * de esta pantalla — este componente se destruye y se vuelve a crear cada
+   * vez que se navega a /counting-tag y de vuelta, así que un signal local
+   * perdería el valor justo en el momento en que se supone que lo mantiene.
+   */
+  modoCaptura = this.ajustes.modoCapturaPreferido;
   /*
    * SKU leído en modo 'cantidad' que todavía espera las unidades, junto con
    * cómo entró. null = no hay captura abierta.
@@ -360,11 +356,11 @@ export class CountingPageComponent implements ViewWillEnter {
     this.cantidad.set(Number.isFinite(value) && value >= 0 ? Math.floor(value) : null);
   }
 
-  onModoChange(event: Event): void {
+  async onModoChange(event: Event): Promise<void> {
     const value = (event as CustomEvent<{ value: string }>).detail.value;
     if (value !== 'uno' && value !== 'cantidad') return;
     if (value === this.modoCaptura()) return;
-    this.modoCaptura.set(value);
+    await this.ajustes.setModoCapturaPreferido(value);
     // Cambiar de modo con una captura a medias la descarta: nada se escribió todavía.
     this.cerrarCaptura();
   }
