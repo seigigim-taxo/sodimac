@@ -81,7 +81,7 @@ export class ConteoFacade {
    * tipear la cantidad para enterarse de que el producto no correspondía.
    */
   estaEnMuestra(codigoLectura: string): boolean {
-    return this.muestraSet.skuMap.has(codigoLectura.trim().toUpperCase());
+    return this.resolverCodigoMuestra(codigoLectura) !== null;
   }
 
   /*
@@ -97,22 +97,23 @@ export class ConteoFacade {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
-    const codigoNormalizado = codigoLectura.trim().toUpperCase();
-    const productoId = this.muestraSet.skuMap.get(codigoNormalizado);
+    const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
 
-    if (productoId === undefined) {
+    if (codigoResuelto === null) {
       this.rechazadosSignal.update((prev) =>
         prev.includes(codigoLectura) ? prev : [codigoLectura, ...prev]
       );
       return 'rechazado';
     }
 
+    const productoId = this.muestraSet.skuMap.get(codigoResuelto)!;
+
     this.errorSignal.set(null);
     let persistido = false;
     await this.writeQueue.enqueue(async () => {
       try {
         const item = await this.upsertItem.execute(
-          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoNormalizado, medioCaptura
+          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoResuelto, medioCaptura
         );
         this.upsertItemEnMemoria(item);
         persistido = true;
@@ -176,6 +177,28 @@ export class ConteoFacade {
     this.recoveredSignal.set(false);
     this.finalizadaSignal.set(false);
     this.muestraSet = { skuMap: new Map() };
+  }
+
+  /*
+   * Resuelve el código de lectura escaneado contra el skuMap de la muestra.
+   *
+   * Busca primero coincidencia exacta. Si no existe y el código empieza con "0",
+   * intenta sin ese primer carácter para cubrir el caso de Excel/WS que elimina
+   * ceros iniciales (ej: PDA escanea 079567520375, muestra tiene 79567520375).
+   *
+   * Devuelve el código resuelto (el que existe en la muestra) o null si no
+   * hay coincidencia.
+   */
+  private resolverCodigoMuestra(codigoLectura: string): string | null {
+    const normalizado = codigoLectura.trim().toUpperCase();
+    if (this.muestraSet.skuMap.has(normalizado)) return normalizado;
+
+    if (normalizado.startsWith('0')) {
+      const sinCero = normalizado.slice(1);
+      if (this.muestraSet.skuMap.has(sinCero)) return sinCero;
+    }
+
+    return null;
   }
 
   // Inserta o actualiza el item en el signal sin recargar toda la lista
