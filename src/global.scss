@@ -58,6 +58,16 @@ ion-title {
   letter-spacing: -0.01em;
 }
 
+.conexion-indicator {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  padding-inline-start: 4px;
+}
+
 /* ===================================================================
    Tailwind component classes — design system tokens
    Basado en el canvas de diseño Safin360 · Control de Inventario:

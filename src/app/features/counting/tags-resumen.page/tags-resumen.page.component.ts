@@ -35,6 +35,7 @@ import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabaj
 import { ConteoTrazabilidadItem } from '../../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
+import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
 
 /*
  * Resumen de los conteos del evento, agrupados por ubicación y estado
@@ -65,6 +66,7 @@ import { NetworkService } from '../../../shared/services/network.service';
     IonSpinner,
     IonTitle,
     IonToolbar,
+    HeaderStatusComponent,
   ],
 })
 export class TagsResumenPageComponent implements ViewWillEnter {

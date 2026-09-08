@@ -24,6 +24,7 @@ import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
 import { stripEmojis } from '../../../shared/utils/text.utils';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
+import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
 
 /*
  * Pantalla previa al conteo: se ingresa/escanea el TAG
@@ -55,6 +56,7 @@ import { NetworkService } from '../../../shared/services/network.service';
     IonSpinner,
     IonTitle,
     IonToolbar,
+    HeaderStatusComponent,
   ],
 })
 export class TagZonaPageComponent implements ViewWillEnter {

@@ -27,6 +27,7 @@ import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
+import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
 
 @Component({
@@ -43,6 +44,7 @@ import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
     IonSpinner,
     IonTitle,
     IonToolbar,
+    HeaderStatusComponent,
   ],
 })
 export class HomePage implements ViewWillEnter {
