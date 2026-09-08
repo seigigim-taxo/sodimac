@@ -217,4 +217,48 @@ describe('ConteoFacade', () => {
     expect(resultado).toBe('valido');
     expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 100, 1, 1, 3, '7891234567890', 'ESCANER');
   });
+
+  describe('cero inicial en código de barras', () => {
+    const CODIGO_CON_CERO  = '079567520375';
+    const CODIGO_SIN_CERO  = '79567520375';
+
+    beforeEach(async () => {
+      conteoRepo.getRondaAbierta.and.resolveTo(ronda(1));
+
+      const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
+      detalleRepo.getCodigosByMuestra.and.resolveTo([
+        { codigoLectura: CODIGO_SIN_CERO, productoId: 200 },
+      ]);
+
+      await facade.init(1, 1, 1, 1);
+    });
+
+    it('acepta una lectura con 0 inicial cuando la muestra tiene el código sin 0', () => {
+      expect(facade.estaEnMuestra(CODIGO_CON_CERO)).toBe(true);
+    });
+
+    it('persiste el código sin 0 (el que existe en la muestra)', async () => {
+      conteoRepo.upsert.and.resolveTo(item({ productoId: 200, codigoLectura: CODIGO_SIN_CERO }));
+
+      const resultado = await facade.scan(CODIGO_CON_CERO, 2, 'ESCANER');
+
+      expect(resultado).toBe('valido');
+      expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 200, 1, 1, 2, CODIGO_SIN_CERO, 'ESCANER');
+    });
+
+    it('acepta un código exacto igual que antes (sin cambio de comportamiento)', async () => {
+      const resultado = await facade.scan(CODIGO_SIN_CERO, 1, 'MANUAL');
+
+      expect(resultado).toBe('valido');
+      expect(conteoRepo.upsert).toHaveBeenCalledWith(7, 1, 200, 1, 1, 1, CODIGO_SIN_CERO, 'MANUAL');
+    });
+
+    it('rechaza un código sin 0 que tampoco existe en la muestra', async () => {
+      const resultado = await facade.scan('1234567890123');
+
+      expect(resultado).toBe('rechazado');
+      expect(conteoRepo.upsert).not.toHaveBeenCalled();
+      expect(facade.rechazados()).toContain('1234567890123');
+    });
+  });
 });
