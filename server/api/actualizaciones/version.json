@@ -1,11 +1,11 @@
 {
   "status": "OK",
   "data": {
-    "version_code": 10,
-    "version_name": "1.0.6",
-    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.6-vc10-lineage.apk",
-    "sha256": "fb12c734fb52940cebcfece1cce82bd96ff67ad2dc1f65c60b24e0fd2445407a",
+    "version_code": 13,
+    "version_name": "1.0.8",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.8-vc13.apk",
+    "sha256": "d97620628ec066697cce0206139493a55454b613399c17f760c167905583d087",
     "obligatoria": false,
-    "notas": "Botón 'Actualizar maestra' en el menú lateral y en Home. Firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido: actualiza in-place tanto el lote firmado con la llave de debug (1.0.1) como el firmado con la llave de Taxo. min-sdk-version del firmante V3 = 28; todo el parque es Android 9+."
+    "notas": "Fix en 'Actualizar maestra' del menú lateral: si aparecía una jornada nueva en otra fecha, la app no refrescaba Home aunque el SGO ya la hubiera guardado. Firmada con la llave de Taxo, sin linaje V3: todo el parque ya está en la llave de Taxo desde la 1.0.6, no quedan equipos en la llave de debug."
   }
 }
