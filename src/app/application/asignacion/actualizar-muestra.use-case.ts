@@ -10,8 +10,13 @@ export type ResultadoActualizarMuestra =
    * FECHA y quedó persistida.
    */
   | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
-  /** Con evento seleccionado: es la misma muestra que ya había para esa fecha. */
-  | { estado: 'SIN_CAMBIOS' }
+  /*
+   * Con evento seleccionado: es la misma muestra que ya había para esa fecha.
+   * `resultados` viaja igual (con todas las jornadas de la ventana) porque la
+   * otra jornada pudo tener novedad aunque la del evento actual no — ver
+   * "POR QUÉ VIAJAN LOS RESULTADOS COMPLETOS" más abajo.
+   */
+  | { estado: 'SIN_CAMBIOS'; resultados: ResultadoJornada[] }
   /*
    * La búsqueda de la maestra nueva falló — sin red, o el SGO no respondió.
    */
@@ -71,6 +76,18 @@ export type ResultadoActualizarMuestra =
  * Ni traer la muestra nueva manda nada al SGO: es una descarga. Lo único que
  * "envía" datos en esta app es "Enviar pendientes", que este caso de uso ni
  * toca ni necesita tocar.
+ *
+ * POR QUÉ VIAJAN LOS RESULTADOS COMPLETOS
+ *
+ * EvaluarJornadasUseCase persiste TODAS las jornadas nuevas de la ventana, no
+ * solo la del evento actual (ver ese archivo: "si CUALQUIERA es nueva, se
+ * persiste la respuesta completa"). Si el evento actual es SIN_CAMBIOS pero la
+ * OTRA jornada sí trajo novedad, esa jornada ya quedó guardada en SQLite —lo
+ * único que falta es que la pantalla se entere y refresque la lista de
+ * eventos. Por eso SIN_CAMBIOS también lleva `resultados`: sin esto, quien
+ * llama no tiene forma de saber que hay un evento nuevo esperando y la
+ * tarjeta no aparece hasta que algo más (cambiar de tienda, reiniciar la app)
+ * fuerce una recarga.
  */
 @Injectable({ providedIn: 'root' })
 export class ActualizarMuestraUseCase {
@@ -103,16 +120,16 @@ export class ActualizarMuestraUseCase {
     }
 
     /*
-     * Con evento elegido, la acción es sobre ESA fecha únicamente: que la
-     * otra jornada haya cambiado no es asunto de esta llamada — el operador
-     * la va a ver la próxima vez que actualice sin nada seleccionado, o
-     * cuando la tarjeta correspondiente aparezca sola en Home.
+     * Con evento elegido, la decisión de qué hacer (navegar, avisar) es sobre
+     * ESA fecha únicamente. Pero `resultados` completo viaja igual en
+     * SIN_CAMBIOS: la otra jornada pudo cambiar aunque esta no, y quien llama
+     * necesita saberlo para refrescar la lista de eventos.
      */
     const fecha = eventoActual.fechaProgramada.slice(0, 10);
     const propio = resultados.find((r) => r.fecha === fecha);
 
     if (!propio || propio.resultado.tipo === 'SIN_NOVEDAD') {
-      return { estado: 'SIN_CAMBIOS' };
+      return { estado: 'SIN_CAMBIOS', resultados };
     }
 
     return { estado: 'ACTUALIZADA', asignacion: propio.resultado.asignacion };

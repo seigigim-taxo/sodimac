@@ -58,27 +58,32 @@ describe('ActualizarMuestraUseCase', () => {
     });
 
     it('devuelve SIN_CAMBIOS cuando la jornada de esa fecha no tiene novedad', async () => {
-      evaluar.and.resolveTo([sinNovedad('2026-09-02')]);
+      const resultados = [sinNovedad('2026-09-02')];
+      evaluar.and.resolveTo(resultados);
 
       const resultado = await uc.execute(SESION, evento());
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS' });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados });
     });
 
     /*
      * EL CASO CENTRAL DE ESTE PASO: la otra jornada (mañana) tiene una
      * novedad, pero el evento seleccionado es el de hoy — actualizar hoy no
-     * debe leer ni tocar mañana.
+     * cambia de estado por eso (sigue SIN_CAMBIOS para el evento actual), pero
+     * `resultados` tiene que traer igual la novedad de mañana: sin eso, quien
+     * llama no tiene forma de saber que hay que refrescar la lista de eventos
+     * (ver ActualizarMuestraService).
      */
-    it('ignora la novedad de otra jornada cuando el evento seleccionado es de otra fecha', async () => {
-      evaluar.and.resolveTo([
+    it('sigue SIN_CAMBIOS para el evento actual, pero conserva la novedad de la otra jornada en resultados', async () => {
+      const resultados = [
         sinNovedad('2026-09-02'),
         nuevo('2026-09-03', { ...asignacion, fechaProgramada: '2026-09-03' }),
-      ]);
+      ];
+      evaluar.and.resolveTo(resultados);
 
       const resultado = await uc.execute(SESION, evento('2026-09-02'));
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS' });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados });
     });
 
     // Si el SGO ya no tiene ninguna jornada para esa fecha (caso raro), tampoco hay nada que mostrar.
@@ -87,7 +92,7 @@ describe('ActualizarMuestraUseCase', () => {
 
       const resultado = await uc.execute(SESION, evento());
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS' });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados: [] });
     });
 
     it('devuelve ERROR_BUSQUEDA con mensaje propio si EvaluarJornadasUseCase lanza', async () => {

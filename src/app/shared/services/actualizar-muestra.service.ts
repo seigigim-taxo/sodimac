@@ -25,11 +25,17 @@ import { hoySql, manianaSql } from '../utils/fecha.utils';
  * El conteo ya no se cierra a nivel de evento, así que esta acción no toca ni
  * el evento actual ni el TAG en curso del operador — solo descarga y, si hay
  * novedad, persiste. Por eso solo navega a Inicio y limpia el contexto de
- * conteo cuando SÍ apareció algo nuevo (ACTUALIZADA, o VENTANA con alguna
- * jornada nueva): ahí sí conviene pararse en la asignación nueva y mostrar
- * Home con la tienda correcta. Cuando no hay novedad (SIN_CAMBIOS,
- * ERROR_BUSQUEDA, o VENTANA sin nada nuevo), el operador sigue exactamente
- * donde estaba — no hay nada que invalide la pantalla en la que se encuentra.
+ * conteo cuando SÍ apareció algo nuevo PARA EL EVENTO ACTUAL (ACTUALIZADA, o
+ * VENTANA con alguna jornada nueva): ahí sí conviene pararse en la asignación
+ * nueva y mostrar Home con la tienda correcta. Cuando el evento actual queda
+ * sin novedad (SIN_CAMBIOS, ERROR_BUSQUEDA, o VENTANA sin nada nuevo), el
+ * operador sigue exactamente donde estaba — no hay nada que invalide la
+ * pantalla en la que se encuentra.
+ *
+ * La excepción es SIN_CAMBIOS con novedad en la OTRA jornada de la ventana:
+ * ahí sí se refresca la lista de eventos (misma tienda, sin navegar) para que
+ * esa jornada nueva no quede invisible hasta el próximo reinicio — ver el
+ * caso SIN_CAMBIOS más abajo.
  *
  * POR QUÉ HAY UN LOADING DE PANTALLA COMPLETA
  *
@@ -84,9 +90,33 @@ export class ActualizarMuestraService {
           await this.avisar('Maestra actualizada', `Ahora estás trabajando con: ${resultado.asignacion.nombre}`);
           return;
 
-        case 'SIN_CAMBIOS':
+        /*
+         * "Sin cambios" es sobre el evento actual, pero EvaluarJornadasUseCase
+         * evalúa (y persiste) TODA la ventana: si la otra jornada sí trajo
+         * novedad, ya quedó guardada en SQLite aunque esta rama no lo diga.
+         * Sin refrescar acá, esa jornada no aparece en Home hasta que algo
+         * más fuerce una recarga (cambiar de tienda, reiniciar la app).
+         *
+         * Se recarga sin navegar ni tocar el conteo en curso: el evento
+         * actual no cambió, así que el operador sigue exactamente donde
+         * estaba — solo se refresca la lista para que la tarjeta nueva quede
+         * disponible cuando vuelva a Inicio.
+         */
+        case 'SIN_CAMBIOS': {
+          const fecha = eventoActual?.fechaProgramada.slice(0, 10);
+          const otraNovedad = resultado.resultados.some(
+            (r) => r.fecha !== fecha && r.resultado.tipo === 'NUEVO'
+          );
+
+          if (eventoActual && otraNovedad) {
+            await this.eventoFacade.loadEventos(eventoActual.sucursalId);
+            await this.avisar('Ya tienes la maestra vigente', this.describirVentana(resultado.resultados));
+            return;
+          }
+
           await this.avisar('Ya tienes la maestra vigente', 'El SGO no tiene una maestra distinta a la que ya tienes.');
           return;
+        }
 
         case 'ERROR_BUSQUEDA':
           await this.avisar('No se pudo actualizar', resultado.mensaje);

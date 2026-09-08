@@ -43,7 +43,7 @@ describe('ActualizarMuestraService', () => {
   let loadingDismiss: jasmine.Spy;
 
   beforeEach(() => {
-    ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS' });
+    ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS', resultados: [] });
 
     session = jasmine.createSpy('session').and.returnValue(SESION);
 
@@ -179,11 +179,11 @@ describe('ActualizarMuestraService', () => {
 
   describe('resultado SIN_CAMBIOS', () => {
     /*
-     * Nada cambió y el conteo ya no se cierra a nivel de evento: no hay
-     * ninguna razón para refrescar la lista de eventos ni sacar al operador
-     * de la pantalla en la que esté.
+     * Nada cambió (ni en el evento actual ni en el resto de la ventana): no
+     * hay ninguna razón para refrescar la lista de eventos ni sacar al
+     * operador de la pantalla en la que esté.
      */
-    it('no navega ni refresca eventos, con o sin evento previo', async () => {
+    it('sin novedad en ninguna jornada, no navega ni refresca eventos', async () => {
       eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
 
       await servicio.actualizar();
@@ -198,6 +198,51 @@ describe('ActualizarMuestraService', () => {
 
       const [args] = alertCreate.calls.mostRecent().args;
       expect(args.header).toBe('Ya tienes la maestra vigente');
+    });
+
+    /*
+     * EL CASO CENTRAL DE ESTE PASO: login con una sola jornada (hoy), y al
+     * actualizar el SGO trae una jornada nueva para mañana. El evento actual
+     * (hoy) sigue SIN_CAMBIOS, pero la jornada nueva ya quedó persistida en
+     * SQLite (ver EvaluarJornadasUseCase) — sin refrescar acá, esa tarjeta no
+     * aparece en Home hasta que algo más fuerce una recarga.
+     */
+    describe('con novedad en otra jornada de la ventana', () => {
+      beforeEach(() => {
+        eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
+        ejecutar.and.resolveTo({
+          estado: 'SIN_CAMBIOS',
+          resultados: [
+            { fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } },
+            { fecha: '2026-09-03', resultado: { tipo: 'NUEVO', asignacion: { ...asignacion, fechaProgramada: '2026-09-03' } } },
+          ],
+        });
+      });
+
+      it('refresca los eventos de la tienda actual', async () => {
+        await servicio.actualizar();
+
+        expect(eventoFacade.loadEventos).toHaveBeenCalledWith(evento('ABIERTO').sucursalId);
+      });
+
+      it('no navega ni limpia el conteo en curso: el evento actual no cambió', async () => {
+        conteoFacade.enCurso.and.returnValue(true);
+
+        await servicio.actualizar();
+
+        expect(router.navigate).not.toHaveBeenCalled();
+        expect(eventoFacade.limpiarSeleccion).not.toHaveBeenCalled();
+        expect(conteoFacade.reset).not.toHaveBeenCalled();
+      });
+
+      it('el aviso menciona la jornada nueva, no el genérico', async () => {
+        await servicio.actualizar();
+
+        const [args] = alertCreate.calls.mostRecent().args;
+        expect(args.header).toBe('Ya tienes la maestra vigente');
+        expect(args.message).toContain('jornada nueva');
+        expect(args.message).toContain('AMPOLLETAS AUTO');
+      });
     });
   });
 
@@ -298,7 +343,7 @@ describe('ActualizarMuestraService', () => {
 
       const primera = servicio.actualizar();
       await servicio.actualizar();
-      resolver({ estado: 'SIN_CAMBIOS' });
+      resolver({ estado: 'SIN_CAMBIOS', resultados: [] });
       await primera;
 
       expect(ejecutar).toHaveBeenCalledTimes(1);
@@ -311,7 +356,7 @@ describe('ActualizarMuestraService', () => {
       const promesa = servicio.actualizar();
       expect(servicio.actualizando()).toBeTrue();
 
-      resolver({ estado: 'SIN_CAMBIOS' });
+      resolver({ estado: 'SIN_CAMBIOS', resultados: [] });
       await promesa;
 
       expect(servicio.actualizando()).toBeFalse();
