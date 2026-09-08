@@ -10,6 +10,12 @@ const config: CapacitorConfig = {
    */
   appName: 'Sodimac',
   webDir: 'www',
+  android: {
+    // PDAs con teclado físico: Capacitor reemplaza el InputConnection por un
+    // BaseInputConnection no editable, con lo que Android jamás muestra el
+    // teclado virtual. Las teclas físicas siguen entrando por dispatchKeyEvent.
+    captureInput: true,
+  },
   plugins: {
     StatusBar: {
       style: 'LIGHT',
