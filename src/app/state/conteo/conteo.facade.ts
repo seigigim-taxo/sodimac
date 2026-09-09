@@ -6,6 +6,7 @@ import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
 import { FinalizarSesionConteoUseCase } from '../../application/conteo/finalizar-sesion-conteo.use-case';
 import { AsegurarRondaAbiertaUseCase } from '../../application/conteo/asegurar-ronda-abierta.use-case';
+import { ObtenerReferenciaSincronizadaUseCase } from '../../application/conteo/obtener-referencia-sincronizada.use-case';
 import { WriteQueue } from '../../core/utils/write-queue';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { SesionConteo } from '../../domain/conteo/models/sesion-conteo.model';
@@ -21,6 +22,7 @@ export class ConteoFacade {
   private deleteItem    = inject(DeleteConteoItemUseCase);
   private finalizarUC   = inject(FinalizarSesionConteoUseCase);
   private asegurarRonda = inject(AsegurarRondaAbiertaUseCase);
+  private obtenerReferencia = inject(ObtenerReferenciaSincronizadaUseCase);
 
   private sesionSignal     = signal<SesionConteo | null>(null);
   private itemsSignal      = signal<ConteoItem[]>([]);
@@ -29,6 +31,12 @@ export class ConteoFacade {
   private errorSignal      = signal<string | null>(null);
   private recoveredSignal  = signal(false);
   private finalizadaSignal = signal(false);
+  /*
+   * Lo ya contado en un TAG SINCRONIZADO que coincidió con este al abrirlo —
+   * de solo lectura, nunca se escribe sobre esto. Vacío cuando no hay
+   * ninguno. Ver ObtenerReferenciaSincronizadaUseCase.
+   */
+  private referenciaSincronizadaSignal = signal<ConteoItem[]>([]);
   private muestraSet: MuestraSet = { skuMap: new Map() };
 
   // Serializa scan/adjust/delete: evita que dos escrituras SQLite
@@ -41,6 +49,7 @@ export class ConteoFacade {
   readonly loading    = this.loadingSignal.asReadonly();
   readonly error      = this.errorSignal.asReadonly();
   readonly recovered  = this.recoveredSignal.asReadonly();
+  readonly referenciaSincronizada = this.referenciaSincronizadaSignal.asReadonly();
   readonly totalItems = computed(() => this.itemsSignal().length);
   readonly enCurso    = computed(() => this.sesionSignal() !== null && !this.finalizadaSignal());
 
@@ -52,19 +61,31 @@ export class ConteoFacade {
    * justamente lo que la inicia. Lo que no se abre solo es una ronda posterior
    * —eso pasa por el análisis del SGO—, y ahí init() falla con el motivo.
    */
-  async init(eventoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<void> {
+  /*
+   * `ubicacionSincronizadaId` es el TAG SINCRONIZADO (inmutable) que coincidió
+   * al registrar este TAG nuevo — ver ZonaFacade.confirmZona() /
+   * UbicacionRepository.insert(). null cuando no hay ninguno.
+   */
+  async init(
+    eventoId: number, ubicacionId: number, operadorId: number, pdaId: number,
+    ubicacionSincronizadaId: number | null = null
+  ): Promise<void> {
     this.reset();
     this.loadingSignal.set(true);
     try {
       const ronda = await this.asegurarRonda.execute(eventoId);
-      const [muestraSet, resultado] = await Promise.all([
+      const [muestraSet, resultado, referencia] = await Promise.all([
         this.loadMuestra.execute(eventoId, ronda.iteracion),
         this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
+        ubicacionSincronizadaId
+          ? this.obtenerReferencia.execute(ronda.id, ubicacionSincronizadaId, operadorId, pdaId)
+          : Promise.resolve([]),
       ]);
       this.muestraSet = muestraSet;
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
+      this.referenciaSincronizadaSignal.set(referencia);
     } catch (err) {
       console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
@@ -176,6 +197,7 @@ export class ConteoFacade {
     this.errorSignal.set(null);
     this.recoveredSignal.set(false);
     this.finalizadaSignal.set(false);
+    this.referenciaSincronizadaSignal.set([]);
     this.muestraSet = { skuMap: new Map() };
   }
 

@@ -21,6 +21,7 @@ import { ZonaFacade } from '../../../state/zona/zona.facade';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { ConteoListFacade } from '../../../state/conteo/conteo-list.facade';
+import { AsegurarRondaAbiertaUseCase } from '../../../application/conteo/asegurar-ronda-abierta.use-case';
 import { stripEmojis } from '../../../shared/utils/text.utils';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
@@ -71,6 +72,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
   private conteoList      = inject(ConteoListFacade);
   private buscador        = inject(BuscadorService);
   private network         = inject(NetworkService);
+  private asegurarRonda   = inject(AsegurarRondaAbiertaUseCase);
 
   isOnline = this.network.isOnline;
 
@@ -244,7 +246,25 @@ export class TagZonaPageComponent implements ViewWillEnter {
      * siempre, porque en este punto siempre esta vacia.
      */
     if (!this.tagConfirmado() || !this.zonaConfirmada()) return;
-    await this.zonaFacade.confirmZona();
+
+    const evento = this.currentEvent();
+    const operadorId = this.auth.session()?.operadorId;
+    const pdaId = this.pda.pdaId();
+    if (!evento || !operadorId || !pdaId) return;
+
+    /*
+     * La ronda se resuelve ACÁ, antes de registrar la ubicación, y no recién
+     * en la pantalla de conteo: para decidir si un TAG que coincide se reabre
+     * (FINALIZADO de esta ronda) o solo se muestra de referencia
+     * (SINCRONIZADO de esta ronda), hace falta saber a qué ronda pertenece
+     * ANTES de esa decisión — ver UbicacionRepository.insert().
+     *
+     * Es la misma llamada idempotente que hace ConteoFacade.init(): si la
+     * ronda ya existe, la devuelve sin crear nada.
+     */
+    const ronda = await this.asegurarRonda.execute(evento.id);
+
+    await this.zonaFacade.confirmZona(ronda.id, operadorId, pdaId);
     if (this.zonaFacade.error()) return;
     this.router.navigate(['/counting']);
   }

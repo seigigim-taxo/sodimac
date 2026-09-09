@@ -191,6 +191,45 @@ describe('ConteoFacade', () => {
     expect(facade.sesion()).toBeNull();
   });
 
+  /*
+   * La referencia de un TAG SINCRONIZADO que coincidió al abrir este —de
+   * solo lectura, nunca se escribe sobre esto. Ver
+   * ObtenerReferenciaSincronizadaUseCase / ZonaFacade.confirmZona().
+   */
+  describe('referenciaSincronizada', () => {
+    const ITEM_SINCRONIZADO = item({ id: 99, ubicacionId: 5, estado: 'SINCRONIZADO', sku: 'AF999' });
+
+    // getBySesion se llama igual para EN_CURSO (la sesión normal); lo que no
+    // pasa es la consulta aparte por 'SINCRONIZADO'.
+    it('vacía cuando no se pasa ubicacionSincronizadaId', async () => {
+      await facade.init(1, 1, 1, 1);
+
+      expect(facade.referenciaSincronizada()).toEqual([]);
+      expect(conteoRepo.getBySesion).not.toHaveBeenCalledWith(jasmine.anything(), jasmine.anything(), jasmine.anything(), jasmine.anything(), 'SINCRONIZADO');
+    });
+
+    it('se llena con lo que devuelve getBySesion apuntando a la ubicación vieja', async () => {
+      conteoRepo.getBySesion.and.resolveTo([ITEM_SINCRONIZADO]);
+
+      await facade.init(1, 1, 1, 1, 5);
+
+      expect(facade.referenciaSincronizada()).toEqual([ITEM_SINCRONIZADO]);
+      // 7 = la ronda actual, 5 = la ubicación sincronizada — no la nueva (1).
+      expect(conteoRepo.getBySesion).toHaveBeenCalledWith(7, 5, 1, 1, 'SINCRONIZADO');
+    });
+
+    it('se limpia en un init() posterior sin referencia', async () => {
+      conteoRepo.getBySesion.and.resolveTo([ITEM_SINCRONIZADO]);
+      await facade.init(1, 1, 1, 1, 5);
+      expect(facade.referenciaSincronizada().length).toBe(1);
+
+      conteoRepo.getBySesion.and.resolveTo([]);
+      await facade.init(1, 2, 1, 1);
+
+      expect(facade.referenciaSincronizada()).toEqual([]);
+    });
+  });
+
   it('no acepta scans después de finalizar la sesión', async () => {
     await facade.finalizar();
 

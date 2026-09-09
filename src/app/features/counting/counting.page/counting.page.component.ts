@@ -20,7 +20,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline,
+  addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, syncOutline, timeOutline, trashOutline,
 } from 'ionicons/icons';
 import { ScanComponent, CodigoCapturado } from '../../../shared/components/scan/scan.component';
 import { MedioCaptura } from '../../../domain/conteo/models/medio-captura.model';
@@ -193,6 +193,37 @@ export class CountingPageComponent implements ViewWillEnter {
   })));
 
   /*
+   * true si este TAG se reabrió solo al re-escanearlo (estaba FINALIZADO, sin
+   * sincronizar) — mismo flag que ya usa la recuperación tras un reinicio de
+   * la app, IniciarSesionConteoUseCase.recovered. Se usa para avisar
+   * "retomando este TAG" en vez de dejarlo pasar en silencio.
+   */
+  tagRetomado = this.conteo.recovered;
+
+  /*
+   * Lo ya contado en un TAG SINCRONIZADO que coincidió con este — de solo
+   * lectura, para comparar sin poder tocarlo. Vacío cuando no hay ninguno.
+   */
+  referenciaSincronizadaView = computed<ItemVista[]>(() => this.conteo.referenciaSincronizada().map((i) => ({
+    productoId:  i.productoId,
+    sku:         i.sku,
+    descripcion: i.descripcion ?? i.sku,
+    cantidad:    i.cantidadFisica,
+  })));
+  hayReferenciaSincronizada = computed(() => this.referenciaSincronizadaView().length > 0);
+  /*
+   * Fecha de esa sincronización, para que no se confunda con el conteo de
+   * ahora. getBySesion ordena por fecha_hora DESC, así que el primer item ya
+   * es el más reciente.
+   */
+  fechaReferenciaSincronizada = computed(() => this.conteo.referenciaSincronizada()[0]?.fechaHora ?? null);
+  referenciaSincronizadaVisible = signal(false);
+
+  toggleReferenciaSincronizada(): void {
+    this.referenciaSincronizadaVisible.update((v) => !v);
+  }
+
+  /*
    * Color de fondo de toda la pantalla, atado al mismo lastScan que el banner.
    *
    * Con pistola el operador no mira el texto: mira el producto. Un cambio de
@@ -238,7 +269,7 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   constructor() {
-    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, trashOutline });
+    addIcons({ addOutline, alertCircleOutline, chevronDownOutline, chevronUpOutline, closeCircleOutline, flagOutline, removeOutline, searchOutline, statsChartOutline, syncOutline, timeOutline, trashOutline });
   }
 
   abrirBuscador(): void {
@@ -326,7 +357,7 @@ export class CountingPageComponent implements ViewWillEnter {
      *
      * El escáner queda bloqueado mientras tanto — ver [locked] en el template.
      */
-    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId, this.zonaFacade.ubicacionSincronizadaId());
 
     // Precargar el resumen de avance si ya está visible
     if (this.resumenVisible()) {
@@ -584,7 +615,7 @@ export class CountingPageComponent implements ViewWillEnter {
     const pdaId      = this.pda.pdaId();
     if (!evento || !ubicacionId || !operadorId || !pdaId) return;
 
-    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId);
+    await this.conteo.init(evento.id, ubicacionId, operadorId, pdaId, this.zonaFacade.ubicacionSincronizadaId());
   }
 
   volverAInicio(): void {
