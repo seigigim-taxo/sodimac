@@ -169,3 +169,135 @@ los equipos ya están en terreno.
 La causa de raíz de que esto pueda pasar es que `keystore.properties` está en
 `.gitignore` —correctamente—, así que cada máquina firma con lo que tenga y
 nada avisa. Comparar contra esta huella es lo único que lo detecta a tiempo.
+
+## Firmar con linaje (rotación debug → Taxo)
+
+`gradlew assembleRelease` firma **solo** con la llave que declara
+`keystore.properties` — hoy la de Taxo. Eso alcanza para un equipo que ya
+tiene una APK firmada con Taxo instalada (1.0.4 en adelante). No alcanza para
+un equipo que todavía tiene la 1.0.1, firmada con la llave de **debug**: para
+esos, Android rechaza la actualización con
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` porque la firma no coincide, aunque el
+`applicationId` sea el mismo.
+
+El linaje V3 (`apksigner rotate`) es la prueba criptográfica de que la llave
+de debug autorizó la rotación a la de Taxo. Con esa prueba embebida en el
+APK, un solo archivo actualiza in-place tanto los equipos en debug como los
+que ya están en Taxo.
+
+**Se necesitan las dos llaves**, no solo la de Taxo. Viven en
+`C:\Users\seigi.gim\Desktop\LLAVES-FIRMA-SODIMAC\` (ver el `LEEME.txt` de esa
+carpeta): `debug.keystore` es la copia de la llave que generó Gradle en la
+máquina de Seigi y con la que salió la 1.0.1, alias `androiddebugkey`,
+contraseña `android` (la estándar de Android, no es secreta). La de Taxo es
+la de siempre, en `android/keystore.properties`.
+
+**Antes de firmar nada, verificar que el equipo de destino realmente esté en
+una de esas dos llaves.** Ya pasó que un equipo de prueba tenía instalada una
+build firmada con una llave distinta a ambas —ni debug ni Taxo, un keystore
+suelto que nadie tenía documentado—, y ningún linaje la iba a cubrir por más
+correcto que estuviera. Comprobarlo por ADB antes de asumir nada:
+
+```bash
+adb shell pm path cl.taxo.sodimac.inventario
+adb pull <ruta que devuelva el comando anterior> instalada.apk
+apksigner verify --print-certs instalada.apk
+```
+
+Si la huella no es ni `bc4eeb9f...7b61` (debug) ni `f709151d...81722d`
+(Taxo), no hay atajo: hay que desinstalar en ese equipo puntual (con pérdida
+de lo que no se haya sincronizado) o encontrar esa llave.
+
+### 1. Generar el linaje
+
+Solo hace falta una vez por rotación —no en cada release—, pero como no vive
+en el repositorio (es sensible, como el `.jks`), conviene tener el comando a
+mano por si se pierde el archivo:
+
+```bash
+apksigner rotate \
+  --out sodimac.lineage \
+  --old-signer --ks "C:\Users\seigi.gim\Desktop\LLAVES-FIRMA-SODIMAC\debug.keystore" \
+    --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+  --new-signer --ks "<storeFile de keystore.properties>" \
+    --ks-pass pass:<storePassword> --ks-key-alias <keyAlias> --key-pass pass:<keyPassword>
+```
+
+Se puede releer el linaje ya embebido en cualquier APK que lo lleve (por
+ejemplo para confirmar que dos builds tienen exactamente el mismo, como se
+hizo para comparar la 1.0.9 contra la 1.0.6):
+
+```bash
+apksigner lineage --in sodimac-1.0.6-vc10-lineage.apk --print-certs --verbose
+```
+
+### 2. Firmar con el linaje
+
+```bash
+apksigner sign \
+  --ks "C:\Users\seigi.gim\Desktop\LLAVES-FIRMA-SODIMAC\debug.keystore" \
+  --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+  --next-signer \
+  --ks "<storeFile de keystore.properties>" \
+  --ks-pass pass:<storePassword> --ks-key-alias <keyAlias> --key-pass pass:<keyPassword> \
+  --lineage sodimac.lineage \
+  --v1-signing-enabled false \
+  --v2-signing-enabled false \
+  --v3-signing-enabled true \
+  --min-sdk-version 28 \
+  --out sodimac-<versionName>-vc<versionCode>-lineage.apk \
+  app/build/outputs/apk/release/app-release.apk
+```
+
+Por qué el primer `--ks` es la llave de debug (la vieja) y no la de Taxo: el
+`apksigner` de las build-tools actuales (probado en 35.0.0, 36.1.0 y 37.0.0)
+exige que la firma cubra **todo** el rango de SDK del `minSdkVersion` del
+manifiesto (24 en este proyecto), y con un solo firmante más `--lineage`
+rechaza el build (`the provided targeted signer configs do not cover the SDK
+range`). Dando las dos llaves con `--next-signer`, `apksigner` reparte el
+rango automáticamente: la de debug queda cubriendo API 24-32, la de Taxo
+API 33 en adelante — el linaje embebido es el mismo y ambos casos (equipo en
+debug, equipo en Taxo) actualizan igual, la partición por SDK solo decide
+cuál cert es el "activo" para ese rango.
+
+`--v1-signing-enabled false` y `--v2-signing-enabled false` porque **toda la
+flota está en Android 9+** (las Meferi ME40K corren Android 15): no hace
+falta firmar para versiones que no existen en terreno, y habilitarlas
+obliga a usar la llave vieja también ahí, lo que complica sin necesidad.
+
+Nota histórica: la 1.0.6 quedó firmada con un único firmante V3 sin partir
+por rango de SDK —algo que estas build-tools ya no permiten reproducir tal
+cual—, pero el linaje que lleva adentro (confirmado con `apksigner lineage
+--in`) es exactamente debug → Taxo, el mismo que este procedimiento genera.
+La diferencia es de estructura del bloque de firma, no de contenido, y no
+afecta qué equipos pueden actualizar.
+
+### 3. Verificar
+
+```bash
+apksigner verify --print-certs --verbose sodimac-<versionName>-vc<versionCode>-lineage.apk
+```
+
+Tiene que mostrar los dos certificados (debug y Taxo) con sus huellas
+oficiales — comparar contra las de este documento. Si solo aparece uno, algo
+en el paso 2 se saltó al otro firmante.
+
+### 4. Probar contra equipos reales antes de subir
+
+La prueba automática más confiable es simular ambos orígenes con ADB, sin
+arriesgar un equipo real:
+
+```bash
+adb uninstall cl.taxo.sodimac.inventario
+adb install sodimac-1.0.5-vc9-DEBUGKEY.apk   # simula un equipo con la 1.0.1 de terreno
+adb install -r sodimac-<versionName>-vc<versionCode>-lineage.apk
+adb shell dumpsys package cl.taxo.sodimac.inventario | grep -E "versionName|signatures"
+```
+
+Repetir cambiando `sodimac-1.0.5-vc9-DEBUGKEY.apk` por `sodimac-1.0.5-vc9.apk`
+(la firmada solo con Taxo) para cubrir el otro origen. Un `Success` en el
+segundo `adb install -r` y `signatures` con `version:3` y `past signatures`
+con las dos huellas es la confirmación de que el linaje quedó bien armado —
+no alcanza con que `apksigner verify` diga que la APK es válida, porque eso
+no prueba que Android vaya a aceptarla como actualización de la que ya está
+instalada.

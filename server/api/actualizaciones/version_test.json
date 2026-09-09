@@ -1,11 +1,11 @@
 {
   "status": "OK",
   "data": {
-    "version_code": 13,
-    "version_name": "1.0.8",
-    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.8-vc13.apk",
-    "sha256": "d97620628ec066697cce0206139493a55454b613399c17f760c167905583d087",
+    "version_code": 14,
+    "version_name": "1.0.9",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.9-vc14-lineage.apk",
+    "sha256": "d23076212d213a8965fc8a226279f915de4f8861b4ed77664c499a9f0b55ebff",
     "obligatoria": false,
-    "notas": "Manifiesto de PRUEBA. Solo lo leen las builds de desarrollo. Misma APK que version.json: fix de 'Actualizar maestra' del menú lateral, firmada con la llave de Taxo, sin linaje (todo el parque ya migró)."
+    "notas": "Manifiesto de PRUEBA. Solo lo leen las builds de desarrollo. Misma APK que version.json: fix de 'Actualizar maestra' del menú lateral, firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido."
   }
 }
