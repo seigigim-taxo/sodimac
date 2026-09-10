@@ -18,9 +18,10 @@ import {
   IonTitle,
   IonContent,
   IonSpinner,
+  IonBadge,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline, calculatorOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
@@ -31,6 +32,8 @@ import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { BotonCalculadoraComponent } from './shared/components/boton-calculadora/boton-calculadora.component';
 import { CalculadoraService } from './shared/services/calculadora.service';
+import { ErrorReportFabComponent } from './shared/components/error-report-fab/error-report-fab.component';
+import { ErrorReportService } from './core/error-report/error-report.service';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
 import { App } from '@capacitor/app';
@@ -56,8 +59,10 @@ import { ActualizarMuestraService } from './shared/services/actualizar-muestra.s
     IonTitle,
     IonContent,
     IonSpinner,
+    IonBadge,
     BotonBuscadorComponent,
     BotonCalculadoraComponent,
+    ErrorReportFabComponent,
   ],
 })
 export class AppComponent {
@@ -75,6 +80,7 @@ export class AppComponent {
   private toastController = inject(ToastController);
   private router   = inject(Router);
   private location = inject(Location);
+  private reportService = inject(ErrorReportService);
 
   private static readonly RUTAS_SIN_BUSCADOR = ['/login', '/sync-loading'];
 
@@ -89,6 +95,7 @@ export class AppComponent {
   enviandoPendientes = this.enviarPendientes.enviando;
   generandoRespaldo = this.respaldo.generando;
   version = APP_VERSION;
+  pendingReportsCount = signal(0);
 
   mostrarBuscador = computed(() =>
     this.session() !== null &&
@@ -101,17 +108,15 @@ export class AppComponent {
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
       paperPlaneOutline, saveOutline,
-      cloudDownloadOutline, refreshOutline, calculatorOutline,
+      cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline,
     });
 
     this.router.events.subscribe((evento) => {
       if (evento instanceof NavigationEnd) this.rutaActual.set(evento.urlAfterRedirects);
     });
 
-    /*
-     * Se arranca acá y no en una página: el cambio de día tiene que detectarse
-     * esté donde esté el operador, incluso a mitad de un conteo.
-     */
+    this.loadPendingCount();
+
     this.vigenciaDia.iniciar();
   }
 
@@ -133,6 +138,15 @@ export class AppComponent {
 
   goConteos(): void {
     this.router.navigate(['/tags-resumen']);
+  }
+
+  goToReports(): void {
+    this.router.navigate(['/error-reports']);
+  }
+
+  async loadPendingCount(): Promise<void> {
+    const pending = await this.reportService.getPendingReports();
+    this.pendingReportsCount.set(pending.length);
   }
 
   syncDatos(): void {

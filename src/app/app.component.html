@@ -64,6 +64,19 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Reportes de error -->
+        @if (isOperator()) {
+        <ion-menu-toggle>
+          <ion-item button (click)="goToReports()" class="menu-theme-item">
+            <ion-icon slot="start" name="bug-outline"></ion-icon>
+            <ion-label>Reportes de error</ion-label>
+            @if (pendingReportsCount() > 0) {
+            <ion-badge color="warning" slot="end">{{ pendingReportsCount() }}</ion-badge>
+            }
+          </ion-item>
+        </ion-menu-toggle>
+        }
+
         <!--
           Actualizar maestra: volver a preguntarle al SGO por la muestra de
           hoy sin esperar a que termine la jornada. Solo para el operador —el
@@ -155,6 +168,8 @@
   </ion-menu>
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
+
+  <app-error-report-fab></app-error-report-fab>
 
   <!-- Buscador global solo para operador -->
   @if (mostrarBuscador()) {

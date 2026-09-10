@@ -43,6 +43,11 @@ export const routes: Routes = [
     canActivate: [authGuard, operatorGuard, eventoSeleccionadoGuard, tagEnSesionGuard, pdaBloqueadaGuard],
   },
   {
+    path: 'error-reports',
+    loadComponent: () => import('./features/error-reports/error-reports.page').then((m) => m.ErrorReportsPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full',

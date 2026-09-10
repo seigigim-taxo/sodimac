@@ -1,4 +1,4 @@
-import { APP_INITIALIZER } from '@angular/core';
+import { APP_INITIALIZER, ErrorHandler } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { RouteReuseStrategy, provideRouter, withPreloading, PreloadAllModules } from '@angular/router';
@@ -6,6 +6,8 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
+import { GlobalErrorHandler } from './app/core/error-report/global-error.handler';
+import { ReportSyncService } from './app/core/error-report/report-sync.service';
 import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
 import { AjustesFacade } from './app/state/ajustes/ajustes.facade';
@@ -177,5 +179,9 @@ bootstrapApplication(AppComponent, {
     { provide: VALIDACION_REPOSITORY_TOKEN,     useClass: SqliteValidacionRepository },
     { provide: PRE_VARIANCE_REPOSITORY_TOKEN,  useClass: SqlitePreVarianceRepository },
     { provide: RECUENTO_REPOSITORY_TOKEN,      useClass: SqliteRecuentoRepository },
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
   ],
+}).then((ref) => {
+  const sync = ref.injector.get(ReportSyncService);
+  sync.init();
 });

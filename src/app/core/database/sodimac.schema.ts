@@ -384,6 +384,29 @@ const TABLES: readonly string[] = [
     cantidad_inventariada  REAL    NOT NULL DEFAULT 0,
     cantidad_recuento      REAL             DEFAULT NULL,
     fecha_registro         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS sod_error_report (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    rut               TEXT NOT NULL,
+    nombre_completo   TEXT,
+    correo            TEXT NOT NULL,
+    tipo_usuario      TEXT NOT NULL,
+    version_app       TEXT NOT NULL,
+    fecha_hora        TEXT NOT NULL,
+    codigo_tienda     TEXT,
+    nombre_tienda     TEXT,
+    dispositivo       TEXT,
+    plataforma        TEXT,
+    sistema_operativo TEXT,
+    descripcion       TEXT NOT NULL,
+    screenshot_path   TEXT NOT NULL,
+    tipo_reporte      TEXT NOT NULL,
+    pantalla_actual   TEXT,
+    error_stack       TEXT,
+    enviado           INTEGER NOT NULL DEFAULT 0,
+    intentos          INTEGER NOT NULL DEFAULT 0,
+    estado            TEXT NOT NULL DEFAULT 'PENDIENTE',
+    fecha_creacion    TEXT NOT NULL DEFAULT (datetime('now'))
   )`
 
 ];
@@ -414,6 +437,8 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_rp_jornada ON sod_recuento_producto(jornada_id)`,
   `CREATE INDEX IF NOT EXISTS idx_rp_sku ON sod_recuento_producto(sku)`,
   `CREATE INDEX IF NOT EXISTS idx_ru_producto ON sod_recuento_ubicacion(producto_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_sod_error_report_estado ON sod_error_report(estado)`,
+  `CREATE INDEX IF NOT EXISTS idx_sod_error_report_rut ON sod_error_report(rut)`,
 ];
 
 const SEED = `
@@ -444,6 +469,7 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_validacion_bloque',
   'sod_validacion_tag',
   'sod_validacion_producto',
+  'sod_error_report',
 ] as const;
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];
