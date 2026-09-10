@@ -6,6 +6,8 @@ import {
   IonItemSliding, IonItem, IonIcon, IonLabel, IonBadge,
   IonItemOptions, IonItemOption
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { checkmarkCircle, alertCircle, timeOutline, camera, refresh, trash } from 'ionicons/icons';
 import { ErrorReportService } from '../../core/error-report/error-report.service';
 import { ReportSyncService } from '../../core/error-report/report-sync.service';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
@@ -51,12 +53,14 @@ import { ErrorReportRecord } from '../../domain/error-report/models/error-report
             ></ion-icon>
             <ion-label>
               <h2>{{ report.descripcion | slice:0:60 }}{{ report.descripcion.length > 60 ? '...' : '' }}</h2>
-              <p>{{ report.fechaCreacion }} · {{ report.pantallaActual }}</p>
+              <p>{{ formatDate(report.fechaCreacion) }}</p>
+              <p>{{ report.pantallaActual }}</p>
               <p>
                 <ion-badge [color]="report.estado === 'ENVIADO' ? 'success' : report.estado === 'ERROR' ? 'danger' : 'warning'">
                   {{ report.estado }}
                 </ion-badge>
-                <span *ngIf="report.intentos > 0"> · Intentos: {{ report.intentos }}/3</span>
+                <ion-icon name="camera" color="medium" *ngIf="report.screenshotPath" style="margin-left: 8px; font-size: 14px;"></ion-icon>
+                <span *ngIf="report.intentos > 0"> · Intentos: {{ report.intentos > 3 ? 3 : report.intentos }}/3</span>
               </p>
             </ion-label>
           </ion-item>
@@ -88,6 +92,10 @@ export class ErrorReportsPage implements OnInit {
 
   reports: ErrorReportRecord[] = [];
 
+  constructor() {
+    addIcons({ checkmarkCircle, alertCircle, timeOutline, camera, refresh, trash });
+  }
+
   async ngOnInit() {
     await this.loadReports();
   }
@@ -111,5 +119,13 @@ export class ErrorReportsPage implements OnInit {
     const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
     await db.run(`DELETE FROM sod_error_report WHERE id = ?`, [report.id]);
     await this.loadReports();
+  }
+
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`;
   }
 }

@@ -12,8 +12,10 @@ export class ReportSyncService {
   private readonly toastCtrl = inject(ToastController);
   private readonly zone = inject(NgZone);
   private syncing = false;
+  private pendingToastShown = false;
 
   init(): void {
+    this.reportService.fixStuckRetries();
     this.retryPending();
 
     Network.addListener('networkStatusChange', (status) => {
@@ -44,8 +46,10 @@ export class ReportSyncService {
 
       const remaining = await this.reportService.getPendingReports();
       if (pending.length > 0 && remaining.length === 0) {
+        this.pendingToastShown = false;
         this.showToast('Reportes enviados correctamente');
-      } else if (remaining.length > 0) {
+      } else if (remaining.length > 0 && !this.pendingToastShown) {
+        this.pendingToastShown = true;
         this.showToast(`${remaining.length} reporte(s) pendiente(s)`);
       }
     } finally {
@@ -75,7 +79,7 @@ export class ReportSyncService {
     const toast = await this.toastCtrl.create({
       message,
       duration: 3000,
-      position: 'bottom',
+      position: 'top',
     });
     await toast.present();
   }

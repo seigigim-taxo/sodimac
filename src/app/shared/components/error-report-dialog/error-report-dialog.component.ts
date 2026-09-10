@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonText, IonSpinner, IonItem, IonLabel,
-  IonTextarea, IonFooter, ModalController, ToastController
+  IonTextarea, IonFooter, IonIcon, ModalController, ToastController
 } from '@ionic/angular/standalone';
 import { ErrorReportService } from '../../../core/error-report/error-report.service';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -16,8 +16,35 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
     CommonModule, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonText, IonSpinner, IonItem, IonLabel,
-    IonTextarea, IonFooter,
+    IonTextarea, IonFooter, IonIcon,
   ],
+  styles: `
+    .screenshot-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      background: var(--ion-color-light);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--ion-color-medium);
+    }
+    .screenshot-status.error {
+      background: var(--ion-color-danger-tint);
+      color: var(--ion-color-danger);
+    }
+    .screenshot-status ion-icon {
+      font-size: 20px;
+    }
+    ion-item {
+      --padding-start: 0;
+      --inner-padding-end: 0;
+    }
+    ion-textarea {
+      margin-top: 8px;
+    }
+  `,
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -29,8 +56,15 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
     </ion-header>
 
     <ion-content class="ion-padding">
-      <div class="screenshot-preview" *ngIf="screenshotPreview">
-        <img [src]="screenshotPreview" alt="Captura de pantalla" />
+      <div class="screenshot-status error" *ngIf="screenshotError">
+        <ion-icon name="camera-reverse" color="danger"></ion-icon>
+        <span>{{ screenshotError }}</span>
+      </div>
+
+      <div class="screenshot-status" *ngIf="!loading && !screenshotError">
+        <ion-icon name="camera" color="success" *ngIf="screenshotFilename"></ion-icon>
+        <ion-icon name="camera-reverse" color="medium" *ngIf="!screenshotFilename"></ion-icon>
+        <span>{{ screenshotFilename ? 'Captura adjunta' : 'Sin captura' }}</span>
       </div>
 
       <ion-text color="medium" class="ion-text-center" *ngIf="loading">
@@ -76,6 +110,7 @@ export class ErrorReportDialogComponent implements OnInit {
   descripcion = '';
   loading = true;
   sending = false;
+  screenshotError = '';
 
   async ngOnInit() {
     try {
@@ -86,8 +121,9 @@ export class ErrorReportDialogComponent implements OnInit {
         directory: Directory.Data,
       });
       this.screenshotPreview = `data:image/jpeg;base64,${file.data}`;
-    } catch {
-      // Si falla, se envía sin captura
+    } catch (e: any) {
+      this.screenshotError = e?.message || JSON.stringify(e);
+      this.screenshotFilename = '';
     }
     this.loading = false;
   }

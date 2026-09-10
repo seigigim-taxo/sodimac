@@ -10,11 +10,17 @@ import { ErrorReportDialogComponent } from '../error-report-dialog/error-report-
   standalone: true,
   imports: [CommonModule, IonFab, IonFabButton, IonIcon],
   template: `
-    <ion-fab vertical="bottom" horizontal="end" slot="fixed" *ngIf="visible()">
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed" *ngIf="visible()" class="fab-safe-area">
       <ion-fab-button (click)="openDialog()" color="danger" size="small">
         <ion-icon name="bug-outline"></ion-icon>
       </ion-fab-button>
     </ion-fab>
+  `,
+  styles: `
+    .fab-safe-area {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      z-index: 9999;
+    }
   `,
 })
 export class ErrorReportFabComponent {

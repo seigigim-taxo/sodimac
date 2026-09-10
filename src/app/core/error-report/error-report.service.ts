@@ -30,6 +30,16 @@ export class ErrorReportService {
     const filename = `error_report_${Date.now()}.jpg`;
     const fileContent = await Filesystem.readFile({ path: tempUri });
 
+    try {
+      await Filesystem.mkdir({
+        path: ErrorReportService.SCREENSHOT_DIR,
+        directory: Directory.Data,
+        recursive: true,
+      });
+    } catch {
+      // Directorio ya existe, continuar
+    }
+
     await Filesystem.writeFile({
       path: `${ErrorReportService.SCREENSHOT_DIR}/${filename}`,
       data: fileContent.data,
@@ -82,9 +92,9 @@ export class ErrorReportService {
   async getPendingReports(): Promise<ErrorReportRecord[]> {
     const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT * FROM sod_error_report WHERE estado != 'ENVIADO' ORDER BY fecha_creacion DESC`
+      `SELECT * FROM sod_error_report WHERE estado = 'PENDIENTE' ORDER BY fecha_creacion DESC`
     );
-    return result.values as ErrorReportRecord[];
+    return (result.values || []).map(this.mapRecord) as ErrorReportRecord[];
   }
 
   async getAllReports(): Promise<ErrorReportRecord[]> {
@@ -92,7 +102,33 @@ export class ErrorReportService {
     const result = await db.query(
       `SELECT * FROM sod_error_report ORDER BY fecha_creacion DESC`
     );
-    return result.values as ErrorReportRecord[];
+    return (result.values || []).map(this.mapRecord) as ErrorReportRecord[];
+  }
+
+  private mapRecord(row: any): ErrorReportRecord {
+    return {
+      id: row.id,
+      rut: row.rut,
+      nombreCompleto: row.nombre_completo,
+      correo: row.correo,
+      tipoUsuario: row.tipo_usuario,
+      versionApp: row.version_app,
+      fechaHora: row.fecha_hora,
+      codigoTienda: row.codigo_tienda,
+      nombreTienda: row.nombre_tienda,
+      dispositivo: row.dispositivo,
+      plataforma: row.plataforma,
+      sistemaOperativo: row.sistema_operativo,
+      descripcion: row.descripcion,
+      screenshotPath: row.screenshot_path,
+      tipoReporte: row.tipo_reporte,
+      pantallaActual: row.pantalla_actual,
+      errorStack: row.error_stack,
+      enviado: row.enviado,
+      intentos: row.intentos,
+      estado: row.estado,
+      fechaCreacion: row.fecha_creacion,
+    };
   }
 
   async sendReport(record: ErrorReportRecord): Promise<void> {
@@ -122,7 +158,7 @@ export class ErrorReportService {
       plataforma: record.plataforma,
       sistemaOperativo: record.sistemaOperativo,
       descripcion: record.descripcion,
-      screenshot: screenshotBase64,
+      screenshotBase64: screenshotBase64,
       tipoReporte: record.tipoReporte,
       pantallaActual: record.pantallaActual,
       errorStack: record.errorStack,
@@ -142,8 +178,9 @@ export class ErrorReportService {
   async markAsError(id: number): Promise<void> {
     const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
     await db.run(
-      `UPDATE sod_error_report SET intentos = intentos + 1,
-       estado = CASE WHEN intentos + 1 >= 3 THEN 'ERROR' ELSE 'PENDIENTE' END
+      `UPDATE sod_error_report
+       SET intentos = MIN(intentos + 1, 3),
+           estado = CASE WHEN MIN(intentos + 1, 3) >= 3 THEN 'ERROR' ELSE 'PENDIENTE' END
        WHERE id = ?`,
       [id]
     );
@@ -183,6 +220,13 @@ export class ErrorReportService {
 
     await db.run(
       `DELETE FROM sod_error_report WHERE estado = 'ENVIADO' AND fecha_creacion < datetime('now', '-7 days')`
+    );
+  }
+
+  async fixStuckRetries(): Promise<void> {
+    const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_error_report SET intentos = 3 WHERE intentos > 3 AND estado = 'ERROR'`
     );
   }
 }
