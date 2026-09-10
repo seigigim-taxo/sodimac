@@ -8,6 +8,7 @@ import { EstadoConteo } from '../models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../models/busqueda-sku.model';
 import { MedioCaptura } from '../models/medio-captura.model';
 import { ConteoLectura } from '../models/conteo-lectura.model';
+import { ConteoLecturaSesion } from '../models/conteo-lectura-sesion.model';
 import { TagFinalizadoPayload } from '../../sincronizacion/models/tag-finalizado.model';
 
 export interface ConteoRepository {
@@ -65,6 +66,29 @@ export interface ConteoRepository {
    * agregado no puede reconstruir.
    */
   getLecturas(detalleId: number): Promise<ConteoLectura[]>;
+
+  /*
+   * Lecturas de la sesión de TAG en curso (líneas EN_CURSO), una fila por
+   * captura, en orden de registro. Es la fuente de la lista de la pantalla de
+   * conteo: ahí cada scan y cada declaración de cantidad es su propia fila, no
+   * el agregado por SKU.
+   */
+  getLecturasSesion(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<ConteoLecturaSesion[]>;
+
+  /*
+   * Suma o resta unidades a UNA lectura y aplica el mismo movimiento a su
+   * detalle padre, para no romper el invariante SUM(lecturas) == cantidad_fisica.
+   * Piso en 0: bajar de 0 es no-op. Solo sobre lecturas cuyo detalle está
+   * EN_CURSO — una vez FINALIZADO/SINCRONIZADO la lectura ya viajó y es
+   * inmutable. Devuelve el detalle actualizado.
+   */
+  adjustLectura(lecturaId: number, delta: number): Promise<ConteoItem>;
+
+  /*
+   * Borra UNA lectura y descuenta su cantidad del detalle padre. Si el detalle
+   * queda sin lecturas, se borra también. Solo si el detalle está EN_CURSO.
+   */
+  deleteLectura(lecturaId: number): Promise<void>;
 
   /* Líneas de una sesión de TAG en un estado dado. */
   getBySesion(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<ConteoItem[]>;

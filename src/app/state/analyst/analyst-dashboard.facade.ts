@@ -3,7 +3,7 @@ import { ContextoAnalista, KpisAnalista, FilaAnalista, RegistroAnalista, PreVari
 import { AuthFacade } from '../auth/auth.facade';
 import { AppInfoService } from '../../core/app-info.service';
 import { PdaFacade } from '../pda/pda.facade';
-import { TagFinalizadoPayload, detalleUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { TagFinalizadoPayload, detalleUid, lecturaUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { SincronizarTagFinalizadoUseCase } from '../../application/sincronizacion/sincronizar-tag-finalizado.use-case';
 import { SincronizarValidacionAnalistaUseCase } from '../../application/sincronizacion/sincronizar-validacion-analista.use-case';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
@@ -211,9 +211,11 @@ export class AnalystDashboardFacade {
            */
           lecturas: [
             {
+              lectura_uid: lecturaUid(cargaUid, 1, 1),
               codigo_lectura: fila.codigoBarras || fila.sku,
               medio_captura: 'MANUAL' as const,
               cantidad: cantidadAnalista,
+              fecha_hora: ts,
             },
           ],
         },

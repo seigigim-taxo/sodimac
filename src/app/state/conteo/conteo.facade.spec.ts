@@ -35,8 +35,12 @@ describe('ConteoFacade', () => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', [
       'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag',
       'getRondaAbierta', 'getUltimaRonda', 'abrirRonda',
+      'getLecturasSesion', 'adjustLectura', 'deleteLectura',
     ]);
     conteoRepo.getBySesion.and.resolveTo([]);
+    conteoRepo.getLecturasSesion.and.resolveTo([]);
+    conteoRepo.adjustLectura.and.resolveTo(item());
+    conteoRepo.deleteLectura.and.resolveTo();
     conteoRepo.upsert.and.resolveTo(item());
     conteoRepo.cerrarTag.and.resolveTo();
     // La ronda abierta es lo que ConteoFacade.init() resuelve antes de dejar contar.
@@ -52,7 +56,7 @@ describe('ConteoFacade', () => {
       { id: 1, muestraId: 10, productoId: 100, sku: 'AF001', stockSistema: 5, ubicacionEsperada: null },
     ]);
     detalleRepo.getCodigosByMuestra.and.resolveTo([
-      { codigoLectura: 'AF001', productoId: 100 },
+      { codigoLectura: 'AF001', productoId: 100, descripcion: 'Taladro' },
     ]);
 
     TestBed.configureTestingModule({
@@ -93,6 +97,24 @@ describe('ConteoFacade', () => {
 
       expect(facade.estaEnMuestra('AF001')).toBe(true);
       expect(await facade.scan('AF001', 3)).toBe('valido');
+    });
+  });
+
+  /*
+   * Alimenta el feedback visual del scan: el operador confirma de un vistazo
+   * que el producto que entró es el que tenía en la mano.
+   */
+  describe('descripcionDe', () => {
+    it('devuelve la descripción de un código de la muestra', () => {
+      expect(facade.descripcionDe('AF001')).toBe('Taladro');
+    });
+
+    it('normaliza igual que scan(): espacios y minúsculas', () => {
+      expect(facade.descripcionDe('  af001 ')).toBe('Taladro');
+    });
+
+    it('devuelve null para un código fuera de la muestra', () => {
+      expect(facade.descripcionDe('NO-EXISTE')).toBeNull();
     });
   });
 
@@ -207,7 +229,7 @@ describe('ConteoFacade', () => {
 
     const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
     detalleRepo.getCodigosByMuestra.and.resolveTo([
-      { codigoLectura: '7891234567890', productoId: 100 },
+      { codigoLectura: '7891234567890', productoId: 100, descripcion: 'Taladro' },
     ]);
 
     await facade.init(1, 1, 1, 1);
@@ -227,7 +249,7 @@ describe('ConteoFacade', () => {
 
       const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
       detalleRepo.getCodigosByMuestra.and.resolveTo([
-        { codigoLectura: CODIGO_SIN_CERO, productoId: 200 },
+        { codigoLectura: CODIGO_SIN_CERO, productoId: 200, descripcion: 'Tornillo' },
       ]);
 
       await facade.init(1, 1, 1, 1);
