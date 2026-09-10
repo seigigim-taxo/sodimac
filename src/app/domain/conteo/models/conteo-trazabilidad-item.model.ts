@@ -1,11 +1,12 @@
 import { EstadoConteo } from './estado-conteo.model';
 
 /*
- * Línea de trazabilidad por SKU dentro de un evento: una fila por cada
- * producto contado en una iteración/TAG/zona determinada. Vista de solo
- * lectura para el historial detallado.
+ * Línea de trazabilidad por lectura dentro de un evento: una fila por cada
+ * lectura individual de sod_conteo_lectura. Vista de solo lectura para el
+ * historial detallado.
  */
 export interface ConteoTrazabilidadItem {
+  lecturaId:       number;
   iteracion:       number;
   conteoId:        number;
   tag:             string | null;
