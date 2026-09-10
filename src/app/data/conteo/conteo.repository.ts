@@ -263,6 +263,12 @@ export class SqliteConteoRepository implements ConteoRepository {
     }));
   }
 
+  /*
+   * DESC por l.id: la más reciente arriba. La lista se pagina cortando desde el
+   * frente, así que la última captura tiene que ser la primera fila. Se ordena
+   * por id y no por fecha_hora porque adjustLectura() reescribe fecha_hora en
+   * cada +/-, y eso haría saltar la fila de lugar al tocar un botón.
+   */
   async getLecturasSesion(
     conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
   ): Promise<ConteoLecturaSesion[]> {
@@ -276,7 +282,7 @@ export class SqliteConteoRepository implements ConteoRepository {
        JOIN sod_producto        p ON p.id = d.producto_id
        WHERE d.conteo_id = ? AND d.ubicacion_id = ?
          AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
-       ORDER BY l.id`,
+       ORDER BY l.id DESC`,
       [conteoId, ubicacionId, operadorId, pdaId]
     );
     return (result.values ?? []).map((r) => {
@@ -787,7 +793,7 @@ export class SqliteConteoRepository implements ConteoRepository {
        LEFT JOIN sod_muestra_detalle md
          ON md.muestra_id = m.id AND md.producto_id = d.producto_id
        WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?
-       ORDER BY c.iteracion DESC, u.tag ASC, l.id ASC`,
+       ORDER BY l.id DESC`,
       [eventoId, operadorId, pdaId]
     );
     const items = (result.values ?? []).map((r) => {
