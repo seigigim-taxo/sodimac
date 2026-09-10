@@ -134,12 +134,21 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     this.busquedaTag.set('');
   }
 
-  private conteoSeleccionadoSignal = signal<ConteoResumen | null>(null);
-  conteoSeleccionado = computed(() => {
-    const explicito = this.conteoSeleccionadoSignal();
-    if (explicito) return explicito;
+  /*
+   * Se guarda la IDENTIDAD del TAG elegido (ubicacionId), no el objeto.
+   *
+   * Guardar el objeto lo congelaba: cuando sincronizar() reemplaza la entrada
+   * en conteosSignal por una nueva con estado 'SINCRONIZADO', este signal
+   * seguía apuntando a la vieja 'FINALIZADO' y la tarjeta quedaba mostrando
+   * "Pendiente de sincronizar" aunque el TAG ya hubiera subido — el caso que
+   * más se notaba al mandar varios de una vez.
+   */
+  private conteoSeleccionadoIdSignal = signal<number | null>(null);
+  conteoSeleccionado = computed<ConteoResumen | null>(() => {
     const conteos = this.conteosComoPestanas();
-    return conteos.length > 0 ? conteos[0] : null;
+    if (conteos.length === 0) return null;
+    const id = this.conteoSeleccionadoIdSignal();
+    return conteos.find((c) => c.ubicacionId === id) ?? conteos[0];
   });
 
   /*
@@ -386,7 +395,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     const value = (event as CustomEvent<{ value: string | number }>).detail.value;
     this.iteracionSeleccionadaSignal.set(Number(value));
     // Al cambiar de iteración, resetear el conteo seleccionado
-    this.conteoSeleccionadoSignal.set(null);
+    this.conteoSeleccionadoIdSignal.set(null);
     // Y el paginado: el detalle que se muestra es otro, arrancar mostrando todo
     // lo ya expandido de la ronda anterior no tiene sentido.
     this.visiblesTrazabilidad.set(this.PAGE_SIZE);
@@ -394,8 +403,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
 
   onConteoChange(event: Event): void {
     const value = (event as CustomEvent<{ value: string | number }>).detail.value;
-    const conteoId = Number(value);
-    const conteo = this.conteosComoPestanas().find((c) => c.ubicacionId === conteoId);
-    this.conteoSeleccionadoSignal.set(conteo ?? null);
+    const ubicacionId = Number(value);
+    this.conteoSeleccionadoIdSignal.set(Number.isFinite(ubicacionId) ? ubicacionId : null);
   }
 }
