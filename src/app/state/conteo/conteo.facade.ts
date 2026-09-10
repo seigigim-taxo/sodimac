@@ -97,6 +97,18 @@ export class ConteoFacade {
   }
 
   /*
+   * Descripción del producto para el código escaneado, o null si el código no
+   * está en la muestra. La usa el feedback visual del scan: el operador
+   * confirma de un vistazo que el producto que se registró es el que tenía en
+   * la mano, no solo que el SKU coincidió con algún número.
+   */
+  descripcionDe(codigoLectura: string): string | null {
+    const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
+    if (codigoResuelto === null) return null;
+    return this.muestraSet.skuMap.get(codigoResuelto)!.descripcion;
+  }
+
+  /*
    * 'valido'    → el código de lectura está en la muestra y quedó persistido
    * 'rechazado' → el código de lectura no está en la muestra (feedback rojo)
    * 'error'     → el código era válido pero la escritura falló (detalle en error())
@@ -118,7 +130,7 @@ export class ConteoFacade {
       return 'rechazado';
     }
 
-    const productoId = this.muestraSet.skuMap.get(codigoResuelto)!;
+    const productoId = this.muestraSet.skuMap.get(codigoResuelto)!.productoId;
 
     this.errorSignal.set(null);
     let persistido = false;

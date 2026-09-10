@@ -73,6 +73,7 @@ interface ResultadoScan {
   sku: string;
   estado: 'OK' | 'FUERA_DE_MUESTRA' | 'ERROR';
   mensaje?: string;
+  descripcion?: string | null;
 }
 
 @Component({
@@ -414,6 +415,15 @@ export class CountingPageComponent implements ViewWillEnter {
       return;
     }
 
+    /*
+     * Destello y banner verde ya acá, apenas se reconoce el SKU — igual que en
+     * modo "uno". Todavía no se escribió nada (falta la cantidad), pero el
+     * operador con pistola mira la pantalla por el rabillo del ojo entre
+     * disparo y disparo, y esperar hasta guardar dejaba el modo "cantidad" sin
+     * ninguna señal en el momento que sí importa: el del escaneo.
+     */
+    this.setLastScan({ sku: codigo, estado: 'OK', descripcion: this.conteo.descripcionDe(codigo) });
+
     this.cantidad.set(null);
     this.skuPendiente.set({ codigo, medio: capturado.medio });
     // El foco lo cede ScanComponent vía [cederFoco]; acá se lo lleva la cantidad.
@@ -468,7 +478,11 @@ export class CountingPageComponent implements ViewWillEnter {
     if (resultado === 'error') {
       this.setLastScan({ sku: codigo, estado: 'ERROR', mensaje: this.conteo.error() ?? 'No se pudo registrar el scan' });
     } else {
-      this.setLastScan({ sku: codigo, estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA' });
+      this.setLastScan({
+        sku: codigo,
+        estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA',
+        descripcion: resultado === 'valido' ? this.conteo.descripcionDe(codigo) : undefined,
+      });
 
       // Si el resumen está visible, recargarlo para actualizar el % de avance
       if (this.resumenVisible() && resultado === 'valido') {

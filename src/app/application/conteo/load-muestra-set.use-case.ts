@@ -2,8 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 
+export interface InfoProductoMuestra {
+  productoId: number;
+  descripcion: string | null;
+}
+
 export interface MuestraSet {
-  skuMap: Map<string, number>; // codigo_lectura (uppercase) → productoId
+  skuMap: Map<string, InfoProductoMuestra>; // codigo_lectura (uppercase) → producto
 }
 
 @Injectable({ providedIn: 'root' })
@@ -18,9 +23,9 @@ export class LoadMuestraSetUseCase {
     }
 
     const codigos = await this.detalleRepo.getCodigosByMuestra(muestra.id);
-    const skuMap = new Map<string, number>();
+    const skuMap = new Map<string, InfoProductoMuestra>();
     for (const c of codigos) {
-      skuMap.set(c.codigoLectura, c.productoId);
+      skuMap.set(c.codigoLectura, { productoId: c.productoId, descripcion: c.descripcion });
     }
 
     return { skuMap };

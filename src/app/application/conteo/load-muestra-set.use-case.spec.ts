@@ -15,8 +15,8 @@ describe('LoadMuestraSetUseCase', () => {
 
     muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, numeroAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
     detalleRepo.getCodigosByMuestra.and.resolveTo([
-      { codigoLectura: 'AF001', productoId: 100 },
-      { codigoLectura: '7891234567890', productoId: 200 },
+      { codigoLectura: 'AF001', productoId: 100, descripcion: 'Taladro' },
+      { codigoLectura: '7891234567890', productoId: 200, descripcion: null },
     ]);
 
     TestBed.configureTestingModule({
@@ -38,8 +38,8 @@ describe('LoadMuestraSetUseCase', () => {
   it('indexa los códigos de lectura en mayúsculas para que el scan no falle por caja', async () => {
     const { skuMap } = await useCase.execute(1, 1);
 
-    expect(skuMap.get('AF001')).toBe(100);
-    expect(skuMap.get('7891234567890')).toBe(200);
+    expect(skuMap.get('AF001')).toEqual({ productoId: 100, descripcion: 'Taladro' });
+    expect(skuMap.get('7891234567890')).toEqual({ productoId: 200, descripcion: null });
   });
 
   it('devuelve un set vacío si la ronda no tiene muestra', async () => {

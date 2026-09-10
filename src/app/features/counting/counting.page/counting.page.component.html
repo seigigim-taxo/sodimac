@@ -167,7 +167,9 @@
     @if (lastScan(); as scan) {
     @if (scan.estado === 'OK') {
     <div class="status-banner status-banner-success mb-3">
-      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
+      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span>
+        @if (scan.descripcion) { — {{ scan.descripcion }} }
+      </span>
     </div>
     } @else if (scan.estado === 'ERROR') {
     <div class="status-banner status-banner-error mb-3">
