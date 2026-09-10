@@ -13,6 +13,7 @@ import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.mo
 import { TagFinalizadoPayload, TagFinalizadoLecturaPayload, detalleUid, lecturaUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 import { ConteoLectura } from '../../domain/conteo/models/conteo-lectura.model';
+import { ConteoLecturaSesion } from '../../domain/conteo/models/conteo-lectura-sesion.model';
 import { ahoraSql, ahoraSqlMs, selloUid } from '../../shared/utils/fecha.utils';
 
 /*
@@ -260,6 +261,138 @@ export class SqliteConteoRepository implements ConteoRepository {
       cantidad:      row['cantidad']       as number,
       fechaHora:     row['fecha_hora']     as string,
     }));
+  }
+
+  async getLecturasSesion(
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
+  ): Promise<ConteoLecturaSesion[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT l.id AS lectura_id, l.detalle_id, d.producto_id,
+              p.sku, p.descripcion,
+              l.codigo_lectura, l.medio_captura, l.cantidad, l.fecha_hora
+       FROM sod_conteo_lectura l
+       JOIN sod_conteo_detalle d ON d.id = l.detalle_id
+       JOIN sod_producto        p ON p.id = d.producto_id
+       WHERE d.conteo_id = ? AND d.ubicacion_id = ?
+         AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
+       ORDER BY l.id`,
+      [conteoId, ubicacionId, operadorId, pdaId]
+    );
+    return (result.values ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        lecturaId:     row['lectura_id']    as number,
+        detalleId:     row['detalle_id']    as number,
+        productoId:    row['producto_id']   as number,
+        sku:           row['sku']           as string,
+        descripcion:   (row['descripcion']  as string | null) ?? null,
+        codigoLectura: (row['codigo_lectura'] as string | null) ?? null,
+        medioCaptura:  row['medio_captura'] as MedioCaptura,
+        cantidad:      row['cantidad']      as number,
+        fechaHora:     row['fecha_hora']    as string,
+      };
+    });
+  }
+
+  /*
+   * A diferencia de adjust(), que AGREGA un movimiento, acá se MUTA la cantidad
+   * de una lectura ya registrada. Se permite solo mientras el detalle está
+   * EN_CURSO —no sincronizado, nada viajó— y la fila nunca se borra por este
+   * camino: bajarla a 0 la deja en 0, que sigue siendo constancia de que ese
+   * código se leyó. El detalle padre se mueve por el mismo delta real para
+   * sostener el invariante SUM(lecturas) == cantidad_fisica.
+   */
+  async adjustLectura(lecturaId: number, delta: number): Promise<ConteoItem> {
+    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
+      const lecturaRow = await db.query(
+        `SELECT l.cantidad, l.detalle_id,
+                d.conteo_id, d.ubicacion_id, d.producto_id,
+                d.operador_id, d.pda_id, d.estado
+         FROM sod_conteo_lectura l
+         JOIN sod_conteo_detalle d ON d.id = l.detalle_id
+         WHERE l.id = ?`,
+        [lecturaId]
+      );
+      const lectura = lecturaRow.values?.[0] as Record<string, unknown> | undefined;
+      if (!lectura) {
+        throw new Error('No se encontró la lectura para ajustar');
+      }
+      if ((lectura['estado'] as EstadoConteo) !== 'EN_CURSO') {
+        throw new Error('Esta lectura ya se cerró y no se puede modificar.');
+      }
+
+      const cantidadPrevia = lectura['cantidad'] as number;
+      const detalleId      = lectura['detalle_id'] as number;
+      const cantidadNueva  = Math.max(0, cantidadPrevia + delta);
+      const movimiento     = cantidadNueva - cantidadPrevia;
+
+      if (movimiento !== 0) {
+        await db.run(
+          `UPDATE sod_conteo_lectura SET cantidad = ?, fecha_hora = ? WHERE id = ?`,
+          [cantidadNueva, ahoraSqlMs(), lecturaId],
+          false
+        );
+        await db.run(
+          `UPDATE sod_conteo_detalle
+           SET cantidad_fisica = MAX(0, cantidad_fisica + ?), fecha_hora = ?
+           WHERE id = ?`,
+          [movimiento, ahoraSql(), detalleId],
+          false
+        );
+      }
+
+      return this.fetchOne(
+        lectura['conteo_id']    as number,
+        lectura['ubicacion_id'] as number,
+        lectura['producto_id']  as number,
+        lectura['operador_id']  as number,
+        lectura['pda_id']       as number,
+      );
+    });
+  }
+
+  async deleteLectura(lecturaId: number): Promise<void> {
+    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
+      const lecturaRow = await db.query(
+        `SELECT l.cantidad, l.detalle_id, d.estado
+         FROM sod_conteo_lectura l
+         JOIN sod_conteo_detalle d ON d.id = l.detalle_id
+         WHERE l.id = ?`,
+        [lecturaId]
+      );
+      const lectura = lecturaRow.values?.[0] as Record<string, unknown> | undefined;
+      if (!lectura) return;
+      if ((lectura['estado'] as EstadoConteo) !== 'EN_CURSO') {
+        throw new Error('Esta lectura ya se cerró y no se puede eliminar.');
+      }
+
+      const cantidad  = lectura['cantidad'] as number;
+      const detalleId = lectura['detalle_id'] as number;
+
+      await db.run(`DELETE FROM sod_conteo_lectura WHERE id = ?`, [lecturaId], false);
+
+      const restantesRow = await db.query(
+        `SELECT COUNT(*) AS n FROM sod_conteo_lectura WHERE detalle_id = ?`,
+        [detalleId]
+      );
+      const restantes = (restantesRow.values?.[0] as Record<string, unknown>)['n'] as number;
+
+      if (restantes === 0) {
+        // Sin capturas el detalle no representa nada: se va con la última.
+        await db.run(`DELETE FROM sod_conteo_detalle WHERE id = ?`, [detalleId], false);
+      } else {
+        await db.run(
+          `UPDATE sod_conteo_detalle
+           SET cantidad_fisica = MAX(0, cantidad_fisica - ?), fecha_hora = ?
+           WHERE id = ?`,
+          [cantidad, ahoraSql(), detalleId],
+          false
+        );
+      }
+
+      if (isDevMode()) console.log('[ConteoRepo] deleteLectura', { lecturaId, detalleId, restantes });
+    });
   }
 
   async adjust(

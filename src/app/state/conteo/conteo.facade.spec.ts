@@ -35,8 +35,12 @@ describe('ConteoFacade', () => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', [
       'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag',
       'getRondaAbierta', 'getUltimaRonda', 'abrirRonda',
+      'getLecturasSesion', 'adjustLectura', 'deleteLectura',
     ]);
     conteoRepo.getBySesion.and.resolveTo([]);
+    conteoRepo.getLecturasSesion.and.resolveTo([]);
+    conteoRepo.adjustLectura.and.resolveTo(item());
+    conteoRepo.deleteLectura.and.resolveTo();
     conteoRepo.upsert.and.resolveTo(item());
     conteoRepo.cerrarTag.and.resolveTo();
     // La ronda abierta es lo que ConteoFacade.init() resuelve antes de dejar contar.

@@ -13,10 +13,15 @@ import { MedioCaptura } from './medio-captura.model';
  * servidor no es razón para tirar dato en la PDA, así que local se guarda
  * completo y el payload se deriva.
  *
- * SOLO SE AGREGA. Quitar unidades no deshace una captura anterior: agrega un
- * movimiento negativo. Así un escaneo sigue constando aunque después se haya
- * retractado — mutar el historial para que el saldo quede prolijo perdería
- * justo el dato por el que esto existe.
+ * SOLO SE AGREGA — con una excepción acotada. Los movimientos del SGO y todo lo
+ * ya sincronizado son inmutables: quitar unidades ahí agrega un movimiento
+ * negativo, no deshace la captura anterior, para que un escaneo siga constando
+ * aunque después se haya retractado.
+ *
+ * Lo que SÍ se puede corregir es una lectura de la sesión EN_CURSO desde la
+ * lista de la pantalla de conteo (+/- y borrado sobre la fila): nada de eso
+ * viajó todavía, y la fila nunca se elimina al bajarla —queda en 0—, así que
+ * la constancia de "este código se leyó" se mantiene igual.
  *
  * INVARIANTE: la suma de los movimientos de un detalle da su cantidad_fisica.
  * Todo pasa por acá: los scans, los botones +/- y la declaración de cantidad 0

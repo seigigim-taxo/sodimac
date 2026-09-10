@@ -6,8 +6,13 @@ import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
 import { FinalizarSesionConteoUseCase } from '../../application/conteo/finalizar-sesion-conteo.use-case';
 import { AsegurarRondaAbiertaUseCase } from '../../application/conteo/asegurar-ronda-abierta.use-case';
+import { GetConteoDetalleUseCase } from '../../application/conteo/get-conteo-detalle.use-case';
+import { GetLecturasSesionUseCase } from '../../application/conteo/get-lecturas-sesion.use-case';
+import { AdjustConteoLecturaUseCase } from '../../application/conteo/adjust-conteo-lectura.use-case';
+import { DeleteConteoLecturaUseCase } from '../../application/conteo/delete-conteo-lectura.use-case';
 import { WriteQueue } from '../../core/utils/write-queue';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
+import { ConteoLecturaSesion } from '../../domain/conteo/models/conteo-lectura-sesion.model';
 import { SesionConteo } from '../../domain/conteo/models/sesion-conteo.model';
 import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 export type { ConteoItem, SesionConteo };
@@ -21,9 +26,14 @@ export class ConteoFacade {
   private deleteItem    = inject(DeleteConteoItemUseCase);
   private finalizarUC   = inject(FinalizarSesionConteoUseCase);
   private asegurarRonda = inject(AsegurarRondaAbiertaUseCase);
+  private getItems      = inject(GetConteoDetalleUseCase);
+  private getLecturas   = inject(GetLecturasSesionUseCase);
+  private adjustLecturaUC = inject(AdjustConteoLecturaUseCase);
+  private deleteLecturaUC = inject(DeleteConteoLecturaUseCase);
 
   private sesionSignal     = signal<SesionConteo | null>(null);
   private itemsSignal      = signal<ConteoItem[]>([]);
+  private lecturasSignal   = signal<ConteoLecturaSesion[]>([]);
   private rechazadosSignal = signal<string[]>([]);
   private loadingSignal    = signal(false);
   private errorSignal      = signal<string | null>(null);
@@ -37,6 +47,7 @@ export class ConteoFacade {
 
   readonly sesion     = this.sesionSignal.asReadonly();
   readonly items      = this.itemsSignal.asReadonly();
+  readonly lecturas   = this.lecturasSignal.asReadonly();
   readonly rechazados = this.rechazadosSignal.asReadonly();
   readonly loading    = this.loadingSignal.asReadonly();
   readonly error      = this.errorSignal.asReadonly();
@@ -65,6 +76,7 @@ export class ConteoFacade {
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
+      await this.recargarLecturas();
     } catch (err) {
       console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
@@ -116,12 +128,71 @@ export class ConteoFacade {
           sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, cantidad, codigoResuelto, medioCaptura
         );
         this.upsertItemEnMemoria(item);
+        await this.recargarLecturas();
         persistido = true;
       } catch (err) {
         this.errorSignal.set(err instanceof Error ? err.message : 'Error al registrar scan');
       }
     });
     return persistido ? 'valido' : 'error';
+  }
+
+  /*
+   * +/- sobre UNA lectura de la lista. Mueve unidades de esa captura y su
+   * detalle padre a la vez; el guard de estado (solo EN_CURSO) está en el
+   * repositorio. Serializado en la misma cola que los scans.
+   */
+  async adjustLectura(lecturaId: number, delta: number): Promise<void> {
+    const sesion = this.sesionSignal();
+    if (!sesion || this.finalizadaSignal()) return;
+    await this.writeQueue.enqueue(async () => {
+      try {
+        const item = await this.adjustLecturaUC.execute(lecturaId, delta);
+        this.upsertItemEnMemoria(item);
+        await this.recargarLecturas();
+      } catch (err) {
+        this.errorSignal.set(err instanceof Error ? err.message : 'Error al ajustar la lectura');
+      }
+    });
+  }
+
+  /* Borra UNA lectura. Si su detalle queda sin capturas, se va también. */
+  async deleteLectura(lecturaId: number): Promise<void> {
+    const sesion = this.sesionSignal();
+    if (!sesion || this.finalizadaSignal()) return;
+    await this.writeQueue.enqueue(async () => {
+      try {
+        await this.deleteLecturaUC.execute(lecturaId);
+        await this.recargarItems();
+        await this.recargarLecturas();
+      } catch (err) {
+        this.errorSignal.set(err instanceof Error ? err.message : 'Error al eliminar la lectura');
+      }
+    });
+  }
+
+  private async recargarLecturas(): Promise<void> {
+    const sesion = this.sesionSignal();
+    if (!sesion) {
+      this.lecturasSignal.set([]);
+      return;
+    }
+    this.lecturasSignal.set(
+      await this.getLecturas.execute(sesion.conteoId, sesion.ubicacionId, sesion.operadorId, sesion.pdaId)
+    );
+  }
+
+  /*
+   * Recarga el agregado por SKU. Solo hace falta tras borrar una lectura: ahí
+   * un detalle puede desaparecer entero, y upsertItemEnMemoria no sabe quitar
+   * filas. Para scan y adjust basta con reemplazar el item que devuelve el repo.
+   */
+  private async recargarItems(): Promise<void> {
+    const sesion = this.sesionSignal();
+    if (!sesion) return;
+    this.itemsSignal.set(
+      await this.getItems.execute(sesion.conteoId, sesion.ubicacionId, sesion.operadorId, sesion.pdaId, 'EN_CURSO')
+    );
   }
 
   async adjust(productoId: number, delta: number): Promise<void> {
@@ -172,6 +243,7 @@ export class ConteoFacade {
   reset(): void {
     this.sesionSignal.set(null);
     this.itemsSignal.set([]);
+    this.lecturasSignal.set([]);
     this.rechazadosSignal.set([]);
     this.errorSignal.set(null);
     this.recoveredSignal.set(false);

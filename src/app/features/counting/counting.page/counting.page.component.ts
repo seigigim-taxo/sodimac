@@ -49,6 +49,20 @@ import { HeaderStatusComponent } from '../../../shared/components/header-status/
 interface ItemVista { productoId: number; sku: string; descripcion: string; cantidad: number; }
 
 /*
+ * Una fila de la lista "Productos de este TAG": es una LECTURA, no el agregado
+ * por SKU. Escanear 1234x con 12, después 1234x con 5, son dos filas. Los +/-
+ * y el tacho operan sobre la lectura; el total del SKU se recalcula aparte para
+ * la confirmación de "0 unidades".
+ */
+interface LecturaVista {
+  lecturaId:   number;
+  productoId:  number;
+  sku:         string;
+  descripcion: string;
+  cantidad:    number;
+}
+
+/*
  * Resultado del último escaneo, para el banner bajo el escáner:
  *  - OK                → registrado
  *  - FUERA_DE_MUESTRA  → el SKU no pertenece a la muestra de esta iteración
@@ -192,6 +206,23 @@ export class CountingPageComponent implements ViewWillEnter {
     cantidad:    i.cantidadFisica,
   })));
 
+  // Lista de la pantalla: una fila por lectura, en orden de captura.
+  lecturasView = computed<LecturaVista[]>(() => this.conteo.lecturas().map((l) => ({
+    lecturaId:   l.lecturaId,
+    productoId:  l.productoId,
+    sku:         l.sku,
+    descripcion: l.descripcion ?? l.sku,
+    cantidad:    l.cantidad,
+  })));
+
+  // Total de unidades de un SKU: suma de todas sus lecturas. Lo usa la
+  // confirmación de "0 unidades", que mira el SKU entero, no la lectura suelta.
+  private totalDelSku(productoId: number): number {
+    return this.lecturasView()
+      .filter((l) => l.productoId === productoId)
+      .reduce((sum, l) => sum + l.cantidad, 0);
+  }
+
   /*
    * Color de fondo de toda la pantalla, atado al mismo lastScan que el banner.
    *
@@ -219,12 +250,12 @@ export class CountingPageComponent implements ViewWillEnter {
   // Q contado del tag en curso: suma de unidades escaneadas, no cantidad de SKU distintos.
   totalUnidades = computed(() => this.itemsView().reduce((sum, i) => sum + i.cantidad, 0));
 
-  // Filtra la lista de productos ya escaneados por SKU o descripción — no afecta el conteo, solo la vista.
+  // Filtra la lista de lecturas por SKU o descripción — no afecta el conteo, solo la vista.
   itemsFiltrados = computed(() => {
     const q = this.busquedaSku().trim().toUpperCase();
-    const base = this.itemsView();
+    const base = this.lecturasView();
     if (!q) return base;
-    return base.filter((i) => i.sku.includes(q) || i.descripcion.toUpperCase().includes(q));
+    return base.filter((l) => l.sku.includes(q) || l.descripcion.toUpperCase().includes(q));
   });
 
   // Paginado de la lista visible: arranca en 5 y crece de 5 en 5 con "Ver más".
@@ -524,26 +555,32 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   /*
-   * Los botones +/- de la lista pueden llegar a 0: dejar un SKU en cero es un dato
-   * válido y es distinto de borrarlo del conteo. Como el cero es una declaración
-   * (no hay unidades), se confirma igual que al escanearlo.
+   * Los +/- operan sobre UNA lectura de la lista. Bajar una lectura a 0 la deja
+   * en 0 —no la borra— porque sigue siendo constancia de que ese código se leyó.
+   *
+   * La confirmación de "0 unidades" mira el TOTAL del SKU (suma de sus
+   * lecturas), no la lectura suelta: dejar una captura en 0 mientras otras
+   * tienen unidades no es una declaración de que el SKU está vacío.
+   *
+   * Sin alerta de cantidad alta: +1 no es un error de tipeo, y dispararla al
+   * cruzar el umbral la volvería ruido en cada clic.
    */
-  async adjust(productoId: number, delta: number): Promise<void> {
-    const item = this.itemsView().find((i) => i.productoId === productoId);
-    if (!item) return;
+  async adjustLectura(lecturaId: number, delta: number): Promise<void> {
+    const lectura = this.lecturasView().find((l) => l.lecturaId === lecturaId);
+    if (!lectura) return;
 
-    const siguiente = Math.max(0, item.cantidad + delta);
+    const siguiente = Math.max(0, lectura.cantidad + delta);
     // Ya está en 0 y se sigue bajando: no hay nada que confirmar ni que escribir.
-    if (siguiente === item.cantidad) return;
+    if (siguiente === lectura.cantidad) return;
 
-    /*
-     * Solo se controla el cero. La alerta de cantidad alta no aplica acá: +1 no
-     * es un error de tipeo, y dispararla al cruzar el umbral la volvería ruido
-     * en cada clic posterior.
-     */
-    if (siguiente === 0 && !(await this.preguntar('Confirmar cantidad', `¿Confirmas que ${item.sku} tiene 0 unidades?`))) return;
+    const movimiento = siguiente - lectura.cantidad;
+    const totalSku   = this.totalDelSku(lectura.productoId);
+    if (totalSku !== 0 && totalSku + movimiento === 0 &&
+        !(await this.preguntar('Confirmar cantidad', `¿Confirmas que ${lectura.sku} tiene 0 unidades?`))) {
+      return;
+    }
 
-    await this.conteo.adjust(productoId, delta);
+    await this.conteo.adjustLectura(lecturaId, delta);
 
     // Si el resumen está visible, recargarlo para actualizar el % de avance
     if (this.resumenVisible()) {
@@ -551,16 +588,16 @@ export class CountingPageComponent implements ViewWillEnter {
     }
   }
 
-  async delete(productoId: number): Promise<void> {
-    const item = this.itemsView().find((i) => i.productoId === productoId);
-    if (!item) return;
+  async deleteLectura(lecturaId: number): Promise<void> {
+    const lectura = this.lecturasView().find((l) => l.lecturaId === lecturaId);
+    if (!lectura) return;
     const alert = await this.alertController.create({
-      header:  'Eliminar producto',
-      message: `¿Eliminar ${item.descripcion} (cantidad ${item.cantidad}) del conteo?`,
+      header:  'Eliminar lectura',
+      message: `¿Eliminar esta lectura de ${lectura.descripcion} (cantidad ${lectura.cantidad})?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         { text: 'Eliminar', role: 'destructive', handler: async () => {
-          await this.conteo.delete(productoId);
+          await this.conteo.deleteLectura(lecturaId);
           // Si el resumen está visible, recargarlo para actualizar el % de avance
           if (this.resumenVisible()) {
             void this.cargarResumen();
