@@ -4,7 +4,6 @@ import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo
 import { TagFinalizadoPayloadAlmacenado, TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { ValidacionAnalistaPayloadAlmacenado, ValidacionAnalistaResponse } from '../../domain/sincronizacion/models/validacion-analista.model';
 import { ApiService } from '../../core/http/api.service';
-import { environment } from '../../../environments/environment';
 
 export interface ResultadoEnviarPendientes {
   enviados: number;
@@ -40,7 +39,7 @@ export class EnviarPendientesUseCase {
         } else {
           const payload: TagFinalizadoPayloadAlmacenado = JSON.parse(item.payloadJson);
           const response = await this.api.post<TagFinalizadoResponse>(
-            environment.tagFinalizadoEndpoint,
+            'sincronizaciones/tag-finalizado.php',
             payload,
           );
           await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.total_productos);

@@ -18,7 +18,7 @@ function resumen(tagsFinalizados: number): ResumenEvento {
 }
 
 const TRAZA: ConteoTrazabilidadItem = {
-  lecturaId: 1, iteracion: 1, conteoId: 1, tag: '104',
+  iteracion: 1, conteoId: 1, tag: '104',
   zonaCodigo: 'SALA_VENTAS', zonaNombre: 'Sala de ventas',
   sku: '1234567', descripcion: 'Taladro',
   stockSistema: 5, cantidadFisica: 4,

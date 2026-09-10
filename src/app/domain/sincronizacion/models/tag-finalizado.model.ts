@@ -2,23 +2,27 @@ import { MedioCaptura } from '../../conteo/models/medio-captura.model';
 import { selloUid } from '../../../shared/utils/fecha.utils';
 
 /*
- * Una lectura individual de la línea: cada fila de sod_conteo_lectura
- * se envía como una entrada independiente.
+ * Un código usado en la línea, cómo entró y cuántas unidades le corresponden.
  *
- * `lectura_uid` es el identificador único y estable de cada lectura,
- * usado como p_id_origen_externo en el SP para deduplicación.
+ * Va agrupado por (código, medio): diez escaneos del mismo EAN son una entrada
+ * con la suma, no diez entradas. La PDA sí guarda el detalle captura por
+ * captura — acá se manda el agregado que el SGO necesita.
  *
- * `cantidad` es el movimiento neto de esa captura y PUEDE SER NEGATIVA o cero.
- * La suma de todas las lecturas da cantidad_fisica del detalle padre.
+ * `cantidad` es el movimiento neto de unidades de ese par y PUEDE SER NEGATIVA
+ * o cero: quitar unidades agrega un movimiento negativo en vez de borrar la
+ * captura anterior. La suma de todas las lecturas da cantidad_fisica.
  *
- * `codigo_lectura` es NULO para los ajustes con los botones +/-.
+ * `codigo_lectura` es NULO para los ajustes con los botones +/-, que mueven
+ * unidades sin que el operador lea nada.
+ *
+ * IMPORTANTE para el reporte: "¿se escaneó este código?" se responde por la
+ * PRESENCIA del par (código, medio), no por el signo de `cantidad`. Un código
+ * escaneado y después retractado suma cero y sigue siendo un código escaneado.
  */
 export interface TagFinalizadoLecturaPayload {
-  lectura_uid: string;
   codigo_lectura: string | null;
   medio_captura: MedioCaptura;
   cantidad: number;
-  fecha_hora: string;
 }
 
 /*
@@ -45,19 +49,6 @@ export interface TagFinalizadoLecturaPayload {
  */
 export function detalleUid(cargaUid: string, detalleId: number, fechaPrimeraLectura: string): string {
   return `${cargaUid}-DET${detalleId}-${selloUid(fechaPrimeraLectura)}`;
-}
-
-/*
- * Identificador único y estable de una lectura individual dentro de una carga.
- * Se usa como p_id_origen_externo en el SP para deduplicación.
- *
- * El UID combina cargaUid + detalleId + lecturaId (id de sod_conteo_lectura).
- * Como el id de la tabla es autoincremental y estable, el UID será igual
- * entre un envío fallido y su reintento, siempre que no se borren filas de
- * sod_conteo_lectura entre ambos intentos.
- */
-export function lecturaUid(cargaUid: string, detalleId: number, lecturaId: number): string {
-  return `${cargaUid}-DET${detalleId}-LECT${lecturaId}`;
 }
 
 export interface TagFinalizadoDetallePayload {

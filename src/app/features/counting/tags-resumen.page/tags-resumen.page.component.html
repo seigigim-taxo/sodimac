@@ -207,7 +207,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (item of trazabilidadPaginada(); track item.lecturaId) {
+            @for (item of trazabilidadPaginada(); track item.conteoId + '-' + item.sku) {
             <tr style="border-bottom: 1px solid var(--app-border);">
               <td class="text-[12px] py-1.5 px-2 num" style="color: var(--app-text);">{{ item.tag ?? '—' }}</td>
               <td class="text-[12px] py-1.5 px-2 num font-semibold" style="color: var(--app-text);">{{ item.sku }}</td>

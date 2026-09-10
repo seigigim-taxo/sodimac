@@ -167,9 +167,7 @@
     @if (lastScan(); as scan) {
     @if (scan.estado === 'OK') {
     <div class="status-banner status-banner-success mb-3">
-      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span>
-        @if (scan.descripcion) { — {{ scan.descripcion }} }
-      </span>
+      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span></span>
     </div>
     } @else if (scan.estado === 'ERROR') {
     <div class="status-banner status-banner-error mb-3">
@@ -226,7 +224,7 @@
     }
 
 
-    @if (lecturasView().length > 0) {
+    @if (itemsView().length > 0) {
     <div class="mt-6">
       <p class="field-label mb-3">Productos de este TAG</p>
 
@@ -241,26 +239,22 @@
       </p>
       }
 
-      <!--
-        Una fila por LECTURA, no por SKU: escanear 1234x con 12 y después 1234x
-        con 5 son dos filas. Los +/- y el tacho actúan sobre esa lectura.
-      -->
       <div class="flex flex-col gap-2.5">
-        @for (item of itemsPaginados(); track item.lecturaId) {
+        @for (item of itemsPaginados(); track item.productoId) {
         <div class="item-row">
           <div class="min-w-0">
             <p class="item-sku">{{ item.sku }}</p>
             <p class="item-desc">{{ item.descripcion }}</p>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, -1)">
+            <ion-button class="step-btn" (click)="adjust(item.productoId, -1)">
               <ion-icon slot="icon-only" name="remove-outline" style="font-size: 0.9rem;"></ion-icon>
             </ion-button>
             <span class="qty-chip">{{ item.cantidad }}</span>
-            <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, 1)" style="--color: var(--app-primary);">
+            <ion-button class="step-btn" (click)="adjust(item.productoId, 1)" style="--color: var(--app-primary);">
               <ion-icon slot="icon-only" name="add-outline" style="font-size: 0.9rem;"></ion-icon>
             </ion-button>
-            <ion-button class="step-btn step-btn-danger" (click)="deleteLectura(item.lecturaId)">
+            <ion-button class="step-btn step-btn-danger" (click)="delete(item.productoId)">
               <ion-icon slot="icon-only" name="trash-outline" style="font-size: 0.95rem;"></ion-icon>
             </ion-button>
           </div>

@@ -8,7 +8,6 @@ import { MuestraDetalle } from '../models/muestra-detalle.model';
 export interface CodigoProductoMuestra {
   codigoLectura: string;
   productoId: number;
-  descripcion: string | null;
 }
 
 /*

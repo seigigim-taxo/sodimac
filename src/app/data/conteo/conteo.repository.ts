@@ -10,10 +10,9 @@ import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.
 import { ConteoTrazabilidadItem } from '../../domain/conteo/models/conteo-trazabilidad-item.model';
 import { EstadoConteo } from '../../domain/conteo/models/estado-conteo.model';
 import { BusquedaSkuResultado } from '../../domain/conteo/models/busqueda-sku.model';
-import { TagFinalizadoPayload, TagFinalizadoLecturaPayload, detalleUid, lecturaUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
+import { TagFinalizadoPayload, TagFinalizadoLecturaPayload, detalleUid } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { MedioCaptura } from '../../domain/conteo/models/medio-captura.model';
 import { ConteoLectura } from '../../domain/conteo/models/conteo-lectura.model';
-import { ConteoLecturaSesion } from '../../domain/conteo/models/conteo-lectura-sesion.model';
 import { ahoraSql, ahoraSqlMs, selloUid } from '../../shared/utils/fecha.utils';
 
 /*
@@ -261,138 +260,6 @@ export class SqliteConteoRepository implements ConteoRepository {
       cantidad:      row['cantidad']       as number,
       fechaHora:     row['fecha_hora']     as string,
     }));
-  }
-
-  async getLecturasSesion(
-    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
-  ): Promise<ConteoLecturaSesion[]> {
-    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
-    const result = await db.query(
-      `SELECT l.id AS lectura_id, l.detalle_id, d.producto_id,
-              p.sku, p.descripcion,
-              l.codigo_lectura, l.medio_captura, l.cantidad, l.fecha_hora
-       FROM sod_conteo_lectura l
-       JOIN sod_conteo_detalle d ON d.id = l.detalle_id
-       JOIN sod_producto        p ON p.id = d.producto_id
-       WHERE d.conteo_id = ? AND d.ubicacion_id = ?
-         AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
-       ORDER BY l.id`,
-      [conteoId, ubicacionId, operadorId, pdaId]
-    );
-    return (result.values ?? []).map((r) => {
-      const row = r as Record<string, unknown>;
-      return {
-        lecturaId:     row['lectura_id']    as number,
-        detalleId:     row['detalle_id']    as number,
-        productoId:    row['producto_id']   as number,
-        sku:           row['sku']           as string,
-        descripcion:   (row['descripcion']  as string | null) ?? null,
-        codigoLectura: (row['codigo_lectura'] as string | null) ?? null,
-        medioCaptura:  row['medio_captura'] as MedioCaptura,
-        cantidad:      row['cantidad']      as number,
-        fechaHora:     row['fecha_hora']    as string,
-      };
-    });
-  }
-
-  /*
-   * A diferencia de adjust(), que AGREGA un movimiento, acá se MUTA la cantidad
-   * de una lectura ya registrada. Se permite solo mientras el detalle está
-   * EN_CURSO —no sincronizado, nada viajó— y la fila nunca se borra por este
-   * camino: bajarla a 0 la deja en 0, que sigue siendo constancia de que ese
-   * código se leyó. El detalle padre se mueve por el mismo delta real para
-   * sostener el invariante SUM(lecturas) == cantidad_fisica.
-   */
-  async adjustLectura(lecturaId: number, delta: number): Promise<ConteoItem> {
-    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
-      const lecturaRow = await db.query(
-        `SELECT l.cantidad, l.detalle_id,
-                d.conteo_id, d.ubicacion_id, d.producto_id,
-                d.operador_id, d.pda_id, d.estado
-         FROM sod_conteo_lectura l
-         JOIN sod_conteo_detalle d ON d.id = l.detalle_id
-         WHERE l.id = ?`,
-        [lecturaId]
-      );
-      const lectura = lecturaRow.values?.[0] as Record<string, unknown> | undefined;
-      if (!lectura) {
-        throw new Error('No se encontró la lectura para ajustar');
-      }
-      if ((lectura['estado'] as EstadoConteo) !== 'EN_CURSO') {
-        throw new Error('Esta lectura ya se cerró y no se puede modificar.');
-      }
-
-      const cantidadPrevia = lectura['cantidad'] as number;
-      const detalleId      = lectura['detalle_id'] as number;
-      const cantidadNueva  = Math.max(0, cantidadPrevia + delta);
-      const movimiento     = cantidadNueva - cantidadPrevia;
-
-      if (movimiento !== 0) {
-        await db.run(
-          `UPDATE sod_conteo_lectura SET cantidad = ?, fecha_hora = ? WHERE id = ?`,
-          [cantidadNueva, ahoraSqlMs(), lecturaId],
-          false
-        );
-        await db.run(
-          `UPDATE sod_conteo_detalle
-           SET cantidad_fisica = MAX(0, cantidad_fisica + ?), fecha_hora = ?
-           WHERE id = ?`,
-          [movimiento, ahoraSql(), detalleId],
-          false
-        );
-      }
-
-      return this.fetchOne(
-        lectura['conteo_id']    as number,
-        lectura['ubicacion_id'] as number,
-        lectura['producto_id']  as number,
-        lectura['operador_id']  as number,
-        lectura['pda_id']       as number,
-      );
-    });
-  }
-
-  async deleteLectura(lecturaId: number): Promise<void> {
-    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
-      const lecturaRow = await db.query(
-        `SELECT l.cantidad, l.detalle_id, d.estado
-         FROM sod_conteo_lectura l
-         JOIN sod_conteo_detalle d ON d.id = l.detalle_id
-         WHERE l.id = ?`,
-        [lecturaId]
-      );
-      const lectura = lecturaRow.values?.[0] as Record<string, unknown> | undefined;
-      if (!lectura) return;
-      if ((lectura['estado'] as EstadoConteo) !== 'EN_CURSO') {
-        throw new Error('Esta lectura ya se cerró y no se puede eliminar.');
-      }
-
-      const cantidad  = lectura['cantidad'] as number;
-      const detalleId = lectura['detalle_id'] as number;
-
-      await db.run(`DELETE FROM sod_conteo_lectura WHERE id = ?`, [lecturaId], false);
-
-      const restantesRow = await db.query(
-        `SELECT COUNT(*) AS n FROM sod_conteo_lectura WHERE detalle_id = ?`,
-        [detalleId]
-      );
-      const restantes = (restantesRow.values?.[0] as Record<string, unknown>)['n'] as number;
-
-      if (restantes === 0) {
-        // Sin capturas el detalle no representa nada: se va con la última.
-        await db.run(`DELETE FROM sod_conteo_detalle WHERE id = ?`, [detalleId], false);
-      } else {
-        await db.run(
-          `UPDATE sod_conteo_detalle
-           SET cantidad_fisica = MAX(0, cantidad_fisica - ?), fecha_hora = ?
-           WHERE id = ?`,
-          [cantidad, ahoraSql(), detalleId],
-          false
-        );
-      }
-
-      if (isDevMode()) console.log('[ConteoRepo] deleteLectura', { lecturaId, detalleId, restantes });
-    });
   }
 
   async adjust(
@@ -771,13 +638,11 @@ export class SqliteConteoRepository implements ConteoRepository {
   ): Promise<ConteoTrazabilidadItem[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT l.id AS lectura_id,
-              c.iteracion, c.id AS conteo_id,
+      `SELECT c.iteracion, c.id AS conteo_id,
               u.tag, z.nombre AS zona_codigo, z.descripcion AS zona_nombre,
               p.sku, p.descripcion,
-              md.stock_sistema, l.cantidad AS cantidad_fisica, d.estado, l.fecha_hora
-       FROM sod_conteo_lectura l
-       JOIN sod_conteo_detalle d ON d.id = l.detalle_id
+              md.stock_sistema, d.cantidad_fisica, d.estado, d.fecha_hora
+       FROM sod_conteo_detalle d
        JOIN sod_conteo   c ON c.id = d.conteo_id
        JOIN sod_producto p ON p.id = d.producto_id
        LEFT JOIN sod_ubicacion u ON u.id = d.ubicacion_id
@@ -787,13 +652,12 @@ export class SqliteConteoRepository implements ConteoRepository {
        LEFT JOIN sod_muestra_detalle md
          ON md.muestra_id = m.id AND md.producto_id = d.producto_id
        WHERE c.evento_id = ? AND d.operador_id = ? AND d.pda_id = ?
-       ORDER BY c.iteracion DESC, u.tag ASC, l.id ASC`,
+       ORDER BY c.iteracion DESC, u.tag ASC, p.sku ASC`,
       [eventoId, operadorId, pdaId]
     );
     const items = (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       return {
-        lecturaId:      row['lectura_id']      as number,
         iteracion:      row['iteracion']      as number,
         conteoId:       row['conteo_id']      as number,
         tag:            row['tag']            as string | null,
@@ -935,42 +799,55 @@ export class SqliteConteoRepository implements ConteoRepository {
     );
 
     /*
-     * Lecturas individuales: cada fila de sod_conteo_lectura se envía como una
-     * entrada independiente en detalle.lecturas[], sin agrupar por código/medio.
-     * El SP recibe una llamada por cada lectura individual.
+     * Las lecturas se traen de una sola consulta para todo el TAG y se agrupan
+     * en memoria: una por detalle serían N consultas contra SQLite en un equipo
+     * lento, y un TAG puede tener cientos de SKU.
      */
     const lecturasRow = await db.query(
-      `SELECT l.id AS lectura_id, l.detalle_id,
-              l.codigo_lectura, l.medio_captura,
-              l.cantidad, l.fecha_hora
+      /*
+       * Acá se aplica el contrato del SGO: una entrada por combinación de
+       * código y medio, con las unidades sumadas. La tabla local guarda una
+       * fila por captura; el agrupado vive en esta consulta y no en el modelo,
+       * para que cambiar el contrato no cueste otra migración.
+       *
+       * La suma da cantidad_fisica, sin excepciones: todo movimiento genera
+       * lectura, incluidos los botones +/- y la declaración de cantidad 0.
+       *
+       * Los ajustes con +/- tienen codigo_lectura nulo y SQLite agrupa los
+       * nulos entre sí, así que quedan como una sola entrada por detalle con el
+       * neto de lo movido a mano.
+       *
+       * Una entrada puede venir con cantidad negativa o cero — un código
+       * escaneado y después retractado. No se filtra: la presencia del par
+       * (código, medio) es lo que dice cómo entró ese código, y eso vale aunque
+       * el neto sea cero.
+       *
+       * Se ordena por la primera aparición, que es el orden real en que el
+       * operador usó cada código.
+       */
+      `SELECT l.detalle_id, l.codigo_lectura, l.medio_captura,
+              SUM(l.cantidad) AS cantidad
        FROM sod_conteo_lectura l
        JOIN sod_conteo_detalle d ON d.id = l.detalle_id
        WHERE d.conteo_id = ? AND d.ubicacion_id = ?
          AND d.operador_id = ? AND d.pda_id = ?
          AND d.estado = 'FINALIZADO'
-       ORDER BY l.id`,
+       GROUP BY l.detalle_id, l.codigo_lectura, l.medio_captura
+       ORDER BY MIN(l.id)`,
       [conteo.conteoId, conteo.ubicacionId, conteo.operadorId, conteo.pdaId]
     );
 
-    const lecturasPorDetalle = new Map<number, TagFinalizadoLecturaPayload[]>();
-    for (const row of (lecturasRow.values ?? []) as Record<string, unknown>[]) {
-      const detalleId = row['detalle_id'] as number;
-      const lecturaId = row['lectura_id'] as number;
-      const lista = lecturasPorDetalle.get(detalleId) ?? [];
-      lista.push({
-        lectura_uid:    lecturaUid(cargaUid, detalleId, lecturaId),
-        codigo_lectura: (row['codigo_lectura'] as string | null) ?? null,
-        medio_captura:  row['medio_captura']  as MedioCaptura,
-        cantidad:       row['cantidad']       as number,
-        fecha_hora:     row['fecha_hora']     as string,
-      });
-      lecturasPorDetalle.set(detalleId, lista);
-    }
-
     /*
-     * PRIMERA lectura de cada línea: se usa para armar el detalle_uid.
-     * El sello de tiempo en el UID debe ser el de la primera captura, no el
-     * del momento del cierre, para que el UID sea estable entre reintentos.
+     * El instante en que cada producto entró al TAG: la PRIMERA lectura de la
+     * línea, que es la de menor id porque la tabla solo se agrega.
+     *
+     * Tiene que ser la primera y no la última: el detalle_uid se arma con esto,
+     * y un identificador que cambia entre un envío fallido y su reintento haría
+     * que el SGO —que deduplica por detalle_uid— insertara el producto dos
+     * veces en vez de reconocerlo.
+     *
+     * Se va por MIN(id) y no por MIN(fecha_hora): el id es el orden real de
+     * captura, la fecha es solo lo que decía el reloj.
      */
     const primeraLecturaRow = await db.query(
       `SELECT l.detalle_id, l.fecha_hora
@@ -989,6 +866,19 @@ export class SqliteConteoRepository implements ConteoRepository {
     const primeraLecturaPorDetalle = new Map<number, string>();
     for (const row of (primeraLecturaRow.values ?? []) as Record<string, unknown>[]) {
       primeraLecturaPorDetalle.set(row['detalle_id'] as number, row['fecha_hora'] as string);
+    }
+
+    const lecturasPorDetalle = new Map<number, TagFinalizadoLecturaPayload[]>();
+    for (const row of (lecturasRow.values ?? []) as Record<string, unknown>[]) {
+      const detalleId = row['detalle_id'] as number;
+      const lista = lecturasPorDetalle.get(detalleId) ?? [];
+      lista.push({
+        // Nulo en los ajustes con +/-: mueven unidades sin leer ningún código.
+        codigo_lectura: (row['codigo_lectura'] as string | null) ?? null,
+        medio_captura:  row['medio_captura']  as MedioCaptura,
+        cantidad:       row['cantidad']       as number,
+      });
+      lecturasPorDetalle.set(detalleId, lista);
     }
 
     const detalles = (detallesRow.values ?? []).map((row: Record<string, unknown>) => ({

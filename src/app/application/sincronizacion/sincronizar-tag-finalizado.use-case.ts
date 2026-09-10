@@ -3,7 +3,6 @@ import { SINCRONIZACION_REPOSITORY_TOKEN } from '../../domain/sincronizacion/rep
 import { GuardarSyncTagInput, PerfilSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
 import { TagFinalizadoPayload, TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { ApiService } from '../../core/http/api.service';
-import { environment } from '../../../environments/environment';
 
 export interface ResultadoSyncTag {
   ok: boolean;
@@ -25,7 +24,7 @@ export class SincronizarTagFinalizadoUseCase {
 
     try {
       const response = await this.api.post<TagFinalizadoResponse>(
-        environment.tagFinalizadoEndpoint,
+        'sincronizaciones/tag-finalizado.php',
         input.payload,
       );
       await this.sincronizacionRepo.marcarEnviado(input.cargaUid, response.total_productos);
