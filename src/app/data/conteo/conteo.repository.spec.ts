@@ -292,7 +292,7 @@ describe('SqliteConteoRepository', () => {
       return (r.values ?? []).map((f) => Number(f['id']));
     }
 
-    it('getLecturasSesion: una fila por captura, en orden, con sku y descripción', async () => {
+    it('getLecturasSesion: una fila por captura, la más reciente primero, con sku y descripción', async () => {
       const item = await scan(12);
       await scan(5);
       await scan(3, 'AF002', 'ESCANER', OTRO_PRODUCTO_ID);
@@ -300,11 +300,13 @@ describe('SqliteConteoRepository', () => {
       const lecturas = await repo.getLecturasSesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
 
       expect(lecturas.length).toBe(3);
-      expect(lecturas.map((l) => l.cantidad)).toEqual([12, 5, 3]);
-      expect(lecturas[0].sku).toBe('AF001');
-      expect(lecturas[0].descripcion).toBe('Taladro');
-      expect(lecturas[0].detalleId).toBe(item.id);
-      expect(lecturas[2].sku).toBe('AF002');
+      // DESC: la última captura (AF002, 3) arriba; la primera (AF001, 12) al final.
+      expect(lecturas.map((l) => l.cantidad)).toEqual([3, 5, 12]);
+      expect(lecturas[0].sku).toBe('AF002');
+      expect(lecturas[0].descripcion).toBe('Sierra');
+      expect(lecturas[2].sku).toBe('AF001');
+      expect(lecturas[2].descripcion).toBe('Taladro');
+      expect(lecturas[2].detalleId).toBe(item.id);
     });
 
     it('getLecturasSesion: no trae lecturas de líneas ya finalizadas', async () => {
@@ -324,7 +326,8 @@ describe('SqliteConteoRepository', () => {
       await repo.adjustLectura(l1, 1);
 
       const lecturas = await repo.getLecturasSesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
-      expect(lecturas.map((l) => l.cantidad)).toEqual([13, 5]);
+      // DESC: la 2ª captura (5) arriba, la 1ª ya ajustada (13) al final.
+      expect(lecturas.map((l) => l.cantidad)).toEqual([5, 13]);
       expect(await cantidadFisica()).toBe(18);
       expect(await sumaLecturas(item.id)).toBe(await cantidadFisica() as number);
     });
@@ -338,7 +341,9 @@ describe('SqliteConteoRepository', () => {
 
       const lecturas = await repo.getLecturasSesion(CONTEO_ID, UBICACION_ID, OPERADOR_ID, PDA_ID);
       expect(lecturas.length).toBe(2);
-      expect(lecturas[0].cantidad).toBe(0);
+      // DESC: l1 (la 1ª captura, ahora en 0) queda al final; la fila sigue ahí.
+      expect(lecturas[1].lecturaId).toBe(l1);
+      expect(lecturas[1].cantidad).toBe(0);
       expect(await cantidadFisica()).toBe(4);
       expect(await sumaLecturas(item.id)).toBe(4);
     });
