@@ -3,6 +3,7 @@ import { SINCRONIZACION_REPOSITORY_TOKEN } from '../../domain/sincronizacion/rep
 import { CONTEO_REPOSITORY_TOKEN } from '../../domain/conteo/repositories/conteo.repository';
 import { TagFinalizadoPayloadAlmacenado, TagFinalizadoResponse } from '../../domain/sincronizacion/models/tag-finalizado.model';
 import { ValidacionAnalistaPayloadAlmacenado, ValidacionAnalistaResponse } from '../../domain/sincronizacion/models/validacion-analista.model';
+import { VersionReportPayload, VersionReportResponse } from '../../domain/sincronizacion/models/version-reporte.model';
 import { ApiService } from '../../core/http/api.service';
 import { environment } from '../../../environments/environment';
 
@@ -37,6 +38,13 @@ export class EnviarPendientesUseCase {
             payload,
           );
           await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.total_productos);
+        } else if (item.operacion === 'VERSION_REPORTE') {
+          const payload: VersionReportPayload = JSON.parse(item.payloadJson);
+          const response = await this.api.post<VersionReportResponse>(
+            'sincronizaciones/reporte-version.php',
+            payload,
+          );
+          await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.data.id);
         } else {
           const payload: TagFinalizadoPayloadAlmacenado = JSON.parse(item.payloadJson);
           const response = await this.api.post<TagFinalizadoResponse>(

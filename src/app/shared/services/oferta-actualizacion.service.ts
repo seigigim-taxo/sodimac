@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { App } from '@capacitor/app';
 import { AlertController } from '@ionic/angular/standalone';
 import { ActualizacionFacade } from '../../state/actualizacion/actualizacion.facade';
+import { ReporteVersionUseCase } from '../../application/actualizacion/reporte-version.use-case';
 import { APP_VERSION } from '../../core/version';
 
 /*
@@ -35,6 +36,7 @@ const INTERVALO_CONSULTA_MS = 5 * 60_000;
 export class OfertaActualizacionService {
   private actualizacion   = inject(ActualizacionFacade);
   private alertController = inject(AlertController);
+  private reporteVersion  = inject(ReporteVersionUseCase);
 
   private ultimaConsulta = 0;
 
@@ -94,7 +96,10 @@ export class OfertaActualizacionService {
     if (ahora - this.ultimaConsulta < INTERVALO_CONSULTA_MS) return;
     this.ultimaConsulta = ahora;
 
-    await this.actualizacion.buscar();
+    const hay = await this.actualizacion.buscar();
+    if (hay) {
+      this.reporteVersion.execute('DETECCION').catch(() => {});
+    }
   }
 
   /*
@@ -117,6 +122,7 @@ export class OfertaActualizacionService {
       return;
     }
 
+    this.reporteVersion.execute('DETECCION').catch(() => {});
     await this.ofrecer();
   }
 
@@ -158,6 +164,7 @@ export class OfertaActualizacionService {
   }
 
   private async instalar(): Promise<void> {
+    await this.reporteVersion.execute('INSTALACION');
     const resultado = await this.actualizacion.actualizar();
 
     switch (resultado.estado) {

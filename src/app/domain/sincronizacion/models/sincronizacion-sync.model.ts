@@ -1,9 +1,10 @@
 import { TagFinalizadoPayload } from './tag-finalizado.model';
 import { ValidacionAnalistaPayload } from './validacion-analista.model';
+import { VersionReportPayload } from './version-reporte.model';
 
 export type PerfilSync = 'OPERADOR' | 'ANALISTA_CLIENTE';
 export type EstadoSync = 'PENDIENTE' | 'ENVIADO' | 'ERROR';
-export type OperacionSync = 'PREPARACION' | 'TAG_FINALIZADO' | 'VALIDACION_OPERACIONAL';
+export type OperacionSync = 'PREPARACION' | 'TAG_FINALIZADO' | 'VALIDACION_OPERACIONAL' | 'VERSION_REPORTE';
 
 export interface SincronizacionSync {
   id: number;
@@ -44,4 +45,10 @@ export interface GuardarSyncValidacionInput {
   pdaId: number;
   cargaUid: string;
   payload: ValidacionAnalistaPayload;
+}
+
+export interface GuardarSyncVersionReportInput {
+  pdaId: number;
+  cargaUid: string;
+  payload: VersionReportPayload;
 }

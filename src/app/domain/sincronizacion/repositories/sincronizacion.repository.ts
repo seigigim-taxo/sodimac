@@ -1,5 +1,5 @@
 import { InjectionToken } from '@angular/core';
-import { GuardarSyncTagInput, GuardarSyncValidacionInput, SincronizacionSync } from '../models/sincronizacion-sync.model';
+import { GuardarSyncTagInput, GuardarSyncValidacionInput, GuardarSyncVersionReportInput, SincronizacionSync } from '../models/sincronizacion-sync.model';
 
 export interface SincronizacionRepository {
   /* Registra en sod_sincronizacion una carga (CARGA_DESDE_PDA) de un conteo. */
@@ -18,6 +18,9 @@ export interface SincronizacionRepository {
 
   /* Cola offline de payloads validacion-analista.php pendientes de envío. */
   guardarSyncValidacion(input: GuardarSyncValidacionInput): Promise<void>;
+
+  /* Cola offline de payloads reporte-version.php pendientes de envío. */
+  guardarSyncVersionReport(input: GuardarSyncVersionReportInput): Promise<void>;
 }
 
 export const SINCRONIZACION_REPOSITORY_TOKEN = new InjectionToken<SincronizacionRepository>('SincronizacionRepository');
