@@ -1090,6 +1090,66 @@ ion-modal.buscador-modal {
   }
 }
 
+/* ===================================================================
+   CALCULADORA — misma tarjeta que el buscador (.buscador-tarjeta), acá
+   solo la pantalla y el teclado.
+   =================================================================== */
+.calc-pantalla {
+  @apply rounded-2xl px-4 mb-3 flex items-end justify-end;
+  min-height: 64px;
+  background: var(--app-surface-hover);
+  border: 1px solid var(--app-border);
+
+  .num {
+    @apply text-3xl font-bold;
+    color: var(--app-text);
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+}
+
+.calc-pantalla-error .num {
+  color: var(--app-error);
+}
+
+.calc-grid {
+  @apply grid grid-cols-4 gap-2;
+}
+
+.calc-btn {
+  @apply rounded-2xl text-xl font-semibold flex items-center justify-center transition-transform duration-150;
+  height: 56px;
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+  border: none;
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+.calc-btn-op {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+}
+
+/* El operador recién elegido se marca, como en cualquier calculadora física. */
+.calc-btn-op-activa {
+  background: var(--app-accent);
+  color: #ffffff;
+}
+
+.calc-btn-clear {
+  color: var(--app-error);
+}
+
+.calc-btn-igual {
+  @apply col-span-4;
+  background: var(--app-accent);
+  color: #ffffff;
+  box-shadow: 0 8px 24px -8px rgba(63, 32, 135, 0.45);
+}
+
 /*
  * Alerta del respaldo: el mensaje incluye la ruta donde quedó el archivo, que
  * es larga y sin espacios. Ionic no permite HTML en las alertas (innerHTML está

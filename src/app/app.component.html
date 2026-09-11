@@ -122,6 +122,14 @@
           </ion-item>
         </ion-menu-toggle>
 
+        <!-- Calculadora -->
+        <ion-menu-toggle>
+          <ion-item button (click)="abrirCalculadora()" class="menu-theme-item">
+            <ion-icon slot="start" name="calculator-outline"></ion-icon>
+            <ion-label>Calculadora</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Theme toggle -->
         <ion-menu-toggle>
           <ion-item button (click)="toggleTheme()" class="menu-theme-item">
@@ -152,5 +160,8 @@
   @if (mostrarBuscador()) {
   <app-boton-buscador></app-boton-buscador>
   }
+
+  <!-- Calculadora: disponible para cualquier perfil -->
+  <app-boton-calculadora></app-boton-calculadora>
 
 </ion-app>

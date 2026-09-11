@@ -20,7 +20,7 @@ import {
   IonSpinner,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline, calculatorOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
@@ -29,6 +29,8 @@ import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { EnviarPendientesFacade } from './state/sincronizacion/enviar-pendientes.facade';
 import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
+import { BotonCalculadoraComponent } from './shared/components/boton-calculadora/boton-calculadora.component';
+import { CalculadoraService } from './shared/services/calculadora.service';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
 import { App } from '@capacitor/app';
@@ -55,6 +57,7 @@ import { ActualizarMuestraService } from './shared/services/actualizar-muestra.s
     IonContent,
     IonSpinner,
     BotonBuscadorComponent,
+    BotonCalculadoraComponent,
   ],
 })
 export class AppComponent {
@@ -68,6 +71,7 @@ export class AppComponent {
   private alertController = inject(AlertController);
   private oferta = inject(OfertaActualizacionService);
   private actualizarMuestra = inject(ActualizarMuestraService);
+  private calculadora = inject(CalculadoraService);
   private toastController = inject(ToastController);
   private router   = inject(Router);
   private location = inject(Location);
@@ -97,7 +101,7 @@ export class AppComponent {
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
       paperPlaneOutline, saveOutline,
-      cloudDownloadOutline, refreshOutline,
+      cloudDownloadOutline, refreshOutline, calculatorOutline,
     });
 
     this.router.events.subscribe((evento) => {
@@ -172,6 +176,10 @@ export class AppComponent {
 
   async toggleTheme(): Promise<void> {
     await this.theme.toggle();
+  }
+
+  abrirCalculadora(): void {
+    this.calculadora.abrir();
   }
 
   /*

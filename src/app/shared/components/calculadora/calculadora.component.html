@@ -1,0 +1,27 @@
+<div class="calc-pantalla" [class.calc-pantalla-error]="hayError()">
+  <span class="num">{{ pantalla() }}</span>
+</div>
+
+<div class="calc-grid">
+  <button type="button" class="calc-btn" (click)="digito('7')">7</button>
+  <button type="button" class="calc-btn" (click)="digito('8')">8</button>
+  <button type="button" class="calc-btn" (click)="digito('9')">9</button>
+  <button type="button" class="calc-btn calc-btn-op" [class.calc-btn-op-activa]="operacionActiva() === '÷'" (click)="operacion('÷')">÷</button>
+
+  <button type="button" class="calc-btn" (click)="digito('4')">4</button>
+  <button type="button" class="calc-btn" (click)="digito('5')">5</button>
+  <button type="button" class="calc-btn" (click)="digito('6')">6</button>
+  <button type="button" class="calc-btn calc-btn-op" [class.calc-btn-op-activa]="operacionActiva() === '×'" (click)="operacion('×')">×</button>
+
+  <button type="button" class="calc-btn" (click)="digito('1')">1</button>
+  <button type="button" class="calc-btn" (click)="digito('2')">2</button>
+  <button type="button" class="calc-btn" (click)="digito('3')">3</button>
+  <button type="button" class="calc-btn calc-btn-op" [class.calc-btn-op-activa]="operacionActiva() === '-'" (click)="operacion('-')">−</button>
+
+  <button type="button" class="calc-btn calc-btn-clear" (click)="limpiar()">C</button>
+  <button type="button" class="calc-btn" (click)="digito('0')">0</button>
+  <button type="button" class="calc-btn" (click)="punto()">.</button>
+  <button type="button" class="calc-btn calc-btn-op" [class.calc-btn-op-activa]="operacionActiva() === '+'" (click)="operacion('+')">+</button>
+
+  <button type="button" class="calc-btn calc-btn-igual" (click)="igual()">=</button>
+</div>
