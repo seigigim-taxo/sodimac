@@ -1095,28 +1095,22 @@ ion-modal.buscador-modal {
    solo la pantalla y el teclado.
    =================================================================== */
 .calc-pantalla {
-  @apply rounded-2xl px-4 py-2 mb-3 flex flex-col items-end justify-end;
+  @apply rounded-2xl px-4 mb-3 flex items-end justify-end;
   min-height: 64px;
   background: var(--app-surface-hover);
   border: 1px solid var(--app-border);
 
+  /*
+   * text-2xl y no text-3xl: acá adentro va la cuenta completa ("12 + 12"),
+   * no solo el número final, y a 3xl una segunda operando de varios dígitos
+   * se sale de la tarjeta.
+   */
   .num {
-    @apply text-3xl font-bold;
+    @apply text-2xl font-bold;
     color: var(--app-text);
     overflow-wrap: anywhere;
     text-align: right;
   }
-}
-
-/*
- * "12 +": la cuenta ya cerrada, arriba del número que se está tipeando.
- * Alto reservado aunque esté vacía — si no, la pantalla salta de tamaño cada
- * vez que aparece o desaparece.
- */
-.calc-expresion {
-  @apply text-sm;
-  min-height: 1.2em;
-  color: var(--app-text-muted);
 }
 
 .calc-pantalla-error .num {
@@ -1134,14 +1128,25 @@ ion-modal.buscador-modal {
   color: var(--app-text);
   border: none;
 
+  /*
+   * Con pistola o dedo, el toque tiene que confirmarse antes de soltar: el
+   * color cambia de inmediato al presionar, no recién cuando el estado de
+   * la cuenta se actualiza detrás.
+   */
   &:active {
     transform: scale(0.94);
+    background: var(--app-border);
   }
 }
 
 .calc-btn-op {
   color: var(--app-accent);
   background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+
+  &:active {
+    background: var(--app-accent);
+    color: #ffffff;
+  }
 }
 
 /* El operador recién elegido se marca, como en cualquier calculadora física. */
@@ -1152,6 +1157,10 @@ ion-modal.buscador-modal {
 
 .calc-btn-clear {
   color: var(--app-error);
+
+  &:active {
+    background: color-mix(in srgb, var(--app-error) 18%, transparent);
+  }
 }
 
 .calc-btn-igual {
@@ -1159,6 +1168,11 @@ ion-modal.buscador-modal {
   background: var(--app-accent);
   color: #ffffff;
   box-shadow: 0 8px 24px -8px rgba(63, 32, 135, 0.45);
+
+  &:active {
+    background: var(--app-accent);
+    filter: brightness(0.85);
+  }
 }
 
 /*

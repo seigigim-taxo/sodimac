@@ -18,20 +18,25 @@ import {
 export class CalculadoraComponent {
   private estadoSignal = signal<EstadoCalculadora>(estadoInicial());
 
-  pantalla = computed(() => this.estadoSignal().pantalla);
   hayError = computed(() => this.estadoSignal().error);
   operacionActiva = computed(() => this.estadoSignal().operacionPendiente);
 
   /*
-   * "12 +": lo que ya se cerró de la cuenta, arriba de la pantalla grande —
-   * que sigue mostrando el número que se está tipeando (o el resultado). Sin
-   * esto, después de encadenar un par de operaciones no queda rastro de qué
-   * se hizo, solo el número que va quedando.
+   * La pantalla muestra la cuenta completa, no solo el último número: al
+   * ingresar 12 + 12 tiene que leerse literalmente "12 + 12", no un 12 que
+   * desaparece apenas se elige el operador.
+   *
+   *  - Sin operación pendiente: el número que se está tipeando, o el
+   *    resultado (ahí `pantalla` ya trae lo que corresponde mostrar solo).
+   *  - Operador recién elegido, todavía sin segundo número: "12 +" — mostrar
+   *    `pantalla` acá repetiría el primer número, que ya está en `acumulado`.
+   *  - Segundo número en curso: "12 + 12", con lo que se va tipeando.
    */
-  expresion = computed(() => {
+  pantalla = computed(() => {
     const e = this.estadoSignal();
-    if (e.acumulado === null || e.operacionPendiente === null) return '';
-    return `${e.acumulado} ${e.operacionPendiente}`;
+    if (e.operacionPendiente === null || e.acumulado === null) return e.pantalla;
+    if (e.esperandoSiguiente) return `${e.acumulado} ${e.operacionPendiente}`;
+    return `${e.acumulado} ${e.operacionPendiente} ${e.pantalla}`;
   });
 
   digito(d: string): void {
