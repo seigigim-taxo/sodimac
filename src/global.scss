@@ -1095,7 +1095,7 @@ ion-modal.buscador-modal {
    solo la pantalla y el teclado.
    =================================================================== */
 .calc-pantalla {
-  @apply rounded-2xl px-4 mb-3 flex items-end justify-end;
+  @apply rounded-2xl px-4 py-2 mb-3 flex flex-col items-end justify-end;
   min-height: 64px;
   background: var(--app-surface-hover);
   border: 1px solid var(--app-border);
@@ -1106,6 +1106,17 @@ ion-modal.buscador-modal {
     overflow-wrap: anywhere;
     text-align: right;
   }
+}
+
+/*
+ * "12 +": la cuenta ya cerrada, arriba del número que se está tipeando.
+ * Alto reservado aunque esté vacía — si no, la pantalla salta de tamaño cada
+ * vez que aparece o desaparece.
+ */
+.calc-expresion {
+  @apply text-sm;
+  min-height: 1.2em;
+  color: var(--app-text-muted);
 }
 
 .calc-pantalla-error .num {
