@@ -35,6 +35,7 @@ import { AjustesFacade } from '../../../state/ajustes/ajustes.facade';
 import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
 import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
+import { BeepService } from '../../../shared/services/beep.service';
 import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
 
 /*
@@ -113,6 +114,7 @@ export class CountingPageComponent implements ViewWillEnter {
   private buscador          = inject(BuscadorService);
   private network           = inject(NetworkService);
   private avisoSync         = inject(AvisoSincronizacionService);
+  private beep              = inject(BeepService);
 
   isOnline = this.network.isOnline;
   sesionCargando = this.conteo.loading;
@@ -556,6 +558,15 @@ export class CountingPageComponent implements ViewWillEnter {
     this.lastScan.set(scan);
     this.destelloScan.set(scan.estado);
     this.lastScanTimeoutId = setTimeout(() => this.destelloScan.set(null), this.DESTELLO_MS);
+
+    /*
+     * Va acá y no en cada llamador: setLastScan es el único punto por el que
+     * pasan los dos modos (uno a uno y por cantidad) al marcar un SKU fuera
+     * de la muestra, así que es el único lugar que necesita disparar el beep.
+     */
+    if (scan.estado === 'FUERA_DE_MUESTRA') {
+      this.beep.error();
+    }
   }
 
   /*
