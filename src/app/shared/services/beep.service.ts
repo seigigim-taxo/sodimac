@@ -8,12 +8,21 @@ import { Injectable } from '@angular/core';
  * navegador. Grave y corto (220 Hz, ~180 ms) para distinguirse de un beep de
  * escáner por hardware, que suele ser agudo.
  */
+/*
+ * El motor de escaneo de la PDA (hardware) emite su propio beep de "buena
+ * lectura" al decodificar el código, antes de que el dato llegue siquiera al
+ * WebView — la app no lo genera ni lo puede silenciar. Si el beep de error
+ * suena en el mismo instante, se pisan. Este retraso deja que el beep del
+ * escáner termine primero; el de error se escucha después, no encima.
+ */
+const RETRASO_TRAS_LECTURA_MS = 300;
+
 @Injectable({ providedIn: 'root' })
 export class BeepService {
   private contexto: AudioContext | null = null;
 
   error(): void {
-    this.tono(220, 180);
+    setTimeout(() => this.tono(220, 180), RETRASO_TRAS_LECTURA_MS);
   }
 
   private tono(frecuenciaHz: number, duracionMs: number): void {
