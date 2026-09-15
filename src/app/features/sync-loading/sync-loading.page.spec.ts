@@ -6,6 +6,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { SincronizarDatosInicialesUseCase } from '../../application/sincronizacion/sincronizar-datos-iniciales.use-case';
 import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
 import { signal } from '@angular/core';
+import { NetworkError } from '../../domain/shared/errors/network.error';
 
 /*
  * Qué pasa cuando el servidor devuelve un perfil que la app no sabe atender.
@@ -96,6 +97,43 @@ describe('SyncLoadingPageComponent — perfil no habilitado', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(componente.perfilNoHabilitado()).toBe('sin perfil');
+  });
+
+  /*
+   * ApiService ya escribe un mensaje específico y en español para cada causa
+   * de NetworkError (sin conexión, timeout, respuesta incompleta). Esta
+   * pantalla no debe volver a aplastarlos todos contra un único texto
+   * genérico — el operador (y soporte, si le llega el mismo mensaje) pierden
+   * la única pista de qué pasó de verdad.
+   */
+  it('un NetworkError muestra su mensaje específico, no uno genérico', async () => {
+    execute = jasmine.createSpy('execute').and.rejectWith(
+      new NetworkError('La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.')
+    );
+    actualizarPerfilSesion = jasmine.createSpy('actualizarPerfilSesion').and.resolveTo(undefined);
+
+    TestBed.configureTestingModule({
+      imports: [SyncLoadingPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: SincronizarDatosInicialesUseCase, useValue: { execute } },
+        {
+          provide: AuthFacade,
+          useValue: {
+            session: signal(SESSION),
+            actualizarPerfilSesion,
+            logout: jasmine.createSpy('logout').and.resolveTo(undefined),
+          },
+        },
+        { provide: AnalystDashboardFacade, useValue: { cargarDatos: jasmine.createSpy('cargarDatos') } },
+      ],
+    });
+
+    componente = TestBed.createComponent(SyncLoadingPageComponent).componentInstance;
+    await componente.ngOnInit();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(componente.error()).toBe('La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.');
   });
 
   describe('los perfiles habilitados siguen pasando', () => {

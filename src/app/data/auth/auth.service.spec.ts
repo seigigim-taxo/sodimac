@@ -10,6 +10,7 @@ describe('AuthService', () => {
     originalFetch = window.fetch;
     fetchMock = jasmine.createSpy('fetch').and.returnValue(
       Promise.resolve({
+        ok: true,
         json: () => Promise.resolve({}),
       } as Response)
     );
@@ -42,6 +43,7 @@ describe('AuthService', () => {
 
     fetchMock.and.returnValue(
       Promise.resolve({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       } as Response)
     );
@@ -70,6 +72,7 @@ describe('AuthService', () => {
 
     fetchMock.and.returnValue(
       Promise.resolve({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       } as Response)
     );

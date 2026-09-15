@@ -7,20 +7,22 @@ import { SincronizarDatosInicialesUseCase } from '../../application/sincronizaci
 import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
 import { EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
 import { ContractError } from '../../domain/shared/errors/contract.error';
-import { NetworkError } from '../../domain/shared/errors/network.error';
 
 /*
  * Un contrato roto no es un problema de conexión y no se arregla reintentando:
  * el operador necesita saber que tiene que avisar, no insistir. El detalle
  * técnico va a la consola, no a la pantalla de alguien en piso de tienda.
+ *
+ * NetworkError no tiene rama propia a propósito: ApiService ya escribe un
+ * mensaje específico y en español para cada causa (sin conexión, timeout,
+ * respuesta incompleta) — normalizarlos acá a un solo texto genérico le
+ * quitaba al operador (y a soporte) la única pista de qué pasó de verdad.
+ * Cae al mismo `err.message` que cualquier otro Error.
  */
 function mensajeDeError(err: unknown): string {
   if (err instanceof ContractError) {
     console.error('[sync] contrato inesperado:', err.message);
     return 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.';
-  }
-  if (err instanceof NetworkError) {
-    return 'Sin conexión con el servidor. Revisa la red e intenta de nuevo.';
   }
   return err instanceof Error ? err.message : 'No se pudo descargar la información.';
 }

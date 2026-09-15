@@ -41,7 +41,7 @@ export class ApiService {
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
-      const data = await response.json();
+      const data = await this.leerCuerpo(response) as ApiResponse<T>;
       return this.unwrap<T>(data);
     } catch (err) {
       throw this.mapError(err);
@@ -56,10 +56,35 @@ export class ApiService {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
-      const data = await response.json();
+      const data = await this.leerCuerpo(response) as ApiResponse<T>;
       return this.unwrap<T>(data);
     } catch (err) {
       throw this.mapError(err);
+    }
+  }
+
+  /*
+   * NO se mira response.ok acá: errorResponse() del backend manda status HTTP
+   * de negocio (401 "usuario no existe", 405, 500 con su propio mensaje...) y
+   * el body sigue siendo JSON válido con {status:'ERROR', msg}. Cortar antes
+   * de leerlo por el código HTTP le robaría a unwrap() el mensaje real y
+   * específico que escribió el backend, y lo reemplazaría por uno genérico —
+   * pasó de verdad: un login rechazado dejó de mostrar "Usuario no existe o
+   * inactivo" y mostraba "el servidor respondió con un error" en su lugar.
+   *
+   * Lo único que sí hay que atrapar es un cuerpo que dice ser JSON pero llegó
+   * truncado: la conexión se cortó mientras bajaba el body. response.json()
+   * tira un SyntaxError crudo ("Unexpected end of JSON input" o similar) que
+   * mapError() no reconoce —no tiene "network" ni "timeout" en el mensaje— y
+   * lo deja pasar tal cual a la pantalla del operador. Eso se convierte acá en
+   * un NetworkError con mensaje propio, sea cual sea el status HTTP.
+   */
+  private async leerCuerpo(response: Response): Promise<unknown> {
+    try {
+      return await response.json();
+    } catch (err) {
+      console.error('[api] respuesta no es JSON válido (conexión cortada a medio camino):', err);
+      throw new NetworkError('La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.');
     }
   }
 
