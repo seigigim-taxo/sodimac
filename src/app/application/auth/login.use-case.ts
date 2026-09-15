@@ -56,7 +56,7 @@ export class LoginUseCase {
       return { session, fueOffline: false };
     } catch (err: unknown) {
       if (err instanceof NetworkError) {
-        throw new Error('Sin conexión. Inicie sesión en línea al menos una vez.');
+        throw new Error('Sin conexión. Inicia sesión en línea al menos una vez.');
       }
       throw err;
     }
