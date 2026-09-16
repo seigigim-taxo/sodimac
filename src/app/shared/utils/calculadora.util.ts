@@ -82,26 +82,30 @@ export function presionarOperacion(estado: EstadoCalculadora, operacion: Operaci
     return { ...estado, acumulado: actual, operacionPendiente: operacion, esperandoSiguiente: true };
   }
 
-  const resultado = aplicar(estado.acumulado, actual, estado.operacionPendiente);
-  if (resultado === null) {
-    return { ...estado, pantalla: 'Error', error: true };
-  }
-
-  return {
-    ...estado,
-    pantalla: formatear(resultado),
-    acumulado: resultado,
-    operacionPendiente: operacion,
-    esperandoSiguiente: true,
-  };
+  return resolverPendiente(estado, estado.acumulado, estado.operacionPendiente, operacion);
 }
 
 export function presionarIgual(estado: EstadoCalculadora): EstadoCalculadora {
   if (estado.error) return estado;
   if (estado.operacionPendiente === null || estado.acumulado === null) return estado;
 
+  return resolverPendiente(estado, estado.acumulado, estado.operacionPendiente, null);
+}
+
+/*
+ * Aplica la operación pendiente sobre `acumulado` y la pantalla actual, y
+ * arma el estado resultante. Compartido por presionarOperacion (que deja
+ * armado el operador siguiente) y presionarIgual (que lo deja en null) —
+ * eran casi idénticas salvo por ese único valor.
+ */
+function resolverPendiente(
+  estado: EstadoCalculadora,
+  acumulado: number,
+  operacionPendiente: Operacion,
+  siguienteOperacion: Operacion | null
+): EstadoCalculadora {
   const actual = Number(estado.pantalla);
-  const resultado = aplicar(estado.acumulado, actual, estado.operacionPendiente);
+  const resultado = aplicar(acumulado, actual, operacionPendiente);
   if (resultado === null) {
     return { ...estado, pantalla: 'Error', error: true };
   }
@@ -110,7 +114,7 @@ export function presionarIgual(estado: EstadoCalculadora): EstadoCalculadora {
     ...estado,
     pantalla: formatear(resultado),
     acumulado: resultado,
-    operacionPendiente: null,
+    operacionPendiente: siguienteOperacion,
     esperandoSiguiente: true,
   };
 }
@@ -134,5 +138,37 @@ function redondear(n: number): number {
 }
 
 function formatear(n: number): string {
-  return String(n);
+  const texto = String(n);
+  return /e/i.test(texto) ? sinNotacionCientifica(texto) : texto;
+}
+
+/*
+ * JS pasa a notación exponencial fuera de [1e-6, 1e21) — un umbral propio del
+ * motor, no algo que una calculadora de bolsillo muestre. 1 ÷ 10000000 daba
+ * "1e-7" en pantalla en vez de "0.0000001". Se expande la mantisa al punto
+ * decimal real que indica el exponente.
+ */
+function sinNotacionCientifica(texto: string): string {
+  const [mantisa, exponenteTexto] = texto.split(/e/i);
+  const exponente = Number(exponenteTexto);
+  const negativo = mantisa.startsWith('-');
+  const mantisaAbs = negativo ? mantisa.slice(1) : mantisa;
+  const [parteEntera, parteDecimal = ''] = mantisaAbs.split('.');
+  const digitos = parteEntera + parteDecimal;
+  const puntoNuevo = parteEntera.length + exponente;
+
+  let resultado: string;
+  if (puntoNuevo <= 0) {
+    resultado = '0.' + '0'.repeat(-puntoNuevo) + digitos;
+  } else if (puntoNuevo >= digitos.length) {
+    resultado = digitos + '0'.repeat(puntoNuevo - digitos.length);
+  } else {
+    resultado = `${digitos.slice(0, puntoNuevo)}.${digitos.slice(puntoNuevo)}`;
+  }
+
+  if (resultado.includes('.')) {
+    resultado = resultado.replace(/0+$/, '').replace(/\.$/, '');
+  }
+
+  return negativo ? `-${resultado}` : resultado;
 }
