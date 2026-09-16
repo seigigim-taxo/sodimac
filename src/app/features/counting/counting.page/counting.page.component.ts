@@ -77,6 +77,17 @@ interface ResultadoScan {
   descripcion?: string | null;
 }
 
+/*
+ * Única fuente de verdad de "¿este resultado es un fallo?" — la usan tanto el
+ * tinte de fondo como el beep. Antes cada uno decidía por su cuenta (uno por
+ * descarte de 'OK', el otro enumerando 'FUERA_DE_MUESTRA'/'ERROR' a mano); un
+ * tercer estado nuevo en ResultadoScan hubiera exigido acordarse de actualizar
+ * los dos por separado.
+ */
+function esFallo(estado: ResultadoScan['estado']): boolean {
+  return estado !== 'OK';
+}
+
 @Component({
   selector: 'app-counting-page',
   templateUrl: './counting.page.component.html',
@@ -242,9 +253,9 @@ export class CountingPageComponent implements ViewWillEnter {
     const estado = this.destelloScan();
     if (!estado) return 'var(--app-bg-gradient)';
 
-    const tinte = estado === 'OK'
-      ? 'rgba(45, 190, 120, 0.22)'
-      : 'rgba(239, 68, 68, 0.22)';
+    const tinte = esFallo(estado)
+      ? 'rgba(239, 68, 68, 0.22)'
+      : 'rgba(45, 190, 120, 0.22)';
 
     return `linear-gradient(${tinte}, ${tinte}), var(--app-bg-gradient)`;
   });
@@ -564,13 +575,14 @@ export class CountingPageComponent implements ViewWillEnter {
      * pasan los dos modos (uno a uno y por cantidad) al marcar un resultado
      * fallido, así que es el único lugar que necesita disparar el beep.
      *
-     * ERROR suena igual que FUERA_DE_MUESTRA: un fallo de escritura real es
-     * al menos tan grave como un SKU fuera de la muestra —que ni siquiera es
-     * un error, es un resultado esperado del negocio— y el operador suele
-     * mirar la pistola, no la pantalla, así que sin sonido ese fallo pasa
-     * inadvertido y sigue escaneando como si hubiera quedado guardado.
+     * esFallo() es la misma clasificación que usa fondoScan para el tinte:
+     * un fallo de escritura real (ERROR) es al menos tan grave como un SKU
+     * fuera de la muestra —que ni siquiera es un error, es un resultado
+     * esperado del negocio— y el operador suele mirar la pistola, no la
+     * pantalla, así que sin sonido ese fallo pasa inadvertido y sigue
+     * escaneando como si hubiera quedado guardado.
      */
-    if (scan.estado === 'FUERA_DE_MUESTRA' || scan.estado === 'ERROR') {
+    if (esFallo(scan.estado)) {
       this.beep.error();
     }
   }
