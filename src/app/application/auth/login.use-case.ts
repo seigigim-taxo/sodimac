@@ -55,8 +55,17 @@ export class LoginUseCase {
       const session = await this.online.execute(request);
       return { session, fueOffline: false };
     } catch (err: unknown) {
+      /*
+       * NetworkError ya trae un mensaje específico y en español para cada
+       * causa (sin conexión, timeout, respuesta incompleta) — no se
+       * reemplaza por uno genérico. Sí se le agrega el contexto que falta:
+       * acá no hay operador en caché, así que no existe un login offline al
+       * que caer. Sin este agregado, "La respuesta del servidor llegó
+       * incompleta..." sonaría como un error pasajero cualquiera, cuando en
+       * este caso además significa que el operador queda sin poder entrar.
+       */
       if (err instanceof NetworkError) {
-        throw new Error('Sin conexión. Inicia sesión en línea al menos una vez.');
+        throw new Error(`${err.message} No hay una sesión guardada en este dispositivo para entrar sin conexión.`);
       }
       throw err;
     }
