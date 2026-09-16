@@ -561,10 +561,16 @@ export class CountingPageComponent implements ViewWillEnter {
 
     /*
      * Va acá y no en cada llamador: setLastScan es el único punto por el que
-     * pasan los dos modos (uno a uno y por cantidad) al marcar un SKU fuera
-     * de la muestra, así que es el único lugar que necesita disparar el beep.
+     * pasan los dos modos (uno a uno y por cantidad) al marcar un resultado
+     * fallido, así que es el único lugar que necesita disparar el beep.
+     *
+     * ERROR suena igual que FUERA_DE_MUESTRA: un fallo de escritura real es
+     * al menos tan grave como un SKU fuera de la muestra —que ni siquiera es
+     * un error, es un resultado esperado del negocio— y el operador suele
+     * mirar la pistola, no la pantalla, así que sin sonido ese fallo pasa
+     * inadvertido y sigue escaneando como si hubiera quedado guardado.
      */
-    if (scan.estado === 'FUERA_DE_MUESTRA') {
+    if (scan.estado === 'FUERA_DE_MUESTRA' || scan.estado === 'ERROR') {
       this.beep.error();
     }
   }
