@@ -30,16 +30,35 @@ export interface ApiRequestOptions {
  * "no truncado"). Content-Length contra los bytes recibidos es una señal
  * real, no una adivinanza — se usa cuando el servidor la manda.
  *
- * Sin Content-Length (respuestas chunked, que es lo más común en este
- * backend), no hay una señal mejor disponible desde fetch(); se cae a la
- * forma del texto como antes.
+ * PERO no si la respuesta viene comprimida (Content-Encoding: gzip/br/
+ * deflate): ahí Content-Length describe el tamaño EN EL WIRE (comprimido),
+ * mientras que `texto` es el body ya descomprimido por fetch() — comparar
+ * esas dos magnitudes no dice nada sobre si el body llegó completo. En ese
+ * caso se cae a la forma del texto, igual que sin Content-Length (respuestas
+ * chunked, el caso más común en este backend).
+ *
+ * LÍMITE CONOCIDO: esto es adivinar desde el cliente con las señales que
+ * expone fetch(), no una certeza. Ya van 3 casos límite parchados (forma de
+ * texto → Content-Length → exclusión por compresión) y es previsible que
+ * aparezca un cuarto (ej. un proxy intermedio que despoja Content-Encoding
+ * sin ajustar Content-Length). La solución de raíz —que sodimac-ws incluya
+ * una señal de integridad explícita en el propio body (largo esperado,
+ * checksum, marcador de fin)— no depende de headers HTTP que un
+ * intermediario puede alterar, pero implica tocar el backend y queda fuera
+ * de alcance acá.
  */
 function esTruncado(response: Response, texto: string): boolean {
-  const contentLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(contentLength) && contentLength > 0) {
-    const bytesRecibidos = new TextEncoder().encode(texto).length;
-    return bytesRecibidos < contentLength;
+  const contentEncoding = response.headers.get('content-encoding');
+  const vieneComprimido = contentEncoding !== null && contentEncoding.toLowerCase() !== 'identity';
+
+  if (!vieneComprimido) {
+    const contentLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > 0) {
+      const bytesRecibidos = new TextEncoder().encode(texto).length;
+      return bytesRecibidos < contentLength;
+    }
   }
+
   return /^[{[]/.test(texto.trim());
 }
 
