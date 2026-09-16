@@ -21,6 +21,27 @@ export interface ApiRequestOptions {
   timeoutMs?: number;
 }
 
+/*
+ * Adivinar "¿esto se cortó?" solo por la forma del texto (¿arranca con '{'?)
+ * falla en las dos direcciones: un JSON completo pero con un bug de sintaxis
+ * propio del backend también arranca con '{' y no parsea (falso "truncado"),
+ * y un corte tan temprano que no llegó ni un byte no arranca con nada (falso
+ * "no truncado"). Content-Length contra los bytes recibidos es una señal
+ * real, no una adivinanza — se usa cuando el servidor la manda.
+ *
+ * Sin Content-Length (respuestas chunked, que es lo más común en este
+ * backend), no hay una señal mejor disponible desde fetch(); se cae a la
+ * forma del texto como antes.
+ */
+function esTruncado(response: Response, texto: string): boolean {
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > 0) {
+    const bytesRecibidos = new TextEncoder().encode(texto).length;
+    return bytesRecibidos < contentLength;
+  }
+  return /^[{[]/.test(texto.trim());
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -79,27 +100,25 @@ export class ApiService {
    * operador. Eso se convierte acá en un NetworkError, sea cual sea el status
    * HTTP.
    *
-   * El mensaje SÍ distingue la causa: un cuerpo que arranca como JSON
-   * ('{'/'[') pero no cierra bien es la conexión cortándose a medio camino
-   * bajando el body — reintentar tiene sentido. Un cuerpo que no arranca así
-   * (la página HTML de un proxy/WAF corporativo, un body vacío por un bug del
-   * backend) no es un problema de conexión, y decirle al operador "revisa la
-   * conexión" sería un diagnóstico falso.
+   * El mensaje SÍ distingue la causa: un corte de conexión bajando el body
+   * merece "revisa la conexión"; un JSON inválido por otra razón (bug del
+   * backend, HTML de un proxy/WAF) merece avisar a soporte, no confundir al
+   * operador con un problema de red que no es el suyo. Ver esTruncado().
    */
   private async leerCuerpo(response: Response): Promise<unknown> {
     const texto = await response.text();
     try {
       return JSON.parse(texto);
     } catch (err) {
-      const pareceTruncado = /^[{[]/.test(texto.trim());
+      const truncado = esTruncado(response, texto);
       console.error(
-        pareceTruncado
+        truncado
           ? '[api] respuesta no es JSON válido (conexión cortada a medio camino):'
           : '[api] respuesta no es JSON válido (no parece un corte de conexión):',
         err,
       );
       throw new NetworkError(
-        pareceTruncado
+        truncado
           ? 'La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.'
           : 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.'
       );

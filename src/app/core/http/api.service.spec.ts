@@ -76,6 +76,7 @@ describe('ApiService — errores que ve el operador', () => {
   it('respeta el mensaje que manda el servidor', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
+      headers: new Headers(),
       text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
 
@@ -98,6 +99,7 @@ describe('ApiService — errores que ve el operador', () => {
     fetchSpy.and.resolveTo({
       ok: false,
       status: 401,
+      headers: new Headers(),
       text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
 
@@ -112,11 +114,13 @@ describe('ApiService — errores que ve el operador', () => {
    * El escenario real que motivó esto: "WiFi de tienda a medio asociar" corta
    * la conexión mientras baja el body. fetch() no lo ve como un error de red
    * —el TCP se aceptó bien—, así que llega hasta acá como un JSON truncado:
-   * arranca como objeto ('{') pero no alcanza a cerrar.
+   * arranca como objeto ('{') pero no alcanza a cerrar. Sin Content-Length
+   * (caso común en respuestas chunked), la forma del texto es la única pista.
    */
-  it('un cuerpo truncado (conexión cortada a medio camino) no deja pasar el SyntaxError crudo', async () => {
+  it('un cuerpo truncado sin Content-Length (conexión cortada a medio camino) no deja pasar el SyntaxError crudo', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
+      headers: new Headers(),
       text: () => Promise.resolve('{"status":"OK","data":{"usuario":{"nombre":"Ana"'),
     } as Response);
 
@@ -142,6 +146,7 @@ describe('ApiService — errores que ve el operador', () => {
   it('un cuerpo que no parece JSON truncado (ej. HTML de un proxy) no se etiqueta como corte de conexión', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
+      headers: new Headers(),
       text: () => Promise.resolve('<html><body>502 Bad Gateway</body></html>'),
     } as Response);
 
@@ -150,6 +155,55 @@ describe('ApiService — errores que ve el operador', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(NetworkError);
       expect((e as Error).message).not.toContain('conexión');
+      expect((e as Error).message).toContain('no reconoce');
+      expect(console.error).toHaveBeenCalledWith(
+        '[api] respuesta no es JSON válido (no parece un corte de conexión):',
+        jasmine.any(Error)
+      );
+    }
+  });
+
+  /*
+   * Con Content-Length, la detección deja de ser una adivinanza por forma de
+   * texto: si llegaron menos bytes de los prometidos, fue un corte real, aunque
+   * el buffer recibido esté vacío o no arranque con '{'/'[' — el caso que la
+   * heurística por forma sola no podía atrapar (falso negativo).
+   */
+  it('con Content-Length, un cuerpo vacío por corte temprano SÍ se detecta como truncado', async () => {
+    fetchSpy.and.resolveTo({
+      ok: true,
+      headers: new Headers({ 'content-length': '500' }),
+      text: () => Promise.resolve(''),
+    } as Response);
+
+    try {
+      await api.post('x', {});
+    } catch (e) {
+      expect((e as Error).message).toContain('incompleta');
+      expect(console.error).toHaveBeenCalledWith(
+        '[api] respuesta no es JSON válido (conexión cortada a medio camino):',
+        jasmine.any(Error)
+      );
+    }
+  });
+
+  /*
+   * Y en la otra dirección: si Content-Length confirma que llegó el cuerpo
+   * completo, un JSON que igual no parsea es un bug del propio backend, no un
+   * corte de conexión — aunque arranque con '{' (el caso que la heurística
+   * por forma sola clasificaba mal como "truncado", un falso positivo).
+   */
+  it('con Content-Length, un cuerpo completo pero mal formado NO se etiqueta como corte de conexión', async () => {
+    const cuerpo = '{"status":"OK", "data": NaN}'; // JSON.parse no acepta NaN
+    fetchSpy.and.resolveTo({
+      ok: true,
+      headers: new Headers({ 'content-length': String(new TextEncoder().encode(cuerpo).length) }),
+      text: () => Promise.resolve(cuerpo),
+    } as Response);
+
+    try {
+      await api.post('x', {});
+    } catch (e) {
       expect((e as Error).message).toContain('no reconoce');
       expect(console.error).toHaveBeenCalledWith(
         '[api] respuesta no es JSON válido (no parece un corte de conexión):',
