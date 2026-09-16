@@ -212,6 +212,40 @@ describe('ApiService — errores que ve el operador', () => {
     }
   });
 
+  /*
+   * REGRESIÓN REAL: Content-Length describe el tamaño EN EL WIRE (comprimido
+   * con gzip/br/deflate), pero `texto` ya llega descomprimido por fetch() —
+   * comparar esas dos magnitudes no dice nada sobre si el body llegó
+   * completo. Acá el texto descomprimido (aunque truncado) es MÁS GRANDE que
+   * el Content-Length comprimido, así que comparar bytes sin más diría "no
+   * truncado" (bytesRecibidos >= contentLength) pese a que sí lo está. Con el
+   * fix, se ignora ese Content-Length y se cae a la forma del texto —que sí
+   * detecta el corte real, porque arranca con '{' y no cierra.
+   */
+  it('con Content-Encoding gzip, Content-Length no se usa: un truncado real igual se detecta', async () => {
+    const cuerpoTruncado = '{"status":"OK","data":{"usuario":{"nombre":"Ana"'; // arranca con '{', no cierra
+    fetchSpy.and.resolveTo({
+      ok: true,
+      headers: new Headers({
+        'content-length': '5', // tamaño comprimido, mucho menor al texto descomprimido
+        'content-encoding': 'gzip',
+      }),
+      text: () => Promise.resolve(cuerpoTruncado),
+    } as Response);
+
+    try {
+      await api.post('x', {});
+    } catch (e) {
+      // Sin el fix, el Content-Length (comprimido) compararía "menor" y diría
+      // que SÍ llegó completo, perdiendo el aviso de conexión cortada.
+      expect((e as Error).message).toContain('incompleta');
+      expect(console.error).toHaveBeenCalledWith(
+        '[api] respuesta no es JSON válido (conexión cortada a medio camino):',
+        jasmine.any(Error)
+      );
+    }
+  });
+
   // El detalle técnico tiene que quedar en el log para soporte.
   it('deja el mensaje original en consola', async () => {
     fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
