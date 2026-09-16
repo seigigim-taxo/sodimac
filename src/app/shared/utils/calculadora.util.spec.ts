@@ -81,6 +81,19 @@ describe('calculadora.util', () => {
     expect(limpiar()).toEqual(estadoInicial());
   });
 
+  /*
+   * Antes de este fix, el estado de error conservaba acumulado y
+   * operacionPendiente (5 y '÷'). El componente arma el texto visible
+   * concatenando esos campos, y mostraba literalmente "5 ÷ Error" en vez de
+   * "Error" — este test fija el estado interno para que ese bug no vuelva.
+   */
+  it('el estado de error no conserva acumulado ni operación pendiente', () => {
+    const error = tipear('5', '÷', '0', '=');
+    expect(error.acumulado).toBeNull();
+    expect(error.operacionPendiente).toBeNull();
+    expect(error.esperandoSiguiente).toBeFalse();
+  });
+
   it('limpia el punto flotante: 0.1 + 0.2 da 0.3, no 0.30000000000000004', () => {
     expect(tipear('0', '.', '1', '+', '0', '.', '2', '=').pantalla).toBe('0.3');
   });
