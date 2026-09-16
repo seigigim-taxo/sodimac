@@ -197,7 +197,7 @@ describe('ApiService — reporta la calidad de conexión', () => {
     fetchSpy.and.resolveTo({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ status: 'ERROR', msg: 'Usuario no existe o inactivo' }),
+      text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
 
     try {
@@ -226,7 +226,7 @@ describe('ApiService — reporta la calidad de conexión', () => {
   it('un body truncado NO cuenta como fallo de conexión: fetch sí resolvió', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
-      json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+      text: () => Promise.resolve('{"status":"OK","data":{"usuario":{"nombre":"Ana"'),
     } as Response);
 
     try {
