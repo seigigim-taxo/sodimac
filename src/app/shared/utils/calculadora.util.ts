@@ -107,7 +107,15 @@ function resolverPendiente(
   const actual = Number(estado.pantalla);
   const resultado = aplicar(acumulado, actual, operacionPendiente);
   if (resultado === null) {
-    return { ...estado, pantalla: 'Error', error: true };
+    /*
+     * Reseteo completo, no spread de `estado`: dejar acumulado/operacionPendiente
+     * viejos (ej. 5 y '÷') hacía que la pantalla del componente, que arma su
+     * texto concatenando esos campos, mostrara "5 ÷ Error" en vez de "Error".
+     * Ningún otro campo de un estado de error se usa para nada —presionarDigito
+     * y el resto bloquean todo mientras `error` sea true—, así que no hay
+     * pérdida real al limpiarlos.
+     */
+    return { pantalla: 'Error', acumulado: null, operacionPendiente: null, esperandoSiguiente: false, error: true };
   }
 
   return {
@@ -137,38 +145,13 @@ function redondear(n: number): number {
   return Math.round(n * 1e10) / 1e10;
 }
 
-function formatear(n: number): string {
-  const texto = String(n);
-  return /e/i.test(texto) ? sinNotacionCientifica(texto) : texto;
-}
-
 /*
- * JS pasa a notación exponencial fuera de [1e-6, 1e21) — un umbral propio del
- * motor, no algo que una calculadora de bolsillo muestre. 1 ÷ 10000000 daba
- * "1e-7" en pantalla en vez de "0.0000001". Se expande la mantisa al punto
- * decimal real que indica el exponente.
+ * String(n) pasa a notación exponencial fuera de [1e-6, 1e21) — un umbral
+ * propio del motor de JS, no algo que una calculadora de bolsillo muestre
+ * (1 ÷ 10000000 daba "1e-7" en pantalla en vez de "0.0000001"). toLocaleString
+ * ya expande esos casos a decimal sin notación exponencial; es el mismo
+ * patrón que ya usa analyst-dashboard.page.ts para formatear números.
  */
-function sinNotacionCientifica(texto: string): string {
-  const [mantisa, exponenteTexto] = texto.split(/e/i);
-  const exponente = Number(exponenteTexto);
-  const negativo = mantisa.startsWith('-');
-  const mantisaAbs = negativo ? mantisa.slice(1) : mantisa;
-  const [parteEntera, parteDecimal = ''] = mantisaAbs.split('.');
-  const digitos = parteEntera + parteDecimal;
-  const puntoNuevo = parteEntera.length + exponente;
-
-  let resultado: string;
-  if (puntoNuevo <= 0) {
-    resultado = '0.' + '0'.repeat(-puntoNuevo) + digitos;
-  } else if (puntoNuevo >= digitos.length) {
-    resultado = digitos + '0'.repeat(puntoNuevo - digitos.length);
-  } else {
-    resultado = `${digitos.slice(0, puntoNuevo)}.${digitos.slice(puntoNuevo)}`;
-  }
-
-  if (resultado.includes('.')) {
-    resultado = resultado.replace(/0+$/, '').replace(/\.$/, '');
-  }
-
-  return negativo ? `-${resultado}` : resultado;
+function formatear(n: number): string {
+  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 });
 }
