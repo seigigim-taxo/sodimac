@@ -157,6 +157,11 @@ function redondear(n: number): number {
  * ya expande esos casos a decimal sin notación exponencial; es el mismo
  * patrón que ya usa analyst-dashboard.page.ts para formatear números.
  */
-function formatear(n: number): string {
+/*
+ * Exportada: el componente también la necesita para mostrar `acumulado`
+ * (ver "12 +" en la pantalla compuesta) sin caer de nuevo en la notación
+ * científica de String() que esta función existe para evitar.
+ */
+export function formatear(n: number): string {
   return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 });
 }

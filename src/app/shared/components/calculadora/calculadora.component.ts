@@ -1,15 +1,16 @@
 import { Component, computed, signal } from '@angular/core';
 import {
   EstadoCalculadora, Operacion,
-  estadoInicial, limpiar, presionarDigito, presionarPunto, presionarOperacion, presionarIgual,
+  estadoInicial, limpiar, presionarDigito, presionarPunto, presionarOperacion, presionarIgual, formatear,
 } from '../../utils/calculadora.util';
 
 /*
  * Calculadora simple del menú lateral: las 4 operaciones básicas, sin más.
  *
- * Vive fuera del router-outlet (montada una sola vez en AppComponent, como el
- * buscador de SKU), así que el número que estaba tipeando el operador sigue
- * ahí si vuelve a abrirla — no hace falta resetearla al cerrar.
+ * El modal que la contiene (BotonCalculadoraComponent) usa
+ * keepContentsMounted: sin eso, Ionic destruye y recrea este componente en
+ * cada cierre/apertura, perdiendo el número en curso. Con eso, el estado
+ * sobrevive a cerrar y reabrir — no hace falta resetearlo al cerrar.
  */
 @Component({
   selector: 'app-calculadora',
@@ -35,8 +36,15 @@ export class CalculadoraComponent {
   pantalla = computed(() => {
     const e = this.estadoSignal();
     if (e.operacionPendiente === null || e.acumulado === null) return e.pantalla;
-    if (e.esperandoSiguiente) return `${e.acumulado} ${e.operacionPendiente}`;
-    return `${e.acumulado} ${e.operacionPendiente} ${e.pantalla}`;
+    /*
+     * formatear(), no `${e.acumulado}` crudo: interpolar el number directo
+     * usa la conversión implícita de JS (equivalente a String()), que cae en
+     * notación científica fuera de [1e-6, 1e21) — el mismo bug que formatear
+     * existe para evitar, reexpuesto acá si no se usa también para acumulado.
+     */
+    const acumuladoTexto = formatear(e.acumulado);
+    if (e.esperandoSiguiente) return `${acumuladoTexto} ${e.operacionPendiente}`;
+    return `${acumuladoTexto} ${e.operacionPendiente} ${e.pantalla}`;
   });
 
   digito(d: string): void {
