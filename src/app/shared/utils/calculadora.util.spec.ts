@@ -88,4 +88,22 @@ describe('calculadora.util', () => {
   it('un dígito nuevo después de "=" empieza un número limpio', () => {
     expect(tipear('2', '+', '3', '=', '9').pantalla).toBe('9');
   });
+
+  describe('números muy chicos o muy grandes no se muestran en notación científica', () => {
+    it('un resultado menor a 1e-6 se muestra decimal, no como "1e-7"', () => {
+      // 1 ÷ 10000000 = 0.0000001 — JS lo formatea como "1e-7" con String().
+      expect(tipear('1', '÷', '1', '0', '0', '0', '0', '0', '0', '0', '=').pantalla).toBe('0.0000001');
+    });
+
+    it('un resultado negativo menor a 1e-6 conserva el signo', () => {
+      expect(tipear('0', '-', '1', '÷', '1', '0', '0', '0', '0', '0', '0', '0', '=').pantalla).toBe('-0.0000001');
+    });
+
+    it('un resultado muy grande se muestra decimal, no como "1e+22"', () => {
+      // 10^11 (12 dígitos, el tope de MAX_DIGITOS) × 10^11 = 10^22, que excede
+      // el umbral de notación exponencial de JS (String(1e22) === "1e+22").
+      const diez11 = ['1', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'];
+      expect(tipear(...diez11, '×', ...diez11, '=').pantalla).toBe('1' + '0'.repeat(22));
+    });
+  });
 });
