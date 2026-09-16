@@ -20,9 +20,18 @@ const RETRASO_TRAS_LECTURA_MS = 300;
 @Injectable({ providedIn: 'root' })
 export class BeepService {
   private contexto: AudioContext | null = null;
+  private timeoutId: ReturnType<typeof setTimeout> | undefined;
 
+  /*
+   * Cancela el timer pendiente antes de agendar uno nuevo: con lectura por
+   * pistola en ráfaga, varios SKU fuera de muestra pueden escanearse en menos
+   * de RETRASO_TRAS_LECTURA_MS. Sin esto, cada escaneo agendaba su propio
+   * tono y se oían superpuestos o en cascada. Así, solo suena una vez por
+   * ráfaga — el del último escaneo, que es el que queda en pantalla.
+   */
   error(): void {
-    setTimeout(() => this.tono(220, 180), RETRASO_TRAS_LECTURA_MS);
+    clearTimeout(this.timeoutId);
+    this.timeoutId = setTimeout(() => this.tono(220, 180), RETRASO_TRAS_LECTURA_MS);
   }
 
   private tono(frecuenciaHz: number, duracionMs: number): void {
