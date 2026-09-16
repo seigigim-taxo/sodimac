@@ -140,9 +140,14 @@ function aplicar(a: number, b: number, operacion: Operacion): number | null {
 /*
  * El punto flotante de JS deja basura (0.1 + 0.2 = 0.30000000000000004).
  * Redondear a 10 decimales la limpia sin recortar precisión real.
+ *
+ * También normaliza -0 a 0: -5 × 0 da -0 en IEEE-754, y a diferencia de
+ * String(-0) === '0', toLocaleString() (usado en formatear) SÍ muestra el
+ * signo: "-0" en pantalla, para una operación que no tiene nada de negativa.
  */
 function redondear(n: number): number {
-  return Math.round(n * 1e10) / 1e10;
+  const resultado = Math.round(n * 1e10) / 1e10;
+  return resultado === 0 ? 0 : resultado;
 }
 
 /*
