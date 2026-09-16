@@ -11,7 +11,7 @@ describe('AuthService', () => {
     fetchMock = jasmine.createSpy('fetch').and.returnValue(
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({}),
+        text: () => Promise.resolve('{}'),
       } as Response)
     );
     window.fetch = fetchMock;
@@ -44,7 +44,7 @@ describe('AuthService', () => {
     fetchMock.and.returnValue(
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        text: () => Promise.resolve(JSON.stringify(mockResponse)),
       } as Response)
     );
 
@@ -73,7 +73,7 @@ describe('AuthService', () => {
     fetchMock.and.returnValue(
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockResponse),
+        text: () => Promise.resolve(JSON.stringify(mockResponse)),
       } as Response)
     );
 

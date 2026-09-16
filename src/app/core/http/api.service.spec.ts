@@ -76,7 +76,7 @@ describe('ApiService — errores que ve el operador', () => {
   it('respeta el mensaje que manda el servidor', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
-      json: () => Promise.resolve({ status: 'ERROR', msg: 'Usuario no existe o inactivo' }),
+      text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
 
     try {
@@ -98,7 +98,7 @@ describe('ApiService — errores que ve el operador', () => {
     fetchSpy.and.resolveTo({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ status: 'ERROR', msg: 'Usuario no existe o inactivo' }),
+      text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
 
     try {
@@ -111,13 +111,13 @@ describe('ApiService — errores que ve el operador', () => {
   /*
    * El escenario real que motivó esto: "WiFi de tienda a medio asociar" corta
    * la conexión mientras baja el body. fetch() no lo ve como un error de red
-   * —el TCP se aceptó bien—, así que llega hasta acá como un JSON truncado.
+   * —el TCP se aceptó bien—, así que llega hasta acá como un JSON truncado:
+   * arranca como objeto ('{') pero no alcanza a cerrar.
    */
   it('un cuerpo truncado (conexión cortada a medio camino) no deja pasar el SyntaxError crudo', async () => {
-    const errorDeParseo = new SyntaxError("Unexpected end of JSON input");
     fetchSpy.and.resolveTo({
       ok: true,
-      json: () => Promise.reject(errorDeParseo),
+      text: () => Promise.resolve('{"status":"OK","data":{"usuario":{"nombre":"Ana"'),
     } as Response);
 
     try {
@@ -128,7 +128,32 @@ describe('ApiService — errores que ve el operador', () => {
       expect((e as Error).message).toContain('incompleta');
       expect(console.error).toHaveBeenCalledWith(
         '[api] respuesta no es JSON válido (conexión cortada a medio camino):',
-        errorDeParseo
+        jasmine.any(Error)
+      );
+    }
+  });
+
+  /*
+   * Un SyntaxError de JSON.parse no siempre significa que la conexión se
+   * cortó: un proxy/WAF corporativo puede devolver una página de error en
+   * HTML, o el backend un body vacío por un bug. Decirle al operador "revisa
+   * la conexión" ahí sería un diagnóstico falso.
+   */
+  it('un cuerpo que no parece JSON truncado (ej. HTML de un proxy) no se etiqueta como corte de conexión', async () => {
+    fetchSpy.and.resolveTo({
+      ok: true,
+      text: () => Promise.resolve('<html><body>502 Bad Gateway</body></html>'),
+    } as Response);
+
+    try {
+      await api.post('x', {});
+    } catch (e) {
+      expect(e).toBeInstanceOf(NetworkError);
+      expect((e as Error).message).not.toContain('conexión');
+      expect((e as Error).message).toContain('no reconoce');
+      expect(console.error).toHaveBeenCalledWith(
+        '[api] respuesta no es JSON válido (no parece un corte de conexión):',
+        jasmine.any(Error)
       );
     }
   });
