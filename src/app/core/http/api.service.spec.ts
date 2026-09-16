@@ -280,6 +280,7 @@ describe('ApiService — reporta la calidad de conexión', () => {
   it('un body truncado NO cuenta como fallo de conexión: fetch sí resolvió', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
+      headers: new Headers(),
       text: () => Promise.resolve('{"status":"OK","data":{"usuario":{"nombre":"Ana"'),
     } as Response);
 
