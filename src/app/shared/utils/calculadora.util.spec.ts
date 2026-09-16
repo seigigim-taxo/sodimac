@@ -102,6 +102,15 @@ describe('calculadora.util', () => {
     expect(tipear('2', '+', '3', '=', '9').pantalla).toBe('9');
   });
 
+  /*
+   * toLocaleString (a diferencia de String) no normaliza -0: sin este fix,
+   * una multiplicación que da -0 mostraba literalmente "-0" en pantalla.
+   */
+  it('un resultado -0 se muestra como "0", no "-0"', () => {
+    // 3 - 8 = -5; -5 × 0 = -0 en IEEE-754.
+    expect(tipear('3', '-', '8', '=', '×', '0', '=').pantalla).toBe('0');
+  });
+
   describe('números muy chicos o muy grandes no se muestran en notación científica', () => {
     it('un resultado menor a 1e-6 se muestra decimal, no como "1e-7"', () => {
       // 1 ÷ 10000000 = 0.0000001 — JS lo formatea como "1e-7" con String().

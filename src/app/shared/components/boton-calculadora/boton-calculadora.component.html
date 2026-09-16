@@ -1,8 +1,12 @@
 <!--
   Misma tarjeta flotante centrada que el buscador de SKU: una utilidad de
   paso, no un flujo que tape la pantalla de conteo.
+
+  keepContentsMounted: sin esto, Ionic destruye CalculadoraComponent al
+  cerrar el modal y lo recrea desde cero al reabrir — el número en curso se
+  perdía en cada cierre, aunque el componente asumía que sobrevivía.
 -->
-<ion-modal class="buscador-modal" [isOpen]="abierto()"
+<ion-modal class="buscador-modal" [isOpen]="abierto()" [keepContentsMounted]="true"
   (ionModalDidDismiss)="cerrarCalculadora()">
   <ng-template>
     <div class="buscador-tarjeta">
