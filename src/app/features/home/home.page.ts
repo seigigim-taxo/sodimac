@@ -271,6 +271,7 @@ export class HomePage implements ViewWillEnter {
      * de version no puede demorar ni romper la carga de la pantalla.
      */
     void this.oferta.buscarEnSilencio();
+    void this.oferta.confirmarInstalacion();
 
     const session = this.auth.session();
     if (!session) return;

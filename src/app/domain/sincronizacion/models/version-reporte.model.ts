@@ -1,4 +1,4 @@
-export type TipoReporteVersion = 'DETECCION' | 'INSTALACION';
+export type TipoReporteVersion = 'DETECCION' | 'CONFIRMACION_INSTALACION';
 
 export interface VersionReportPayload {
   carga_uid: string;

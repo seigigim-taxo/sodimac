@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { App } from '@capacitor/app';
+import { Preferences } from '@capacitor/preferences';
 import { AlertController } from '@ionic/angular/standalone';
 import { ActualizacionFacade } from '../../state/actualizacion/actualizacion.facade';
 import { ReporteVersionUseCase } from '../../application/actualizacion/reporte-version.use-case';
@@ -31,6 +32,7 @@ import { APP_VERSION } from '../../core/version';
  * cada vuelta sería una consulta al servidor para preguntar lo mismo.
  */
 const INTERVALO_CONSULTA_MS = 5 * 60_000;
+const VERSION_CONFIRMADA_KEY = 'last_version_confirmed';
 
 @Injectable({ providedIn: 'root' })
 export class OfertaActualizacionService {
@@ -83,6 +85,26 @@ export class OfertaActualizacionService {
   descartar(): void {
     const version = this.actualizacion.disponible();
     if (version && !version.obligatoria) this.descartadaSignal.set(version.versionCode);
+  }
+
+  /*
+   * Confirmación de instalación: al abrir la app, compara la versión actual
+   * con la última confirmada en Preferences. Si son diferentes, significa que
+   * se instaló una nueva versión y se envía el reporte una sola vez.
+   */
+  async confirmarInstalacion(): Promise<void> {
+    try {
+      const { value } = await Preferences.get({ key: VERSION_CONFIRMADA_KEY });
+      const ultimaConfirmada = value ? Number(value) : 0;
+      const versionActual = Number(APP_VERSION);
+
+      if (versionActual !== ultimaConfirmada) {
+        await this.reporteVersion.execute('CONFIRMACION_INSTALACION');
+        await Preferences.set({ key: VERSION_CONFIRMADA_KEY, value: String(versionActual) });
+      }
+    } catch {
+      // Silencioso: si falla, se intentará en el próximo inicio
+    }
   }
 
   /*
@@ -164,7 +186,6 @@ export class OfertaActualizacionService {
   }
 
   private async instalar(): Promise<void> {
-    await this.reporteVersion.execute('INSTALACION');
     const resultado = await this.actualizacion.actualizar();
 
     switch (resultado.estado) {
