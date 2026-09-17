@@ -34,6 +34,15 @@ export class BeepService {
     this.timeoutId = setTimeout(() => this.tono(220, 180), RETRASO_TRAS_LECTURA_MS);
   }
 
+  /*
+   * Para cuando el operador sale del TAG (descarta o finaliza) antes de que
+   * se cumplan los RETRASO_TRAS_LECTURA_MS: sin esto, un beep agendado por un
+   * scan fallido podía sonar hasta 300ms después, ya en otra pantalla/TAG.
+   */
+  cancelar(): void {
+    clearTimeout(this.timeoutId);
+  }
+
   private tono(frecuenciaHz: number, duracionMs: number): void {
     try {
       const ctx = this.obtenerContexto();
@@ -63,7 +72,13 @@ export class BeepService {
   }
 
   private obtenerContexto(): AudioContext {
-    if (!this.contexto) {
+    /*
+     * 'closed' es terminal: un AudioContext cerrado (ej. el sistema lo libera
+     * bajo presión de memoria en la PDA) no se puede reabrir con resume(), y
+     * crear nodos sobre él tira InvalidStateError. Sin este chequeo, quedaba
+     * cacheado cerrado para siempre y todo beep futuro fallaba en silencio.
+     */
+    if (!this.contexto || this.contexto.state === 'closed') {
       this.contexto = new AudioContext();
     }
     /*
@@ -71,9 +86,16 @@ export class BeepService {
      * interacción del operador. Para cuando esto se llama ya hubo una (el
      * scan llegó por la UI), así que resume() no debería hacer falta, pero
      * cuesta nada dejarlo por si el sistema lo suspendió de nuevo.
+     *
+     * .catch() explícito: sin await, un rechazo de resume() (ej. política de
+     * autoplay al llamarse fuera de un gesto de usuario directo, ya que esto
+     * corre dentro de un setTimeout) quedaba como unhandled promise rejection
+     * en vez de pasar por el manejo de errores que tono() cree tener.
      */
     if (this.contexto.state === 'suspended') {
-      void this.contexto.resume();
+      this.contexto.resume().catch((err) => {
+        console.error('[BeepService] no se pudo reanudar el AudioContext:', err);
+      });
     }
     return this.contexto;
   }
