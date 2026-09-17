@@ -590,11 +590,17 @@ export class CountingPageComponent implements ViewWillEnter {
   /*
    * Suelta el aviso al cerrar el TAG: lo que se leyo pertenece al TAG anterior
    * y dejarlo colgado en el siguiente diria algo falso.
+   *
+   * beep.cancelar() también: un scan fallido agenda el tono para 300ms
+   * después (ver BeepService), y sin cancelarlo podía sonar recién al llegar
+   * a la pantalla del TAG siguiente si el operador descartaba o finalizaba
+   * de inmediato.
    */
   private limpiarAvisoScan(): void {
     clearTimeout(this.lastScanTimeoutId);
     this.lastScan.set(null);
     this.destelloScan.set(null);
+    this.beep.cancelar();
   }
 
   /*
