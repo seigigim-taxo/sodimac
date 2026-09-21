@@ -152,31 +152,42 @@
       </ion-segment>
     </div>
 
+    <app-scan scanType="sku"
+      [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
+      [confirmLabel]="modoCaptura() === 'cantidad' ? 'Continuar' : 'Registrar'"
+      [showBanner]="false" [locked]="escanerBloqueado()"
+      [cederFoco]="modoCaptura() === 'cantidad'"
+      (scan)="onScanSku($event)"></app-scan>
+
     <!--
-      Resultado del último escaneo, PEGADO al input.
+      Resultado del último escaneo, DEBAJO del input y pegado a la tarjeta de
+      cantidad.
 
-      Va acá y no al pie ni en el tope de la pantalla. Al pie se leía tarde:
-      con pistola el operador mira el producto y la pantalla de reojo, y para
-      cuando notaba un "no está en la muestra" ya había disparado el código
-      siguiente. Y en el tope se pierde apenas se despliega el teclado, que en
-      480x800 empuja el contenido fuera de vista.
+      Antes iba arriba del input. En modo "por cantidad" eso lo dejaba lejos de
+      donde el operador termina mirando: apenas se escanea aparece la tarjeta de
+      cantidad debajo del input y se abre el teclado numérico, que en 480x800
+      empuja el contenido hacia arriba — y el banner, un paso más arriba que el
+      input, quedaba fuera de vista mientras se tipeaba la cantidad.
 
-      Junto al input queda en el punto que el operador ya está mirando, y el
-      teclado lo arrastra con él en vez de taparlo.
+      Acá queda agrupado con la tarjeta de cantidad: el teclado los mueve a los
+      dos juntos en vez de dejar el resultado atrás. Al pie de la pantalla no
+      sirve (se leía tarde: con pistola el operador mira el producto y la
+      pantalla de reojo, y para cuando notaba un "no está en la muestra" ya
+      había disparado el código siguiente).
     -->
     @if (lastScan(); as scan) {
     @if (scan.estado === 'OK') {
-    <div class="status-banner status-banner-success mb-3">
+    <div class="status-banner status-banner-success mt-3">
       <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span>
         @if (scan.descripcion) { — {{ scan.descripcion }} }
       </span>
     </div>
     } @else if (scan.estado === 'ERROR') {
-    <div class="status-banner status-banner-error mb-3">
+    <div class="status-banner status-banner-error mt-3">
       <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> — {{ scan.mensaje }}</span>
     </div>
     } @else {
-    <div class="status-banner status-banner-error mb-3">
+    <div class="status-banner status-banner-error mt-3">
       <span>✗ SKU <span class="num font-bold">{{ scan.sku }}</span> no está en la muestra</span>
     </div>
     }
@@ -187,13 +198,6 @@
       operador tenia siempre un banner delante y dejaba de distinguir cuando
       cambiaba. El espacio vacio hace que el ✓ o el ✗ salten a la vista.
     -->
-
-    <app-scan scanType="sku"
-      [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
-      [confirmLabel]="modoCaptura() === 'cantidad' ? 'Continuar' : 'Registrar'"
-      [showBanner]="false" [locked]="escanerBloqueado()"
-      [cederFoco]="modoCaptura() === 'cantidad'"
-      (scan)="onScanSku($event)"></app-scan>
 
     <!-- ===== Cantidad del SKU capturado (solo modo "por cantidad") ===== -->
     @if (skuPendiente(); as pendiente) {
@@ -247,23 +251,43 @@
       -->
       <div class="flex flex-col gap-2.5">
         @for (item of itemsPaginados(); track item.lecturaId) {
+        <!--
+          Tres filas, según el diseño acordado en la daily de Rodrigo:
+            1. "Código de lectura:" a la izquierda y su valor a la derecha.
+            2. SKU a la izquierda y los botones a la derecha.
+            3. Descripción completa, a todo el ancho.
+
+          La descripción va sola en su fila a propósito: antes compartía fila
+          con los botones y, al ser larga, los empujaba/recentraba según cuántas
+          líneas ocupara. Sola, puede crecer todo lo que necesite (sigue sin
+          truncarse, ver .item-desc) sin mover nada de lo de arriba.
+
+          Los ajustes con +/- no traen código de lectura: en ese caso la fila 1
+          no se muestra.
+        -->
         <div class="item-row">
-          <div class="min-w-0">
+          @if (item.codigoLectura) {
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="item-lectura-label">Código de lectura:</span>
+            <span class="item-lectura-valor">{{ item.codigoLectura }}</span>
+          </div>
+          }
+          <div class="flex items-center justify-between gap-3">
             <p class="item-sku">{{ item.sku }}</p>
-            <p class="item-desc">{{ item.descripcion }}</p>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, -1)">
+                <ion-icon slot="icon-only" name="remove-outline" style="font-size: 0.9rem;"></ion-icon>
+              </ion-button>
+              <span class="qty-chip">{{ item.cantidad }}</span>
+              <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, 1)" style="--color: var(--app-primary);">
+                <ion-icon slot="icon-only" name="add-outline" style="font-size: 0.9rem;"></ion-icon>
+              </ion-button>
+              <ion-button class="step-btn step-btn-danger" (click)="deleteLectura(item.lecturaId)">
+                <ion-icon slot="icon-only" name="trash-outline" style="font-size: 0.95rem;"></ion-icon>
+              </ion-button>
+            </div>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, -1)">
-              <ion-icon slot="icon-only" name="remove-outline" style="font-size: 0.9rem;"></ion-icon>
-            </ion-button>
-            <span class="qty-chip">{{ item.cantidad }}</span>
-            <ion-button class="step-btn" (click)="adjustLectura(item.lecturaId, 1)" style="--color: var(--app-primary);">
-              <ion-icon slot="icon-only" name="add-outline" style="font-size: 0.9rem;"></ion-icon>
-            </ion-button>
-            <ion-button class="step-btn step-btn-danger" (click)="deleteLectura(item.lecturaId)">
-              <ion-icon slot="icon-only" name="trash-outline" style="font-size: 0.95rem;"></ion-icon>
-            </ion-button>
-          </div>
+          <p class="item-desc">{{ item.descripcion }}</p>
         </div>
 
         }
