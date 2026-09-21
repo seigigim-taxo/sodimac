@@ -900,8 +900,9 @@ ion-title {
   }
 
   /* ---------- PRODUCT ROW + STEPPER (conteo) ---------- */
+  /* Columna, no fila: SKU + código de lectura / botones / descripción, cada uno en su fila. */
   .item-row {
-    @apply flex items-center justify-between gap-3 rounded-2xl p-3.5;
+    @apply flex flex-col gap-2 rounded-2xl p-3.5;
     background: var(--app-surface);
     border: 1px solid var(--app-border);
   }
@@ -910,6 +911,18 @@ ion-title {
     @apply text-sm font-bold;
     font-family: theme('fontFamily.mono');
     color: var(--app-text);
+  }
+
+  .item-lectura-label {
+    @apply text-[11px] uppercase tracking-wide shrink-0;
+    color: var(--app-text-muted);
+  }
+
+  .item-lectura-valor {
+    @apply text-sm font-bold text-right;
+    font-family: theme('fontFamily.mono');
+    color: var(--app-text);
+    overflow-wrap: anywhere;
   }
 
   /*

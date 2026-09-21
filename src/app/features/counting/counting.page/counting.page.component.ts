@@ -56,11 +56,13 @@ interface ItemVista { productoId: number; sku: string; descripcion: string; cant
  * la confirmación de "0 unidades".
  */
 interface LecturaVista {
-  lecturaId:   number;
-  productoId:  number;
-  sku:         string;
-  descripcion: string;
-  cantidad:    number;
+  lecturaId:     number;
+  productoId:    number;
+  sku:           string;
+  descripcion:   string;
+  /* Lo que efectivamente se leyó: puede ser el SKU o un código de barras. Null en los ajustes con +/-. */
+  codigoLectura: string | null;
+  cantidad:      number;
 }
 
 /*
@@ -222,11 +224,12 @@ export class CountingPageComponent implements ViewWillEnter {
 
   // Lista de la pantalla: una fila por lectura, en orden de captura.
   lecturasView = computed<LecturaVista[]>(() => this.conteo.lecturas().map((l) => ({
-    lecturaId:   l.lecturaId,
-    productoId:  l.productoId,
-    sku:         l.sku,
-    descripcion: l.descripcion ?? l.sku,
-    cantidad:    l.cantidad,
+    lecturaId:     l.lecturaId,
+    productoId:    l.productoId,
+    sku:           l.sku,
+    descripcion:   l.descripcion ?? l.sku,
+    codigoLectura: l.codigoLectura,
+    cantidad:      l.cantidad,
   })));
 
   // Total de unidades de un SKU: suma de todas sus lecturas. Lo usa la
