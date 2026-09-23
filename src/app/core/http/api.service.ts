@@ -136,10 +136,16 @@ export class ApiService {
           : '[api] respuesta no es JSON válido (no parece un corte de conexión):',
         err,
       );
+      /*
+       * esDeConectividad: false en el caso no-truncado — no es un problema de
+       * red, es un cuerpo que llegó completo pero no es JSON válido (bug del
+       * backend, HTML de un proxy/WAF). Ver el comentario de NetworkError.
+       */
       throw new NetworkError(
         truncado
           ? 'La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.'
-          : 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.'
+          : 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.',
+        truncado
       );
     }
   }

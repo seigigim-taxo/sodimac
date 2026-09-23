@@ -156,6 +156,7 @@ describe('ApiService — errores que ve el operador', () => {
       expect(e).toBeInstanceOf(NetworkError);
       expect((e as Error).message).not.toContain('conexión');
       expect((e as Error).message).toContain('no reconoce');
+      expect((e as NetworkError).esDeConectividad).toBeFalse();
       expect(console.error).toHaveBeenCalledWith(
         '[api] respuesta no es JSON válido (no parece un corte de conexión):',
         jasmine.any(Error)
@@ -180,6 +181,7 @@ describe('ApiService — errores que ve el operador', () => {
       await api.post('x', {});
     } catch (e) {
       expect((e as Error).message).toContain('incompleta');
+      expect((e as NetworkError).esDeConectividad).toBeTrue();
       expect(console.error).toHaveBeenCalledWith(
         '[api] respuesta no es JSON válido (conexión cortada a medio camino):',
         jasmine.any(Error)
@@ -205,6 +207,7 @@ describe('ApiService — errores que ve el operador', () => {
       await api.post('x', {});
     } catch (e) {
       expect((e as Error).message).toContain('no reconoce');
+      expect((e as NetworkError).esDeConectividad).toBeFalse();
       expect(console.error).toHaveBeenCalledWith(
         '[api] respuesta no es JSON válido (no parece un corte de conexión):',
         jasmine.any(Error)
