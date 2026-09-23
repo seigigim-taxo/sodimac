@@ -674,6 +674,10 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   volverAInicio(): void {
+    // Mismo motivo que en doDescartarTag()/finalizarTag(): un scan fallido
+    // pudo agendar un beep para 300ms después, y sin esto podía sonar recién
+    // en la pantalla de inicio.
+    this.limpiarAvisoScan();
     this.router.navigate(['/home']);
   }
 
