@@ -121,4 +121,23 @@ describe('LoginUseCase — sin caché y falla la red', () => {
       expect((e as Error).message).toBe('Usuario no existe o inactivo');
     }
   });
+
+  /*
+   * Un NetworkError con esDeConectividad: false (ej. un JSON roto por un bug
+   * del backend) no es "no hay conexión" — agregar el sufijo de sesión
+   * offline sugeriría revisar la red cuando el problema es del servidor.
+   */
+  it('un NetworkError que no es de conectividad se propaga sin el sufijo de sesión offline', async () => {
+    onlineExecute.and.rejectWith(
+      new NetworkError('El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.', false)
+    );
+
+    try {
+      await caso.execute(REQUEST);
+      fail('debía lanzar');
+    } catch (e) {
+      expect((e as Error).message).toBe('El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.');
+      expect((e as Error).message).not.toContain('sesión guardada');
+    }
+  });
 });

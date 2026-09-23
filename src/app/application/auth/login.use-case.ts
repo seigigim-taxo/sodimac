@@ -63,8 +63,14 @@ export class LoginUseCase {
        * que caer. Sin este agregado, "La respuesta del servidor llegó
        * incompleta..." sonaría como un error pasajero cualquiera, cuando en
        * este caso además significa que el operador queda sin poder entrar.
+       *
+       * Solo si esDeConectividad: un NetworkError también cubre un cuerpo
+       * que llegó completo pero no es JSON válido (bug del backend, no la
+       * red) — ahí agregar "no hay sesión guardada para entrar sin conexión"
+       * sugeriría revisar la red cuando el problema es del servidor. Ver el
+       * comentario de NetworkError.
        */
-      if (err instanceof NetworkError) {
+      if (err instanceof NetworkError && err.esDeConectividad) {
         throw new Error(`${err.message} No hay una sesión guardada en este dispositivo para entrar sin conexión.`);
       }
       throw err;
