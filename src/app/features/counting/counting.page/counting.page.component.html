@@ -133,6 +133,55 @@
       </div>
     </div>
 
+    <!--
+      Este TAG se reabrió solo al volver a escanearlo: estaba FINALIZADO, sin
+      sincronizar, y en vez de crear uno nuevo se retomó donde había quedado.
+      Mismo flag (recovered) que ya usa la recuperación tras un reinicio de la
+      app — acá el operador tiene que saber que ese conteo no es nuevo.
+    -->
+    @if (tagRetomado()) {
+    <div class="status-banner status-banner-info mb-4">
+      <ion-icon name="sync-outline"></ion-icon>
+      <span>Retomando este TAG — ya tenías {{ totalItems() }} SKU(s) contados acá.</span>
+    </div>
+    }
+
+    <!--
+      El TAG coincide con uno ya SINCRONIZADO — inmutable, no se reabre. Se
+      creó uno nuevo, y esto es solo la referencia de lo que ya se contó en el
+      viejo: de lectura, para comparar sin poder tocarlo. Colapsable para no
+      estorbar el escaneo normal.
+    -->
+    @if (hayReferenciaSincronizada()) {
+    <div class="card mb-4">
+      <button class="flex items-center justify-between w-full" (click)="toggleReferenciaSincronizada()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
+        <div class="flex items-center gap-2">
+          <ion-icon name="time-outline" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
+          <span class="text-sm font-semibold" style="color: var(--app-text);">
+            Ver conteo sincronizado anterior de este TAG
+          </span>
+        </div>
+        <ion-icon [name]="referenciaSincronizadaVisible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
+      </button>
+
+      @if (referenciaSincronizadaVisible()) {
+      <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+        @if (fechaReferenciaSincronizada(); as fecha) {
+        <p class="text-xs mb-3" style="color: var(--app-text-muted);">
+          Este TAG ya se sincronizó con el SGO el {{ fecha }}. Este conteo es aparte — no se puede editar ni se suma a este.
+        </p>
+        }
+        @for (item of referenciaSincronizadaView(); track item.productoId) {
+        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
+          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
+          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
+        </div>
+        }
+      </div>
+      }
+    </div>
+    }
+
     <!-- ===== Modo de captura ===== -->
     <!--
       Pegajoso entre TAGs: el modo que el operador elige acá queda como

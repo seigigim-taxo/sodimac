@@ -18,6 +18,12 @@ export class ZonaFacade {
   private selectedZoneSignal = signal<Zona | null>(null);
   private tagValueSignal     = signal<string>('');
   private ubicacionIdSignal  = signal<number | null>(null);
+  /*
+   * El TAG SINCRONIZADO (inmutable) que coincidió con el que se acaba de
+   * registrar, si lo hay. La pantalla de conteo lo usa para mostrar de solo
+   * lectura lo que ya se contó ahí — ver ObtenerReferenciaSincronizadaUseCase.
+   */
+  private ubicacionSincronizadaIdSignal = signal<number | null>(null);
   private ubicacionPrecisaSignal = signal<string>('');
   private loadingSignal      = signal(false);
   private errorSignal        = signal<string | null>(null);
@@ -26,6 +32,7 @@ export class ZonaFacade {
   readonly selectedZone      = this.selectedZoneSignal.asReadonly();
   readonly tagValue          = this.tagValueSignal.asReadonly();
   readonly ubicacionId       = this.ubicacionIdSignal.asReadonly();
+  readonly ubicacionSincronizadaId = this.ubicacionSincronizadaIdSignal.asReadonly();
   readonly ubicacionPrecisa  = this.ubicacionPrecisaSignal.asReadonly();
   readonly loading           = this.loadingSignal.asReadonly();
   readonly error             = this.errorSignal.asReadonly();
@@ -99,7 +106,14 @@ export class ZonaFacade {
     );
   }
 
-  async confirmZona(): Promise<void> {
+  /*
+   * `conteoId`, `operadorId` y `pdaId` son quienes acotan si un TAG que
+   * coincide se reabre (FINALIZADO de esta ronda) o solo se muestra de
+   * referencia (SINCRONIZADO de esta ronda) — ver
+   * UbicacionRepository.insert(). Sin ronda no hay a qué acotar la búsqueda,
+   * por eso la pantalla la resuelve ANTES de llamar acá.
+   */
+  async confirmZona(conteoId: number, operadorId: number, pdaId: number): Promise<void> {
     const zona = this.selectedZoneSignal();
     const tag  = this.tagValueSignal();
     if (!zona || !tag) return;
@@ -125,8 +139,9 @@ export class ZonaFacade {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
-      const id = await this.registrarUbicacion.execute(zona.id, ubicacionPrecisa, tag);
-      this.ubicacionIdSignal.set(id);
+      const resultado = await this.registrarUbicacion.execute(zona.id, ubicacionPrecisa, tag, conteoId, operadorId, pdaId);
+      this.ubicacionIdSignal.set(resultado.ubicacionId);
+      this.ubicacionSincronizadaIdSignal.set(resultado.ubicacionSincronizadaId);
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al registrar ubicación');
       throw err;
@@ -145,6 +160,9 @@ export class ZonaFacade {
     this.selectedZoneSignal.set(zona);
     this.tagValueSignal.set(tag);
     this.ubicacionIdSignal.set(ubicacionId);
+    // Una sesión que se restaura ya estaba EN_CURSO: no hay TAG nuevo recién
+    // creado al que pegarle una referencia de otro sincronizado.
+    this.ubicacionSincronizadaIdSignal.set(null);
     this.ubicacionPrecisaSignal.set(ubicacionPrecisa);
     this.errorSignal.set(null);
   }
@@ -157,6 +175,7 @@ export class ZonaFacade {
   clearTag(): void {
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
+    this.ubicacionSincronizadaIdSignal.set(null);
     this.errorSignal.set(null);
   }
 
@@ -164,6 +183,7 @@ export class ZonaFacade {
     this.ubicacionPrecisaSignal.set('');
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
+    this.ubicacionSincronizadaIdSignal.set(null);
     this.errorSignal.set(null);
   }
 
@@ -172,6 +192,7 @@ export class ZonaFacade {
     this.selectedZoneSignal.set(null);
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
+    this.ubicacionSincronizadaIdSignal.set(null);
     this.ubicacionPrecisaSignal.set('');
     this.errorSignal.set(null);
   }
