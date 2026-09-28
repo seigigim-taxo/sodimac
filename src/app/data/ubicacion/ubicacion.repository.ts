@@ -39,7 +39,7 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
        LIMIT 1`,
       [zonaId, codigoNormalizado, tagNormalizado]
     );
-    const existingId = (reutilizable.values?.[0] as Record<string, unknown> | undefined)?.['id'] as number | undefined;
+    const existingId = this.primerId(reutilizable);
     if (existingId !== undefined) {
       if (isDevMode()) console.log('[UbicacionRepo] retoma sod_ubicacion abierta', { id: existingId, zonaId, codigo: codigoNormalizado, tag: tagNormalizado });
       return { ubicacionId: existingId, ubicacionSincronizadaId: null };
@@ -57,20 +57,9 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
      * reabre por coincidir el número — esa ronda ya está cerrada y reabrirla
      * de paso sería un cambio que nadie pidió.
      */
-    const finalizada = await db.query(
-      `SELECT u.id
-       FROM sod_ubicacion u
-       WHERE u.zona_id = ? AND u.codigo = ? AND u.tag = ?
-         AND EXISTS (
-           SELECT 1 FROM sod_conteo_detalle d
-           WHERE d.ubicacion_id = u.id AND d.conteo_id = ?
-             AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'FINALIZADO'
-         )
-       ORDER BY u.id DESC
-       LIMIT 1`,
-      [zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId]
+    const finalizadaId = await this.buscarPorEstado(
+      zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId, 'FINALIZADO'
     );
-    const finalizadaId = (finalizada.values?.[0] as Record<string, unknown> | undefined)?.['id'] as number | undefined;
     if (finalizadaId !== undefined) {
       await db.run(
         `UPDATE sod_conteo_detalle
@@ -94,20 +83,9 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
      * (caso raro), se toma la más reciente — es la que probablemente le
      * importa al operador.
      */
-    const sincronizada = await db.query(
-      `SELECT u.id
-       FROM sod_ubicacion u
-       WHERE u.zona_id = ? AND u.codigo = ? AND u.tag = ?
-         AND EXISTS (
-           SELECT 1 FROM sod_conteo_detalle d
-           WHERE d.ubicacion_id = u.id AND d.conteo_id = ?
-             AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'SINCRONIZADO'
-         )
-       ORDER BY u.id DESC
-       LIMIT 1`,
-      [zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId]
-    );
-    const ubicacionSincronizadaId = (sincronizada.values?.[0] as Record<string, unknown> | undefined)?.['id'] as number | undefined ?? null;
+    const ubicacionSincronizadaId = await this.buscarPorEstado(
+      zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId, 'SINCRONIZADO'
+    ) ?? null;
 
     await db.run(
       `INSERT INTO sod_ubicacion (zona_id, codigo, tag) VALUES (?, ?, ?)`,
@@ -117,12 +95,44 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
       `SELECT id FROM sod_ubicacion WHERE zona_id = ? AND codigo = ? AND tag = ? ORDER BY id DESC LIMIT 1`,
       [zonaId, codigoNormalizado, tagNormalizado]
     );
-    const id = (result.values?.[0] as Record<string, unknown>)?.['id'] as number;
+    const id = this.primerId(result) as number;
     if (isDevMode()) {
       console.log('[UbicacionRepo] INSERT sod_ubicacion', { id, zonaId, codigo: codigoNormalizado, tag: tagNormalizado, ubicacionSincronizadaId });
       const snapshot = await db.query(`SELECT * FROM sod_ubicacion ORDER BY id DESC LIMIT 10`);
       console.table(snapshot.values ?? []);
     }
     return { ubicacionId: id, ubicacionSincronizadaId };
+  }
+
+  /*
+   * ¿Hay una sod_ubicacion con este zona+código+tag que tenga, en ESTA ronda
+   * (conteoId) y de este operador+pda, al menos un detalle en `estado`? Es la
+   * misma forma de consulta para FINALIZADO (reabrir) y SINCRONIZADO
+   * (referencia) — solo cambia qué estado se busca.
+   */
+  private async buscarPorEstado(
+    zonaId: number, codigo: string, tag: string,
+    conteoId: number, operadorId: number, pdaId: number, estado: string
+  ): Promise<number | undefined> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const resultado = await db.query(
+      `SELECT u.id
+       FROM sod_ubicacion u
+       WHERE u.zona_id = ? AND u.codigo = ? AND u.tag = ?
+         AND EXISTS (
+           SELECT 1 FROM sod_conteo_detalle d
+           WHERE d.ubicacion_id = u.id AND d.conteo_id = ?
+             AND d.operador_id = ? AND d.pda_id = ? AND d.estado = ?
+         )
+       ORDER BY u.id DESC
+       LIMIT 1`,
+      [zonaId, codigo, tag, conteoId, operadorId, pdaId, estado]
+    );
+    return this.primerId(resultado);
+  }
+
+  /* El `id` de la primera fila de un resultado, o undefined si no hay filas. */
+  private primerId(resultado: { values?: unknown[] }): number | undefined {
+    return (resultado.values?.[0] as Record<string, unknown> | undefined)?.['id'] as number | undefined;
   }
 }
