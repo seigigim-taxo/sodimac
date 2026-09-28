@@ -36,6 +36,7 @@ import { BuscadorService } from '../../../shared/services/buscador.service';
 import { NetworkService } from '../../../shared/services/network.service';
 import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
 import { BeepService } from '../../../shared/services/beep.service';
+import { AlertaSonidoService } from '../../../shared/services/alerta-sonido.service';
 import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
 import { CardColapsableComponent } from '../../../shared/components/card-colapsable/card-colapsable.component';
 
@@ -130,6 +131,7 @@ export class CountingPageComponent implements ViewWillEnter {
   private network           = inject(NetworkService);
   private avisoSync         = inject(AvisoSincronizacionService);
   private beep              = inject(BeepService);
+  private alertaSonido      = inject(AlertaSonidoService);
 
   isOnline = this.network.isOnline;
   sesionCargando = this.conteo.loading;
@@ -156,11 +158,11 @@ export class CountingPageComponent implements ViewWillEnter {
   skuPendiente = signal<CodigoCapturado | null>(null);
 
   /*
-   * A partir de acá se pregunta antes de escribir. Es un umbral de referencia
-   * acordado con el cliente, no un límite del negocio: hay SKU que legítimamente
-   * pasan de 2000 unidades.
+   * A partir de acá se pregunta antes de escribir. Es un umbral de referencia,
+   * no un límite del negocio: un SKU puede legítimamente pasar de 100
+   * unidades, así que esto no bloquea, solo confirma.
    */
-  readonly CANTIDAD_ALTA = 2000;
+  readonly CANTIDAD_ALTA = 100;
 
   // Aviso en la propia tarjeta, mientras tipea: llega antes que el diálogo del guardado.
   cantidadEsAlta = computed(() => (this.cantidad() ?? 0) >= this.CANTIDAD_ALTA);
@@ -567,6 +569,9 @@ export class CountingPageComponent implements ViewWillEnter {
   }
 
   private preguntar(header: string, message: string): Promise<boolean> {
+    // El operador suele estar mirando la pistola o el producto, no la
+    // pantalla — sin sonido, un popup de confirmación pasa inadvertido.
+    this.alertaSonido.sonar();
     return new Promise((resolve) => {
       this.alertController.create({
         header,
