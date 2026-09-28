@@ -37,6 +37,7 @@ import { NetworkService } from '../../../shared/services/network.service';
 import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
 import { BeepService } from '../../../shared/services/beep.service';
 import { HeaderStatusComponent } from '../../../shared/components/header-status/header-status.component';
+import { CardColapsableComponent } from '../../../shared/components/card-colapsable/card-colapsable.component';
 
 /*
  * Pantalla de conteo (SKU + cantidad) del TAG/zona elegidos en la pantalla
@@ -110,6 +111,7 @@ function esFallo(estado: ResultadoScan['estado']): boolean {
     IonTitle,
     IonToolbar,
     HeaderStatusComponent,
+    CardColapsableComponent,
   ],
 })
 export class CountingPageComponent implements ViewWillEnter {

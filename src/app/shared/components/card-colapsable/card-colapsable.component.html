@@ -1,0 +1,15 @@
+<div class="card mb-4">
+  <button class="flex items-center justify-between w-full" (click)="toggle.emit()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
+    <div class="flex items-center gap-2">
+      <ion-icon [name]="icon()" [style.color]="iconColor()" style="font-size: 1.25rem;"></ion-icon>
+      <span class="text-sm font-semibold" style="color: var(--app-text);">{{ label() }}</span>
+    </div>
+    <ion-icon [name]="visible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
+  </button>
+
+  @if (visible()) {
+    <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
+      <ng-content></ng-content>
+    </div>
+  }
+</div>
