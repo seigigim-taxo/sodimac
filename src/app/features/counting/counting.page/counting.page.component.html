@@ -64,54 +64,43 @@
     }
 
     <!-- Botón de resumen de avance -->
-    <div class="card mb-4">
-      <button class="flex items-center justify-between w-full" (click)="toggleResumen()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
-        <div class="flex items-center gap-2">
-          <ion-icon name="stats-chart-outline" style="color: var(--app-primary); font-size: 1.25rem;"></ion-icon>
-          <span class="text-sm font-semibold" style="color: var(--app-text);">Resumen de avance</span>
+    <app-card-colapsable icon="stats-chart-outline" iconColor="var(--app-primary)" label="Resumen de avance"
+      [visible]="resumenVisible()" (toggle)="toggleResumen()">
+      @if (resumenCargando()) {
+        <div class="flex items-center justify-center py-4">
+          <ion-spinner name="crescent" color="primary" style="width: 24px; height: 24px;"></ion-spinner>
         </div>
-        <ion-icon [name]="resumenVisible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
-      </button>
+      } @else if (resumenEvento(); as resumen) {
+        <!-- Métricas globales -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="flex flex-col">
+            <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
+            <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.qContado }}</span>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
+            <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.contados }}</span>
+          </div>
+        </div>
 
-      @if (resumenVisible()) {
-        <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
-          @if (resumenCargando()) {
-            <div class="flex items-center justify-center py-4">
-              <ion-spinner name="crescent" color="primary" style="width: 24px; height: 24px;"></ion-spinner>
-            </div>
-          } @else if (resumenEvento(); as resumen) {
-            <!-- Métricas globales -->
-            <div class="grid grid-cols-2 gap-3 mb-3">
-              <div class="flex flex-col">
-                <span class="text-xs" style="color: var(--app-text-muted);">Q contado</span>
-                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.qContado }}</span>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-xs" style="color: var(--app-text-muted);">SKUs distintos</span>
-                <span class="text-lg font-bold num" style="color: var(--app-text);">{{ resumen.contados }}</span>
-              </div>
-            </div>
+        <!-- Progreso de muestra -->
+        <div class="mb-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs" style="color: var(--app-text-muted);">Avance de muestra</span>
+            <span class="text-sm font-bold num" style="color: var(--app-primary);">{{ porcentajeAvance() }}%</span>
+          </div>
+          <div class="w-full rounded-full" style="height: 8px; background: var(--app-surface);">
+            <div class="rounded-full" style="height: 8px; background: var(--app-primary); transition: width 0.3s ease;" [style.width.%]="porcentajeAvance()"></div>
+          </div>
+        </div>
 
-            <!-- Progreso de muestra -->
-            <div class="mb-3">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-xs" style="color: var(--app-text-muted);">Avance de muestra</span>
-                <span class="text-sm font-bold num" style="color: var(--app-primary);">{{ porcentajeAvance() }}%</span>
-              </div>
-              <div class="w-full rounded-full" style="height: 8px; background: var(--app-surface);">
-                <div class="rounded-full" style="height: 8px; background: var(--app-primary); transition: width 0.3s ease;" [style.width.%]="porcentajeAvance()"></div>
-              </div>
-            </div>
-
-            <!-- Tags finalizados -->
-            <div class="flex items-center justify-between pt-3" style="border-top: 1px solid var(--app-border);">
-              <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
-              <span class="text-sm font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
-            </div>
-          }
+        <!-- Tags finalizados -->
+        <div class="flex items-center justify-between pt-3" style="border-top: 1px solid var(--app-border);">
+          <span class="text-xs" style="color: var(--app-text-muted);">Tags finalizados</span>
+          <span class="text-sm font-bold num" style="color: var(--app-success);">{{ resumen.tagsFinalizados }}</span>
         </div>
       }
-    </div>
+    </app-card-colapsable>
 
     <!-- Header: evento + zona + total del tag en curso -->
     <div class="flex items-start justify-between gap-3 mb-5">
@@ -153,33 +142,20 @@
       estorbar el escaneo normal.
     -->
     @if (hayReferenciaSincronizada()) {
-    <div class="card mb-4">
-      <button class="flex items-center justify-between w-full" (click)="toggleReferenciaSincronizada()" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
-        <div class="flex items-center gap-2">
-          <ion-icon name="time-outline" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
-          <span class="text-sm font-semibold" style="color: var(--app-text);">
-            Ver conteo sincronizado anterior de este TAG
-          </span>
-        </div>
-        <ion-icon [name]="referenciaSincronizadaVisible() ? 'chevron-up-outline' : 'chevron-down-outline'" style="color: var(--app-text-muted); font-size: 1.25rem;"></ion-icon>
-      </button>
-
-      @if (referenciaSincronizadaVisible()) {
-      <div class="mt-4 pt-4" style="border-top: 1px solid var(--app-border);">
-        @if (fechaReferenciaSincronizada(); as fecha) {
-        <p class="text-xs mb-3" style="color: var(--app-text-muted);">
-          Este TAG ya se sincronizó con el SGO el {{ fecha }}. Este conteo es aparte — no se puede editar ni se suma a este.
-        </p>
-        }
-        @for (item of referenciaSincronizadaView(); track item.productoId) {
-        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
-          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
-          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
-        </div>
-        }
+    <app-card-colapsable icon="time-outline" label="Ver conteo sincronizado anterior de este TAG"
+      [visible]="referenciaSincronizadaVisible()" (toggle)="toggleReferenciaSincronizada()">
+      @if (fechaReferenciaSincronizada(); as fecha) {
+      <p class="text-xs mb-3" style="color: var(--app-text-muted);">
+        Este TAG ya se sincronizó con el SGO el {{ fecha }}. Este conteo es aparte — no se puede editar ni se suma a este.
+      </p>
+      }
+      @for (item of referenciaSincronizadaView(); track item.productoId) {
+      <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
+        <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
+        <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
       </div>
       }
-    </div>
+    </app-card-colapsable>
     }
 
     <!-- ===== Modo de captura ===== -->
