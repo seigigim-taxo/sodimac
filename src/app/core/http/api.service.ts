@@ -1,7 +1,6 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { NetworkError } from '../../domain/shared/errors/network.error';
-import { ConnectionQualityService } from '../../shared/services/connection-quality.service';
 
 export interface ApiResponse<T> {
   status: 'OK' | 'ERROR';
@@ -67,7 +66,6 @@ function esTruncado(response: Response, texto: string): boolean {
 })
 export class ApiService {
   private readonly baseUrl = environment.apiUrl;
-  private readonly connectionQuality = inject(ConnectionQualityService);
 
   async get<T>(path: string, params?: Record<string, string | number | boolean>, options?: ApiRequestOptions): Promise<T> {
     const url = new URL(`${this.baseUrl}/${path}`);
@@ -78,7 +76,7 @@ export class ApiService {
     }
 
     try {
-      const response = await this.fetchConTiempo(url.toString(), {
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
@@ -92,7 +90,7 @@ export class ApiService {
 
   async post<T>(path: string, body: unknown, options?: ApiRequestOptions): Promise<T> {
     try {
-      const response = await this.fetchConTiempo(`${this.baseUrl}/${path}`, {
+      const response = await fetch(`${this.baseUrl}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -102,28 +100,6 @@ export class ApiService {
       return this.unwrap<T>(data);
     } catch (err) {
       throw this.mapError(err);
-    }
-  }
-
-  /*
-   * Mide solo la ida y vuelta real con el servidor —ni el parseo del body ni
-   * la validación de status entran en la medición—: si fetch() resuelve, hubo
-   * conexión de verdad, sea cual sea el status HTTP o el contenido. Si tira
-   * excepción (timeout o fallo de red), es la señal contraria.
-   *
-   * ConnectionQualityService usa esto para estimar la calidad de la red con
-   * tráfico real de la app, en vez de depender de navigator.connection —poco
-   * confiable en los WebView de las PDAs—.
-   */
-  private async fetchConTiempo(url: string, init: RequestInit): Promise<Response> {
-    const inicio = performance.now();
-    try {
-      const response = await fetch(url, init);
-      this.connectionQuality.registrarExito(performance.now() - inicio);
-      return response;
-    } catch (err) {
-      this.connectionQuality.registrarFallo();
-      throw err;
     }
   }
 

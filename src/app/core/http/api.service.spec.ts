@@ -1,7 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ApiService } from './api.service';
 import { NetworkError } from '../../domain/shared/errors/network.error';
-import { ConnectionQualityService } from '../../shared/services/connection-quality.service';
 
 /*
  * Lo que se prueba acá es que NINGÚN mensaje del navegador llegue a la pantalla
@@ -259,75 +258,5 @@ describe('ApiService — errores que ve el operador', () => {
     } catch {
       expect(console.error).toHaveBeenCalledWith('[api] fallo de red:', 'TypeError', 'Failed to fetch');
     }
-  });
-});
-
-/*
- * ConnectionQualityService estima la calidad de la red con tráfico real de
- * la app: le importa si fetch() resolvió o no, no el status HTTP ni el
- * contenido del body. Se prueba por separado del resto de los errores de
- * arriba porque lo que se verifica acá es el side-effect del registro, no
- * el mensaje que ve el operador.
- */
-describe('ApiService — reporta la calidad de conexión', () => {
-  let api: ApiService;
-  let fetchSpy: jasmine.Spy;
-  let connectionQuality: jasmine.SpyObj<ConnectionQualityService>;
-
-  beforeEach(() => {
-    connectionQuality = jasmine.createSpyObj('ConnectionQualityService', ['registrarExito', 'registrarFallo']);
-    TestBed.configureTestingModule({
-      providers: [ApiService, { provide: ConnectionQualityService, useValue: connectionQuality }],
-    });
-    api = TestBed.inject(ApiService);
-    fetchSpy = spyOn(globalThis, 'fetch');
-    spyOn(console, 'error');
-  });
-
-  it('un fetch que resuelve registra éxito, sin importar el status HTTP', async () => {
-    fetchSpy.and.resolveTo({
-      ok: false,
-      status: 401,
-      text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
-    } as Response);
-
-    try {
-      await api.post('x', {});
-    } catch {
-      // el rechazo de negocio no es lo que se prueba acá
-    }
-
-    expect(connectionQuality.registrarExito).toHaveBeenCalledWith(jasmine.any(Number));
-    expect(connectionQuality.registrarFallo).not.toHaveBeenCalled();
-  });
-
-  it('un fetch que rechaza (red caída o timeout) registra fallo', async () => {
-    fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
-
-    try {
-      await api.post('x', {});
-    } catch {
-      // el NetworkError mapeado no es lo que se prueba acá
-    }
-
-    expect(connectionQuality.registrarFallo).toHaveBeenCalled();
-    expect(connectionQuality.registrarExito).not.toHaveBeenCalled();
-  });
-
-  it('un body truncado NO cuenta como fallo de conexión: fetch sí resolvió', async () => {
-    fetchSpy.and.resolveTo({
-      ok: true,
-      headers: new Headers(),
-      text: () => Promise.resolve('{"status":"OK","data":{"usuario":{"nombre":"Ana"'),
-    } as Response);
-
-    try {
-      await api.post('x', {});
-    } catch {
-      // acá lo que importa es el registro, no el NetworkError resultante
-    }
-
-    expect(connectionQuality.registrarExito).toHaveBeenCalledWith(jasmine.any(Number));
-    expect(connectionQuality.registrarFallo).not.toHaveBeenCalled();
   });
 });
