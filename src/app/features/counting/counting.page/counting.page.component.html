@@ -185,8 +185,14 @@
       (scan)="onScanSku($event)"></app-scan>
 
     <!--
-      Resultado del último escaneo, DEBAJO del input y pegado a la tarjeta de
-      cantidad.
+      Resultado del último escaneo, DEBAJO del input.
+
+      Solo se muestra ACÁ cuando no hay tarjeta de cantidad abierta: un SKU
+      válido en modo "por cantidad" abre la tarjeta y el mensaje se muestra
+      DENTRO de ella (ver más abajo) — mostrarlo también acá lo duplicaría. Los
+      casos que SÍ se quedan en este lugar: modo "uno a uno" (no hay tarjeta), y
+      un SKU fuera de muestra en modo "por cantidad" (no llega a abrir tarjeta,
+      ver onScanSku).
 
       Antes iba arriba del input. En modo "por cantidad" eso lo dejaba lejos de
       donde el operador termina mirando: apenas se escanea aparece la tarjeta de
@@ -194,16 +200,21 @@
       empuja el contenido hacia arriba — y el banner, un paso más arriba que el
       input, quedaba fuera de vista mientras se tipeaba la cantidad.
 
-      Acá queda agrupado con la tarjeta de cantidad: el teclado los mueve a los
-      dos juntos en vez de dejar el resultado atrás. Al pie de la pantalla no
-      sirve (se leía tarde: con pistola el operador mira el producto y la
-      pantalla de reojo, y para cuando notaba un "no está en la muestra" ya
-      había disparado el código siguiente).
+      Al pie de la pantalla no sirve (se leía tarde: con pistola el operador
+      mira el producto y la pantalla de reojo, y para cuando notaba un "no está
+      en la muestra" ya había disparado el código siguiente).
     -->
     @if (lastScan(); as scan) {
+    @if (!skuPendiente()) {
     @if (scan.estado === 'OK') {
     <div class="status-banner status-banner-success mt-3">
-      <span>✓ SKU <span class="num font-bold">{{ scan.sku }}</span>
+      <span>✓
+        @if (scan.codigoBarrasEscaneado) {
+          Código <span class="num font-bold">{{ scan.codigoBarras }}</span> · SKU <span class="num font-bold">{{ scan.sku }}</span>
+        } @else {
+          SKU <span class="num font-bold">{{ scan.sku }}</span>
+          @if (scan.codigoBarras) { · Código <span class="num font-bold">{{ scan.codigoBarras }}</span> }
+        }
         @if (scan.descripcion) { — {{ scan.descripcion }} }
       </span>
     </div>
@@ -217,6 +228,7 @@
     </div>
     }
     }
+    }
     <!--
       Sin lectura reciente NO se muestra nada. Antes iba un "Escanea un SKU para
       registrar el conteo" que ocupaba el mismo lugar que el resultado: el
@@ -227,10 +239,26 @@
     <!-- ===== Cantidad del SKU capturado (solo modo "por cantidad") ===== -->
     @if (skuPendiente(); as pendiente) {
     <div class="card mt-4">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <span class="field-label">Cantidad</span>
-        <span class="item-sku num">{{ pendiente.codigo }}</span>
+      <!--
+        El mensaje verde vive ACÁ adentro, no como banner aparte arriba: llegar
+        a esta tarjeta ya significa que el SKU es válido (onScanSku no la abre
+        si está fuera de muestra), así que lastScan acá siempre es el 'OK' de
+        este mismo código — mostrarlo aparte era repetir la misma información
+        en dos lugares.
+      -->
+      @if (lastScan(); as scan) {
+      <div class="status-banner status-banner-success mb-3">
+        <span>✓
+          @if (scan.codigoBarrasEscaneado) {
+            Código <span class="num font-bold">{{ scan.codigoBarras }}</span> · SKU <span class="num font-bold">{{ scan.sku }}</span>
+          } @else {
+            SKU <span class="num font-bold">{{ scan.sku }}</span>
+            @if (scan.codigoBarras) { · Código <span class="num font-bold">{{ scan.codigoBarras }}</span> }
+          }
+          @if (scan.descripcion) { — {{ scan.descripcion }} }
+        </span>
       </div>
+      }
       <ion-input #cantidadInput type="number" inputmode="numeric" min="0" [value]="cantidad()"
         (ionInput)="onCantidadInput($event)" (keyup.enter)="guardarCantidad()" aria-label="Cantidad"
         class="input-base num" style="text-align: center; font-weight: 700;"></ion-input>
