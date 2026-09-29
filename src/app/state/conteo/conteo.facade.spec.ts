@@ -4,6 +4,7 @@ import { CONTEO_REPOSITORY_TOKEN, ConteoRepository } from '../../domain/conteo/r
 import { MUESTRA_REPOSITORY_TOKEN, MuestraRepository } from '../../domain/muestra/repositories/muestra.repository';
 import { MUESTRA_DETALLE_REPOSITORY_TOKEN, MuestraDetalleRepository } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
+import { ConteoLecturaSesion } from '../../domain/conteo/models/conteo-lectura-sesion.model';
 
 /*
  * Se prueba el facade con los casos de uso reales conectados: lo único falso
@@ -274,6 +275,30 @@ describe('ConteoFacade', () => {
       await facade.init(1, 2, 1, 1);
 
       expect(facade.referenciaSincronizada()).toEqual([]);
+    });
+
+    /*
+     * Bug real: la pantalla mostraba referenciaSincronizada() (el agregado por
+     * SKU de sod_conteo_detalle) bajo la etiqueta "por lectura" — dos capturas
+     * del mismo SKU se veían como una sola fila. referenciaSincronizadaLecturas
+     * trae la ledger real (sod_conteo_lectura), con una fila por captura.
+     */
+    it('trae también la ledger de lecturas reales, aparte del agregado por SKU', async () => {
+      const LECTURA_1: ConteoLecturaSesion = {
+        lecturaId: 501, detalleId: 99, productoId: 100, sku: 'AF999', descripcion: 'Taladro',
+        codigoLectura: 'AF999', medioCaptura: 'ESCANER', cantidad: 2, fechaHora: '2026-08-03 09:58:00',
+      };
+      const LECTURA_2: ConteoLecturaSesion = {
+        lecturaId: 502, detalleId: 99, productoId: 100, sku: 'AF999', descripcion: 'Taladro',
+        codigoLectura: 'AF999', medioCaptura: 'ESCANER', cantidad: 1, fechaHora: '2026-08-03 10:00:00',
+      };
+      conteoRepo.getBySesion.and.resolveTo([ITEM_SINCRONIZADO]);
+      conteoRepo.getLecturasSesion.and.resolveTo([LECTURA_1, LECTURA_2]);
+
+      await facade.init(1, 1, 1, 1, 5);
+
+      expect(facade.referenciaSincronizadaLecturas()).toEqual([LECTURA_1, LECTURA_2]);
+      expect(conteoRepo.getLecturasSesion).toHaveBeenCalledWith(7, 5, 1, 1, 'SINCRONIZADO');
     });
   });
 
