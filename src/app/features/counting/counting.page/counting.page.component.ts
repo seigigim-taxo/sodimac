@@ -303,23 +303,51 @@ export class CountingPageComponent implements ViewWillEnter {
   // Pegajoso solo mientras dura la card visible: no hay razón para recordarlo entre TAGs.
   referenciaSincronizadaVista = signal<'lectura' | 'sku'>('lectura');
 
+  // Busca en dónde quedó un SKU dentro de este TAG viejo — no afecta el conteo, solo la vista.
+  referenciaBusqueda = signal('');
+
+  referenciaSincronizadaPorSkuFiltrado = computed(() => {
+    const q = this.referenciaBusqueda().trim().toUpperCase();
+    const base = this.referenciaSincronizadaPorSku();
+    if (!q) return base;
+    return base.filter((i) => i.sku.toUpperCase().includes(q) || i.descripcion.toUpperCase().includes(q));
+  });
+
+  referenciaSincronizadaPorLecturaFiltrado = computed(() => {
+    const q = this.referenciaBusqueda().trim().toUpperCase();
+    const base = this.referenciaSincronizadaPorLectura();
+    if (!q) return base;
+    return base.filter((i) => i.sku.toUpperCase().includes(q) || i.descripcion.toUpperCase().includes(q));
+  });
+
+  // La lista activa según la pestaña, ya filtrada — evita repetir el ternario en cada consumidor.
+  private referenciaSincronizadaActivaFiltrada = computed(() =>
+    this.referenciaSincronizadaVista() === 'sku'
+      ? this.referenciaSincronizadaPorSkuFiltrado()
+      : this.referenciaSincronizadaPorLecturaFiltrado()
+  );
+  referenciaSinResultados = computed(() =>
+    this.referenciaBusqueda().trim() !== '' && this.referenciaSincronizadaActivaFiltrada().length === 0
+  );
+
   // Paginado de la referencia: arranca en 5 y crece de 5 en 5 con "Ver más", mismo patrón que itemsPaginados.
   private readonly REFERENCIA_PAGE_SIZE = 5;
   referenciaVisibleCount = signal(this.REFERENCIA_PAGE_SIZE);
 
-  referenciaSincronizadaPorSkuPaginado = computed(() => this.referenciaSincronizadaPorSku().slice(0, this.referenciaVisibleCount()));
-  referenciaSincronizadaPorLecturaPaginado = computed(() => this.referenciaSincronizadaPorLectura().slice(0, this.referenciaVisibleCount()));
+  referenciaSincronizadaPorSkuPaginado = computed(() => this.referenciaSincronizadaPorSkuFiltrado().slice(0, this.referenciaVisibleCount()));
+  referenciaSincronizadaPorLecturaPaginado = computed(() => this.referenciaSincronizadaPorLecturaFiltrado().slice(0, this.referenciaVisibleCount()));
 
-  // Cuenta contra el total de la pestaña activa: cada una pagina por separado.
-  hayMasReferencia = computed(() => {
-    const total = this.referenciaSincronizadaVista() === 'sku'
-      ? this.referenciaSincronizadaPorSku().length
-      : this.referenciaSincronizadaPorLectura().length;
-    return total > this.referenciaVisibleCount();
-  });
+  // Cuenta contra el total (filtrado) de la pestaña activa: cada una pagina por separado.
+  hayMasReferencia = computed(() => this.referenciaSincronizadaActivaFiltrada().length > this.referenciaVisibleCount());
 
   verMasReferencia(): void {
     this.referenciaVisibleCount.update((v) => v + this.REFERENCIA_PAGE_SIZE);
+  }
+
+  onReferenciaBusquedaInput(event: Event): void {
+    const value = (event as CustomEvent<{ value: string | null }>).detail.value ?? '';
+    this.referenciaBusqueda.set(value);
+    this.referenciaVisibleCount.set(this.REFERENCIA_PAGE_SIZE);
   }
 
   onReferenciaVistaChange(event: Event): void {
