@@ -97,15 +97,22 @@ export class ConteoFacade {
   }
 
   /*
-   * Descripción del producto para el código escaneado, o null si el código no
-   * está en la muestra. La usa el feedback visual del scan: el operador
-   * confirma de un vistazo que el producto que se registró es el que tenía en
-   * la mano, no solo que el SKU coincidió con algún número.
+   * Info del producto para el código escaneado (SKU, descripción, código de
+   * barras si tiene), o null si el código no está en la muestra. La usa el
+   * feedback visual del scan:
+   *  - el operador confirma de un vistazo que el producto que se registró es
+   *    el que tenía en la mano, no solo que el código coincidió con algún
+   *    número;
+   *  - y ve el SKU aunque haya escaneado por código de barras, o el código de
+   *    barras aunque haya escaneado (o tipeado) el SKU — sin esto, escanear
+   *    por código de barras mostraba ese número crudo etiquetado como "SKU",
+   *    que no es el SKU real del producto.
    */
-  descripcionDe(codigoLectura: string): string | null {
+  infoProductoDe(codigoLectura: string): { sku: string; descripcion: string | null; codigoBarras: string | null } | null {
     const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
     if (codigoResuelto === null) return null;
-    return this.muestraSet.skuMap.get(codigoResuelto)!.descripcion;
+    const info = this.muestraSet.skuMap.get(codigoResuelto)!;
+    return { sku: info.sku, descripcion: info.descripcion, codigoBarras: info.codigoBarras };
   }
 
   /*

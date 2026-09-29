@@ -9,6 +9,14 @@ export interface CodigoProductoMuestra {
   codigoLectura: string;
   productoId: number;
   descripcion: string | null;
+  /*
+   * SKU y código de barras DEL PRODUCTO (sod_producto), no de esta fila —
+   * `codigoLectura` es solo lo que hace match al escanear, sea cual sea; esto
+   * es lo que el feedback visual necesita para mostrar el otro código además
+   * del que se usó, si el producto lo tiene.
+   */
+  sku: string;
+  codigoBarras: string | null;
 }
 
 /*

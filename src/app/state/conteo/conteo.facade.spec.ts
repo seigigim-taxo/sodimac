@@ -55,8 +55,15 @@ describe('ConteoFacade', () => {
     detalleRepo.getByMuestra.and.resolveTo([
       { id: 1, muestraId: 10, productoId: 100, sku: 'AF001', stockSistema: 5, ubicacionEsperada: null },
     ]);
+    /*
+     * Dos filas para el mismo producto, como en los datos reales (una por
+     * SKU, otra por código de barras — ver sod_producto_detalle): ambas
+     * resuelven al mismo productoId, con el mismo sku/codigoBarras del
+     * producto, sea cual sea la fila que hizo match.
+     */
     detalleRepo.getCodigosByMuestra.and.resolveTo([
-      { codigoLectura: 'AF001', productoId: 100, descripcion: 'Taladro' },
+      { codigoLectura: 'AF001', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234500016' },
+      { codigoLectura: '7891234500016', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234500016' },
     ]);
 
     TestBed.configureTestingModule({
@@ -102,19 +109,37 @@ describe('ConteoFacade', () => {
 
   /*
    * Alimenta el feedback visual del scan: el operador confirma de un vistazo
-   * que el producto que entró es el que tenía en la mano.
+   * que el producto que entró es el que tenía en la mano, y ve el SKU y el
+   * código de barras sea cual sea el que usó para escanear.
    */
-  describe('descripcionDe', () => {
-    it('devuelve la descripción de un código de la muestra', () => {
-      expect(facade.descripcionDe('AF001')).toBe('Taladro');
+  describe('infoProductoDe', () => {
+    it('devuelve sku, descripción y código de barras de un código de la muestra', () => {
+      expect(facade.infoProductoDe('AF001')).toEqual({
+        sku: 'AF001',
+        descripcion: 'Taladro',
+        codigoBarras: '7891234500016',
+      });
+    });
+
+    it('resuelve por código de barras y devuelve igual el SKU real', () => {
+      // AF001 tiene codigo_barras '7891234500016' en el beforeEach principal.
+      expect(facade.infoProductoDe('7891234500016')).toEqual({
+        sku: 'AF001',
+        descripcion: 'Taladro',
+        codigoBarras: '7891234500016',
+      });
     });
 
     it('normaliza igual que scan(): espacios y minúsculas', () => {
-      expect(facade.descripcionDe('  af001 ')).toBe('Taladro');
+      expect(facade.infoProductoDe('  af001 ')).toEqual({
+        sku: 'AF001',
+        descripcion: 'Taladro',
+        codigoBarras: '7891234500016',
+      });
     });
 
     it('devuelve null para un código fuera de la muestra', () => {
-      expect(facade.descripcionDe('NO-EXISTE')).toBeNull();
+      expect(facade.infoProductoDe('NO-EXISTE')).toBeNull();
     });
   });
 
@@ -229,7 +254,7 @@ describe('ConteoFacade', () => {
 
     const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
     detalleRepo.getCodigosByMuestra.and.resolveTo([
-      { codigoLectura: '7891234567890', productoId: 100, descripcion: 'Taladro' },
+      { codigoLectura: '7891234567890', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234567890' },
     ]);
 
     await facade.init(1, 1, 1, 1);
@@ -249,7 +274,7 @@ describe('ConteoFacade', () => {
 
       const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
       detalleRepo.getCodigosByMuestra.and.resolveTo([
-        { codigoLectura: CODIGO_SIN_CERO, productoId: 200, descripcion: 'Tornillo' },
+        { codigoLectura: CODIGO_SIN_CERO, productoId: 200, descripcion: 'Tornillo', sku: 'TORN-001', codigoBarras: null },
       ]);
 
       await facade.init(1, 1, 1, 1);

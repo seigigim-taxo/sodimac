@@ -149,7 +149,7 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
   async getCodigosByMuestra(muestraId: number): Promise<CodigoProductoMuestra[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
-      `SELECT pd.codigo_lectura, pd.producto_id, p.descripcion
+      `SELECT pd.codigo_lectura, pd.producto_id, p.descripcion, p.sku, p.codigo_barras
        FROM sod_producto_detalle pd
        JOIN sod_muestra_detalle md ON md.producto_id = pd.producto_id
        JOIN sod_producto p ON p.id = pd.producto_id
@@ -164,6 +164,8 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         codigoLectura: lectura,
         productoId: row['producto_id'] as number,
         descripcion: (row['descripcion'] as string | null) ?? null,
+        sku: row['sku'] as string,
+        codigoBarras: (row['codigo_barras'] as string | null) ?? null,
       });
     }
     return codigos;

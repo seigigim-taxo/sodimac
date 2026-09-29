@@ -76,6 +76,20 @@ interface ResultadoScan {
   estado: 'OK' | 'FUERA_DE_MUESTRA' | 'ERROR';
   mensaje?: string;
   descripcion?: string | null;
+  /*
+   * El código de barras del producto, solo cuando estado es 'OK' y el producto
+   * tiene uno. `sku` ya es siempre el SKU real (no "lo que se escaneó"), así
+   * que esto es lo único que falta para ver los dos códigos sea cual sea el
+   * que se usó para escanear.
+   */
+  codigoBarras?: string | null;
+  /*
+   * true si lo que efectivamente se escaneó/tipeó fue el código de barras (no
+   * el SKU). El banner siempre muestra primero, de izquierda a derecha, lo que
+   * el operador acaba de leer — así ve de inmediato que coincide con lo que
+   * tiene en la mano — y recién después el otro código como referencia.
+   */
+  codigoBarrasEscaneado?: boolean;
 }
 
 @Component({
@@ -425,7 +439,14 @@ export class CountingPageComponent implements ViewWillEnter {
      * disparo y disparo, y esperar hasta guardar dejaba el modo "cantidad" sin
      * ninguna señal en el momento que sí importa: el del escaneo.
      */
-    this.setLastScan({ sku: codigo, estado: 'OK', descripcion: this.conteo.descripcionDe(codigo) });
+    const info = this.conteo.infoProductoDe(codigo);
+    this.setLastScan({
+      sku: info?.sku ?? codigo,
+      estado: 'OK',
+      descripcion: info?.descripcion,
+      codigoBarras: info?.codigoBarras,
+      codigoBarrasEscaneado: info?.codigoBarras === codigo,
+    });
 
     this.cantidad.set(null);
     this.skuPendiente.set({ codigo, medio: capturado.medio });
@@ -481,10 +502,13 @@ export class CountingPageComponent implements ViewWillEnter {
     if (resultado === 'error') {
       this.setLastScan({ sku: codigo, estado: 'ERROR', mensaje: this.conteo.error() ?? 'No se pudo registrar el scan' });
     } else {
+      const info = resultado === 'valido' ? this.conteo.infoProductoDe(codigo) : null;
       this.setLastScan({
-        sku: codigo,
+        sku: info?.sku ?? codigo,
         estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA',
-        descripcion: resultado === 'valido' ? this.conteo.descripcionDe(codigo) : undefined,
+        descripcion: info?.descripcion,
+        codigoBarras: info?.codigoBarras,
+        codigoBarrasEscaneado: info?.codigoBarras === codigo,
       });
 
       // Si el resumen está visible, recargarlo para actualizar el % de avance
