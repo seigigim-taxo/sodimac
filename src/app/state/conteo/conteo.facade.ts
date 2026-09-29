@@ -47,6 +47,8 @@ export class ConteoFacade {
    * ninguno. Ver ObtenerReferenciaSincronizadaUseCase.
    */
   private referenciaSincronizadaSignal = signal<ConteoItem[]>([]);
+  /* Misma referencia, pero fila por captura real (sod_conteo_lectura) — ver referenciaSincronizadaSignal. */
+  private referenciaSincronizadaLecturasSignal = signal<ConteoLecturaSesion[]>([]);
   private muestraSet: MuestraSet = { skuMap: new Map() };
 
   // Serializa scan/adjust/delete: evita que dos escrituras SQLite
@@ -61,6 +63,7 @@ export class ConteoFacade {
   readonly error      = this.errorSignal.asReadonly();
   readonly recovered  = this.recoveredSignal.asReadonly();
   readonly referenciaSincronizada = this.referenciaSincronizadaSignal.asReadonly();
+  readonly referenciaSincronizadaLecturas = this.referenciaSincronizadaLecturasSignal.asReadonly();
   readonly totalItems = computed(() => this.itemsSignal().length);
   readonly enCurso    = computed(() => this.sesionSignal() !== null && !this.finalizadaSignal());
 
@@ -90,14 +93,15 @@ export class ConteoFacade {
         this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
         ubicacionSincronizadaId
           ? this.obtenerReferencia.execute(ronda.id, ubicacionSincronizadaId, operadorId, pdaId)
-          : Promise.resolve([]),
+          : Promise.resolve({ items: [], lecturas: [] }),
       ]);
       this.muestraSet = muestraSet;
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
       await this.recargarLecturas();
-      this.referenciaSincronizadaSignal.set(referencia);
+      this.referenciaSincronizadaSignal.set(referencia.items);
+      this.referenciaSincronizadaLecturasSignal.set(referencia.lecturas);
     } catch (err) {
       console.error('[ConteoFacade] no se pudo abrir la sesión de conteo:', err);
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al iniciar sesión de conteo');
@@ -282,6 +286,7 @@ export class ConteoFacade {
     this.recoveredSignal.set(false);
     this.finalizadaSignal.set(false);
     this.referenciaSincronizadaSignal.set([]);
+    this.referenciaSincronizadaLecturasSignal.set([]);
     this.muestraSet = { skuMap: new Map() };
   }
 

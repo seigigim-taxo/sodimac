@@ -270,7 +270,7 @@ export class SqliteConteoRepository implements ConteoRepository {
    * cada +/-, y eso haría saltar la fila de lugar al tocar un botón.
    */
   async getLecturasSesion(
-    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado: EstadoConteo = 'EN_CURSO'
   ): Promise<ConteoLecturaSesion[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(
@@ -281,9 +281,9 @@ export class SqliteConteoRepository implements ConteoRepository {
        JOIN sod_conteo_detalle d ON d.id = l.detalle_id
        JOIN sod_producto        p ON p.id = d.producto_id
        WHERE d.conteo_id = ? AND d.ubicacion_id = ?
-         AND d.operador_id = ? AND d.pda_id = ? AND d.estado = 'EN_CURSO'
+         AND d.operador_id = ? AND d.pda_id = ? AND d.estado = ?
        ORDER BY l.id DESC`,
-      [conteoId, ubicacionId, operadorId, pdaId]
+      [conteoId, ubicacionId, operadorId, pdaId, estado]
     );
     return (result.values ?? []).map((r) => {
       const row = r as Record<string, unknown>;

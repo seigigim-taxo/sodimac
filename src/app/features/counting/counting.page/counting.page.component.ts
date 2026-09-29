@@ -237,14 +237,65 @@ export class CountingPageComponent implements ViewWillEnter {
   /*
    * Lo ya contado en un TAG SINCRONIZADO que coincidió con este — de solo
    * lectura, para comparar sin poder tocarlo. Vacío cuando no hay ninguno.
+   *
+   * Sale de sod_conteo_detalle (vía ConteoFacade.referenciaSincronizada), que
+   * ya es el agregado por SKU: un detalle es único por producto dentro del
+   * TAG, así que dos capturas del mismo SKU ya llegan sumadas en una sola
+   * fila acá. Es la vista de "Por SKU" — total por producto.
    */
-  referenciaSincronizadaView = computed<ItemVista[]>(() => this.conteo.referenciaSincronizada().map((i) => ({
+  referenciaSincronizadaPorSku = computed<ItemVista[]>(() => this.conteo.referenciaSincronizada().map((i) => ({
     productoId:  i.productoId,
     sku:         i.sku,
     descripcion: i.descripcion ?? i.sku,
     cantidad:    i.cantidadFisica,
   })));
-  hayReferenciaSincronizada = computed(() => this.referenciaSincronizadaView().length > 0);
+
+  /*
+   * La MISMA referencia, pero fila por captura real (sod_conteo_lectura) en
+   * vez del agregado por SKU: escanear el mismo SKU en dos lecturas separadas
+   * (12 y después 5) da acá DOS filas, no una de 17. Es la vista de "Por
+   * lectura" — qué se escaneó, y cuándo.
+   *
+   * Antes esta pestaña mostraba referenciaSincronizadaPorSku por error (el
+   * agregado), así que dos capturas del mismo SKU se veían como una sola fila
+   * — de ahí el bug reportado de "4 lecturas, 3 filas".
+   */
+  referenciaSincronizadaPorLectura = computed<ItemVista[]>(() => this.conteo.referenciaSincronizadaLecturas().map((l) => ({
+    productoId:  l.productoId,
+    sku:         l.sku,
+    descripcion: l.descripcion ?? l.sku,
+    cantidad:    l.cantidad,
+  })));
+
+  hayReferenciaSincronizada = computed(() => this.referenciaSincronizadaPorSku().length > 0);
+  // Pegajoso solo mientras dura la card visible: no hay razón para recordarlo entre TAGs.
+  referenciaSincronizadaVista = signal<'lectura' | 'sku'>('lectura');
+
+  // Paginado de la referencia: arranca en 5 y crece de 5 en 5 con "Ver más", mismo patrón que itemsPaginados.
+  private readonly REFERENCIA_PAGE_SIZE = 5;
+  referenciaVisibleCount = signal(this.REFERENCIA_PAGE_SIZE);
+
+  referenciaSincronizadaPorSkuPaginado = computed(() => this.referenciaSincronizadaPorSku().slice(0, this.referenciaVisibleCount()));
+  referenciaSincronizadaPorLecturaPaginado = computed(() => this.referenciaSincronizadaPorLectura().slice(0, this.referenciaVisibleCount()));
+
+  // Cuenta contra el total de la pestaña activa: cada una pagina por separado.
+  hayMasReferencia = computed(() => {
+    const total = this.referenciaSincronizadaVista() === 'sku'
+      ? this.referenciaSincronizadaPorSku().length
+      : this.referenciaSincronizadaPorLectura().length;
+    return total > this.referenciaVisibleCount();
+  });
+
+  verMasReferencia(): void {
+    this.referenciaVisibleCount.update((v) => v + this.REFERENCIA_PAGE_SIZE);
+  }
+
+  onReferenciaVistaChange(event: Event): void {
+    const value = (event as CustomEvent<{ value: string }>).detail.value;
+    this.referenciaSincronizadaVista.set(value === 'sku' ? 'sku' : 'lectura');
+    // Cambiar de pestaña vuelve a colapsar: "Ver más" de una no debe heredarse a la otra.
+    this.referenciaVisibleCount.set(this.REFERENCIA_PAGE_SIZE);
+  }
   /*
    * Fecha de esa sincronización, para que no se confunda con el conteo de
    * ahora. getBySesion ordena por fecha_hora DESC, así que el primer item ya

@@ -68,12 +68,20 @@ export interface ConteoRepository {
   getLecturas(detalleId: number): Promise<ConteoLectura[]>;
 
   /*
-   * Lecturas de la sesión de TAG en curso (líneas EN_CURSO), una fila por
-   * captura, en orden de registro. Es la fuente de la lista de la pantalla de
-   * conteo: ahí cada scan y cada declaración de cantidad es su propia fila, no
-   * el agregado por SKU.
+   * Lecturas de una sesión de TAG, una fila por captura (sod_conteo_lectura),
+   * en orden de registro — no el agregado por SKU de sod_conteo_detalle, que
+   * es lo que trae getBySesion. Cada scan y cada declaración de cantidad es su
+   * propia fila acá, aunque dos scans del mismo SKU compartan un único
+   * detalle (y por lo tanto un único total en getBySesion).
+   *
+   * `estado` filtra por el estado del detalle padre. Por defecto EN_CURSO
+   * —la sesión de TAG activa, fuente de la lista de la pantalla de conteo—,
+   * pero también se usa con SINCRONIZADO para la referencia de solo lectura
+   * de un TAG ya sincronizado (ver ObtenerReferenciaSincronizadaUseCase).
    */
-  getLecturasSesion(conteoId: number, ubicacionId: number, operadorId: number, pdaId: number): Promise<ConteoLecturaSesion[]>;
+  getLecturasSesion(
+    conteoId: number, ubicacionId: number, operadorId: number, pdaId: number, estado?: EstadoConteo
+  ): Promise<ConteoLecturaSesion[]>;
 
   /*
    * Suma o resta unidades a UNA lectura y aplica el mismo movimiento a su

@@ -149,11 +149,39 @@
         Este TAG ya se sincronizó con el SGO el {{ fecha }}. Este conteo es aparte — no se puede editar ni se suma a este.
       </p>
       }
-      @for (item of referenciaSincronizadaView(); track item.productoId) {
-      <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
-        <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
-        <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
-      </div>
+
+      <ion-segment [value]="referenciaSincronizadaVista()" (ionChange)="onReferenciaVistaChange($event)" mode="md" class="mb-2">
+        <ion-segment-button value="lectura">
+          <ion-label>Por lectura</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="sku">
+          <ion-label>Por SKU</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+
+      @if (referenciaSincronizadaVista() === 'lectura') {
+        <!-- Una fila por lectura, en el mismo orden (más reciente primero) que trae getBySesion. -->
+        @for (item of referenciaSincronizadaPorLecturaPaginado(); track $index) {
+        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
+          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
+          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
+        </div>
+        }
+      } @else {
+        <!-- Una fila por SKU distinto, con la suma de todas sus lecturas. -->
+        @for (item of referenciaSincronizadaPorSkuPaginado(); track item.productoId) {
+        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
+          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
+          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
+        </div>
+        }
+      }
+
+      @if (hayMasReferencia()) {
+      <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasReferencia()">
+        Ver más
+        <ion-icon slot="end" name="chevron-down-outline"></ion-icon>
+      </ion-button>
       }
     </app-card-colapsable>
     }
