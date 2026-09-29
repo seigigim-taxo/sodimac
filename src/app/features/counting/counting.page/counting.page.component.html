@@ -150,7 +150,7 @@
       </p>
       }
 
-      <ion-segment [value]="referenciaSincronizadaVista()" (ionChange)="onReferenciaVistaChange($event)" mode="md" class="mb-2">
+      <ion-segment [value]="referenciaSincronizadaVista()" (ionChange)="onReferenciaVistaChange($event)" mode="md" class="mb-3">
         <ion-segment-button value="lectura">
           <ion-label>Por lectura</ion-label>
         </ion-segment-button>
@@ -159,23 +159,44 @@
         </ion-segment-button>
       </ion-segment>
 
-      @if (referenciaSincronizadaVista() === 'lectura') {
-        <!-- Una fila por lectura, en el mismo orden (más reciente primero) que trae getBySesion. -->
-        @for (item of referenciaSincronizadaPorLecturaPaginado(); track $index) {
-        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
-          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
-          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
-        </div>
-        }
-      } @else {
-        <!-- Una fila por SKU distinto, con la suma de todas sus lecturas. -->
-        @for (item of referenciaSincronizadaPorSkuPaginado(); track item.productoId) {
-        <div class="flex items-center justify-between py-1.5" style="border-bottom: 1px solid var(--app-border);">
-          <span class="text-sm truncate" style="color: var(--app-text);">{{ item.sku }} — {{ item.descripcion }}</span>
-          <span class="text-sm font-bold num" style="color: var(--app-text-muted);">{{ item.cantidad }}</span>
-        </div>
-        }
+      <!-- Busca dónde quedó un SKU dentro de este TAG viejo, sin importar la pestaña activa. -->
+      <ion-input [value]="referenciaBusqueda()" (ionInput)="onReferenciaBusquedaInput($event)" aria-label="Buscar SKU en esta referencia"
+        placeholder="Buscar por SKU o descripción" class="input-base mb-3">
+        <ion-icon slot="start" name="search-outline"></ion-icon>
+      </ion-input>
+
+      @if (referenciaSinResultados()) {
+      <p class="text-[13px] text-center py-4" style="color: var(--app-text-muted);">
+        Sin resultados para "{{ referenciaBusqueda() }}"
+      </p>
       }
+
+      <!-- Una card por fila, con buena respiración — mismo patrón que "Productos de este TAG". -->
+      <div class="flex flex-col gap-2.5">
+        @if (referenciaSincronizadaVista() === 'lectura') {
+          <!-- Una fila por lectura, en el mismo orden (más reciente primero) que trae getBySesion. -->
+          @for (item of referenciaSincronizadaPorLecturaPaginado(); track $index) {
+          <div class="item-row">
+            <div class="min-w-0">
+              <p class="item-sku">{{ item.sku }}</p>
+              <p class="item-desc">{{ item.descripcion }}</p>
+            </div>
+            <span class="qty-chip shrink-0">{{ item.cantidad }}</span>
+          </div>
+          }
+        } @else {
+          <!-- Una fila por SKU distinto, con la suma de todas sus lecturas. -->
+          @for (item of referenciaSincronizadaPorSkuPaginado(); track item.productoId) {
+          <div class="item-row">
+            <div class="min-w-0">
+              <p class="item-sku">{{ item.sku }}</p>
+              <p class="item-desc">{{ item.descripcion }}</p>
+            </div>
+            <span class="qty-chip shrink-0">{{ item.cantidad }}</span>
+          </div>
+          }
+        }
+      </div>
 
       @if (hayMasReferencia()) {
       <ion-button expand="block" fill="clear" class="mt-2" (click)="verMasReferencia()">
