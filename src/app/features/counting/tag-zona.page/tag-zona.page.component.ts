@@ -82,6 +82,14 @@ export class TagZonaPageComponent implements ViewWillEnter {
   tagInputValue = signal('');
   tagError      = signal<string | null>(null);
 
+  /*
+   * Error de asegurarRonda.execute() en irAContar() — aparte de errorZona
+   * porque ZonaFacade no es dueño de este fallo (pasa ANTES de confirmZona) y
+   * su errorSignal es privado, además de que confirmZona() lo limpia al
+   * entrar, así que reusarlo lo pisaría igual.
+   */
+  errorRonda = signal<string | null>(null);
+
   private tagLocked = signal(false);
   tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
   zonaConfirmada    = this.zonaFacade.selectedZone;
@@ -236,6 +244,7 @@ export class TagZonaPageComponent implements ViewWillEnter {
     this.zonaFacade.clearTag();
     this.tagInputValue.set('');
     this.tagError.set(null);
+    this.errorRonda.set(null);
     setTimeout(() => this.tagInputEl?.nativeElement?.setFocus?.(), 80);
   }
 
@@ -261,8 +270,20 @@ export class TagZonaPageComponent implements ViewWillEnter {
      *
      * Es la misma llamada idempotente que hace ConteoFacade.init(): si la
      * ronda ya existe, la devuelve sin crear nada.
+     *
+     * Puede fallar — el evento quedó sin ninguna ronda abierta (en análisis o
+     * cerrado) — y a diferencia de confirmZona() de abajo, no tiene manejo
+     * propio: sin este try/catch el rechazo quedaba sin atrapar y el botón no
+     * hacía nada visible para el operador.
      */
-    const ronda = await this.asegurarRonda.execute(evento.id);
+    this.errorRonda.set(null);
+    let ronda;
+    try {
+      ronda = await this.asegurarRonda.execute(evento.id);
+    } catch (err) {
+      this.errorRonda.set(err instanceof Error ? err.message : 'No se pudo abrir la ronda de conteo');
+      return;
+    }
 
     await this.zonaFacade.confirmZona(ronda.id, operadorId, pdaId);
     if (this.zonaFacade.error()) return;

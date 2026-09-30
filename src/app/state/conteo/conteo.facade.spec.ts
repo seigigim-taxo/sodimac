@@ -119,6 +119,7 @@ describe('ConteoFacade', () => {
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
+        codigoResuelto: 'AF001',
       });
     });
 
@@ -128,6 +129,7 @@ describe('ConteoFacade', () => {
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
+        codigoResuelto: '7891234500016',
       });
     });
 
@@ -136,7 +138,21 @@ describe('ConteoFacade', () => {
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
+        codigoResuelto: 'AF001',
       });
+    });
+
+    /*
+     * El bug real que esto corrige: codigoBarrasEscaneado comparaba el código
+     * CRUDO contra info.codigoBarras, sin el despojo de cero que
+     * resolverCodigoMuestra() ya aplica — un código de barras con cero inicial
+     * quedaba mal etiquetado como "SKU" en el feedback visual. codigoResuelto
+     * es lo que el consumidor tiene que comparar en su lugar.
+     */
+    it('codigoResuelto viene sin el cero inicial que el código de barras escaneado sí traía', () => {
+      const info = facade.infoProductoDe('07891234500016');
+      expect(info?.codigoResuelto).toBe('7891234500016');
+      expect(info?.codigoBarras).toBe(info?.codigoResuelto);
     });
 
     it('devuelve null para un código fuera de la muestra', () => {

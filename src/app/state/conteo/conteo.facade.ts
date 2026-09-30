@@ -88,12 +88,26 @@ export class ConteoFacade {
     this.loadingSignal.set(true);
     try {
       const ronda = await this.asegurarRonda.execute(eventoId);
+
+      /*
+       * Aparte del Promise.all crítico a propósito: es de solo lectura —le
+       * muestra al operador lo que ya se contó en un TAG viejo sincronizado—,
+       * no algo que el conteo nuevo necesite para arrancar. Si rechazara
+       * dentro del Promise.all de abajo, tumbaría la sesión entera por un
+       * dato que ni siquiera se escribe.
+       */
+      const referenciaPromise = ubicacionSincronizadaId
+        ? this.obtenerReferencia.execute(ronda.id, ubicacionSincronizadaId, operadorId, pdaId)
+            .catch((err) => {
+              console.error('[ConteoFacade] no se pudo cargar la referencia sincronizada:', err);
+              return { items: [], lecturas: [] };
+            })
+        : Promise.resolve({ items: [], lecturas: [] });
+
       const [muestraSet, resultado, referencia] = await Promise.all([
         this.loadMuestra.execute(eventoId, ronda.iteracion),
         this.iniciarSesion.execute(ronda.id, ubicacionId, operadorId, pdaId),
-        ubicacionSincronizadaId
-          ? this.obtenerReferencia.execute(ronda.id, ubicacionSincronizadaId, operadorId, pdaId)
-          : Promise.resolve({ items: [], lecturas: [] }),
+        referenciaPromise,
       ]);
       this.muestraSet = muestraSet;
       this.sesionSignal.set(resultado.sesion);
@@ -133,11 +147,11 @@ export class ConteoFacade {
    *    por código de barras mostraba ese número crudo etiquetado como "SKU",
    *    que no es el SKU real del producto.
    */
-  infoProductoDe(codigoLectura: string): { sku: string; descripcion: string | null; codigoBarras: string | null } | null {
+  infoProductoDe(codigoLectura: string): { sku: string; descripcion: string | null; codigoBarras: string | null; codigoResuelto: string } | null {
     const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
     if (codigoResuelto === null) return null;
     const info = this.muestraSet.skuMap.get(codigoResuelto)!;
-    return { sku: info.sku, descripcion: info.descripcion, codigoBarras: info.codigoBarras };
+    return { sku: info.sku, descripcion: info.descripcion, codigoBarras: info.codigoBarras, codigoResuelto };
   }
 
   /*

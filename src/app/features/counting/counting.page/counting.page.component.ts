@@ -572,7 +572,7 @@ export class CountingPageComponent implements ViewWillEnter {
       estado: 'OK',
       descripcion: info?.descripcion,
       codigoBarras: info?.codigoBarras,
-      codigoBarrasEscaneado: info?.codigoBarras === codigo,
+      codigoBarrasEscaneado: info?.codigoBarras === info?.codigoResuelto,
     });
 
     this.cantidad.set(null);
@@ -635,7 +635,7 @@ export class CountingPageComponent implements ViewWillEnter {
         estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA',
         descripcion: info?.descripcion,
         codigoBarras: info?.codigoBarras,
-        codigoBarrasEscaneado: info?.codigoBarras === codigo,
+        codigoBarrasEscaneado: info?.codigoBarras === info?.codigoResuelto,
       });
 
       // Si el resumen está visible, recargarlo para actualizar el % de avance
