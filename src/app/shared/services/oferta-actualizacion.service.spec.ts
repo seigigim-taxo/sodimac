@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { AlertController } from '@ionic/angular/standalone';
 import { OfertaActualizacionService } from './oferta-actualizacion.service';
 import { ActualizacionFacade } from '../../state/actualizacion/actualizacion.facade';
+import { ReporteVersionUseCase } from '../../application/actualizacion/reporte-version.use-case';
 import { VersionDisponible } from '../../domain/actualizacion/models/version-disponible.model';
 
 /*
@@ -39,6 +40,14 @@ describe('OfertaActualizacionService', () => {
     TestBed.configureTestingModule({
       providers: [
         OfertaActualizacionService,
+        {
+          // El doble va sobre el caso de uso completo y no sobre sus
+          // dependencias (AuthFacade, SucursalFacade, PdaFacade): este spec
+          // prueba CUÁNDO se le ofrece la actualización al operador, no el
+          // reporte de versión, que tiene su propio flujo.
+          provide: ReporteVersionUseCase,
+          useValue: { execute: jasmine.createSpy('execute').and.resolveTo(undefined) },
+        },
         {
           provide: ActualizacionFacade,
           useValue: {

@@ -12,6 +12,7 @@ import { DATABASE_REPOSITORY_TOKEN } from './domain/database/repositories/databa
 import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { ActualizacionFacade } from './state/actualizacion/actualizacion.facade';
 import { ActualizarMuestraService } from './shared/services/actualizar-muestra.service';
+import { ReporteVersionUseCase } from './application/actualizacion/reporte-version.use-case';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
@@ -54,6 +55,14 @@ describe('AppComponent', () => {
             buscar: jasmine.createSpy('buscar').and.resolveTo(false),
             hayActualizacion: signal(false),
           },
+        },
+        {
+          // OfertaActualizacionService inyecta ReporteVersionUseCase, que
+          // arrastra AuthFacade y SucursalFacade con sus tokens de red/base.
+          // Este test es un smoke de construcción: el reporte se prueba en su
+          // propio spec.
+          provide: ReporteVersionUseCase,
+          useValue: { execute: jasmine.createSpy('execute').and.resolveTo(undefined) },
         },
         { provide: ThemeFacade, useValue: { isDark: signal(false), toggle: jasmine.createSpy('toggle') } },
         {
