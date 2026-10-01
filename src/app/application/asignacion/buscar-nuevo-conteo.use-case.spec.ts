@@ -3,6 +3,7 @@ import { BuscarNuevoConteoUseCase } from './buscar-nuevo-conteo.use-case';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
+import { ActualizarTiendaOperadorUseCase } from '../sucursal/actualizar-tienda-operador.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 
 /*
@@ -55,12 +56,15 @@ describe('BuscarNuevoConteoUseCase', () => {
   let persistir: jasmine.Spy;
   let getEventoIdPorCodigo: jasmine.Spy;
   let getIdPorCodigo: jasmine.Spy;
+  let actualizarTienda: jasmine.SpyObj<ActualizarTiendaOperadorUseCase>;
 
   beforeEach(() => {
     descargar = jasmine.createSpy('descargar').and.resolveTo(preparacion('MUE-NUEVA'));
     persistir = jasmine.createSpy('persistir').and.resolveTo({ usuario: {}, analista: null });
     getEventoIdPorCodigo = jasmine.createSpy('getEventoIdPorCodigo').and.resolveTo(null);
     getIdPorCodigo = jasmine.createSpy('getIdPorCodigo').and.resolveTo(4);
+    actualizarTienda = jasmine.createSpyObj<ActualizarTiendaOperadorUseCase>('ActualizarTiendaOperadorUseCase', ['execute']);
+    actualizarTienda.execute.and.resolveTo(null);
 
     TestBed.configureTestingModule({
       providers: [
@@ -68,9 +72,19 @@ describe('BuscarNuevoConteoUseCase', () => {
         { provide: SincronizarDatosInicialesUseCase, useValue: { descargar, persistir } },
         { provide: MUESTRA_REPOSITORY_TOKEN,  useValue: { getEventoIdPorCodigo } },
         { provide: SUCURSAL_REPOSITORY_TOKEN, useValue: { getIdPorCodigo } },
+        { provide: ActualizarTiendaOperadorUseCase, useValue: actualizarTienda },
       ],
     });
     uc = TestBed.inject(BuscarNuevoConteoUseCase);
+  });
+
+  it('pide la tienda vigente con los datos ya descargados, tenga o no conteo nuevo', async () => {
+    actualizarTienda.execute.and.resolveTo({ sucursalId: 9, codigoTienda: '4066', nombreTienda: 'Tienda Nueva' });
+
+    const resultado = await uc.execute(SESION);
+
+    expect(actualizarTienda.execute).toHaveBeenCalledWith(SESION.operadorId, jasmine.anything());
+    expect(resultado.tiendaVigente).toEqual({ sucursalId: 9, codigoTienda: '4066', nombreTienda: 'Tienda Nueva' });
   });
 
   describe('la muestra ya está en la base', () => {

@@ -12,7 +12,13 @@ import { LoginPage } from './login.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SesionTrabajoFacade } from '../../state/sesion-trabajo/sesion-trabajo.facade';
+import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
+import { EventoFacade } from '../../state/evento/evento.facade';
+import { ConteoFacade } from '../../state/conteo/conteo.facade';
+import { ActualizarMuestraUseCase } from '../../application/asignacion/actualizar-muestra.use-case';
+import { TiendaVigente } from '../../application/sucursal/actualizar-tienda-operador.use-case';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
+import { NetworkService } from '../../shared/services/network.service';
 
 describe('LoginPage', () => {
   let component: LoginPage;
@@ -21,12 +27,17 @@ describe('LoginPage', () => {
   let router: jasmine.SpyObj<Router>;
   let sesionTrabajo: jasmine.SpyObj<SesionTrabajoFacade>;
   let vigencia: jasmine.SpyObj<VigenciaDiaService>;
+  let network: jasmine.SpyObj<NetworkService>;
+  let actualizarMuestraUC: jasmine.SpyObj<ActualizarMuestraUseCase>;
+  let sucursalFacade: jasmine.SpyObj<SucursalFacade>;
+  let eventoFacade: jasmine.SpyObj<EventoFacade>;
+  let conteoFacade: jasmine.SpyObj<ConteoFacade>;
 
   beforeEach(async () => {
     const authSpy = jasmine.createSpyObj(
       'AuthFacade',
       ['login', 'logout', 'isAuthenticated', 'wasOfflineLogin', 'session',
-       'hasKnownProfile', 'isAnalyst'],
+       'hasKnownProfile', 'isAnalyst', 'isOperator'],
       {
         loading: () => false,
         error: () => null,
@@ -35,6 +46,9 @@ describe('LoginPage', () => {
     authSpy.isAuthenticated.and.returnValue(false);
     authSpy.wasOfflineLogin.and.returnValue(false);
     authSpy.session.and.returnValue({ operadorId: 7, rutNormalizado: '123456785', correo: 'op@sodimac.cl' });
+    // Por defecto false: así los tests existentes, que no fijan perfil de
+    // operador, no disparan el chequeo nuevo de cambio de tienda.
+    authSpy.isOperator.and.returnValue(false);
 
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
@@ -51,6 +65,21 @@ describe('LoginPage', () => {
     vigencia = jasmine.createSpyObj<VigenciaDiaService>('VigenciaDiaService', ['necesitaSincronizar', 'iniciar']);
     vigencia.necesitaSincronizar.and.resolveTo(false);
 
+    // Offline por defecto: el chequeo de cambio de tienda solo corre con red.
+    network = jasmine.createSpyObj<NetworkService>('NetworkService', ['isOnline']);
+    network.isOnline.and.returnValue(false);
+
+    actualizarMuestraUC = jasmine.createSpyObj<ActualizarMuestraUseCase>('ActualizarMuestraUseCase', ['execute']);
+    sucursalFacade = jasmine.createSpyObj<SucursalFacade>('SucursalFacade', ['loadSucursales', 'selectSucursal', 'stores', 'currentStore']);
+    sucursalFacade.loadSucursales.and.resolveTo();
+    sucursalFacade.stores.and.returnValue([]);
+    sucursalFacade.currentStore.and.returnValue(null);
+    eventoFacade = jasmine.createSpyObj<EventoFacade>('EventoFacade', ['limpiarSeleccion', 'loadEventos']);
+    eventoFacade.limpiarSeleccion.and.resolveTo();
+    eventoFacade.loadEventos.and.resolveTo();
+    conteoFacade = jasmine.createSpyObj<ConteoFacade>('ConteoFacade', ['enCurso', 'reset']);
+    conteoFacade.enCurso.and.returnValue(false);
+
     await TestBed.configureTestingModule({
       imports: [
         ReactiveFormsModule,
@@ -66,6 +95,11 @@ describe('LoginPage', () => {
       .overrideProvider(Router, { useValue: routerSpy })
       .overrideProvider(PdaFacade, { useValue: pdaSpy })
       .overrideProvider(SesionTrabajoFacade, { useValue: sesionTrabajo })
+      .overrideProvider(SucursalFacade, { useValue: sucursalFacade })
+      .overrideProvider(EventoFacade, { useValue: eventoFacade })
+      .overrideProvider(ConteoFacade, { useValue: conteoFacade })
+      .overrideProvider(ActualizarMuestraUseCase, { useValue: actualizarMuestraUC })
+      .overrideProvider(NetworkService, { useValue: network })
       /*
        * Por defecto los datos son del día: así estas pruebas siguen midiendo el
        * ruteo por perfil. El caso "los datos son de ayer" tiene su propio test.
@@ -194,6 +228,132 @@ describe('LoginPage', () => {
     await component.onSubmit();
 
     expect(router.navigate).toHaveBeenCalledWith(['/sync-loading']);
+  });
+
+  /*
+   * El problema que esto corrige: un operador reasignado a otra tienda el
+   * mismo día entraba con los datos de la tienda vieja — el login
+   * cache-first no vuelve a preguntarle nada al backend si el perfil ya es
+   * conocido y los datos son de hoy. Con red, reusa la misma consulta que
+   * "Actualizar maestra" del menú para enterarse, sin su spinner ni diálogo.
+   */
+  describe('cambio de tienda detectado al entrar (perfil operador, con red)', () => {
+    beforeEach(() => {
+      authFacade.isOperator.and.returnValue(true);
+      authFacade.hasKnownProfile.and.returnValue(true);
+      authFacade.isAnalyst.and.returnValue(false);
+      authFacade.wasOfflineLogin.and.returnValue(true);
+      network.isOnline.and.returnValue(true);
+      component.form.setValue({ rut: '12345678-5', password: '123456' });
+      authFacade.login.and.resolveTo();
+      authFacade.isAuthenticated.and.returnValue(true);
+    });
+
+    it('sin red, no consulta nada', async () => {
+      network.isOnline.and.returnValue(false);
+
+      await component.onSubmit();
+
+      expect(actualizarMuestraUC.execute).not.toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('sin novedad, entra directo sin tocar sucursal ni evento', async () => {
+      actualizarMuestraUC.execute.and.resolveTo({
+        estado: 'VENTANA',
+        resultados: [{ fecha: '2026-01-01', resultado: { tipo: 'SIN_NOVEDAD' } }],
+        tiendaVigente: null,
+      });
+
+      await component.onSubmit();
+
+      expect(actualizarMuestraUC.execute).toHaveBeenCalled();
+      expect(sucursalFacade.loadSucursales).not.toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('con una tienda nueva, se para en la asignación antes de entrar a Home', async () => {
+      const asignacion = { eventoId: 55, sucursalId: 9, nombre: 'Tienda Nueva', fechaProgramada: '2026-01-01' };
+      actualizarMuestraUC.execute.and.resolveTo({
+        estado: 'VENTANA',
+        resultados: [{ fecha: '2026-01-01', resultado: { tipo: 'NUEVO', asignacion } }],
+        tiendaVigente: null,
+      });
+
+      await component.onSubmit();
+
+      expect(sucursalFacade.loadSucursales).toHaveBeenCalledWith(7);
+      expect(eventoFacade.limpiarSeleccion).toHaveBeenCalled();
+      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(9);
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('si hay un conteo en curso, lo limpia antes de entrar a la tienda nueva', async () => {
+      conteoFacade.enCurso.and.returnValue(true);
+      const asignacion = { eventoId: 55, sucursalId: 9, nombre: 'Tienda Nueva', fechaProgramada: '2026-01-01' };
+      actualizarMuestraUC.execute.and.resolveTo({
+        estado: 'VENTANA',
+        resultados: [{ fecha: '2026-01-01', resultado: { tipo: 'NUEVO', asignacion } }],
+        tiendaVigente: null,
+      });
+
+      await component.onSubmit();
+
+      expect(conteoFacade.reset).toHaveBeenCalled();
+    });
+
+    /*
+     * EL BUG REPORTADO EN TERRENO: el SGO reasigna la tienda sin que todavía
+     * exista ninguna jornada ahí. Sin este chequeo, el operador entraba con
+     * la tienda vieja sin ningún aviso.
+     */
+    it('sin jornada nueva, pero con tiendaVigente distinta: se para ahí igual', async () => {
+      const tiendaVigente: TiendaVigente = { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' };
+      sucursalFacade.currentStore.and.returnValue(null);
+      actualizarMuestraUC.execute.and.resolveTo({
+        estado: 'VENTANA',
+        resultados: [{ fecha: '2026-01-01', resultado: { tipo: 'SIN_NOVEDAD' } }],
+        tiendaVigente,
+      });
+
+      await component.onSubmit();
+
+      expect(sucursalFacade.loadSucursales).toHaveBeenCalledWith(7);
+      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(9);
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('con tiendaVigente igual a la actual, no hace nada distinto', async () => {
+      sucursalFacade.currentStore.and.returnValue({ id: 9, codigoTienda: '4070', nombre: 'Tienda Nueva' } as never);
+      actualizarMuestraUC.execute.and.resolveTo({
+        estado: 'VENTANA',
+        resultados: [{ fecha: '2026-01-01', resultado: { tipo: 'SIN_NOVEDAD' } }],
+        tiendaVigente: { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' },
+      });
+
+      await component.onSubmit();
+
+      expect(sucursalFacade.loadSucursales).not.toHaveBeenCalled();
+    });
+
+    // Una red que se corta a mitad de camino no puede dejar al operador sin poder entrar.
+    it('si la consulta falla, no bloquea el login', async () => {
+      actualizarMuestraUC.execute.and.rejectWith(new Error('sin señal a mitad de camino'));
+
+      await component.onSubmit();
+
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('no corre para analistas', async () => {
+      authFacade.isOperator.and.returnValue(false);
+      authFacade.isAnalyst.and.returnValue(true);
+
+      await component.onSubmit();
+
+      expect(actualizarMuestraUC.execute).not.toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledWith(['/analyst-dashboard']);
+    });
   });
 
   /*

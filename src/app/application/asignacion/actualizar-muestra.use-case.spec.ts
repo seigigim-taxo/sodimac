@@ -4,6 +4,7 @@ import { EvaluarJornadasUseCase, ResultadoJornada } from './evaluar-jornadas.use
 import { Session } from '../../domain/auth/models/session.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
+import { TiendaVigente } from '../sucursal/actualizar-tienda-operador.use-case';
 
 /*
  * Lo que se prueba acá es la ORQUESTACIÓN, no las reglas de evaluación por
@@ -26,12 +27,14 @@ const sinNovedad = (fecha: string): ResultadoJornada => ({ fecha, resultado: { t
 const nuevo = (fecha: string, a: AsignacionConteo = asignacion): ResultadoJornada =>
   ({ fecha, resultado: { tipo: 'NUEVO', asignacion: a } });
 
+const SIN_TIENDA_VIGENTE: TiendaVigente | null = null;
+
 describe('ActualizarMuestraUseCase', () => {
   let uc: ActualizarMuestraUseCase;
   let evaluar: jasmine.Spy;
 
   beforeEach(() => {
-    evaluar = jasmine.createSpy('evaluar').and.resolveTo([sinNovedad('2026-09-02')]);
+    evaluar = jasmine.createSpy('evaluar').and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados: [sinNovedad('2026-09-02')] });
 
     TestBed.configureTestingModule({
       providers: [
@@ -50,20 +53,34 @@ describe('ActualizarMuestraUseCase', () => {
     });
 
     it('devuelve ACTUALIZADA con la asignación de la jornada del evento', async () => {
-      evaluar.and.resolveTo([nuevo('2026-09-02')]);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados: [nuevo('2026-09-02')] });
 
       const resultado = await uc.execute(SESION, evento());
 
-      expect(resultado).toEqual({ estado: 'ACTUALIZADA', asignacion });
+      expect(resultado).toEqual({ estado: 'ACTUALIZADA', asignacion, tiendaVigente: SIN_TIENDA_VIGENTE });
     });
 
     it('devuelve SIN_CAMBIOS cuando la jornada de esa fecha no tiene novedad', async () => {
       const resultados = [sinNovedad('2026-09-02')];
-      evaluar.and.resolveTo(resultados);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados });
 
       const resultado = await uc.execute(SESION, evento());
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados, tiendaVigente: SIN_TIENDA_VIGENTE });
+    });
+
+    /*
+     * La tienda puede haber cambiado sin que ninguna jornada tenga novedad
+     * (reasignación sin jornada todavía armada) — `tiendaVigente` tiene que
+     * viajar igual para que ActualizarMuestraService pueda pararse ahí.
+     */
+    it('propaga tiendaVigente aunque la jornada esté SIN_CAMBIOS', async () => {
+      const tiendaVigente: TiendaVigente = { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' };
+      evaluar.and.resolveTo({ tiendaVigente, resultados: [sinNovedad('2026-09-02')] });
+
+      const resultado = await uc.execute(SESION, evento());
+
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados: [sinNovedad('2026-09-02')], tiendaVigente });
     });
 
     /*
@@ -79,20 +96,20 @@ describe('ActualizarMuestraUseCase', () => {
         sinNovedad('2026-09-02'),
         nuevo('2026-09-03', { ...asignacion, fechaProgramada: '2026-09-03' }),
       ];
-      evaluar.and.resolveTo(resultados);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados });
 
       const resultado = await uc.execute(SESION, evento('2026-09-02'));
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados, tiendaVigente: SIN_TIENDA_VIGENTE });
     });
 
     // Si el SGO ya no tiene ninguna jornada para esa fecha (caso raro), tampoco hay nada que mostrar.
     it('sin ningún resultado para la fecha del evento, da SIN_CAMBIOS', async () => {
-      evaluar.and.resolveTo([]);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados: [] });
 
       const resultado = await uc.execute(SESION, evento());
 
-      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados: [] });
+      expect(resultado).toEqual({ estado: 'SIN_CAMBIOS', resultados: [], tiendaVigente: SIN_TIENDA_VIGENTE });
     });
 
     it('devuelve ERROR_BUSQUEDA con mensaje propio si EvaluarJornadasUseCase lanza', async () => {
@@ -109,20 +126,30 @@ describe('ActualizarMuestraUseCase', () => {
   describe('sin evento seleccionado: informa la ventana completa', () => {
     it('devuelve VENTANA con el resultado de cada jornada, sin quedarse solo con una', async () => {
       const resultados = [sinNovedad('2026-09-02'), nuevo('2026-09-03')];
-      evaluar.and.resolveTo(resultados);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados });
 
       const resultado = await uc.execute(SESION, null);
 
-      expect(resultado).toEqual({ estado: 'VENTANA', resultados });
+      expect(resultado).toEqual({ estado: 'VENTANA', resultados, tiendaVigente: SIN_TIENDA_VIGENTE });
     });
 
     it('devuelve VENTANA aunque las dos jornadas estén sin novedad', async () => {
       const resultados = [sinNovedad('2026-09-02'), sinNovedad('2026-09-03')];
-      evaluar.and.resolveTo(resultados);
+      evaluar.and.resolveTo({ tiendaVigente: SIN_TIENDA_VIGENTE, resultados });
 
       const resultado = await uc.execute(SESION, null);
 
-      expect(resultado).toEqual({ estado: 'VENTANA', resultados });
+      expect(resultado).toEqual({ estado: 'VENTANA', resultados, tiendaVigente: SIN_TIENDA_VIGENTE });
+    });
+
+    it('propaga tiendaVigente en VENTANA aunque ninguna jornada tenga novedad', async () => {
+      const tiendaVigente: TiendaVigente = { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' };
+      const resultados = [sinNovedad('2026-09-02'), sinNovedad('2026-09-03')];
+      evaluar.and.resolveTo({ tiendaVigente, resultados });
+
+      const resultado = await uc.execute(SESION, null);
+
+      expect(resultado).toEqual({ estado: 'VENTANA', resultados, tiendaVigente });
     });
 
     it('devuelve ERROR_BUSQUEDA si la evaluación falla', async () => {

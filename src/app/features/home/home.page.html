@@ -94,6 +94,13 @@
     </div>
     }
 
+    @if (avisoTiendaActualizada(); as nombreTienda) {
+    <div class="status-banner status-banner-info mb-4">
+      <ion-icon name="sync-outline"></ion-icon>
+      <span>Te reasignaron a otra tienda: <strong>{{ nombreTienda }}</strong>.</span>
+    </div>
+    }
+
     @if (sinNovedad()) {
     <div class="status-banner status-banner-info mb-4">
       <span>Todavía no hay un conteo nuevo asignado. Vuelve a intentar más tarde.</span>

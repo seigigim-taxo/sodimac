@@ -4,6 +4,7 @@ import { JornadaPreparada } from '../../domain/sincronizacion/models/preparacion
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
+import { ActualizarTiendaOperadorUseCase, TiendaVigente } from '../sucursal/actualizar-tienda-operador.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 
 /** Un resultado por jornada, con la fecha para poder ubicarlo. */
@@ -12,6 +13,15 @@ export interface ResultadoJornada {
   resultado:
     | { tipo: 'SIN_NOVEDAD' }
     | { tipo: 'NUEVO'; asignacion: AsignacionConteo };
+}
+
+export interface ResultadoEvaluarJornadas {
+  /*
+   * La tienda que el SGO dice que corresponde HOY, se haya movido una jornada
+   * o no. null si la respuesta no trajo ninguna tienda.
+   */
+  tiendaVigente: TiendaVigente | null;
+  resultados: ResultadoJornada[];
 }
 
 /*
@@ -43,9 +53,18 @@ export class EvaluarJornadasUseCase {
   private sincronizar = inject(SincronizarDatosInicialesUseCase);
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
+  private actualizarTienda = inject(ActualizarTiendaOperadorUseCase);
 
-  async execute(session: Session): Promise<ResultadoJornada[]> {
+  async execute(session: Session): Promise<ResultadoEvaluarJornadas> {
     const datos = await this.sincronizar.descargar(session);
+
+    /*
+     * La tienda se actualiza SIEMPRE, independiente de si hay jornada nueva:
+     * al operador lo pueden reasignar sin que todavía exista muestra armada
+     * ahí, y aun así la app tiene que saber en qué tienda está parado. Ver
+     * ActualizarTiendaOperadorUseCase.
+     */
+    const tiendaVigente = await this.actualizarTienda.execute(session.operadorId, datos);
 
     /*
      * Primera pasada: para cada jornada, si el código de muestra ya está en la
@@ -99,7 +118,7 @@ export class EvaluarJornadasUseCase {
       resultados.push({ fecha, resultado: { tipo: 'NUEVO', asignacion: await this.describir(jornada) } });
     }
 
-    return resultados;
+    return { tiendaVigente, resultados };
   }
 
   /*
