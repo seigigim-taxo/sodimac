@@ -3,6 +3,7 @@ import { EvaluarJornadasUseCase } from './evaluar-jornadas.use-case';
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
 import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/sucursal.repository';
+import { ActualizarTiendaOperadorUseCase } from '../sucursal/actualizar-tienda-operador.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 
 /*
@@ -36,12 +37,15 @@ describe('EvaluarJornadasUseCase', () => {
   let persistir: jasmine.Spy;
   let getEventoIdPorCodigo: jasmine.Spy;
   let getIdPorCodigo: jasmine.Spy;
+  let actualizarTienda: jasmine.SpyObj<ActualizarTiendaOperadorUseCase>;
 
   beforeEach(() => {
     descargar = jasmine.createSpy('descargar').and.resolveTo(preparacionDeDosDias('MUE-HOY', 'MUE-MANIANA'));
     persistir = jasmine.createSpy('persistir').and.resolveTo({ usuario: {}, analista: null });
     getEventoIdPorCodigo = jasmine.createSpy('getEventoIdPorCodigo').and.resolveTo(null);
     getIdPorCodigo = jasmine.createSpy('getIdPorCodigo').and.resolveTo(4);
+    actualizarTienda = jasmine.createSpyObj<ActualizarTiendaOperadorUseCase>('ActualizarTiendaOperadorUseCase', ['execute']);
+    actualizarTienda.execute.and.resolveTo(null);
 
     TestBed.configureTestingModule({
       providers: [
@@ -49,6 +53,7 @@ describe('EvaluarJornadasUseCase', () => {
         { provide: SincronizarDatosInicialesUseCase, useValue: { descargar, persistir } },
         { provide: MUESTRA_REPOSITORY_TOKEN,  useValue: { getEventoIdPorCodigo } },
         { provide: SUCURSAL_REPOSITORY_TOKEN, useValue: { getIdPorCodigo } },
+        { provide: ActualizarTiendaOperadorUseCase, useValue: actualizarTienda },
       ],
     });
     uc = TestBed.inject(EvaluarJornadasUseCase);
@@ -65,13 +70,23 @@ describe('EvaluarJornadasUseCase', () => {
       Promise.resolve(30), Promise.resolve(31),      // segunda pasada: releídas tras persistir
     );
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados).toEqual([
       { fecha: '2026-08-28', resultado: { tipo: 'NUEVO', asignacion: { eventoId: 30, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-28' } } },
       { fecha: '2026-08-29', resultado: { tipo: 'NUEVO', asignacion: { eventoId: 31, sucursalId: 4, nombre: 'RADIOS', fechaProgramada: '2026-08-29' } } },
     ]);
     expect(persistir).toHaveBeenCalled();
+  });
+
+  it('pide la tienda vigente con los datos ya descargados, independiente de si hay jornada nueva', async () => {
+    getEventoIdPorCodigo.and.resolveTo(12);
+    actualizarTienda.execute.and.resolveTo({ sucursalId: 9, codigoTienda: '4066', nombreTienda: 'Tienda Nueva' });
+
+    const { tiendaVigente } = await uc.execute(SESION);
+
+    expect(actualizarTienda.execute).toHaveBeenCalledWith(SESION.operadorId, await descargar());
+    expect(tiendaVigente).toEqual({ sucursalId: 9, codigoTienda: '4066', nombreTienda: 'Tienda Nueva' });
   });
 
   // El caso central: cada jornada informa lo suyo, no se detiene en la primera.
@@ -82,7 +97,7 @@ describe('EvaluarJornadasUseCase', () => {
       return 31; // releída tras persistir
     });
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados[0]).toEqual({ fecha: '2026-08-28', resultado: { tipo: 'SIN_NOVEDAD' } });
     expect(resultados[1].resultado.tipo).toBe('NUEVO');
@@ -91,7 +106,7 @@ describe('EvaluarJornadasUseCase', () => {
   it('no persiste si las dos jornadas ya están en la base', async () => {
     getEventoIdPorCodigo.and.resolveTo(12);
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados.every((r) => r.resultado.tipo === 'SIN_NOVEDAD')).toBeTrue();
     expect(persistir).not.toHaveBeenCalled();
@@ -106,7 +121,7 @@ describe('EvaluarJornadasUseCase', () => {
   it('un código de muestra ya conocido es siempre sin novedad', async () => {
     getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? 12 : null));
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados[0].resultado).toEqual({ tipo: 'SIN_NOVEDAD' });
   });
@@ -116,7 +131,7 @@ describe('EvaluarJornadasUseCase', () => {
     descargar.and.resolveTo(preparacionDeDosDias('MUE-HOY', null));
     getEventoIdPorCodigo.and.callFake(async (codigo: string) => (codigo === 'MUE-HOY' ? null : 30));
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados[0].resultado.tipo).toBe('NUEVO');
     expect(resultados[1]).toEqual({ fecha: '2026-08-29', resultado: { tipo: 'SIN_NOVEDAD' } });
@@ -129,7 +144,7 @@ describe('EvaluarJornadasUseCase', () => {
     } as never);
     getEventoIdPorCodigo.and.resolveTo(12);
 
-    const resultados = await uc.execute(SESION);
+    const { resultados } = await uc.execute(SESION);
 
     expect(resultados.length).toBe(1);
     expect(resultados[0].resultado).toEqual({ tipo: 'SIN_NOVEDAD' });
@@ -138,7 +153,8 @@ describe('EvaluarJornadasUseCase', () => {
   it('acepta una respuesta sin jornadas', async () => {
     descargar.and.resolveTo({ tiendas: [{ codigoTienda: '4066' }], jornadas: [] } as never);
 
-    expect(await uc.execute(SESION)).toEqual([]);
+    const { resultados } = await uc.execute(SESION);
+    expect(resultados).toEqual([]);
     expect(persistir).not.toHaveBeenCalled();
   });
 });

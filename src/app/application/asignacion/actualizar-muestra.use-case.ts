@@ -3,20 +3,23 @@ import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-cont
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Session } from '../../domain/auth/models/session.model';
 import { EvaluarJornadasUseCase, ResultadoJornada } from './evaluar-jornadas.use-case';
+import { TiendaVigente } from '../sucursal/actualizar-tienda-operador.use-case';
 
 export type ResultadoActualizarMuestra =
   /*
    * Con evento seleccionado: el SGO tenía una muestra distinta PARA ESA
    * FECHA y quedó persistida.
    */
-  | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo }
+  | { estado: 'ACTUALIZADA'; asignacion: AsignacionConteo; tiendaVigente: TiendaVigente | null }
   /*
    * Con evento seleccionado: es la misma muestra que ya había para esa fecha.
    * `resultados` viaja igual (con todas las jornadas de la ventana) porque la
    * otra jornada pudo tener novedad aunque la del evento actual no — ver
-   * "POR QUÉ VIAJAN LOS RESULTADOS COMPLETOS" más abajo.
+   * "POR QUÉ VIAJAN LOS RESULTADOS COMPLETOS" más abajo. `tiendaVigente` viaja
+   * siempre: la tienda puede haber cambiado aunque NINGUNA jornada lo haga
+   * (reasignación sin jornada todavía armada) — ver ActualizarTiendaOperadorUseCase.
    */
-  | { estado: 'SIN_CAMBIOS'; resultados: ResultadoJornada[] }
+  | { estado: 'SIN_CAMBIOS'; resultados: ResultadoJornada[]; tiendaVigente: TiendaVigente | null }
   /*
    * La búsqueda de la maestra nueva falló — sin red, o el SGO no respondió.
    */
@@ -27,7 +30,7 @@ export type ResultadoActualizarMuestra =
    * "gane", porque no hay ninguna fecha en particular que el operador haya
    * elegido.
    */
-  | { estado: 'VENTANA'; resultados: ResultadoJornada[] };
+  | { estado: 'VENTANA'; resultados: ResultadoJornada[]; tiendaVigente: TiendaVigente | null };
 
 /*
  * "Volvé a preguntarle al SGO por la muestra de hoy" — a pedido, desde el
@@ -94,9 +97,10 @@ export class ActualizarMuestraUseCase {
   private evaluarJornadasUC = inject(EvaluarJornadasUseCase);
 
   async execute(session: Session, eventoActual: Evento | null): Promise<ResultadoActualizarMuestra> {
-    let resultados;
+    let tiendaVigente: TiendaVigente | null;
+    let resultados: ResultadoJornada[];
     try {
-      resultados = await this.evaluarJornadasUC.execute(session);
+      ({ tiendaVigente, resultados } = await this.evaluarJornadasUC.execute(session));
     } catch (err) {
       /*
        * El mensaje NO reenvía el de la excepción tal cual: acá abajo puede
@@ -116,7 +120,7 @@ export class ActualizarMuestraUseCase {
      * decide qué mostrar.
      */
     if (!eventoActual) {
-      return { estado: 'VENTANA', resultados };
+      return { estado: 'VENTANA', resultados, tiendaVigente };
     }
 
     /*
@@ -129,9 +133,9 @@ export class ActualizarMuestraUseCase {
     const propio = resultados.find((r) => r.fecha === fecha);
 
     if (!propio || propio.resultado.tipo === 'SIN_NOVEDAD') {
-      return { estado: 'SIN_CAMBIOS', resultados };
+      return { estado: 'SIN_CAMBIOS', resultados, tiendaVigente };
     }
 
-    return { estado: 'ACTUALIZADA', asignacion: propio.resultado.asignacion };
+    return { estado: 'ACTUALIZADA', asignacion: propio.resultado.asignacion, tiendaVigente };
   }
 }

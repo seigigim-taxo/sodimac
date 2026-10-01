@@ -22,7 +22,7 @@ import { enVentanaOperativa, hoySql, manianaSql } from '../../shared/utils/fecha
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
-import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacion.util';
+import { pararseEnAsignacion, pararseEnSucursal } from '../../state/asignacion/pararse-en-asignacion.util';
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
@@ -97,6 +97,15 @@ export class HomePage implements ViewWillEnter {
    * lo selecciona sola: elegir el evento es del operador.
    */
   avisoNuevoConteo = signal<string | null>(null);
+
+  /*
+   * Reasignación de tienda sin jornada todavía armada: "¿Me toca otro
+   * conteo?" puede no traer ningún conteo nuevo y aun así el SGO haber
+   * movido al operador a otro local (ver ActualizarTiendaOperadorUseCase).
+   * Se avisa aparte de avisoNuevoConteo porque no hay ninguna tarjeta que
+   * señalar, solo un cambio de tienda.
+   */
+  avisoTiendaActualizada = signal<string | null>(null);
 
   // Consulta de trabajo nuevo cuando el conteo del evento ya se finalizó.
   buscandoConteo = this.nuevoConteo.buscando;
@@ -355,6 +364,7 @@ export class HomePage implements ViewWillEnter {
     this.eventoFacade.selectEvento(evento);
     // Ya eligió: el aviso cumplió su función.
     this.avisoNuevoConteo.set(null);
+    this.avisoTiendaActualizada.set(null);
   }
 
   continue(): void {
@@ -370,17 +380,29 @@ export class HomePage implements ViewWillEnter {
     const session = this.auth.session();
     if (!session) return;
 
-    const asignacion = await this.nuevoConteo.buscar(session);
-    if (!asignacion) return;
+    const { asignacion, tiendaVigente } = await this.nuevoConteo.buscar(session);
+    if (asignacion) {
+      await pararseEnAsignacion(asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
 
-    await pararseEnAsignacion(asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
+      /*
+       * No se selecciona ni se navega: el operador elige su evento y decide
+       * cuándo entrar a contar, igual que al empezar la jornada. El aviso
+       * está para que no tenga que adivinar cuál de la lista es el nuevo.
+       */
+      this.avisoNuevoConteo.set(asignacion.nombre);
+      return;
+    }
 
     /*
-     * No se selecciona ni se navega: el operador elige su evento y decide
-     * cuándo entrar a contar, igual que al empezar la jornada. El aviso está
-     * para que no tenga que adivinar cuál de la lista es el nuevo.
+     * Sin conteo nuevo, la tienda puede haber cambiado igual: el SGO reasigna
+     * la tienda y arma la jornada en pasos separados. Sin este chequeo, el
+     * operador se quedaba viendo la lista (vacía) de la tienda vieja.
      */
-    this.avisoNuevoConteo.set(asignacion.nombre);
+    const actual = this.sucursalFacade.currentStore();
+    if (tiendaVigente && (!actual || actual.id !== tiendaVigente.sucursalId)) {
+      await pararseEnSucursal(tiendaVigente.sucursalId, this.sucursalFacade, this.eventoFacade, session.operadorId);
+      this.avisoTiendaActualizada.set(tiendaVigente.nombreTienda);
+    }
   }
 
 }

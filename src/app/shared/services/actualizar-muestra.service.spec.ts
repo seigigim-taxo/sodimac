@@ -4,6 +4,7 @@ import { AlertController, LoadingController } from '@ionic/angular/standalone';
 import { ActualizarMuestraService } from './actualizar-muestra.service';
 import { ActualizarMuestraUseCase, ResultadoActualizarMuestra } from '../../application/asignacion/actualizar-muestra.use-case';
 import { ResultadoJornada } from '../../application/asignacion/evaluar-jornadas.use-case';
+import { TiendaVigente } from '../../application/sucursal/actualizar-tienda-operador.use-case';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -43,7 +44,7 @@ describe('ActualizarMuestraService', () => {
   let loadingDismiss: jasmine.Spy;
 
   beforeEach(() => {
-    ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS', resultados: [] });
+    ejecutar = jasmine.createSpy('execute').and.resolveTo({ estado: 'SIN_CAMBIOS', resultados: [], tiendaVigente: null });
 
     session = jasmine.createSpy('session').and.returnValue(SESION);
 
@@ -52,9 +53,10 @@ describe('ActualizarMuestraService', () => {
     eventoFacade.limpiarSeleccion.and.resolveTo();
     eventoFacade.loadEventos.and.resolveTo();
 
-    sucursalFacade = jasmine.createSpyObj('SucursalFacade', ['loadSucursales', 'stores', 'selectSucursal']);
+    sucursalFacade = jasmine.createSpyObj('SucursalFacade', ['loadSucursales', 'stores', 'selectSucursal', 'currentStore']);
     sucursalFacade.loadSucursales.and.resolveTo();
     sucursalFacade.stores.and.returnValue([]);
+    sucursalFacade.currentStore.and.returnValue(null);
 
     conteoFacade = jasmine.createSpyObj('ConteoFacade', ['enCurso', 'reset']);
     conteoFacade.enCurso.and.returnValue(false);
@@ -135,7 +137,7 @@ describe('ActualizarMuestraService', () => {
 
   describe('resultado ACTUALIZADA', () => {
     beforeEach(() => {
-      ejecutar.and.resolveTo({ estado: 'ACTUALIZADA', asignacion });
+      ejecutar.and.resolveTo({ estado: 'ACTUALIZADA', asignacion, tiendaVigente: null });
     });
 
     it('se para en la tienda y los eventos de la asignación nueva', async () => {
@@ -202,20 +204,24 @@ describe('ActualizarMuestraService', () => {
 
     /*
      * EL CASO CENTRAL DE ESTE PASO: login con una sola jornada (hoy), y al
-     * actualizar el SGO trae una jornada nueva para mañana. El evento actual
-     * (hoy) sigue SIN_CAMBIOS, pero la jornada nueva ya quedó persistida en
-     * SQLite (ver EvaluarJornadasUseCase) — sin refrescar acá, esa tarjeta no
-     * aparece en Home hasta que algo más fuerce una recarga.
+     * actualizar el SGO trae una jornada nueva para mañana, EN LA MISMA
+     * TIENDA. El evento actual (hoy) sigue SIN_CAMBIOS, pero la jornada nueva
+     * ya quedó persistida en SQLite (ver EvaluarJornadasUseCase) — sin
+     * refrescar acá, esa tarjeta no aparece en Home hasta que algo más fuerce
+     * una recarga.
      */
-    describe('con novedad en otra jornada de la ventana', () => {
+    describe('con novedad en otra jornada de la ventana, misma tienda', () => {
+      const asignacionMismaTienda: AsignacionConteo = { ...asignacion, sucursalId: evento('ABIERTO').sucursalId, fechaProgramada: '2026-09-03' };
+
       beforeEach(() => {
         eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
         ejecutar.and.resolveTo({
           estado: 'SIN_CAMBIOS',
           resultados: [
             { fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } },
-            { fecha: '2026-09-03', resultado: { tipo: 'NUEVO', asignacion: { ...asignacion, fechaProgramada: '2026-09-03' } } },
+            { fecha: '2026-09-03', resultado: { tipo: 'NUEVO', asignacion: asignacionMismaTienda } },
           ],
+          tiendaVigente: null,
         });
       });
 
@@ -243,6 +249,114 @@ describe('ActualizarMuestraService', () => {
         expect(args.message).toContain('jornada nueva');
         expect(args.message).toContain('AMPOLLETAS AUTO');
       });
+    });
+
+    /*
+     * BUG REAL ENCONTRADO EN TERRENO: el SGO reasigna al operador a OTRA
+     * tienda. El evento actual (de la tienda vieja) sigue SIN_CAMBIOS, pero la
+     * otra jornada de la ventana trae la tienda nueva — asignacion.sucursalId
+     * (5) distinto al de eventoActual (1). Antes de este fix, acá se recargaba
+     * la lista de la tienda VIEJA y nunca se cambiaba de sucursal: la tarjeta
+     * nueva quedaba invisible para siempre, aunque ya estuviera en SQLite.
+     */
+    describe('con novedad en otra jornada de la ventana, otra tienda', () => {
+      beforeEach(() => {
+        eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
+        ejecutar.and.resolveTo({
+          estado: 'SIN_CAMBIOS',
+          resultados: [
+            { fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } },
+            { fecha: '2026-09-03', resultado: { tipo: 'NUEVO', asignacion: { ...asignacion, fechaProgramada: '2026-09-03' } } },
+          ],
+          tiendaVigente: null,
+        });
+      });
+
+      it('se para en la tienda nueva, no en la que tenía abierta', async () => {
+        await servicio.actualizar();
+
+        expect(sucursalFacade.loadSucursales).toHaveBeenCalledWith(SESION.operadorId);
+        expect(eventoFacade.loadEventos).toHaveBeenCalledWith(asignacion.sucursalId);
+        expect(eventoFacade.loadEventos).not.toHaveBeenCalledWith(evento('ABIERTO').sucursalId);
+      });
+
+      it('limpia el conteo en curso y navega a Inicio, igual que ACTUALIZADA', async () => {
+        conteoFacade.enCurso.and.returnValue(true);
+
+        await servicio.actualizar();
+
+        expect(conteoFacade.reset).toHaveBeenCalled();
+        expect(router.navigate).toHaveBeenCalledWith(['/home']);
+      });
+
+      it('avisa "Maestra actualizada", no el genérico de "sin cambios"', async () => {
+        await servicio.actualizar();
+
+        const [args] = alertCreate.calls.mostRecent().args;
+        expect(args.header).toBe('Maestra actualizada');
+        expect(args.message).toContain('AMPOLLETAS AUTO');
+      });
+    });
+
+    /*
+     * EL BUG REPORTADO EN TERRENO: el SGO reasigna la tienda sin que todavía
+     * exista ninguna jornada ahí. Ninguna de las dos ramas de arriba lo
+     * detecta porque comparan jornadas, no tiendas — `tiendaVigente` es lo
+     * único que trae la novedad en este caso.
+     */
+    describe('sin novedad en ninguna jornada, pero tiendaVigente cambió', () => {
+      const tiendaVigente: TiendaVigente = { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' };
+
+      beforeEach(() => {
+        eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
+        sucursalFacade.currentStore.and.returnValue({ id: 1, codigoTienda: '4066', nombre: 'Tienda Vieja' } as never);
+        sucursalFacade.stores.and.returnValue([{ id: 9, codigoTienda: '4070', nombre: 'Tienda Nueva' } as never]);
+        ejecutar.and.resolveTo({
+          estado: 'SIN_CAMBIOS',
+          resultados: [{ fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } }],
+          tiendaVigente,
+        });
+      });
+
+      it('se para en la tienda nueva', async () => {
+        await servicio.actualizar();
+
+        expect(sucursalFacade.loadSucursales).toHaveBeenCalledWith(SESION.operadorId);
+        expect(eventoFacade.loadEventos).toHaveBeenCalledWith(tiendaVigente.sucursalId);
+      });
+
+      it('limpia el conteo en curso y navega a Inicio', async () => {
+        conteoFacade.enCurso.and.returnValue(true);
+
+        await servicio.actualizar();
+
+        expect(conteoFacade.reset).toHaveBeenCalled();
+        expect(router.navigate).toHaveBeenCalledWith(['/home']);
+      });
+
+      it('avisa "Tienda actualizada", no el genérico de "sin cambios"', async () => {
+        await servicio.actualizar();
+
+        const [args] = alertCreate.calls.mostRecent().args;
+        expect(args.header).toBe('Tienda actualizada');
+        expect(args.message).toContain('Tienda Nueva');
+      });
+    });
+
+    it('con tiendaVigente igual a la actual, no hace nada distinto a sin cambios', async () => {
+      eventoFacade.selectedEvent.and.returnValue(evento('ABIERTO'));
+      sucursalFacade.currentStore.and.returnValue({ id: 1, codigoTienda: '4066', nombre: 'Tienda Vieja' } as never);
+      ejecutar.and.resolveTo({
+        estado: 'SIN_CAMBIOS',
+        resultados: [{ fecha: '2026-09-02', resultado: { tipo: 'SIN_NOVEDAD' } }],
+        tiendaVigente: { sucursalId: 1, codigoTienda: '4066', nombreTienda: 'Tienda Vieja' },
+      });
+
+      await servicio.actualizar();
+
+      expect(router.navigate).not.toHaveBeenCalled();
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('Ya tienes la maestra vigente');
     });
   });
 
@@ -288,7 +402,7 @@ describe('ActualizarMuestraService', () => {
     };
 
     it('avisa con las dos jornadas cuando ninguna tiene novedad', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }] });
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }], tiendaVigente: null });
 
       await servicio.actualizar();
 
@@ -298,7 +412,7 @@ describe('ActualizarMuestraService', () => {
     });
 
     it('avisa "Maestra actualizada" y se para en la jornada con novedad', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, manianaNueva] });
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, manianaNueva], tiendaVigente: null });
       sucursalFacade.stores.and.returnValue([{ id: 5, codigoTienda: '4724', nombre: 'HC BIOBIO' } as never]);
 
       await servicio.actualizar();
@@ -311,7 +425,7 @@ describe('ActualizarMuestraService', () => {
 
     // No se para en ninguna asignación si las dos jornadas están sin novedad.
     it('no se para en ninguna tienda cuando ninguna jornada tiene novedad', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }] });
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy, { ...manianaNueva, resultado: { tipo: 'SIN_NOVEDAD' } }], tiendaVigente: null });
 
       await servicio.actualizar();
 
@@ -319,7 +433,7 @@ describe('ActualizarMuestraService', () => {
     });
 
     it('navega a Inicio cuando hay novedad', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [manianaNueva] });
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [manianaNueva], tiendaVigente: null });
 
       await servicio.actualizar();
 
@@ -328,11 +442,29 @@ describe('ActualizarMuestraService', () => {
 
     // Nada cambió: no hay razón para sacar al operador de donde esté parado.
     it('no navega cuando ninguna jornada tiene novedad', async () => {
-      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy] });
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy], tiendaVigente: null });
 
       await servicio.actualizar();
 
       expect(router.navigate).not.toHaveBeenCalled();
+    });
+
+    /*
+     * Sin evento elegido, el mismo hueco aplica: la tienda pudo cambiar sin
+     * que ninguna de las dos jornadas (hoy, mañana) tenga novedad.
+     */
+    it('sin novedad en ninguna jornada, pero tiendaVigente cambió: se para ahí y avisa "Tienda actualizada"', async () => {
+      const tiendaVigente: TiendaVigente = { sucursalId: 9, codigoTienda: '4070', nombreTienda: 'Tienda Nueva' };
+      sucursalFacade.currentStore.and.returnValue(null);
+      sucursalFacade.stores.and.returnValue([{ id: 9, codigoTienda: '4070', nombre: 'Tienda Nueva' } as never]);
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [hoy], tiendaVigente });
+
+      await servicio.actualizar();
+
+      expect(eventoFacade.loadEventos).toHaveBeenCalledWith(tiendaVigente.sucursalId);
+      expect(router.navigate).toHaveBeenCalledWith(['/home']);
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('Tienda actualizada');
     });
   });
 
@@ -343,7 +475,7 @@ describe('ActualizarMuestraService', () => {
 
       const primera = servicio.actualizar();
       await servicio.actualizar();
-      resolver({ estado: 'SIN_CAMBIOS', resultados: [] });
+      resolver({ estado: 'SIN_CAMBIOS', resultados: [], tiendaVigente: null });
       await primera;
 
       expect(ejecutar).toHaveBeenCalledTimes(1);
@@ -356,7 +488,7 @@ describe('ActualizarMuestraService', () => {
       const promesa = servicio.actualizar();
       expect(servicio.actualizando()).toBeTrue();
 
-      resolver({ estado: 'SIN_CAMBIOS', resultados: [] });
+      resolver({ estado: 'SIN_CAMBIOS', resultados: [], tiendaVigente: null });
       await promesa;
 
       expect(servicio.actualizando()).toBeFalse();

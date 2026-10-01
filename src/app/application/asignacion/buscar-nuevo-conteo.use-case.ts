@@ -5,6 +5,7 @@ import { SUCURSAL_REPOSITORY_TOKEN } from '../../domain/sucursal/repositories/su
 import { SincronizarDatosInicialesUseCase } from '../sincronizacion/sincronizar-datos-iniciales.use-case';
 import { Session } from '../../domain/auth/models/session.model';
 import { JornadaPreparada } from '../../domain/sincronizacion/models/preparacion.model';
+import { ActualizarTiendaOperadorUseCase, TiendaVigente } from '../sucursal/actualizar-tienda-operador.use-case';
 
 /*
  * "¿Me toca otro conteo?" — lo que pregunta el operador que ya terminó el suyo
@@ -68,6 +69,13 @@ export interface ResultadoBusquedaConteo {
    * códigos en cualquier lugar que la necesite en el futuro.
    */
   eventoCoincidenteId: number | null;
+  /*
+   * La tienda que el SGO dice que corresponde HOY, se haya encontrado o no
+   * conteo nuevo. Null si la respuesta no trajo ninguna tienda. Ver
+   * ActualizarTiendaOperadorUseCase: una reasignación de tienda sin jornada
+   * todavía armada no se detecta de ninguna otra forma.
+   */
+  tiendaVigente: TiendaVigente | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -75,9 +83,16 @@ export class BuscarNuevoConteoUseCase {
   private sincronizar  = inject(SincronizarDatosInicialesUseCase);
   private muestraRepo  = inject(MUESTRA_REPOSITORY_TOKEN);
   private sucursalRepo = inject(SUCURSAL_REPOSITORY_TOKEN);
+  private actualizarTienda = inject(ActualizarTiendaOperadorUseCase);
 
   async execute(session: Session): Promise<ResultadoBusquedaConteo> {
     const datos = await this.sincronizar.descargar(session);
+
+    /*
+     * Se actualiza SIEMPRE, independiente de si hay conteo nuevo: ver
+     * ActualizarTiendaOperadorUseCase.
+     */
+    const tiendaVigente = await this.actualizarTienda.execute(session.operadorId, datos);
 
     let eventoCoincidenteHoy: number | null = null;
 
@@ -130,7 +145,7 @@ export class BuscarNuevoConteoUseCase {
        * operador puede cruzar la medianoche sin señal.
        */
       await this.sincronizar.persistir(session, datos);
-      return { asignacion: await this.describir(jornada), eventoCoincidenteId: null };
+      return { asignacion: await this.describir(jornada), eventoCoincidenteId: null, tiendaVigente };
     }
 
     /*
@@ -139,7 +154,7 @@ export class BuscarNuevoConteoUseCase {
      * tocar varias veces antes de que el SGO programe la jornada siguiente.
      */
     if (isDevMode() && eventoCoincidenteHoy === null) console.log('[BuscarNuevoConteo] sin trabajo nuevo');
-    return { asignacion: null, eventoCoincidenteId: eventoCoincidenteHoy };
+    return { asignacion: null, eventoCoincidenteId: eventoCoincidenteHoy, tiendaVigente };
   }
 
   /*

@@ -26,5 +26,6 @@ export class CardColapsableComponent {
   // La card de "Resumen de avance" usa var(--app-primary) para su ícono; el resto, el muted por defecto.
   iconColor = input('var(--app-text-muted)');
 
-  toggle = output<void>();
+  // No se llama "toggle": colisiona con el evento DOM nativo del mismo nombre.
+  alternar = output<void>();
 }

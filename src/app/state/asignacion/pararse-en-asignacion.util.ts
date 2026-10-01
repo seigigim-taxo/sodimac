@@ -33,10 +33,26 @@ export async function pararseEnAsignacion(
   eventoFacade: EventoFacade,
   operadorId: number
 ): Promise<void> {
+  return pararseEnSucursal(asignacion.sucursalId, sucursalFacade, eventoFacade, operadorId);
+}
+
+/*
+ * El núcleo de lo de arriba, sin exigir una asignación completa (evento +
+ * muestra): ActualizarTiendaOperadorUseCase puede confirmar que el operador
+ * está en otra tienda sin que todavía exista ninguna jornada que contar ahí —
+ * el SGO reasigna la tienda y arma la jornada en pasos separados. Pararse en
+ * la tienda no debería esperar a que además haya trabajo asignado.
+ */
+export async function pararseEnSucursal(
+  sucursalId: number,
+  sucursalFacade: SucursalFacade,
+  eventoFacade: EventoFacade,
+  operadorId: number
+): Promise<void> {
   await sucursalFacade.loadSucursales(operadorId);
-  const tiendaDelConteo = sucursalFacade.stores().find((s) => s.id === asignacion.sucursalId);
-  if (tiendaDelConteo) sucursalFacade.selectSucursal(tiendaDelConteo);
+  const tienda = sucursalFacade.stores().find((s) => s.id === sucursalId);
+  if (tienda) sucursalFacade.selectSucursal(tienda);
 
   await eventoFacade.limpiarSeleccion();
-  await eventoFacade.loadEventos(asignacion.sucursalId);
+  await eventoFacade.loadEventos(sucursalId);
 }

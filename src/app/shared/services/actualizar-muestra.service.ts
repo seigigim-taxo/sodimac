@@ -7,7 +7,8 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { EventoFacade } from '../../state/evento/evento.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ConteoFacade } from '../../state/conteo/conteo.facade';
-import { pararseEnAsignacion } from '../../state/asignacion/pararse-en-asignacion.util';
+import { pararseEnAsignacion, pararseEnSucursal } from '../../state/asignacion/pararse-en-asignacion.util';
+import { TiendaVigente } from '../../application/sucursal/actualizar-tienda-operador.use-case';
 import { hoySql, manianaSql } from '../utils/fecha.utils';
 
 /*
@@ -97,22 +98,42 @@ export class ActualizarMuestraService {
          * Sin refrescar acá, esa jornada no aparece en Home hasta que algo
          * más fuerce una recarga (cambiar de tienda, reiniciar la app).
          *
-         * Se recarga sin navegar ni tocar el conteo en curso: el evento
-         * actual no cambió, así que el operador sigue exactamente donde
-         * estaba — solo se refresca la lista para que la tarjeta nueva quede
-         * disponible cuando vuelva a Inicio.
+         * La otra jornada puede ser de la MISMA tienda (otro día) o de OTRA
+         * tienda — al operador se lo reasignan por jornada, no por local. Si
+         * es otra tienda, no alcanza con recargar la lista de eventos: hay
+         * que pararse ahí igual que en ACTUALIZADA/VENTANA, porque
+         * eventoActual.sucursalId sigue siendo la tienda vieja y el operador
+         * nunca vería la tarjeta nueva (el mismo bug que describe el
+         * comentario de AsignacionConteo.sucursalId, acá sin cubrir).
          */
         case 'SIN_CAMBIOS': {
           const fecha = eventoActual?.fechaProgramada.slice(0, 10);
-          const otraNovedad = resultado.resultados.some(
+          const otraConNovedad = resultado.resultados.find(
             (r) => r.fecha !== fecha && r.resultado.tipo === 'NUEVO'
           );
 
-          if (eventoActual && otraNovedad) {
+          if (otraConNovedad && otraConNovedad.resultado.tipo === 'NUEVO') {
+            const asignacion = otraConNovedad.resultado.asignacion;
+
+            if (!eventoActual || asignacion.sucursalId !== eventoActual.sucursalId) {
+              await pararseEnAsignacion(asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
+              await this.limpiarContextoDeConteo();
+              await this.avisar('Maestra actualizada', this.describirVentana(resultado.resultados));
+              return;
+            }
+
+            /*
+             * Misma tienda, otro día: el evento actual no cambió, así que el
+             * operador sigue exactamente donde estaba — solo se refresca la
+             * lista para que la tarjeta nueva quede disponible al volver a
+             * Inicio.
+             */
             await this.eventoFacade.loadEventos(eventoActual.sucursalId);
             await this.avisar('Ya tienes la maestra vigente', this.describirVentana(resultado.resultados));
             return;
           }
+
+          if (await this.pararseSiCambioTienda(resultado.tiendaVigente, session.operadorId)) return;
 
           await this.avisar('Ya tienes la maestra vigente', 'El SGO no tiene una maestra distinta a la que ya tienes.');
           return;
@@ -137,9 +158,13 @@ export class ActualizarMuestraService {
           if (conNovedad && conNovedad.resultado.tipo === 'NUEVO') {
             await pararseEnAsignacion(conNovedad.resultado.asignacion, this.sucursalFacade, this.eventoFacade, session.operadorId);
             await this.limpiarContextoDeConteo();
+            await this.avisar('Maestra actualizada', this.describirVentana(resultado.resultados));
+            return;
           }
-          const titulo = conNovedad ? 'Maestra actualizada' : 'Ya tienes la maestra vigente';
-          await this.avisar(titulo, this.describirVentana(resultado.resultados));
+
+          if (await this.pararseSiCambioTienda(resultado.tiendaVigente, session.operadorId)) return;
+
+          await this.avisar('Ya tienes la maestra vigente', this.describirVentana(resultado.resultados));
           return;
         }
       }
@@ -149,6 +174,29 @@ export class ActualizarMuestraService {
     } finally {
       this.actualizandoSignal.set(false);
     }
+  }
+
+  /*
+   * Reasignación de tienda SIN jornada todavía armada: el SGO puede mover al
+   * operador a otro local antes de que exista ninguna muestra ahí, y nada de
+   * lo de arriba lo detecta porque compara jornadas, no tiendas. Esto cubre
+   * ese caso comparando contra la tienda que la pantalla tiene seleccionada
+   * ahora mismo — ver ActualizarTiendaOperadorUseCase.
+   *
+   * Devuelve true cuando efectivamente hubo que pararse en otra tienda (y ya
+   * avisó y navegó), para que el llamador sepa que no debe mostrar además el
+   * aviso genérico de "sin cambios".
+   */
+  private async pararseSiCambioTienda(tiendaVigente: TiendaVigente | null, operadorId: number): Promise<boolean> {
+    if (!tiendaVigente) return false;
+
+    const actual = this.sucursalFacade.currentStore();
+    if (actual && actual.id === tiendaVigente.sucursalId) return false;
+
+    await pararseEnSucursal(tiendaVigente.sucursalId, this.sucursalFacade, this.eventoFacade, operadorId);
+    await this.limpiarContextoDeConteo();
+    await this.avisar('Tienda actualizada', `Ahora estás trabajando en: ${tiendaVigente.nombreTienda}`);
+    return true;
   }
 
   private async limpiarContextoDeConteo(): Promise<void> {

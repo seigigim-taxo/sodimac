@@ -2,6 +2,12 @@ import { Injectable, inject, signal } from '@angular/core';
 import { BuscarNuevoConteoUseCase } from '../../application/asignacion/buscar-nuevo-conteo.use-case';
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
 import { Session } from '../../domain/auth/models/session.model';
+import { TiendaVigente } from '../../application/sucursal/actualizar-tienda-operador.use-case';
+
+export interface ResultadoBusqueda {
+  asignacion: AsignacionConteo | null;
+  tiendaVigente: TiendaVigente | null;
+}
 
 /*
  * Estado de la PDA que terminó su conteo y espera el siguiente.
@@ -35,20 +41,20 @@ export class NuevoConteoFacade {
    * NO recibe la tienda: la del conteo nuevo sale de la propia respuesta, que
    * puede traer otra distinta a la que el operador tiene abierta.
    */
-  async buscar(session: Session): Promise<AsignacionConteo | null> {
+  async buscar(session: Session): Promise<ResultadoBusqueda> {
     this.buscandoSignal.set(true);
     this.sinNovedadSignal.set(false);
     this.errorSignal.set(null);
     try {
-      const { asignacion } = await this.buscarUC.execute(session);
+      const { asignacion, tiendaVigente } = await this.buscarUC.execute(session);
       if (!asignacion) {
         this.sinNovedadSignal.set(true);
-        return null;
+        return { asignacion: null, tiendaVigente };
       }
-      return asignacion;
+      return { asignacion, tiendaVigente };
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'No se pudo consultar al SGO');
-      return null;
+      return { asignacion: null, tiendaVigente: null };
     } finally {
       this.buscandoSignal.set(false);
     }

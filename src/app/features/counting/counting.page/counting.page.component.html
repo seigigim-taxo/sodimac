@@ -65,7 +65,7 @@
 
     <!-- Botón de resumen de avance -->
     <app-card-colapsable icon="stats-chart-outline" iconColor="var(--app-primary)" label="Resumen de avance"
-      [visible]="resumenVisible()" (toggle)="toggleResumen()">
+      [visible]="resumenVisible()" (alternar)="toggleResumen()">
       @if (resumenCargando()) {
         <div class="flex items-center justify-center py-4">
           <ion-spinner name="crescent" color="primary" style="width: 24px; height: 24px;"></ion-spinner>
@@ -143,7 +143,7 @@
     -->
     @if (hayReferenciaSincronizada()) {
     <app-card-colapsable icon="time-outline" label="Ver conteo sincronizado anterior de este TAG"
-      [visible]="referenciaSincronizadaVisible()" (toggle)="toggleReferenciaSincronizada()">
+      [visible]="referenciaSincronizadaVisible()" (alternar)="toggleReferenciaSincronizada()">
       @if (fechaReferenciaSincronizada(); as fecha) {
       <p class="text-xs mb-3" style="color: var(--app-text-muted);">
         Este TAG ya se sincronizó con el SGO el {{ fecha }}. Este conteo es aparte — no se puede editar ni se suma a este.
