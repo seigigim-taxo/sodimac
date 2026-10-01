@@ -1,7 +1,6 @@
 package cl.taxo.sodimac.inventario;
 
 import com.getcapacitor.BridgeActivity;
-import io.capawesome.capacitorjs.plugins.screenshot.ScreenshotPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -10,7 +9,6 @@ public class MainActivity extends BridgeActivity {
         // y registrarlo después lo deja fuera sin ningún error visible — la
         // llamada desde JS falla recién en tiempo de ejecución.
         registerPlugin(ActualizadorPlugin.class);
-        registerPlugin(ScreenshotPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

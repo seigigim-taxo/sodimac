@@ -1,9 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { App } from '@capacitor/app';
-import { Preferences } from '@capacitor/preferences';
 import { AlertController } from '@ionic/angular/standalone';
+import { PreferencesService } from '../../core/storage/preferences.service';
 import { ActualizacionFacade } from '../../state/actualizacion/actualizacion.facade';
 import { ReporteVersionUseCase } from '../../application/actualizacion/reporte-version.use-case';
+import { AppInfoService } from '../../core/app-info.service';
 import { APP_VERSION } from '../../core/version';
 
 /*
@@ -39,6 +40,8 @@ export class OfertaActualizacionService {
   private actualizacion   = inject(ActualizacionFacade);
   private alertController = inject(AlertController);
   private reporteVersion  = inject(ReporteVersionUseCase);
+  private appInfo         = inject(AppInfoService);
+  private prefs           = inject(PreferencesService);
 
   private ultimaConsulta = 0;
 
@@ -91,16 +94,38 @@ export class OfertaActualizacionService {
    * Confirmación de instalación: al abrir la app, compara la versión actual
    * con la última confirmada en Preferences. Si son diferentes, significa que
    * se instaló una nueva versión y se envía el reporte una sola vez.
+   *
+   * Tres reglas, cada una de un bug real:
+   *
+   * - La versión sale de AppInfoService y no de Number(APP_VERSION):
+   *   Number('1.0.12') es NaN, y NaN !== NaN siempre es true — el "ya lo
+   *   confirmé" nunca funcionaba y cada entrada a Inicio reenviaba.
+   * - Sin preferencia utilizable (primer arranque, o un "NaN" heredado de
+   *   ese bug): se siembra en silencio SIN reportar. Un CONFIRMACION del
+   *   arranque diría que se instaló algo que nunca cambió.
+   * - La preferencia se guarda solo si el servidor aceptó el reporte: si se
+   *   guardara con el envío fallido, ese cambio de versión quedaría sin
+   *   registrar para siempre.
    */
   async confirmarInstalacion(): Promise<void> {
     try {
-      const { value } = await Preferences.get({ key: VERSION_CONFIRMADA_KEY });
-      const ultimaConfirmada = value ? Number(value) : 0;
-      const versionActual = Number(APP_VERSION);
+      const { codigo } = await this.appInfo.version();
+      if (codigo <= 0) return;
 
-      if (versionActual !== ultimaConfirmada) {
-        await this.reporteVersion.execute('CONFIRMACION_INSTALACION');
-        await Preferences.set({ key: VERSION_CONFIRMADA_KEY, value: String(versionActual) });
+      const value = await this.prefs.get(VERSION_CONFIRMADA_KEY);
+      const ultimaConfirmada =
+        value !== null && value !== '' && Number.isInteger(Number(value)) ? Number(value) : null;
+
+      if (ultimaConfirmada === null) {
+        await this.prefs.set(VERSION_CONFIRMADA_KEY, String(codigo));
+        return;
+      }
+
+      if (codigo === ultimaConfirmada) return;
+
+      const enviado = await this.reporteVersion.execute('CONFIRMACION_INSTALACION');
+      if (enviado) {
+        await this.prefs.set(VERSION_CONFIRMADA_KEY, String(codigo));
       }
     } catch {
       // Silencioso: si falla, se intentará en el próximo inicio

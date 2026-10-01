@@ -270,6 +270,20 @@ export class HomePage implements ViewWillEnter {
   }
 
   ionViewWillEnter(): void {
+    const session = this.auth.session();
+
+    /*
+     * Las tiendas van primero y en paralelo: los dos reportes de versión
+     * (detección y confirmación de instalación) necesitan currentStore, que
+     * en un arranque fresco —justo el caso de la confirmación post- instalación—
+     * recién se llena con esta carga. Dispararlos sin esperar hacía que el
+     * reporte más importante, el de la versión recién instalada, se perdiera
+     * en silencio por no tener tienda.
+     */
+    const tiendasCargadas = session
+      ? this.sucursalFacade.loadSucursales(session.operadorId)
+      : Promise.resolve();
+
     /*
      * Se consulta por version nueva ACA y no en el arranque de la app: entrar a
      * Inicio es la senial de que el operador no esta contando. El servicio
@@ -279,12 +293,12 @@ export class HomePage implements ViewWillEnter {
      * Sin await y sin catch: si falla, no se ofrece nada y listo. Una consulta
      * de version no puede demorar ni romper la carga de la pantalla.
      */
-    void this.oferta.buscarEnSilencio();
-    void this.oferta.confirmarInstalacion();
+    void tiendasCargadas.then(() => {
+      void this.oferta.buscarEnSilencio();
+      void this.oferta.confirmarInstalacion();
+    });
 
-    const session = this.auth.session();
     if (!session) return;
-    void this.sucursalFacade.loadSucursales(session.operadorId);
 
     const pdaId = this.pda.pdaId();
     if (pdaId) void this.conteoList.load(session.operadorId, pdaId);

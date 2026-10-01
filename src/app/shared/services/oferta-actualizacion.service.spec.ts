@@ -4,6 +4,8 @@ import { AlertController } from '@ionic/angular/standalone';
 import { OfertaActualizacionService } from './oferta-actualizacion.service';
 import { ActualizacionFacade } from '../../state/actualizacion/actualizacion.facade';
 import { ReporteVersionUseCase } from '../../application/actualizacion/reporte-version.use-case';
+import { AppInfoService } from '../../core/app-info.service';
+import { PreferencesService } from '../../core/storage/preferences.service';
 import { VersionDisponible } from '../../domain/actualizacion/models/version-disponible.model';
 
 /*
@@ -27,6 +29,9 @@ const VERSION = (versionCode: number, obligatoria = false): VersionDisponible =>
 describe('OfertaActualizacionService', () => {
   let servicio: OfertaActualizacionService;
   let buscar: jasmine.Spy;
+  let ejecutar: jasmine.Spy;
+  let prefs: Map<string, string>;
+  let codigoActual: number;
   let disponible: ReturnType<typeof signal<VersionDisponible | null>>;
   let hayActualizacion: ReturnType<typeof signal<boolean>>;
   let instalada: ReturnType<typeof signal<number>>;
@@ -36,6 +41,9 @@ describe('OfertaActualizacionService', () => {
     hayActualizacion = signal(false);
     instalada = signal(8);
     buscar = jasmine.createSpy('buscar').and.callFake(async () => hayActualizacion());
+    ejecutar = jasmine.createSpy('execute').and.resolveTo(undefined);
+    prefs = new Map<string, string>();
+    codigoActual = 18;
 
     TestBed.configureTestingModule({
       providers: [
@@ -46,7 +54,7 @@ describe('OfertaActualizacionService', () => {
           // prueba CUÁNDO se le ofrece la actualización al operador, no el
           // reporte de versión, que tiene su propio flujo.
           provide: ReporteVersionUseCase,
-          useValue: { execute: jasmine.createSpy('execute').and.resolveTo(undefined) },
+          useValue: { execute: ejecutar },
         },
         {
           provide: ActualizacionFacade,
@@ -64,6 +72,20 @@ describe('OfertaActualizacionService', () => {
         {
           provide: AlertController,
           useValue: { create: jasmine.createSpy('create').and.resolveTo({ present: () => Promise.resolve() }) },
+        },
+        {
+          // La versión sale del sistema y no de APP_VERSION: sin este doble
+          // la confirmación probaría el fallback, no el camino del dispositivo.
+          provide: AppInfoService,
+          useValue: { version: () => Promise.resolve({ nombre: '1.0.13', codigo: codigoActual }) },
+        },
+        {
+          provide: PreferencesService,
+          useValue: {
+            get: (k: string) => Promise.resolve(prefs.get(k) ?? null),
+            set: (k: string, v: string) => { prefs.set(k, v); return Promise.resolve(); },
+            remove: (k: string) => { prefs.delete(k); return Promise.resolve(); },
+          },
         },
       ],
     });
@@ -194,6 +216,78 @@ describe('OfertaActualizacionService', () => {
       await servicio.buscarYResponder();
 
       expect(buscar).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  /*
+   * El reporte de confirmación es el que le dice al servidor "esta versión ya
+   * está instalada en esta PDA". Se dispara al entrar a Inicio cuando la
+   * versión actual difiere de la última confirmada.
+   */
+  describe('confirmación de instalación', () => {
+    const CLAVE = 'last_version_confirmed';
+
+    it('siembra la versión en silencio la primera vez, sin reportar', async () => {
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).not.toHaveBeenCalled();
+      expect(prefs.get(CLAVE)).toBe('18');
+    });
+
+    it('no reporta si la versión no cambió', async () => {
+      prefs.set(CLAVE, '18');
+
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).not.toHaveBeenCalled();
+    });
+
+    it('reporta cuando la versión cambió y guarda la nueva', async () => {
+      prefs.set(CLAVE, '17');
+      ejecutar.and.resolveTo(true);
+
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).toHaveBeenCalledWith('CONFIRMACION_INSTALACION');
+      expect(prefs.get(CLAVE)).toBe('18');
+    });
+
+    /*
+     * Si el servidor no aceptó el reporte, guardar igual diría "ya quedó
+     * registrado" y ese cambio de versión se perdería para siempre.
+     */
+    it('no guarda la versión si el reporte no fue aceptado', async () => {
+      prefs.set(CLAVE, '17');
+      ejecutar.and.resolveTo(false);
+
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).toHaveBeenCalled();
+      expect(prefs.get(CLAVE)).toBe('17');
+    });
+
+    /*
+     * Number('1.0.12') es NaN y NaN !== NaN siempre es true: el bug dejaba
+     * "NaN" en disco y reenviaba en cada entrada. Un valor no numérico se
+     * trata como sin preferencia —se siembra sin reportar—.
+     */
+    it('trata un "NaN" heredado como sin preferencia', async () => {
+      prefs.set(CLAVE, 'NaN');
+
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).not.toHaveBeenCalled();
+      expect(prefs.get(CLAVE)).toBe('18');
+    });
+
+    it('no hace nada si la versión del sistema no se pudo leer', async () => {
+      codigoActual = 0;
+      prefs.set(CLAVE, '17');
+
+      await servicio.confirmarInstalacion();
+
+      expect(ejecutar).not.toHaveBeenCalled();
+      expect(prefs.get(CLAVE)).toBe('17');
     });
   });
 });
