@@ -1,0 +1,9 @@
+# Archivo de releases: una subcarpeta por versión (v1.0.13/, v1.0.14/...) con
+# la APK firmada y los manifiestos (version.json / version_test.json) que
+# salieron con ella.
+#
+# Las APK pesan ~25 MB cada una y se regeneran desde el tag: no van al repo.
+# Los .json sí se versionan —son chicos y llevan el sha256 de la APK que
+# describen—, así queda constancia de qué se publicó en cada versión.
+*.apk
+*.idsig
