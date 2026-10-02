@@ -171,6 +171,9 @@ export class CountingPageComponent implements ViewWillEnter {
    */
   skuPendiente = signal<CodigoCapturado | null>(null);
 
+  /* Mientras se busca en SQLite el código recién escaneado (modo 'cantidad'). */
+  private resolviendoCodigo = signal(false);
+
   /*
    * A partir de acá se pregunta antes de escribir. Es un umbral de referencia,
    * no un límite del negocio: un SKU puede legítimamente pasar de 100
@@ -190,7 +193,7 @@ export class CountingPageComponent implements ViewWillEnter {
    * segundo disparo pisaría el código a medio registrar sin que nadie lo note.
    */
   escanerBloqueado = computed(() =>
-    this.sesionCargando() || !this.conteo.enCurso() || this.skuPendiente() !== null
+    this.sesionCargando() || !this.conteo.enCurso() || this.skuPendiente() !== null || this.resolviendoCodigo()
   );
 
   /*
@@ -553,7 +556,24 @@ export class CountingPageComponent implements ViewWillEnter {
      * Se valida acá y no al guardar: pedirle las unidades para recién entonces
      * avisarle que el SKU no pertenece a la muestra es trabajo tirado.
      */
-    if (!this.conteo.estaEnMuestra(codigo)) {
+    /*
+     * El código ya no se busca en un mapa en memoria sino en SQLite: es una
+     * consulta de milisegundos, pero asíncrona. Se bloquea el escáner mientras
+     * dura —igual que cuando hay un SKU esperando cantidad— para que un
+     * segundo disparo no pise a este antes de que quede resuelto.
+     *
+     * Una sola consulta sirve para las dos cosas: validar la muestra y armar
+     * el feedback de más abajo.
+     */
+    this.resolviendoCodigo.set(true);
+    let info: Awaited<ReturnType<ConteoFacade['infoProductoDe']>>;
+    try {
+      info = await this.conteo.infoProductoDe(codigo);
+    } finally {
+      this.resolviendoCodigo.set(false);
+    }
+
+    if (!info) {
       this.setLastScan({ sku: codigo, estado: 'FUERA_DE_MUESTRA' });
       this.scanComp()?.limpiar();
       return;
@@ -566,13 +586,12 @@ export class CountingPageComponent implements ViewWillEnter {
      * disparo y disparo, y esperar hasta guardar dejaba el modo "cantidad" sin
      * ninguna señal en el momento que sí importa: el del escaneo.
      */
-    const info = this.conteo.infoProductoDe(codigo);
     this.setLastScan({
-      sku: info?.sku ?? codigo,
+      sku: info.sku,
       estado: 'OK',
-      descripcion: info?.descripcion,
-      codigoBarras: info?.codigoBarras,
-      codigoBarrasEscaneado: info?.codigoBarras === info?.codigoResuelto,
+      descripcion: info.descripcion,
+      codigoBarras: info.codigoBarras,
+      codigoBarrasEscaneado: info.codigoBarras === info.codigoResuelto,
     });
 
     this.cantidad.set(null);
@@ -629,7 +648,7 @@ export class CountingPageComponent implements ViewWillEnter {
     if (resultado === 'error') {
       this.setLastScan({ sku: codigo, estado: 'ERROR', mensaje: this.conteo.error() ?? 'No se pudo registrar el scan' });
     } else {
-      const info = resultado === 'valido' ? this.conteo.infoProductoDe(codigo) : null;
+      const info = resultado === 'valido' ? await this.conteo.infoProductoDe(codigo) : null;
       this.setLastScan({
         sku: info?.sku ?? codigo,
         estado: resultado === 'valido' ? 'OK' : 'FUERA_DE_MUESTRA',

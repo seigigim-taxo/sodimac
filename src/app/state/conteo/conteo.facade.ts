@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { IniciarSesionConteoUseCase } from '../../application/conteo/iniciar-sesion-conteo.use-case';
 import { LoadMuestraSetUseCase, MuestraSet } from '../../application/conteo/load-muestra-set.use-case';
+import { BuscarCodigoMuestraUseCase, CodigoResuelto } from '../../application/conteo/buscar-codigo-muestra.use-case';
 import { UpsertConteoItemUseCase } from '../../application/conteo/upsert-conteo-item.use-case';
 import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-item.use-case';
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
@@ -22,6 +23,7 @@ export type { ConteoItem, SesionConteo };
 export class ConteoFacade {
   private iniciarSesion = inject(IniciarSesionConteoUseCase);
   private loadMuestra   = inject(LoadMuestraSetUseCase);
+  private buscarCodigo  = inject(BuscarCodigoMuestraUseCase);
   private upsertItem    = inject(UpsertConteoItemUseCase);
   private adjustItem    = inject(AdjustConteoItemUseCase);
   private deleteItem    = inject(DeleteConteoItemUseCase);
@@ -49,7 +51,19 @@ export class ConteoFacade {
   private referenciaSincronizadaSignal = signal<ConteoItem[]>([]);
   /* Misma referencia, pero fila por captura real (sod_conteo_lectura) — ver referenciaSincronizadaSignal. */
   private referenciaSincronizadaLecturasSignal = signal<ConteoLecturaSesion[]>([]);
-  private muestraSet: MuestraSet = { skuMap: new Map() };
+  private muestraSet: MuestraSet = { muestraId: null };
+
+  /*
+   * Códigos ya resueltos en esta sesión. Escanear el mismo SKU varias veces es
+   * lo normal al contar, y cada resolución es una consulta a SQLite.
+   *
+   * Solo se guardan los que SÍ están en la muestra: un rechazo no se recuerda,
+   * así un código que entre a la muestra no queda marcado como inválido. Se
+   * vacía al abrir/cerrar la sesión y al pasar de CACHE_MAX entradas, para que
+   * no crezca sin límite en un TAG larguísimo.
+   */
+  private codigosResueltos = new Map<string, CodigoResuelto>();
+  private static readonly CACHE_MAX = 500;
 
   // Serializa scan/adjust/delete: evita que dos escrituras SQLite
   // se solapen si el operador escanea muy rápido.
@@ -110,6 +124,7 @@ export class ConteoFacade {
         referenciaPromise,
       ]);
       this.muestraSet = muestraSet;
+      this.codigosResueltos.clear();
       this.sesionSignal.set(resultado.sesion);
       this.itemsSignal.set(resultado.items);
       this.recoveredSignal.set(resultado.recovered);
@@ -131,8 +146,8 @@ export class ConteoFacade {
    * se piden después, así que validar recién al guardar obligaría al operador a
    * tipear la cantidad para enterarse de que el producto no correspondía.
    */
-  estaEnMuestra(codigoLectura: string): boolean {
-    return this.resolverCodigoMuestra(codigoLectura) !== null;
+  async estaEnMuestra(codigoLectura: string): Promise<boolean> {
+    return (await this.resolverCodigoMuestra(codigoLectura)) !== null;
   }
 
   /*
@@ -147,10 +162,12 @@ export class ConteoFacade {
    *    por código de barras mostraba ese número crudo etiquetado como "SKU",
    *    que no es el SKU real del producto.
    */
-  infoProductoDe(codigoLectura: string): { sku: string; descripcion: string | null; codigoBarras: string | null; codigoResuelto: string } | null {
-    const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
-    if (codigoResuelto === null) return null;
-    const info = this.muestraSet.skuMap.get(codigoResuelto)!;
+  async infoProductoDe(
+    codigoLectura: string
+  ): Promise<{ sku: string; descripcion: string | null; codigoBarras: string | null; codigoResuelto: string } | null> {
+    const resuelto = await this.resolverCodigoMuestra(codigoLectura);
+    if (resuelto === null) return null;
+    const { info, codigoResuelto } = resuelto;
     return { sku: info.sku, descripcion: info.descripcion, codigoBarras: info.codigoBarras, codigoResuelto };
   }
 
@@ -167,16 +184,17 @@ export class ConteoFacade {
     const sesion = this.sesionSignal();
     if (!sesion || this.finalizadaSignal()) return 'rechazado';
 
-    const codigoResuelto = this.resolverCodigoMuestra(codigoLectura);
+    const resuelto = await this.resolverCodigoMuestra(codigoLectura);
 
-    if (codigoResuelto === null) {
+    if (resuelto === null) {
       this.rechazadosSignal.update((prev) =>
         prev.includes(codigoLectura) ? prev : [codigoLectura, ...prev]
       );
       return 'rechazado';
     }
 
-    const productoId = this.muestraSet.skuMap.get(codigoResuelto)!.productoId;
+    const codigoResuelto = resuelto.codigoResuelto;
+    const productoId = resuelto.info.productoId;
 
     this.errorSignal.set(null);
     let persistido = false;
@@ -308,29 +326,30 @@ export class ConteoFacade {
     this.finalizadaSignal.set(false);
     this.referenciaSincronizadaSignal.set([]);
     this.referenciaSincronizadaLecturasSignal.set([]);
-    this.muestraSet = { skuMap: new Map() };
+    this.muestraSet = { muestraId: null };
+    this.codigosResueltos.clear();
   }
 
   /*
-   * Resuelve el código de lectura escaneado contra el skuMap de la muestra.
+   * Resuelve el código de lectura escaneado contra la muestra de la ronda.
    *
-   * Busca primero coincidencia exacta. Si no existe y el código empieza con "0",
-   * intenta sin ese primer carácter para cubrir el caso de Excel/WS que elimina
-   * ceros iniciales (ej: PDA escanea 079567520375, muestra tiene 79567520375).
-   *
-   * Devuelve el código resuelto (el que existe en la muestra) o null si no
+   * La regla (exacto primero, luego sin el cero inicial que a veces pierde
+   * Excel/WS) vive en BuscarCodigoMuestraUseCase. Devuelve el código resuelto
+   * —el que existe en la muestra— con los datos de su producto, o null si no
    * hay coincidencia.
    */
-  private resolverCodigoMuestra(codigoLectura: string): string | null {
-    const normalizado = codigoLectura.trim().toUpperCase();
-    if (this.muestraSet.skuMap.has(normalizado)) return normalizado;
+  private async resolverCodigoMuestra(codigoLectura: string): Promise<CodigoResuelto | null> {
+    const clave = codigoLectura.trim().toUpperCase();
 
-    if (normalizado.startsWith('0')) {
-      const sinCero = normalizado.slice(1);
-      if (this.muestraSet.skuMap.has(sinCero)) return sinCero;
+    const recordado = this.codigosResueltos.get(clave);
+    if (recordado) return recordado;
+
+    const resuelto = await this.buscarCodigo.execute(this.muestraSet.muestraId, codigoLectura);
+    if (resuelto) {
+      if (this.codigosResueltos.size >= ConteoFacade.CACHE_MAX) this.codigosResueltos.clear();
+      this.codigosResueltos.set(clave, resuelto);
     }
-
-    return null;
+    return resuelto;
   }
 
   // Inserta o actualiza el item en el signal sin recargar toda la lista

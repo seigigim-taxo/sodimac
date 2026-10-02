@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ConteoFacade } from './conteo.facade';
 import { CONTEO_REPOSITORY_TOKEN, ConteoRepository } from '../../domain/conteo/repositories/conteo.repository';
 import { MUESTRA_REPOSITORY_TOKEN, MuestraRepository } from '../../domain/muestra/repositories/muestra.repository';
-import { MUESTRA_DETALLE_REPOSITORY_TOKEN, MuestraDetalleRepository } from '../../domain/muestra/repositories/muestra-detalle.repository';
+import { MUESTRA_DETALLE_REPOSITORY_TOKEN, MuestraDetalleRepository, CodigoProductoMuestra } from '../../domain/muestra/repositories/muestra-detalle.repository';
 import { ConteoItem } from '../../domain/conteo/models/conteo-item.model';
 import { ConteoLecturaSesion } from '../../domain/conteo/models/conteo-lectura-sesion.model';
 
@@ -26,6 +26,15 @@ function item(parcial: Partial<ConteoItem> = {}): ConteoItem {
     iteracion: 1, fechaHora: '2026-08-03 10:00:00', codigoLectura: 'AF001',
     ...parcial,
   };
+}
+
+/*
+ * La búsqueda de códigos va a SQLite; acá se simula con un arreglo fijo, pero
+ * filtrando como lo haría la consulta real: devuelve solo los códigos pedidos.
+ */
+function buscaEn(filas: CodigoProductoMuestra[]) {
+  return (_muestraId: number, codigos: string[]) =>
+    Promise.resolve(filas.filter((f) => codigos.includes(f.codigoLectura)));
 }
 
 describe('ConteoFacade', () => {
@@ -52,7 +61,7 @@ describe('ConteoFacade', () => {
     const muestraRepo = jasmine.createSpyObj<MuestraRepository>('MuestraRepository', ['getByEventoIteracion']);
     muestraRepo.getByEventoIteracion.and.resolveTo({ id: 10, codigoMuestra: null, idAgenda: null, numeroAgenda: null, eventoId: 1, sucursalId: 1, iteracion: 1, estado: 'ACTIVA', nombre: null, nombreArchivo: null });
 
-    const detalleRepo = jasmine.createSpyObj<MuestraDetalleRepository>('MuestraDetalleRepository', ['getByMuestra', 'getCodigosByMuestra']);
+    const detalleRepo = jasmine.createSpyObj<MuestraDetalleRepository>('MuestraDetalleRepository', ['getByMuestra', 'buscarCodigos']);
     detalleRepo.getByMuestra.and.resolveTo([
       { id: 1, muestraId: 10, productoId: 100, sku: 'AF001', stockSistema: 5, ubicacionEsperada: null },
     ]);
@@ -62,10 +71,10 @@ describe('ConteoFacade', () => {
      * resuelven al mismo productoId, con el mismo sku/codigoBarras del
      * producto, sea cual sea la fila que hizo match.
      */
-    detalleRepo.getCodigosByMuestra.and.resolveTo([
+    detalleRepo.buscarCodigos.and.callFake(buscaEn([
       { codigoLectura: 'AF001', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234500016' },
       { codigoLectura: '7891234500016', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234500016' },
-    ]);
+    ]));
 
     TestBed.configureTestingModule({
       providers: [
@@ -85,25 +94,25 @@ describe('ConteoFacade', () => {
    * operador tipearía la cantidad de un SKU que después va a ser rechazado.
    */
   describe('estaEnMuestra', () => {
-    it('acepta un código de la muestra sin escribir nada', () => {
-      expect(facade.estaEnMuestra('AF001')).toBe(true);
+    it('acepta un código de la muestra sin escribir nada', async () => {
+      expect(await facade.estaEnMuestra('AF001')).toBe(true);
       expect(conteoRepo.upsert).not.toHaveBeenCalled();
       expect(facade.items().length).toBe(0);
     });
 
-    it('normaliza igual que scan(): espacios y minúsculas', () => {
-      expect(facade.estaEnMuestra('  af001 ')).toBe(true);
+    it('normaliza igual que scan(): espacios y minúsculas', async () => {
+      expect(await facade.estaEnMuestra('  af001 ')).toBe(true);
     });
 
-    it('rechaza un código fuera de la muestra', () => {
-      expect(facade.estaEnMuestra('NO-EXISTE')).toBe(false);
+    it('rechaza un código fuera de la muestra', async () => {
+      expect(await facade.estaEnMuestra('NO-EXISTE')).toBe(false);
     });
 
     it('coincide con el veredicto de scan()', async () => {
-      expect(facade.estaEnMuestra('NO-EXISTE')).toBe(false);
+      expect(await facade.estaEnMuestra('NO-EXISTE')).toBe(false);
       expect(await facade.scan('NO-EXISTE', 3)).toBe('rechazado');
 
-      expect(facade.estaEnMuestra('AF001')).toBe(true);
+      expect(await facade.estaEnMuestra('AF001')).toBe(true);
       expect(await facade.scan('AF001', 3)).toBe('valido');
     });
   });
@@ -114,8 +123,8 @@ describe('ConteoFacade', () => {
    * código de barras sea cual sea el que usó para escanear.
    */
   describe('infoProductoDe', () => {
-    it('devuelve sku, descripción y código de barras de un código de la muestra', () => {
-      expect(facade.infoProductoDe('AF001')).toEqual({
+    it('devuelve sku, descripción y código de barras de un código de la muestra', async () => {
+      expect(await facade.infoProductoDe('AF001')).toEqual({
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
@@ -123,9 +132,9 @@ describe('ConteoFacade', () => {
       });
     });
 
-    it('resuelve por código de barras y devuelve igual el SKU real', () => {
+    it('resuelve por código de barras y devuelve igual el SKU real', async () => {
       // AF001 tiene codigo_barras '7891234500016' en el beforeEach principal.
-      expect(facade.infoProductoDe('7891234500016')).toEqual({
+      expect(await facade.infoProductoDe('7891234500016')).toEqual({
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
@@ -133,8 +142,8 @@ describe('ConteoFacade', () => {
       });
     });
 
-    it('normaliza igual que scan(): espacios y minúsculas', () => {
-      expect(facade.infoProductoDe('  af001 ')).toEqual({
+    it('normaliza igual que scan(): espacios y minúsculas', async () => {
+      expect(await facade.infoProductoDe('  af001 ')).toEqual({
         sku: 'AF001',
         descripcion: 'Taladro',
         codigoBarras: '7891234500016',
@@ -149,14 +158,55 @@ describe('ConteoFacade', () => {
      * quedaba mal etiquetado como "SKU" en el feedback visual. codigoResuelto
      * es lo que el consumidor tiene que comparar en su lugar.
      */
-    it('codigoResuelto viene sin el cero inicial que el código de barras escaneado sí traía', () => {
-      const info = facade.infoProductoDe('07891234500016');
+    it('codigoResuelto viene sin el cero inicial que el código de barras escaneado sí traía', async () => {
+      const info = await facade.infoProductoDe('07891234500016');
       expect(info?.codigoResuelto).toBe('7891234500016');
       expect(info?.codigoBarras).toBe(info?.codigoResuelto);
     });
 
-    it('devuelve null para un código fuera de la muestra', () => {
-      expect(facade.infoProductoDe('NO-EXISTE')).toBeNull();
+    it('devuelve null para un código fuera de la muestra', async () => {
+      expect(await facade.infoProductoDe('NO-EXISTE')).toBeNull();
+    });
+  });
+
+  /*
+   * La razón de ser del cambio: abrir un TAG ya no baja los 68.000 códigos de
+   * una muestra grande, y repetir un SKU no repite la consulta.
+   */
+  describe('búsqueda bajo demanda', () => {
+    let repo: jasmine.SpyObj<MuestraDetalleRepository>;
+
+    beforeEach(() => {
+      repo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
+      repo.buscarCodigos.calls.reset();
+    });
+
+    it('abrir el TAG no consulta ningún código', async () => {
+      await facade.init(1, 1, 1, 1);
+
+      expect(repo.buscarCodigos).not.toHaveBeenCalled();
+    });
+
+    it('escanear el mismo SKU dos veces consulta una sola vez', async () => {
+      await facade.scan('AF001', 1);
+      await facade.scan('AF001', 1);
+
+      expect(repo.buscarCodigos).toHaveBeenCalledTimes(1);
+    });
+
+    it('un código rechazado no se recuerda: se vuelve a consultar', async () => {
+      await facade.scan('NO-EXISTE');
+      await facade.scan('NO-EXISTE');
+
+      expect(repo.buscarCodigos).toHaveBeenCalledTimes(2);
+    });
+
+    it('al abrir otro TAG se vacía lo recordado', async () => {
+      await facade.scan('AF001', 1);
+      await facade.init(1, 1, 1, 1);
+      await facade.scan('AF001', 1);
+
+      expect(repo.buscarCodigos).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -333,9 +383,9 @@ describe('ConteoFacade', () => {
     conteoRepo.getRondaAbierta.and.resolveTo(ronda(1));
 
     const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
-    detalleRepo.getCodigosByMuestra.and.resolveTo([
+    detalleRepo.buscarCodigos.and.callFake(buscaEn([
       { codigoLectura: '7891234567890', productoId: 100, descripcion: 'Taladro', sku: 'AF001', codigoBarras: '7891234567890' },
-    ]);
+    ]));
 
     await facade.init(1, 1, 1, 1);
 
@@ -353,15 +403,15 @@ describe('ConteoFacade', () => {
       conteoRepo.getRondaAbierta.and.resolveTo(ronda(1));
 
       const detalleRepo = TestBed.inject(MUESTRA_DETALLE_REPOSITORY_TOKEN) as jasmine.SpyObj<MuestraDetalleRepository>;
-      detalleRepo.getCodigosByMuestra.and.resolveTo([
+      detalleRepo.buscarCodigos.and.callFake(buscaEn([
         { codigoLectura: CODIGO_SIN_CERO, productoId: 200, descripcion: 'Tornillo', sku: 'TORN-001', codigoBarras: null },
-      ]);
+      ]));
 
       await facade.init(1, 1, 1, 1);
     });
 
-    it('acepta una lectura con 0 inicial cuando la muestra tiene el código sin 0', () => {
-      expect(facade.estaEnMuestra(CODIGO_CON_CERO)).toBe(true);
+    it('acepta una lectura con 0 inicial cuando la muestra tiene el código sin 0', async () => {
+      expect(await facade.estaEnMuestra(CODIGO_CON_CERO)).toBe(true);
     });
 
     it('persiste el código sin 0 (el que existe en la muestra)', async () => {

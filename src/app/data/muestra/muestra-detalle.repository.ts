@@ -156,21 +156,25 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
     return Number(fila?.['total'] ?? 0);
   }
 
-  async getCodigosByMuestra(muestraId: number): Promise<CodigoProductoMuestra[]> {
+  async buscarCodigos(muestraId: number, codigos: string[]): Promise<CodigoProductoMuestra[]> {
+    if (codigos.length === 0) return [];
+
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const placeholders = codigos.map(() => '?').join(', ');
     const result = await db.query(
       `SELECT pd.codigo_lectura, pd.producto_id, p.descripcion, p.sku, p.codigo_barras
        FROM sod_producto_detalle pd
-       JOIN sod_muestra_detalle md ON md.producto_id = pd.producto_id
+       JOIN sod_muestra_detalle md ON md.producto_id = pd.producto_id AND md.muestra_id = ?
        JOIN sod_producto p ON p.id = pd.producto_id
-       WHERE md.muestra_id = ?`,
-      [muestraId]
+       WHERE pd.codigo_lectura IN (${placeholders})`,
+      [muestraId, ...codigos]
     );
-    const codigos: CodigoProductoMuestra[] = [];
+
+    const encontrados: CodigoProductoMuestra[] = [];
     for (const row of (result.values ?? []) as Record<string, unknown>[]) {
       const lectura = (row['codigo_lectura'] as string)?.trim().toUpperCase();
       if (!lectura) continue;
-      codigos.push({
+      encontrados.push({
         codigoLectura: lectura,
         productoId: row['producto_id'] as number,
         descripcion: (row['descripcion'] as string | null) ?? null,
@@ -178,7 +182,7 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
         codigoBarras: (row['codigo_barras'] as string | null) ?? null,
       });
     }
-    return codigos;
+    return encontrados;
   }
 
   private map(row: Record<string, unknown>): MuestraDetalle {

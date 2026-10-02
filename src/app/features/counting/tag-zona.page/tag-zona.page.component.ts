@@ -90,6 +90,9 @@ export class TagZonaPageComponent implements ViewWillEnter {
    */
   errorRonda = signal<string | null>(null);
 
+  /* Mientras irAContar() abre la ronda y registra la ubicación del TAG. */
+  abriendoConteo = signal(false);
+
   private tagLocked = signal(false);
   tagConfirmado     = computed(() => this.tagLocked() ? this.zonaFacade.tagValue() : null);
   zonaConfirmada    = this.zonaFacade.selectedZone;
@@ -277,16 +280,21 @@ export class TagZonaPageComponent implements ViewWillEnter {
      * hacía nada visible para el operador.
      */
     this.errorRonda.set(null);
-    let ronda;
+    this.abriendoConteo.set(true);
     try {
-      ronda = await this.asegurarRonda.execute(evento.id);
-    } catch (err) {
-      this.errorRonda.set(err instanceof Error ? err.message : 'No se pudo abrir la ronda de conteo');
-      return;
-    }
+      let ronda;
+      try {
+        ronda = await this.asegurarRonda.execute(evento.id);
+      } catch (err) {
+        this.errorRonda.set(err instanceof Error ? err.message : 'No se pudo abrir la ronda de conteo');
+        return;
+      }
 
-    await this.zonaFacade.confirmZona(ronda.id, operadorId, pdaId);
-    if (this.zonaFacade.error()) return;
+      await this.zonaFacade.confirmZona(ronda.id, operadorId, pdaId);
+      if (this.zonaFacade.error()) return;
+    } finally {
+      this.abriendoConteo.set(false);
+    }
     this.router.navigate(['/counting']);
   }
 

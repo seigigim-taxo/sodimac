@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
 import { MUESTRA_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra.repository';
-import { MUESTRA_DETALLE_REPOSITORY_TOKEN } from '../../domain/muestra/repositories/muestra-detalle.repository';
 
 export interface InfoProductoMuestra {
   productoId: number;
@@ -15,32 +14,26 @@ export interface InfoProductoMuestra {
   codigoBarras: string | null;
 }
 
+/*
+ * Con qué muestra se valida lo que se escanea. Es solo el id: los códigos ya
+ * NO se cargan acá.
+ *
+ * Antes se bajaba la muestra completa a un Map (código → producto) cada vez
+ * que se abría un TAG. Con una muestra de 23.000 productos son 68.000 códigos
+ * y la pantalla tardaba ~5 s en dejar escanear. Ahora cada escaneo consulta
+ * el código puntual (ver MuestraDetalleRepository.buscarCodigos).
+ */
 export interface MuestraSet {
-  skuMap: Map<string, InfoProductoMuestra>; // codigo_lectura (uppercase) → producto
+  /* null cuando la ronda no tiene muestra: ningún código es válido. */
+  muestraId: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class LoadMuestraSetUseCase {
   private muestraRepo = inject(MUESTRA_REPOSITORY_TOKEN);
-  private detalleRepo = inject(MUESTRA_DETALLE_REPOSITORY_TOKEN);
 
   async execute(eventoId: number, iteracion: number): Promise<MuestraSet> {
     const muestra = await this.muestraRepo.getByEventoIteracion(eventoId, iteracion);
-    if (!muestra) {
-      return { skuMap: new Map() };
-    }
-
-    const codigos = await this.detalleRepo.getCodigosByMuestra(muestra.id);
-    const skuMap = new Map<string, InfoProductoMuestra>();
-    for (const c of codigos) {
-      skuMap.set(c.codigoLectura, {
-        productoId: c.productoId,
-        descripcion: c.descripcion,
-        sku: c.sku,
-        codigoBarras: c.codigoBarras,
-      });
-    }
-
-    return { skuMap };
+    return { muestraId: muestra?.id ?? null };
   }
 }

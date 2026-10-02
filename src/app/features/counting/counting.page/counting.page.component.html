@@ -226,6 +226,17 @@
       </ion-segment>
     </div>
 
+    <!--
+      Mientras se abre la sesión del TAG el escáner está bloqueado; sin esto
+      lo único que lo avisaba era el texto gris del campo, fácil de no ver.
+    -->
+    @if (sesionCargando()) {
+    <div class="flex items-center justify-center gap-2 mb-3" role="status" aria-live="polite">
+      <ion-spinner name="crescent" color="primary" style="width: 20px; height: 20px;"></ion-spinner>
+      <span class="text-sm" style="color: var(--app-text-muted);">Preparando el conteo…</span>
+    </div>
+    }
+
     <app-scan scanType="sku"
       [placeholder]="sesionCargando() ? 'Preparando el conteo…' : 'Escanea o ingresa SKU'"
       [confirmLabel]="modoCaptura() === 'cantidad' ? 'Continuar' : 'Registrar'"

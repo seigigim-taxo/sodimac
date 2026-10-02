@@ -138,10 +138,15 @@
     }
 
     <ion-button expand="block" class="btn-primary mt-2"
-      [disabled]="!(tagConfirmado() && zonaConfirmada())"
+      [disabled]="!(tagConfirmado() && zonaConfirmada()) || abriendoConteo()"
       (click)="irAContar()">
+      @if (abriendoConteo()) {
+      <ion-spinner slot="start" name="crescent" style="width: 18px; height: 18px;"></ion-spinner>
+      Abriendo…
+      } @else {
       <ion-icon slot="start" name="arrow-forward-outline"></ion-icon>
       Ir a contar
+      }
     </ion-button>
 
     <!-- ===== Navegación al resumen ===== -->

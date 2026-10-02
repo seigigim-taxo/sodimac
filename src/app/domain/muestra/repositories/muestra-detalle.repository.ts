@@ -3,7 +3,7 @@ import { MuestraDetalle } from '../models/muestra-detalle.model';
 
 /*
  * Código de lectura válido para un producto, para lookup de scan.
- * Devuelto por getCodigosByMuestra().
+ * Devuelto por buscarCodigos().
  */
 export interface CodigoProductoMuestra {
   codigoLectura: string;
@@ -54,11 +54,15 @@ export interface MuestraDetalleRepository {
   contarByMuestra(muestraId: number): Promise<number>;
 
   /*
-   * Devuelve todos los códigos de lectura (sod_producto_detalle) de los
-   * productos que pertenecen a la muestra indicada. Se usa para construir
-   * el mapa de scan: código de lectura → productoId.
+   * Busca, dentro de la muestra indicada, cuáles de estos códigos de lectura
+   * (SKU o código de barras, ya normalizados a mayúsculas) pertenecen a un
+   * producto de ella. Devuelve solo los que coinciden.
+   *
+   * Reemplaza a cargar TODOS los códigos de la muestra al abrir un TAG: con
+   * 68.000 códigos eso tardaba ~5 s con el escáner bloqueado. La búsqueda por
+   * código usa el índice único de sod_producto_detalle.codigo_lectura.
    */
-  getCodigosByMuestra(muestraId: number): Promise<CodigoProductoMuestra[]>;
+  buscarCodigos(muestraId: number, codigos: string[]): Promise<CodigoProductoMuestra[]>;
 
   /*
    * Deja el detalle de la muestra igual a `lineas`: da de alta los productos
