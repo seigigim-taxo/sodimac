@@ -36,7 +36,9 @@ export class GetResumenEventoUseCase {
     const iteracion = ronda?.iteracion ?? 1;
 
     const muestra = await this.muestraRepo.getByEventoIteracion(eventoId, iteracion);
-    const totalMuestra = muestra ? (await this.detalleRepo.getByMuestra(muestra.id)).length : 0;
+    // Solo se necesita el total: contarlo en SQL evita traer cada línea de la
+    // muestra por el puente de Capacitor (con 23.000 productos se notaba).
+    const totalMuestra = muestra ? await this.detalleRepo.contarByMuestra(muestra.id) : 0;
     const skusContados = await this.conteoRepo.getSkusContadosPorEvento(eventoId, operadorId, pdaId);
     const qContado = await this.conteoRepo.getUnidadesContadasPorEvento(eventoId, operadorId, pdaId);
 

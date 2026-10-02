@@ -146,6 +146,16 @@ export class SqliteMuestraDetalleRepository implements MuestraDetalleRepository 
     return detalles;
   }
 
+  async contarByMuestra(muestraId: number): Promise<number> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT COUNT(*) AS total FROM sod_muestra_detalle WHERE muestra_id = ?`,
+      [muestraId]
+    );
+    const fila = result.values?.[0] as Record<string, unknown> | undefined;
+    return Number(fila?.['total'] ?? 0);
+  }
+
   async getCodigosByMuestra(muestraId: number): Promise<CodigoProductoMuestra[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const result = await db.query(

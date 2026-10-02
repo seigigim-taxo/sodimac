@@ -46,6 +46,14 @@ export interface MuestraDetalleRepository {
   getByMuestra(muestraId: number): Promise<MuestraDetalle[]>;
 
   /*
+   * Cuántas líneas tiene la muestra, sin traerlas. Existe porque contar con
+   * getByMuestra(...).length lleva cada línea por el puente de Capacitor solo
+   * para quedarse con un número: con una muestra de 23.000 productos eso deja
+   * la pantalla sin responder.
+   */
+  contarByMuestra(muestraId: number): Promise<number>;
+
+  /*
    * Devuelve todos los códigos de lectura (sod_producto_detalle) de los
    * productos que pertenecen a la muestra indicada. Se usa para construir
    * el mapa de scan: código de lectura → productoId.
