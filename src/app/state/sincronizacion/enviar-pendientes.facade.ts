@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { EnviarPendientesUseCase, ResultadoEnviarPendientes } from '../../application/sincronizacion/enviar-pendientes.use-case';
+import { EnviarPendientesUseCase, OpcionesEnviarPendientes, ResultadoEnviarPendientes } from '../../application/sincronizacion/enviar-pendientes.use-case';
 
 @Injectable({ providedIn: 'root' })
 export class EnviarPendientesFacade {
@@ -13,11 +13,11 @@ export class EnviarPendientesFacade {
   readonly ultimoResultado = this.ultimoResultadoSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
 
-  async enviar(): Promise<ResultadoEnviarPendientes> {
+  async enviar(opciones?: OpcionesEnviarPendientes): Promise<ResultadoEnviarPendientes> {
     this.enviandoSignal.set(true);
     this.errorSignal.set(null);
     try {
-      const resultado = await this.enviarPendientesUC.execute();
+      const resultado = await this.enviarPendientesUC.execute(opciones);
       this.ultimoResultadoSignal.set(resultado);
       return resultado;
     } catch (err) {

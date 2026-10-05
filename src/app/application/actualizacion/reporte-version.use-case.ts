@@ -89,7 +89,7 @@ export class ReporteVersionUseCase {
         'sincronizaciones/reporte-version.php',
         payload,
       );
-      await this.sincronizacionRepo.marcarEnviado(cargaUid, response.data.id);
+      await this.sincronizacionRepo.marcarEnviado(cargaUid, response.id);
       return true;
     } catch {
       await this.sincronizacionRepo.marcarError(cargaUid, 'Error al enviar reporte de versión');

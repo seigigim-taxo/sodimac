@@ -13,18 +13,33 @@ export interface ResultadoEnviarPendientes {
   total: number;
 }
 
+export interface OpcionesEnviarPendientes {
+  /*
+   * Solo las filas VERSION_REPORTE.
+   *
+   * El reintento automático de Inicio usa esto: los reportes de versión
+   * se reintentan solos porque nadie los mira, pero un TAG pendiente o una
+   * validación no se mandan a escondidas — su envío sigue siendo a pulso
+   * desde el menú, como hasta ahora.
+   */
+  soloVersiones?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EnviarPendientesUseCase {
   private sincronizacionRepo = inject(SINCRONIZACION_REPOSITORY_TOKEN);
   private conteoRepo = inject(CONTEO_REPOSITORY_TOKEN);
   private api = inject(ApiService);
 
-  async execute(): Promise<ResultadoEnviarPendientes> {
+  async execute(opciones?: OpcionesEnviarPendientes): Promise<ResultadoEnviarPendientes> {
     const pendientes = await this.sincronizacionRepo.listarPendientes();
+    const aEnviar = opciones?.soloVersiones
+      ? pendientes.filter((item) => item.operacion === 'VERSION_REPORTE')
+      : pendientes;
     let enviados = 0;
     let conError = 0;
 
-    for (const item of pendientes) {
+    for (const item of aEnviar) {
       if (!item.payloadJson || !item.cargaUid) {
         conError++;
         continue;
@@ -44,7 +59,7 @@ export class EnviarPendientesUseCase {
             'sincronizaciones/reporte-version.php',
             payload,
           );
-          await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.data.id);
+          await this.sincronizacionRepo.marcarEnviado(item.cargaUid, response.id);
         } else {
           const payload: TagFinalizadoPayloadAlmacenado = JSON.parse(item.payloadJson);
           const response = await this.api.post<TagFinalizadoResponse>(
@@ -66,6 +81,6 @@ export class EnviarPendientesUseCase {
       }
     }
 
-    return { enviados, conError, total: pendientes.length };
+    return { enviados, conError, total: aEnviar.length };
   }
 }

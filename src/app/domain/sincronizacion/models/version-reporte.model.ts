@@ -17,8 +17,13 @@ export interface VersionReportPayload {
   fecha_reporte: string;
 }
 
+/*
+ * Lo que queda DESPUES del unwrap de ApiService: el servidor contesta
+ * { status, msg, data: { id } } y post() ya devuelve solo `data`.
+ * Modelarla con el envoltorio completo hacía que `response.data.id` fuera
+ * undefined.id — un TypeError que convertía cada envío exitoso en ERROR,
+ * y la confirmación de instalación se reintentaba para siempre sin cerrarse.
+ */
 export interface VersionReportResponse {
-  status: string;
-  msg: string;
-  data: { id: number };
+  id: number;
 }

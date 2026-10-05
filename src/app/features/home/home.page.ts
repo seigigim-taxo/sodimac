@@ -26,6 +26,7 @@ import { pararseEnAsignacion, pararseEnSucursal } from '../../state/asignacion/p
 import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
+import { EnviarPendientesFacade } from '../../state/sincronizacion/enviar-pendientes.facade';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
@@ -59,6 +60,7 @@ export class HomePage implements ViewWillEnter {
   private buscador           = inject(BuscadorService);
   private network            = inject(NetworkService);
   private oferta             = inject(OfertaActualizacionService);
+  private enviarPendientes   = inject(EnviarPendientesFacade);
   private vigenciaDia        = inject(VigenciaDiaService);
 
   isOnline = this.network.isOnline;
@@ -297,6 +299,24 @@ export class HomePage implements ViewWillEnter {
       void this.oferta.buscarEnSilencio();
       void this.oferta.confirmarInstalacion();
     });
+
+    /*
+     * Reintento automatico de los reportes de version que fallaron.
+     *
+     * El envio inicial del reporte es un intento unico: si la red dudó un
+     * instante (portal cautivo, timeout de 30s), la fila queda en ERROR y
+     * hasta ahora solo salia de ahi si el operador tocaba "Enviar pendientes"
+     * en el menu —en la practica, casi nunca— y el registro se perdia.
+     * Entrar a Inicio es la misma senal segura que la consulta de version:
+     * no hay TAG abierto, y asi la confirmacion llega sin esperar una
+     * accion manual.
+     *
+     * soloVersiones: los TAG y las validaciones no se mandan solos; su
+     * reintento sigue siendo a pulso desde el menú, como hasta ahora.
+     */
+    if (!this.enviarPendientes.enviando()) {
+      void this.enviarPendientes.enviar({ soloVersiones: true }).catch(() => {});
+    }
 
     if (!session) return;
 
