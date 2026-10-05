@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { ModalController } from '@ionic/angular/standalone';
 import { signal } from '@angular/core';
 import { AppComponent } from './app.component';
 import { AuthFacade } from './state/auth/auth.facade';
@@ -80,6 +81,13 @@ describe('AppComponent', () => {
           useValue: { iniciar: jasmine.createSpy('iniciar') },
         },
         { provide: 'AlertController', useValue: { create: jasmine.createSpy('create').and.returnValue(Promise.resolve({ present: jasmine.createSpy('present') })) } },
+        {
+          // El ítem "Reportar un error" del menú inyecta ModalController en
+          // AppComponent al construirse; sin este doble, el smoke test ni
+          // siquiera puede crear el componente.
+          provide: ModalController,
+          useValue: { create: jasmine.createSpy('create'), present: jasmine.createSpy('present') },
+        },
         {
           // El menú ofrece actualizar la muestra. Se dobla el servicio entero
           // —no sus dependencias internas (EventoFacade, ConteoFacade, etc.)—

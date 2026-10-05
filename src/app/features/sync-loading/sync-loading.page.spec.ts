@@ -5,6 +5,7 @@ import { SyncLoadingPageComponent } from './sync-loading.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { SincronizarDatosInicialesUseCase } from '../../application/sincronizacion/sincronizar-datos-iniciales.use-case';
 import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
+import { AutoReportService } from '../../core/error-report/auto-report.service';
 import { signal } from '@angular/core';
 import { NetworkError } from '../../domain/shared/errors/network.error';
 
@@ -50,6 +51,8 @@ describe('SyncLoadingPageComponent — perfil no habilitado', () => {
           },
         },
         { provide: AnalystDashboardFacade, useValue: { cargarDatos: jasmine.createSpy('cargarDatos') } },
+        // El componente reporta los fallos de descarga; acá solo interesa que exista.
+        { provide: AutoReportService, useValue: { reportar: jasmine.createSpy('reportar').and.resolveTo(undefined) } },
       ],
     });
 

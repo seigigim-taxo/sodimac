@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
-import { AlertController, ToastController } from '@ionic/angular/standalone';
+import { AlertController, ModalController, ToastController } from '@ionic/angular/standalone';
 import {
   IonApp,
   IonRouterOutlet,
@@ -21,7 +21,7 @@ import {
   IonBadge,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline } from 'ionicons/icons';
+import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline, homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline, paperPlaneOutline, saveOutline, cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline, alertCircleOutline } from 'ionicons/icons';
 import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
@@ -32,7 +32,7 @@ import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { BotonCalculadoraComponent } from './shared/components/boton-calculadora/boton-calculadora.component';
 import { CalculadoraService } from './shared/services/calculadora.service';
-import { ErrorReportFabComponent } from './shared/components/error-report-fab/error-report-fab.component';
+import { ErrorReportDialogComponent } from './shared/components/error-report-dialog/error-report-dialog.component';
 import { ErrorReportService } from './core/error-report/error-report.service';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
@@ -62,7 +62,6 @@ import { ActualizarMuestraService } from './shared/services/actualizar-muestra.s
     IonBadge,
     BotonBuscadorComponent,
     BotonCalculadoraComponent,
-    ErrorReportFabComponent,
   ],
 })
 export class AppComponent {
@@ -78,6 +77,7 @@ export class AppComponent {
   private actualizarMuestra = inject(ActualizarMuestraService);
   private calculadora = inject(CalculadoraService);
   private toastController = inject(ToastController);
+  private modalCtrl   = inject(ModalController);
   private router   = inject(Router);
   private location = inject(Location);
   private reportService = inject(ErrorReportService);
@@ -108,7 +108,7 @@ export class AppComponent {
       arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline,
       homeOutline, cloudUploadOutline, cloudOfflineOutline, statsChartOutline, syncOutline,
       paperPlaneOutline, saveOutline,
-      cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline,
+      cloudDownloadOutline, refreshOutline, calculatorOutline, bugOutline, alertCircleOutline,
     });
 
     this.router.events.subscribe((evento) => {
@@ -142,6 +142,18 @@ export class AppComponent {
 
   goToReports(): void {
     this.router.navigate(['/error-reports']);
+  }
+
+  /*
+   * Ítem del menú lateral: abre el mismo diálogo que antes ofrecía el FAB
+   * flotante. ion-menu-toggle cierra el menú apenas se toca, y el modal se
+   * presenta encima — igual que el resto de las acciones del menú.
+   */
+  async reportarErrorMenu(): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: ErrorReportDialogComponent,
+    });
+    await modal.present();
   }
 
   async loadPendingCount(): Promise<void> {

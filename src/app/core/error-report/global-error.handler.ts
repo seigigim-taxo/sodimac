@@ -1,69 +1,43 @@
 import { ErrorHandler, Injectable, inject, NgZone } from '@angular/core';
-import { AlertController, ToastController } from '@ionic/angular/standalone';
-import { ErrorReportService } from './error-report.service';
+import { ToastController } from '@ionic/angular/standalone';
+import { AutoReportService } from './auto-report.service';
 
+/*
+ * Errores no capturados → reporte AUTOMÁTICO, sin pedir permiso al operador.
+ * Antes mostraba un alert con "¿Quieres enviar un reporte?": en la práctica
+ * el operador lo cerraba y el reporte se perdía. El guardado es local
+ * (SQLite) y ReportSyncService lo envía cuando hay red; el toast solo
+ * informa que quedó registrado, sin exigir acción.
+ */
 @Injectable()
 export class GlobalErrorHandler implements ErrorHandler {
-  private readonly reportService = inject(ErrorReportService);
-  private readonly alertCtrl = inject(AlertController);
+  private readonly autoReport = inject(AutoReportService);
   private readonly toastCtrl = inject(ToastController);
   private readonly zone = inject(NgZone);
 
   handleError(error: unknown): void {
     console.error('[GlobalErrorHandler]', error);
 
-    const stack = error instanceof Error ? error.stack : String(error);
+    const detalle = error instanceof Error ? error.message : String(error);
 
-    this.zone.run(async () => {
-      const metadata = await this.reportService.gatherMetadata();
-
-      let screenshotPath = '';
-      try {
-        screenshotPath = await this.reportService.captureScreenshot();
-      } catch {
-        // Si falla la captura, se envía sin screenshot
-      }
-
-      const report = {
-        ...metadata,
-        descripcion: `[Auto] ${error instanceof Error ? error.message : String(error)}`,
-        screenshotPath,
-        tipoReporte: 'AUTOMATICO' as const,
-        errorStack: stack,
-      };
-
-      const alert = await this.alertCtrl.create({
-        header: 'Error detectado',
-        message: 'Ocurrió un error inesperado. ¿Quieres enviar un reporte al equipo de soporte?',
-        inputs: [
-          {
-            name: 'descripcion',
-            type: 'textarea',
-            placeholder: '¿Qué estabas haciendo? (opcional)',
-          },
-        ],
-        buttons: [
-          { text: 'Cancelar', role: 'cancel' },
-          {
-            text: 'Enviar',
-            handler: async (data) => {
-              report.descripcion = data.descripcion || report.descripcion;
-
-              await this.reportService.saveReport(report);
-
-              const toast = await this.toastCtrl.create({
-                message: navigator.onLine
-                  ? 'Reporte enviado. Gracias.'
-                  : 'Reporte guardado. Se enviará cuando haya conexión.',
-                duration: 3000,
-                position: 'bottom',
-              });
-              await toast.present();
-            },
-          },
-        ],
-      });
-      await alert.present();
+    this.zone.run(() => {
+      void this.autoReport
+        .reportar('Error no capturado', `[App] ${detalle}`, { error })
+        .then(() => this.showToast())
+        .catch((e) => console.error('[GlobalErrorHandler] no se pudo guardar el reporte:', e));
     });
+  }
+
+  private async showToast(): Promise<void> {
+    try {
+      const toast = await this.toastCtrl.create({
+        message: 'Se registró un reporte automático del error.',
+        duration: 2500,
+        position: 'bottom',
+      });
+      await toast.present();
+    } catch {
+      // El toast es informativo: si no puede mostrarse, no rompe nada.
+    }
   }
 }

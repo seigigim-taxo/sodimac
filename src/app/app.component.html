@@ -140,6 +140,18 @@
 
 
 
+        <!--
+          Reportar un error: antes era un FAB flotante. En el menú queda al
+          alcance de ambos perfiles (operador y analista), igual que antes,
+          y no estorba sobre el contenido de ninguna pantalla.
+        -->
+        <ion-menu-toggle>
+          <ion-item button (click)="reportarErrorMenu()" class="menu-theme-item">
+            <ion-icon slot="start" name="alert-circle-outline"></ion-icon>
+            <ion-label>Reportar un error</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+
         <!-- Reportes de error -->
         @if (isOperator()) {
         <ion-menu-toggle>
@@ -168,8 +180,6 @@
   </ion-menu>
 
   <ion-router-outlet id="main-content"></ion-router-outlet>
-
-  <app-error-report-fab></app-error-report-fab>
 
   <!-- Buscador global solo para operador -->
   @if (mostrarBuscador()) {

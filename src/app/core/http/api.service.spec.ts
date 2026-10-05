@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ApiService } from './api.service';
 import { NetworkError } from '../../domain/shared/errors/network.error';
+import { AutoReportService } from '../error-report/auto-report.service';
 
 /*
  * Lo que se prueba acá es que NINGÚN mensaje del navegador llegue a la pantalla
@@ -11,16 +12,23 @@ import { NetworkError } from '../../domain/shared/errors/network.error';
  * fallo de red, pero construía el NetworkError reenviando el mensaje original
  * en vez de escribir uno propio.
  *
- * Tampoco le servía a soporte: fetch usa ese mismo texto para una red caída, un
- * 404, un CORS y un socket cortado. El detalle técnico va a la consola, que es
- * donde sí se puede diagnosticar con logcat.
+ * Tampoco le servía a soporte: fetch usa ese mismo texto para una red caída,
+ * un 404, un CORS y un socket cortado. El detalle técnico va a la consola, que
+ * es donde sí se puede diagnosticar con logcat.
  */
 describe('ApiService — errores que ve el operador', () => {
   let api: ApiService;
   let fetchSpy: jasmine.Spy;
+  let autoReport: { reportar: jasmine.Spy };
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [ApiService] });
+    autoReport = { reportar: jasmine.createSpy('reportar').and.resolveTo(undefined) };
+    TestBed.configureTestingModule({
+      providers: [
+        ApiService,
+        { provide: AutoReportService, useValue: autoReport },
+      ],
+    });
     api = TestBed.inject(ApiService);
     fetchSpy = spyOn(globalThis, 'fetch');
     spyOn(console, 'error');
@@ -71,11 +79,13 @@ describe('ApiService — errores que ve el operador', () => {
   /*
    * Un error del propio servicio —status ERROR con su msg— NO se toca: ese
    * texto lo escribió el backend para que se lea, a diferencia del del
-   * navegador.
+   * navegador. Pero SÍ deja reporte automático: es un fallo que soporte
+   * necesita ver aunque el operador solo vea el mensaje.
    */
-  it('respeta el mensaje que manda el servidor', async () => {
+  it('respeta el mensaje que manda el servidor y además reporta', async () => {
     fetchSpy.and.resolveTo({
       ok: true,
+      status: 200,
       headers: new Headers(),
       text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Usuario no existe o inactivo' })),
     } as Response);
@@ -85,6 +95,7 @@ describe('ApiService — errores que ve el operador', () => {
     } catch (e) {
       expect((e as Error).message).toBe('Usuario no existe o inactivo');
     }
+    expect(autoReport.reportar).toHaveBeenCalledWith('POST x', 'Usuario no existe o inactivo');
   });
 
   /*
@@ -258,5 +269,92 @@ describe('ApiService — errores que ve el operador', () => {
     } catch {
       expect(console.error).toHaveBeenCalledWith('[api] fallo de red:', 'TypeError', 'Failed to fetch');
     }
+  });
+
+  /*
+   * Reportes automáticos: todo lo que la app no esperó tiene que quedar
+   * registrado aunque el operador no haga nada. Es el punto único de control.
+   */
+  describe('reporte automático', () => {
+    it('HTTP ≠ 200 genera reporte con método, path y status', async () => {
+      fetchSpy.and.resolveTo({
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        text: () => Promise.resolve('<html>error del servidor</html>'),
+      } as Response);
+
+      await expectAsync(api.post('x', {})).toBeRejectedWithError(
+        NetworkError,
+        'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.'
+      );
+      expect(autoReport.reportar).toHaveBeenCalledWith('POST x', 'HTTP 500 sin cuerpo JSON');
+    });
+
+    it('HTTP ≠ 200 con cuerpo JSON conserva el msg del backend y reporta', async () => {
+      fetchSpy.and.resolveTo({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Recurso no encontrado' })),
+      } as Response);
+
+      await expectAsync(api.get('y')).toBeRejectedWithError('Recurso no encontrado');
+      expect(autoReport.reportar).toHaveBeenCalledWith('GET y', 'HTTP 404: Recurso no encontrado');
+    });
+
+    it('respuesta que no es JSON genera reporte', async () => {
+      fetchSpy.and.resolveTo({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        text: () => Promise.resolve('<html>no soy json</html>'),
+      } as Response);
+
+      await expectAsync(api.post('x', {})).toBeRejectedWithError(
+        NetworkError,
+        'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.'
+      );
+      expect(autoReport.reportar).toHaveBeenCalledWith('POST x', 'La respuesta no es JSON válido');
+    });
+
+    it('JSON sin objeto (null) genera reporte en vez de TypeError crudo', async () => {
+      fetchSpy.and.resolveTo({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('null'),
+      } as Response);
+
+      await expectAsync(api.post('x', {})).toBeRejectedWithError('Respuesta inválida del servidor. Intenta de nuevo.');
+      expect(autoReport.reportar).toHaveBeenCalledWith('POST x', 'Respuesta con forma inesperada: null');
+    });
+
+    it('data ausente genera reporte', async () => {
+      fetchSpy.and.resolveTo({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ status: 'OK', msg: 'ok' })),
+      } as Response);
+
+      await expectAsync(api.post('x', {})).toBeRejectedWithError('Respuesta del servicio sin datos');
+      expect(autoReport.reportar).toHaveBeenCalledWith('POST x', 'Respuesta sin data');
+    });
+
+    it('sinReporte omite el reporte (endpoint de reportes, login)', async () => {
+      fetchSpy.and.resolveTo({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ status: 'ERROR', msg: 'Credencial inválida' })),
+      } as Response);
+
+      await expectAsync(api.post('auth/login.php', {}, { sinReporte: true })).toBeRejectedWithError('Credencial inválida');
+      expect(autoReport.reportar).not.toHaveBeenCalled();
+    });
+
+    it('los fallos de red NO generan reporte', async () => {
+      fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
+
+      await expectAsync(api.post('x', {})).toBeRejectedWithError(NetworkError);
+      expect(autoReport.reportar).not.toHaveBeenCalled();
+    });
   });
 });

@@ -1,92 +1,50 @@
 import { Injectable, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { Screenshot } from '@capawesome/capacitor-screenshot';
-import { Device } from '@capacitor/device';
+import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { AuthFacade } from '../../state/auth/auth.facade';
-import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ApiService } from '../http/api.service';
-import { NetworkService } from '../../shared/services/network.service';
 import { SqliteConnectionService } from '../database/sqlite-connection.service';
 import { SODIMAC_DB_NAME } from '../database/sodimac.schema';
-import { APP_VERSION } from '../version';
 import { ErrorReport, ErrorReportRecord } from '../../domain/error-report/models/error-report.model';
+import { AutoReportService } from './auto-report.service';
+
+/*
+ * PNG de 1x1. error.php exige screenshotBase64 no vacío; en web, cuando la
+ * captura falla, se manda esto para que el reporte igual entre. En el APK
+ * este camino no se usa (hay cola SQLite y captura nativa).
+ */
+const PNG_PLACEHOLDER = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 @Injectable({ providedIn: 'root' })
 export class ErrorReportService {
-  private readonly authFacade = inject(AuthFacade);
-  private readonly sucursalFacade = inject(SucursalFacade);
   private readonly api = inject(ApiService);
-  private readonly network = inject(NetworkService);
   private readonly sqlite = inject(SqliteConnectionService);
-  private readonly router = inject(Router);
+  private readonly auto = inject(AutoReportService);
 
-  private static readonly SCREENSHOT_DIR = 'error_reports';
-
-  async captureScreenshot(): Promise<string> {
-    const result = await Screenshot.take();
-    const tempUri = result.uri;
-
-    const filename = `error_report_${Date.now()}.jpg`;
-    const fileContent = await Filesystem.readFile({ path: tempUri });
-
-    try {
-      await Filesystem.mkdir({
-        path: ErrorReportService.SCREENSHOT_DIR,
-        directory: Directory.Data,
-        recursive: true,
-      });
-    } catch {
-      // Directorio ya existe, continuar
-    }
-
-    await Filesystem.writeFile({
-      path: `${ErrorReportService.SCREENSHOT_DIR}/${filename}`,
-      data: fileContent.data,
-      directory: Directory.Data,
-    });
-
-    return filename;
+  /*
+   * Captura/metadata/guardado viven en AutoReportService (que NO depende de
+   * ApiService; si estuvieran acá, ApiService → ErrorReportService → ApiService
+   * sería un ciclo de inyección). Acá se delegan para no romper a los
+   * llamadores existentes.
+   */
+  captureScreenshot(): Promise<string> {
+    return this.auto.captureScreenshot();
   }
 
-  async gatherMetadata(): Promise<Omit<ErrorReport, 'descripcion' | 'screenshotPath' | 'tipoReporte' | 'errorStack'>> {
-    const session = this.authFacade.session();
-    const store = this.sucursalFacade.currentStore();
-    const deviceInfo = await Device.getInfo();
-
-    return {
-      rut: session?.rutNormalizado ?? '',
-      nombreCompleto: session?.nombreCompleto,
-      correo: session?.correo ?? '',
-      tipoUsuario: session?.tipoUsuario ?? '',
-      versionApp: APP_VERSION,
-      fechaHora: new Date().toISOString(),
-      codigoTienda: store?.codigoTienda ?? '',
-      nombreTienda: store?.nombre ?? '',
-      dispositivo: `${deviceInfo.manufacturer ?? ''} ${deviceInfo.model ?? ''}`.trim(),
-      plataforma: deviceInfo.platform,
-      sistemaOperativo: deviceInfo.osVersion ?? '',
-      pantallaActual: this.router.url,
-    };
+  gatherMetadata(): Promise<Omit<ErrorReport, 'descripcion' | 'screenshotPath' | 'tipoReporte' | 'errorStack'>> {
+    return this.auto.gatherMetadata();
   }
 
+  /*
+   * En web (ng serve / pruebas contra el WS local de Laragon) no hay SQLite:
+   * getConnection lanza. El reporte manual se manda DIRECTO al WS en vez de
+   * perderse — en el APK (Capacitor.isNativePlatform() true) siempre va por la
+   * cola SQLite con reintentos, igual que siempre.
+   */
   async saveReport(report: ErrorReport): Promise<void> {
-    const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
-
-    await db.run(`
-      INSERT INTO sod_error_report
-      (rut, nombre_completo, correo, tipo_usuario, version_app, fecha_hora,
-       codigo_tienda, nombre_tienda, dispositivo, plataforma, sistema_operativo,
-       descripcion, screenshot_path, tipo_reporte, pantalla_actual, error_stack,
-       enviado, intentos, estado, fecha_creacion)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'PENDIENTE', datetime('now'))
-    `, [
-      report.rut, report.nombreCompleto ?? '', report.correo, report.tipoUsuario,
-      report.versionApp, report.fechaHora, report.codigoTienda, report.nombreTienda,
-      report.dispositivo, report.plataforma, report.sistemaOperativo,
-      report.descripcion, report.screenshotPath, report.tipoReporte,
-      report.pantallaActual, report.errorStack ?? '',
-    ]);
+    if (Capacitor.isNativePlatform()) {
+      return this.auto.saveReport(report);
+    }
+    await this.api.post('reportes/error.php', await this.payloadDe(report), { sinReporte: true });
   }
 
   async getPendingReports(): Promise<ErrorReportRecord[]> {
@@ -132,39 +90,45 @@ export class ErrorReportService {
   }
 
   async sendReport(record: ErrorReportRecord): Promise<void> {
+    /*
+     * sinReporte: un fallo al ENVIAR reportes no debe generar otro reporte —
+     * entraría en bucle (reporte fallido → nuevo reporte → fallar de nuevo).
+     */
+    await this.api.post('reportes/error.php', await this.payloadDe(record), { sinReporte: true });
+  }
+
+  private async payloadDe(report: ErrorReport): Promise<Record<string, unknown>> {
     let screenshotBase64 = '';
-    if (record.screenshotPath) {
+    if (report.screenshotPath) {
       try {
         const file = await Filesystem.readFile({
-          path: `${ErrorReportService.SCREENSHOT_DIR}/${record.screenshotPath}`,
+          path: `${AutoReportService.SCREENSHOT_DIR}/${report.screenshotPath}`,
           directory: Directory.Data,
         });
         screenshotBase64 = typeof file.data === 'string' ? file.data : '';
       } catch {
-        // Si no se puede leer el archivo, se envía sin screenshot
+        // Si no se puede leer el archivo, se envía con el placeholder
       }
     }
 
-    const payload = {
-      rut: record.rut,
-      nombreCompleto: record.nombreCompleto,
-      correo: record.correo,
-      tipoUsuario: record.tipoUsuario,
-      versionApp: record.versionApp,
-      fechaHora: record.fechaHora,
-      codigoTienda: record.codigoTienda,
-      nombreTienda: record.nombreTienda,
-      dispositivo: record.dispositivo,
-      plataforma: record.plataforma,
-      sistemaOperativo: record.sistemaOperativo,
-      descripcion: record.descripcion,
-      screenshotBase64: screenshotBase64,
-      tipoReporte: record.tipoReporte,
-      pantallaActual: record.pantallaActual,
-      errorStack: record.errorStack,
+    return {
+      rut: report.rut,
+      nombreCompleto: report.nombreCompleto,
+      correo: report.correo,
+      tipoUsuario: report.tipoUsuario,
+      versionApp: report.versionApp,
+      fechaHora: report.fechaHora,
+      codigoTienda: report.codigoTienda,
+      nombreTienda: report.nombreTienda,
+      dispositivo: report.dispositivo,
+      plataforma: report.plataforma,
+      sistemaOperativo: report.sistemaOperativo,
+      descripcion: report.descripcion,
+      screenshotBase64: screenshotBase64 || PNG_PLACEHOLDER,
+      tipoReporte: report.tipoReporte,
+      pantallaActual: report.pantallaActual,
+      errorStack: report.errorStack,
     };
-
-    await this.api.post('reportes/error.php', payload);
   }
 
   async markAsSent(id: number): Promise<void> {
@@ -197,7 +161,7 @@ export class ErrorReportService {
   async deleteScreenshot(filename: string): Promise<void> {
     try {
       await Filesystem.deleteFile({
-        path: `${ErrorReportService.SCREENSHOT_DIR}/${filename}`,
+        path: `${AutoReportService.SCREENSHOT_DIR}/${filename}`,
         directory: Directory.Data,
       });
     } catch {

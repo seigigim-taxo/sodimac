@@ -7,6 +7,8 @@ import { SincronizarDatosInicialesUseCase } from '../../application/sincronizaci
 import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
 import { EtapaSincronizacion } from '../../domain/sincronizacion/models/preparacion.model';
 import { ContractError } from '../../domain/shared/errors/contract.error';
+import { NetworkError } from '../../domain/shared/errors/network.error';
+import { AutoReportService } from '../../core/error-report/auto-report.service';
 
 /*
  * Un contrato roto no es un problema de conexión y no se arregla reintentando:
@@ -79,6 +81,7 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
   private auth = inject(AuthFacade);
   private sincronizar = inject(SincronizarDatosInicialesUseCase);
   private dashboard = inject(AnalystDashboardFacade);
+  private autoReport = inject(AutoReportService);
   private intervalId: ReturnType<typeof setInterval> | undefined;
 
   progress = signal(0);
@@ -168,6 +171,17 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
     } catch (err: unknown) {
       this.detenerAvance();
       this.error.set(mensajeDeError(err));
+
+      /*
+       * Descarga incompleta o datos incorrectos del servidor: el operador solo
+       * ve "Avisa a soporte", pero sin este reporte nadie registra QUÉ falló
+       * (etapa, mensaje del contrato, stack). La etapa queda en el contexto.
+       */
+      void this.autoReport.reportar(
+        `Descarga inicial (${this.etapa()})`,
+        err instanceof Error ? err.message : String(err),
+        { error: err }
+      );
     }
   }
 
