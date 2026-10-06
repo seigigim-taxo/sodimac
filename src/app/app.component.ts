@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
-import { AlertController, ModalController, ToastController } from '@ionic/angular/standalone';
+import { AlertController, MenuController, ModalController, ToastController } from '@ionic/angular/standalone';
 import {
   IonApp,
   IonRouterOutlet,
@@ -34,6 +34,7 @@ import { BotonCalculadoraComponent } from './shared/components/boton-calculadora
 import { CalculadoraService } from './shared/services/calculadora.service';
 import { ErrorReportDialogComponent } from './shared/components/error-report-dialog/error-report-dialog.component';
 import { ErrorReportService } from './core/error-report/error-report.service';
+import { ReportSyncService } from './core/error-report/report-sync.service';
 import { formatRutDisplay } from './shared/utils/rut.utils';
 import { APP_VERSION } from './core/version';
 import { App } from '@capacitor/app';
@@ -78,9 +79,11 @@ export class AppComponent {
   private calculadora = inject(CalculadoraService);
   private toastController = inject(ToastController);
   private modalCtrl   = inject(ModalController);
+  private menuCtrl    = inject(MenuController);
   private router   = inject(Router);
   private location = inject(Location);
   private reportService = inject(ErrorReportService);
+  private reportSync = inject(ReportSyncService);
 
   private static readonly RUTAS_SIN_BUSCADOR = ['/login', '/sync-loading'];
 
@@ -146,10 +149,14 @@ export class AppComponent {
 
   /*
    * Ítem del menú lateral: abre el mismo diálogo que antes ofrecía el FAB
-   * flotante. ion-menu-toggle cierra el menú apenas se toca, y el modal se
-   * presenta encima — igual que el resto de las acciones del menú.
+   * flotante. ion-menu-toggle cierra el menú apenas se toca, pero con
+   * animación — si el modal captura la pantalla en ese instante, la captura
+   * sale tapada por el menú. Se espera el cierre real y un respiro corto
+   * para que el backdrop termine de desaparecer.
    */
   async reportarErrorMenu(): Promise<void> {
+    await this.menuCtrl.close();
+    await new Promise((resolve) => setTimeout(resolve, 400));
     const modal = await this.modalCtrl.create({
       component: ErrorReportDialogComponent,
     });
@@ -167,13 +174,23 @@ export class AppComponent {
 
   async enviarPendientesMenu(): Promise<void> {
     if (this.enviarPendientes.enviando()) return;
+    /*
+     * Además de la cola de sincronización (conteos/validaciones/versiones),
+     * se reenvían los reportes de error: retryAll resetea los que agotaron
+     * reintentos (ERROR) y procesa todo lo pendiente, si no "Enviar
+     * pendientes" los dejaba pegados para siempre.
+     */
+    const reportes = await this.reportSync.retryAll();
     const resultado = await this.enviarPendientes.enviar();
+    const enviados = resultado.enviados + reportes.enviados;
+    const conError = resultado.conError + reportes.conError;
+    const total = resultado.total + reportes.enviados + reportes.conError;
     const toast = await this.toastController.create({
-      message: resultado.total === 0
+      message: total === 0
         ? 'No hay envíos pendientes.'
-        : `Enviados: ${resultado.enviados} | Con error: ${resultado.conError}`,
+        : `Enviados: ${enviados} | Con error: ${conError}`,
       duration: 3000,
-      color: resultado.conError > 0 ? 'warning' : 'success',
+      color: conError > 0 ? 'warning' : 'success',
       position: 'top',
     });
     await toast.present();

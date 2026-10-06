@@ -30,31 +30,63 @@ export class ReportSyncService {
     this.syncing = true;
 
     try {
-      const pending = await this.reportService.getPendingReports();
+      const r = await this.procesarPendientes();
 
-      for (const report of pending) {
-        try {
-          await this.reportService.sendReport(report);
-          await this.reportService.markAsSent(report.id!);
-          await this.reportService.deleteScreenshot(report.screenshotPath);
-        } catch {
-          await this.reportService.markAsError(report.id!);
-        }
-      }
-
-      await this.reportService.cleanupSentReports();
-
-      const remaining = await this.reportService.getPendingReports();
-      if (pending.length > 0 && remaining.length === 0) {
+      if (r.pendientes > 0 && r.restantes === 0) {
         this.pendingToastShown = false;
         this.showToast('Reportes enviados correctamente');
-      } else if (remaining.length > 0 && !this.pendingToastShown) {
+      } else if (r.restantes > 0 && !this.pendingToastShown) {
         this.pendingToastShown = true;
-        this.showToast(`${remaining.length} reporte(s) pendiente(s)`);
+        this.showToast(`${r.restantes} reporte(s) pendiente(s)`);
       }
     } finally {
       this.syncing = false;
     }
+  }
+
+  /*
+   * Reenvío explícito desde "Enviar pendientes" del menú: además de los
+   * PENDIENTE, resetea los que agotaron reintentos (estado ERROR →
+   * PENDIENTE, intentos 0) — si no, quedan pegados para siempre: el retry
+   * automático solo mira PENDIENTE. No muestra toast propio; el llamador
+   * arma el suyo con el resultado.
+   */
+  async retryAll(): Promise<{ enviados: number; conError: number }> {
+    if (this.syncing || !navigator.onLine) return { enviados: 0, conError: 0 };
+    this.syncing = true;
+
+    try {
+      const db = await this.sqlite.getConnection(SODIMAC_DB_NAME);
+      await db.run(`UPDATE sod_error_report SET estado = 'PENDIENTE', intentos = 0 WHERE estado = 'ERROR'`);
+
+      const r = await this.procesarPendientes();
+      return { enviados: r.enviados, conError: r.conError };
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  private async procesarPendientes(): Promise<{ enviados: number; conError: number; pendientes: number; restantes: number }> {
+    const pending = await this.reportService.getPendingReports();
+    let enviados = 0;
+    let conError = 0;
+
+    for (const report of pending) {
+      try {
+        await this.reportService.sendReport(report);
+        await this.reportService.markAsSent(report.id!);
+        await this.reportService.deleteScreenshot(report.screenshotPath);
+        enviados++;
+      } catch {
+        await this.reportService.markAsError(report.id!);
+        conError++;
+      }
+    }
+
+    await this.reportService.cleanupSentReports();
+
+    const restantes = (await this.reportService.getPendingReports()).length;
+    return { enviados, conError, pendientes: pending.length, restantes };
   }
 
   async retryOne(id: number): Promise<void> {
