@@ -13,6 +13,7 @@ import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { etiquetaDia, hoySql, sumarDias } from '../../shared/utils/fecha.utils';
 
 /*
@@ -49,11 +50,14 @@ describe('HomePage — jornadas que se ofrecen', () => {
   let eventos: ReturnType<typeof signal<Evento[]>>;
   let finalizados: ReturnType<typeof signal<EventoConResumen[]>>;
   let jornadaCerrada: ReturnType<typeof signal<string | null>>;
+  let reintento: jasmine.SpyObj<ReintentoAutomaticoService>;
 
   beforeEach(async () => {
     eventos = signal<Evento[]>([]);
     finalizados = signal<EventoConResumen[]>([]);
     jornadaCerrada = signal<string | null>(null);
+
+    reintento = jasmine.createSpyObj('ReintentoAutomaticoService', ['disparar']);
 
     const stub = <T>(valor: unknown): T => valor as T;
 
@@ -109,8 +113,12 @@ describe('HomePage — jornadas que se ofrecen', () => {
           disponible: signal(null),
           descargando: signal(false),
           porcentaje: signal(null),
+          buscarEnSilencio: () => Promise.resolve(),
+          confirmarInstalacion: () => Promise.resolve(),
         }),
       })
+      // El Inicio pide un reintento al entrar; sin el doble arrastraría la cadena real de envíos.
+      .overrideProvider(ReintentoAutomaticoService, { useValue: reintento })
       .overrideProvider(VigenciaDiaService, {
         useValue: stub<VigenciaDiaService>({
           jornadaCerrada,
@@ -407,6 +415,18 @@ describe('HomePage — jornadas que se ofrecen', () => {
       pintar([evento(2, HOY)]);
 
       expect(seccion()).not.toContain('EVENTO 9');
+    });
+  });
+
+  /*
+   * Entrar al Inicio es uno de los momentos en que la PDA reintenta sola los envíos
+   * pendientes (ver ReintentoAutomaticoService).
+   */
+  describe('reintento automático de envíos', () => {
+    it('al entrar al Inicio pide un reintento', () => {
+      component.ionViewWillEnter();
+
+      expect(reintento.disparar).toHaveBeenCalledTimes(1);
     });
   });
 });
