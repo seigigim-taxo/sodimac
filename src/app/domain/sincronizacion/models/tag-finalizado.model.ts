@@ -8,8 +8,10 @@ import { selloUid } from '../../../shared/utils/fecha.utils';
  * `lectura_uid` es el identificador único y estable de cada lectura,
  * usado como p_id_origen_externo en el SP para deduplicación.
  *
- * `cantidad` es el movimiento neto de esa captura y PUEDE SER NEGATIVA o cero.
- * La suma de todas las lecturas da cantidad_fisica del detalle padre.
+ * `cantidad` es lo que declaró esa captura: nunca es negativa (el servidor rechaza
+ * las negativas con 400). Corregir un SKU a 0 reemplaza sus lecturas anteriores
+ * por una sola de 0. La suma de todas las lecturas da cantidad_fisica del detalle
+ * padre.
  *
  * `codigo_lectura` es NULO para los ajustes con los botones +/-.
  */

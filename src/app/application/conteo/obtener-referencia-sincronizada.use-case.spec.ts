@@ -50,4 +50,40 @@ describe('ObtenerReferenciaSincronizadaUseCase', () => {
   it('devuelve el agregado por SKU y las lecturas por separado, tal como los encuentra el repositorio', async () => {
     expect(await uc.execute(7, 2, 1, 1)).toEqual({ items: [ITEM], lecturas: [LECTURA_1, LECTURA_2] });
   });
+
+  /*
+   * Un TAG que el servidor recibió (o pudo recibir) pero cuyas líneas siguen
+   * FINALIZADAS —la respuesta del envío se perdió— también es referencia.
+   */
+  describe('cuando el TAG de referencia sigue FINALIZADO', () => {
+    const FINALIZADO: ConteoItem = { ...ITEM, estado: 'FINALIZADO' };
+
+    beforeEach(() => {
+      getBySesion.and.callFake(async (_c: number, _u: number, _o: number, _p: number, estado: string) =>
+        estado === 'FINALIZADO' ? [FINALIZADO] : []);
+      getLecturasSesion.and.callFake(async (_c: number, _u: number, _o: number, _p: number, estado: string) =>
+        estado === 'FINALIZADO' ? [LECTURA_1] : []);
+    });
+
+    it('las trae de las líneas FINALIZADAS si no hay SINCRONIZADAS', async () => {
+      expect(await uc.execute(7, 2, 1, 1)).toEqual({ items: [FINALIZADO], lecturas: [LECTURA_1] });
+    });
+
+    it('prefiere las SINCRONIZADAS cuando las hay, sin mirar las otras', async () => {
+      getBySesion.and.resolveTo([ITEM]);
+      getLecturasSesion.and.resolveTo([LECTURA_1, LECTURA_2]);
+      getBySesion.calls.reset();
+
+      await uc.execute(7, 2, 1, 1);
+
+      expect(getBySesion).not.toHaveBeenCalledWith(7, 2, 1, 1, 'FINALIZADO');
+    });
+
+    it('sin líneas de ningún estado, devuelve vacío', async () => {
+      getBySesion.and.resolveTo([]);
+      getLecturasSesion.and.resolveTo([]);
+
+      expect(await uc.execute(7, 2, 1, 1)).toEqual({ items: [], lecturas: [] });
+    });
+  });
 });

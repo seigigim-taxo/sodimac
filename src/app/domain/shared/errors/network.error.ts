@@ -14,7 +14,22 @@
  * (ApiService) lo produce; application lo consume.
  */
 export class NetworkError extends Error {
-  constructor(message: string, readonly esDeConectividad: boolean = true) {
+  constructor(
+    message: string,
+    readonly esDeConectividad: boolean = true,
+    /*
+     * ¿La solicitud pudo haber llegado al servidor?
+     *
+     * true (lo normal): se mandó y no volvió una respuesta completa —timeout,
+     * corte a medio camino, cuerpo ilegible—. El servidor pudo haber guardado
+     * lo enviado; desde la PDA no hay forma de saberlo.
+     *
+     * false: el dispositivo ya estaba sin red cuando falló, así que la
+     * solicitud no salió y el servidor seguro no recibió nada. Es la única
+     * situación en la que un envío fallido garantiza "no llegó".
+     */
+    readonly solicitudEnviada: boolean = true,
+  ) {
     super(message);
     this.name = 'NetworkError';
   }

@@ -3,7 +3,6 @@ import { IniciarSesionConteoUseCase } from '../../application/conteo/iniciar-ses
 import { LoadMuestraSetUseCase, MuestraSet } from '../../application/conteo/load-muestra-set.use-case';
 import { BuscarCodigoMuestraUseCase, CodigoResuelto } from '../../application/conteo/buscar-codigo-muestra.use-case';
 import { UpsertConteoItemUseCase } from '../../application/conteo/upsert-conteo-item.use-case';
-import { AdjustConteoItemUseCase } from '../../application/conteo/adjust-conteo-item.use-case';
 import { DeleteConteoItemUseCase } from '../../application/conteo/delete-conteo-item.use-case';
 import { FinalizarSesionConteoUseCase } from '../../application/conteo/finalizar-sesion-conteo.use-case';
 import { AsegurarRondaAbiertaUseCase } from '../../application/conteo/asegurar-ronda-abierta.use-case';
@@ -25,7 +24,6 @@ export class ConteoFacade {
   private loadMuestra   = inject(LoadMuestraSetUseCase);
   private buscarCodigo  = inject(BuscarCodigoMuestraUseCase);
   private upsertItem    = inject(UpsertConteoItemUseCase);
-  private adjustItem    = inject(AdjustConteoItemUseCase);
   private deleteItem    = inject(DeleteConteoItemUseCase);
   private finalizarUC   = inject(FinalizarSesionConteoUseCase);
   private asegurarRonda = inject(AsegurarRondaAbiertaUseCase);
@@ -269,21 +267,6 @@ export class ConteoFacade {
     this.itemsSignal.set(
       await this.getItems.execute(sesion.conteoId, sesion.ubicacionId, sesion.operadorId, sesion.pdaId, 'EN_CURSO')
     );
-  }
-
-  async adjust(productoId: number, delta: number): Promise<void> {
-    const sesion = this.sesionSignal();
-    if (!sesion || this.finalizadaSignal()) return;
-    await this.writeQueue.enqueue(async () => {
-      try {
-        const item = await this.adjustItem.execute(
-          sesion.conteoId, sesion.ubicacionId, productoId, sesion.operadorId, sesion.pdaId, delta, 'EN_CURSO'
-        );
-        this.upsertItemEnMemoria(item);
-      } catch (err) {
-        this.errorSignal.set(err instanceof Error ? err.message : 'Error al ajustar cantidad');
-      }
-    });
   }
 
   async delete(productoId: number): Promise<void> {

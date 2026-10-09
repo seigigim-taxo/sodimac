@@ -57,7 +57,6 @@ export interface ConteoRepository {
    * una propiedad de la fila padre.
    */
   upsert(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, cantidad: number, codigoLectura: string, medioCaptura: MedioCaptura): Promise<ConteoItem>;
-  adjust(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, delta: number, estado: EstadoConteo): Promise<ConteoItem>;
   delete(conteoId: number, ubicacionId: number, productoId: number, operadorId: number, pdaId: number, estado: EstadoConteo): Promise<void>;
 
   /*

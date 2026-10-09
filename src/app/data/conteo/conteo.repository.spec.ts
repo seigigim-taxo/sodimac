@@ -54,6 +54,19 @@ describe('SqliteConteoRepository', () => {
     return r.values ?? [];
   }
 
+  /* El id de la primera lectura de la línea. */
+  async function primeraLectura(detalleId: number): Promise<number> {
+    const r = await db.query(`SELECT MIN(id) AS id FROM sod_conteo_lectura WHERE detalle_id = ?`, [detalleId]);
+    return Number(r.values?.[0]?.['id']);
+  }
+
+  /* El payload que se enviaría de ese TAG. */
+  async function payloadDelTag() {
+    const resumen = (await repo.getResumenes(OPERADOR_ID, PDA_ID))
+      .find((r) => r.ubicacionId === UBICACION_ID)!;
+    return repo.getPayloadSincronizacion(resumen);
+  }
+
   async function cantidadFisica(productoId = PRODUCTO_ID): Promise<number | null> {
     const r = await db.query(
       `SELECT cantidad_fisica FROM sod_conteo_detalle WHERE producto_id = ?`,
@@ -139,6 +152,86 @@ describe('SqliteConteoRepository', () => {
       expect(await cantidadFisica()).toBe(0);
     });
 
+    /*
+     * El servidor no acepta cantidades negativas. Declarar 0 sobre un SKU que ya
+     * tenía unidades NO agrega una lectura de -5: reemplaza las anteriores por
+     * una sola de 0.
+     */
+    describe('declarar 0 sobre un SKU que ya tenía unidades', () => {
+      it('deja UNA sola lectura, de 0, y descarta las anteriores', async () => {
+        await scan(5);
+        await scan(3, 'AF001', 'MANUAL');
+        const item = await scan(0);
+
+        expect(await lecturasDe(item.id)).toEqual([
+          { codigo_lectura: 'AF001', medio_captura: 'ESCANER', cantidad: 0 },
+        ]);
+      });
+
+      it('no deja NINGUNA lectura negativa', async () => {
+        await scan(5);
+        const item = await scan(0);
+
+        const lecturas = await lecturasDe(item.id);
+        expect(lecturas.every((l) => Number(l['cantidad']) >= 0)).toBeTrue();
+      });
+
+      it('la lectura de 0 lleva el código y el medio de quien declaró el cero', async () => {
+        await scan(5, 'AF001', 'ESCANER');
+        const item = await scan(0, 'AF009', 'MANUAL');
+
+        expect(await lecturasDe(item.id)).toEqual([
+          { codigo_lectura: 'AF009', medio_captura: 'MANUAL', cantidad: 0 },
+        ]);
+      });
+
+      it('después del cero, un escaneo normal suma desde 0 y deja dos lecturas', async () => {
+        await scan(5);
+        await scan(0);
+        const item = await scan(4);
+
+        expect(await cantidadFisica()).toBe(4);
+        expect((await lecturasDe(item.id)).map((l) => Number(l['cantidad']))).toEqual([0, 4]);
+        expect(await sumaLecturas(item.id)).toBe(4);
+      });
+
+      it('no toca las lecturas de otro SKU', async () => {
+        const otro = await scan(7, 'AF002', 'ESCANER', OTRO_PRODUCTO_ID);
+        await scan(5);
+        await scan(0);
+
+        expect(await cantidadFisica(OTRO_PRODUCTO_ID)).toBe(7);
+        expect(await lecturasDe(otro.id)).toEqual([{ codigo_lectura: 'AF002', medio_captura: 'ESCANER', cantidad: 7 }]);
+      });
+
+      it('declarar 0 dos veces seguidas sigue dejando una sola lectura', async () => {
+        await scan(5);
+        await scan(0);
+        const item = await scan(0);
+
+        expect((await lecturasDe(item.id)).length).toBe(1);
+        expect(await cantidadFisica()).toBe(0);
+      });
+
+      it('en un SKU que todavía no tenía unidades, deja la lectura de 0', async () => {
+        const item = await scan(0);
+
+        expect(await lecturasDe(item.id)).toEqual([{ codigo_lectura: 'AF001', medio_captura: 'ESCANER', cantidad: 0 }]);
+      });
+
+      it('el envío NO lleva cantidades negativas', async () => {
+        await scan(5);
+        await scan(0);
+        await repo.cerrarTag(CONTEO_ID, UBICACION_ID, OPERADOR_ID);
+
+        const { detalles } = await payloadDelTag();
+
+        const cantidades: number[] = [];
+        for (const d of detalles) for (const l of d.lecturas) cantidades.push(l.cantidad);
+        expect(cantidades).toEqual([0]);
+      });
+    });
+
     it('una línea ya sincronizada no se puede volver a contar', async () => {
       const item = await scan(1);
       await db.run(`UPDATE sod_conteo_detalle SET estado = 'SINCRONIZADO' WHERE id = ?`, [item.id]);
@@ -179,24 +272,15 @@ describe('SqliteConteoRepository', () => {
      * la línea diría que ese código se tipeó a mano — y si venía de la pistola,
      * el reporte concluiría que el EAN no se escaneó.
      */
-    it('un ajuste con +/- no inventa un código', async () => {
+    // Bajar una lectura con "−" la edita; no agrega un movimiento negativo.
+    it('bajar una lectura con "−" la edita, sin agregar una lectura negativa', async () => {
       const item = await scan(5);
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 2, 'EN_CURSO');
+      const lectura = await primeraLectura(item.id);
+
+      await repo.adjustLectura(lectura, -2);
 
       const lecturas = await lecturasDe(item.id);
-      expect(lecturas[lecturas.length - 1]).toEqual({
-        codigo_lectura: null, medio_captura: 'MANUAL', cantidad: 2,
-      });
-    });
-
-    it('quitar unidades agrega un movimiento negativo, no borra la lectura anterior', async () => {
-      const item = await scan(5);
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -2, 'EN_CURSO');
-
-      const lecturas = await lecturasDe(item.id);
-      // El escaneo original sigue constando: es lo que el reporte necesita.
-      expect(lecturas[0]).toEqual({ codigo_lectura: 'AF001', medio_captura: 'ESCANER', cantidad: 5 });
-      expect(lecturas[1]).toEqual({ codigo_lectura: null, medio_captura: 'MANUAL', cantidad: -2 });
+      expect(lecturas).toEqual([{ codigo_lectura: 'AF001', medio_captura: 'ESCANER', cantidad: 3 }]);
     });
   });
 
@@ -216,8 +300,9 @@ describe('SqliteConteoRepository', () => {
 
     it('tras sumar y restar con los botones', async () => {
       const item = await scan(5);
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 3, 'EN_CURSO');
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -4, 'EN_CURSO');
+      const lectura = await primeraLectura(item.id);
+      await repo.adjustLectura(lectura, 3);
+      await repo.adjustLectura(lectura, -4);
 
       expect(await cantidadFisica()).toBe(4);
       expect(await sumaLecturas(item.id)).toBe(4);
@@ -238,27 +323,10 @@ describe('SqliteConteoRepository', () => {
      */
     it('cuando el ajuste se topa con el cero', async () => {
       const item = await scan(3);
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -10, 'EN_CURSO');
+      await repo.adjustLectura(await primeraLectura(item.id), -10);
 
       expect(await cantidadFisica()).toBe(0);
       expect(await sumaLecturas(item.id)).toBe(0);
-    });
-  });
-
-  describe('adjust', () => {
-    it('no escribe nada cuando el movimiento real es cero', async () => {
-      const item = await scan(0);
-      const antes = (await lecturasDe(item.id)).length;
-
-      await repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, -1, 'EN_CURSO');
-
-      expect((await lecturasDe(item.id)).length).toBe(antes);
-    });
-
-    it('falla si la línea no existe en ese estado', async () => {
-      await expectAsync(
-        repo.adjust(CONTEO_ID, UBICACION_ID, PRODUCTO_ID, OPERADOR_ID, PDA_ID, 1, 'EN_CURSO')
-      ).toBeRejectedWithError(/No se encontró el detalle/);
     });
   });
 
@@ -484,12 +552,6 @@ describe('SqliteConteoRepository', () => {
    * intento y el siguiente. Estas pruebas cuidan esa propiedad.
    */
   describe('detalle_uid del payload', () => {
-    async function payloadDelTag() {
-      const resumen = (await repo.getResumenes(OPERADOR_ID, PDA_ID))
-        .find((r) => r.ubicacionId === UBICACION_ID)!;
-      return repo.getPayloadSincronizacion(resumen);
-    }
-
     /*
      * La version con la que se conto viaja en la carga, y es lo unico que
      * permite atribuir despues un dato raro en el SGO a un APK concreto. Sin

@@ -43,7 +43,7 @@ describe('ConteoFacade', () => {
 
   beforeEach(async () => {
     conteoRepo = jasmine.createSpyObj('ConteoRepository', [
-      'upsert', 'adjust', 'delete', 'getBySesion', 'cerrarTag',
+      'upsert', 'delete', 'getBySesion', 'cerrarTag',
       'getRondaAbierta', 'getUltimaRonda', 'abrirRonda',
       'getLecturasSesion', 'adjustLectura', 'deleteLectura',
     ]);

@@ -27,6 +27,7 @@ import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
 
@@ -50,6 +51,7 @@ import { HeaderStatusComponent } from '../../shared/components/header-status/hea
 export class HomePage implements ViewWillEnter {
   private router          = inject(Router);
   private auth             = inject(AuthFacade);
+  private reintentoAutomatico = inject(ReintentoAutomaticoService);
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);
@@ -270,6 +272,9 @@ export class HomePage implements ViewWillEnter {
   }
 
   ionViewWillEnter(): void {
+    // Entrar al Inicio es un buen momento para reintentar lo que no salió (sin costo si no hay nada).
+    this.reintentoAutomatico.disparar();
+
     const session = this.auth.session();
 
     /*

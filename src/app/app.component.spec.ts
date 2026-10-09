@@ -65,13 +65,6 @@ describe('AppComponent', () => {
           useValue: { execute: jasmine.createSpy('execute').and.resolveTo(undefined) },
         },
         { provide: ThemeFacade, useValue: { isDark: signal(false), toggle: jasmine.createSpy('toggle') } },
-        {
-          provide: AjustesFacade,
-          useValue: {
-            sincronizacionAutomatica: signal(true),
-            toggleSincronizacionAutomatica: jasmine.createSpy('toggleSincronizacionAutomatica'),
-          },
-        },
         { provide: DATABASE_REPOSITORY_TOKEN, useValue: { initialize: jasmine.createSpy('initialize'), resetLocalDatabase: jasmine.createSpy('resetLocalDatabase') } },
         {
           // El componente arranca la vigilancia de cambio de día al construirse;

@@ -34,6 +34,7 @@ import { DETECCION_CAPTURA_TOKEN } from './app/domain/conteo/services/deteccion-
 import { DeteccionCapturaTecladoService } from './app/data/conteo/deteccion-captura-teclado.service';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { ESTADO_CARGAS_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/estado-cargas-api.repository';
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
 import {
   ACTUALIZACION_API_REPOSITORY_TOKEN,
@@ -44,6 +45,7 @@ import { ActualizacionApiService } from './app/data/actualizacion/actualizacion-
 import { CapacitorDescargaService } from './app/data/actualizacion/descarga.service';
 import { CapacitorInstaladorService } from './app/data/actualizacion/instalador.service';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
+import { EstadoCargasApiService } from './app/data/sincronizacion/estado-cargas-api.service';
 import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
@@ -163,6 +165,7 @@ bootstrapApplication(AppComponent, {
     { provide: DETECCION_CAPTURA_TOKEN,          useClass: DeteccionCapturaTecladoService },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
+    { provide: ESTADO_CARGAS_API_REPOSITORY_TOKEN, useClass: EstadoCargasApiService },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
 
     /*

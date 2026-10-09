@@ -24,6 +24,11 @@ export class ZonaFacade {
    * lectura lo que ya se contó ahí — ver ObtenerReferenciaSincronizadaUseCase.
    */
   private ubicacionSincronizadaIdSignal = signal<number | null>(null);
+  /*
+   * Si esa referencia es un TAG que el servidor ya tiene o pudo recibir: por eso
+   * no se reabrió y se creó uno nuevo. La pantalla se lo avisa al operador.
+   */
+  private referenciaBloqueadaSignal = signal<'ENVIADO' | 'EN_DUDA' | null>(null);
   private ubicacionPrecisaSignal = signal<string>('');
   private loadingSignal      = signal(false);
   private errorSignal        = signal<string | null>(null);
@@ -33,6 +38,7 @@ export class ZonaFacade {
   readonly tagValue          = this.tagValueSignal.asReadonly();
   readonly ubicacionId       = this.ubicacionIdSignal.asReadonly();
   readonly ubicacionSincronizadaId = this.ubicacionSincronizadaIdSignal.asReadonly();
+  readonly referenciaBloqueada = this.referenciaBloqueadaSignal.asReadonly();
   readonly ubicacionPrecisa  = this.ubicacionPrecisaSignal.asReadonly();
   readonly loading           = this.loadingSignal.asReadonly();
   readonly error             = this.errorSignal.asReadonly();
@@ -142,6 +148,7 @@ export class ZonaFacade {
       const resultado = await this.registrarUbicacion.execute(zona.id, ubicacionPrecisa, tag, conteoId, operadorId, pdaId);
       this.ubicacionIdSignal.set(resultado.ubicacionId);
       this.ubicacionSincronizadaIdSignal.set(resultado.ubicacionSincronizadaId);
+      this.referenciaBloqueadaSignal.set(resultado.referenciaBloqueada);
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al registrar ubicación');
       throw err;
@@ -163,6 +170,7 @@ export class ZonaFacade {
     // Una sesión que se restaura ya estaba EN_CURSO: no hay TAG nuevo recién
     // creado al que pegarle una referencia de otro sincronizado.
     this.ubicacionSincronizadaIdSignal.set(null);
+    this.referenciaBloqueadaSignal.set(null);
     this.ubicacionPrecisaSignal.set(ubicacionPrecisa);
     this.errorSignal.set(null);
   }
@@ -176,6 +184,7 @@ export class ZonaFacade {
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
     this.ubicacionSincronizadaIdSignal.set(null);
+    this.referenciaBloqueadaSignal.set(null);
     this.errorSignal.set(null);
   }
 
@@ -184,6 +193,7 @@ export class ZonaFacade {
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
     this.ubicacionSincronizadaIdSignal.set(null);
+    this.referenciaBloqueadaSignal.set(null);
     this.errorSignal.set(null);
   }
 
@@ -193,6 +203,7 @@ export class ZonaFacade {
     this.tagValueSignal.set('');
     this.ubicacionIdSignal.set(null);
     this.ubicacionSincronizadaIdSignal.set(null);
+    this.referenciaBloqueadaSignal.set(null);
     this.ubicacionPrecisaSignal.set('');
     this.errorSignal.set(null);
   }
