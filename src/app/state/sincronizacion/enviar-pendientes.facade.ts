@@ -29,6 +29,23 @@ export class EnviarPendientesFacade {
     }
   }
 
+  /*
+   * La tanda de los reintentos automáticos: corta al primer fallo de red y no
+   * toca el error que ve el operador. Devuelve null si ya hay un envío en
+   * marcha (el del menú), para no encimarse.
+   */
+  async enviarAutomatico(): Promise<ResultadoEnviarPendientes | null> {
+    if (this.enviandoSignal()) return null;
+    this.enviandoSignal.set(true);
+    try {
+      const resultado = await this.enviarPendientesUC.execute({ cortarAlFalloDeRed: true });
+      this.ultimoResultadoSignal.set(resultado);
+      return resultado;
+    } finally {
+      this.enviandoSignal.set(false);
+    }
+  }
+
   limpiarResultado(): void {
     this.ultimoResultadoSignal.set(null);
     this.errorSignal.set(null);

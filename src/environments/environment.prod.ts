@@ -4,6 +4,9 @@ export const environment = {
   authEndpoint: 'auth/login.php',
   preparacionEndpoint: 'sincronizaciones/preparacion.php',
   tagFinalizadoEndpoint: 'sincronizaciones/tag-finalizado.php',
+  // Consulta de solo lectura: ¿el servidor ya recibió este envío? Ver
+  // EstadoCargasApiRepository.
+  estadoCargasEndpoint: 'sincronizaciones/estado-cargas.php',
   // Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
   // de api/ para heredar CORS. Ver server/README.md.
   actualizacionEndpoint: 'actualizaciones/version.json',

@@ -295,7 +295,30 @@ export class TagZonaPageComponent implements ViewWillEnter {
     } finally {
       this.abriendoConteo.set(false);
     }
+
+    await this.avisarSiSeAbrioUnoNuevo();
     this.router.navigate(['/counting']);
+  }
+
+  /*
+   * Si el TAG que se escaneó ya lo tiene el servidor (o no se pudo confirmar que
+   * no), no se reabre: se abre uno nuevo. Sin este aviso el operador vería un TAG
+   * vacío sin entender por qué no siguió el anterior.
+   */
+  private async avisarSiSeAbrioUnoNuevo(): Promise<void> {
+    const bloqueo = this.zonaFacade.referenciaBloqueada();
+    if (bloqueo === null) return;
+
+    const alerta = await this.alertController.create({
+      header: 'Se abrirá un TAG nuevo',
+      message: bloqueo === 'EN_DUDA'
+        ? 'No pudimos confirmar si el TAG anterior con este número llegó al servidor, así que no se puede modificar. Lo que cuentes ahora quedará en un TAG nuevo; el anterior se muestra de referencia.'
+        : 'El TAG anterior con este número ya se envió y no se puede modificar. Lo que cuentes ahora quedará en un TAG nuevo; el anterior se muestra de referencia.',
+      buttons: [{ text: 'Entendido', role: 'confirm' }],
+      backdropDismiss: false,
+    });
+    await alerta.present();
+    await alerta.onDidDismiss();
   }
 
   goToResumen(): void {

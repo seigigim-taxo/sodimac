@@ -24,9 +24,9 @@ import { arrowBackOutline, logOutOutline, sunnyOutline, moonOutline, listOutline
 import { AuthFacade } from './state/auth/auth.facade';
 import { SesionTrabajoFacade } from './state/sesion-trabajo/sesion-trabajo.facade';
 import { ThemeFacade } from './state/theme/theme.facade';
-import { AjustesFacade } from './state/ajustes/ajustes.facade';
 import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { EnviarPendientesFacade } from './state/sincronizacion/enviar-pendientes.facade';
+import { ReintentoAutomaticoService } from './shared/services/reintento-automatico.service';
 import { RespaldoFacade } from './state/respaldo/respaldo.facade';
 import { BotonBuscadorComponent } from './shared/components/boton-buscador/boton-buscador.component';
 import { BotonCalculadoraComponent } from './shared/components/boton-calculadora/boton-calculadora.component';
@@ -64,9 +64,9 @@ export class AppComponent {
   private auth     = inject(AuthFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
   private theme    = inject(ThemeFacade);
-  private ajustes  = inject(AjustesFacade);
   private vigenciaDia = inject(VigenciaDiaService);
   private enviarPendientes = inject(EnviarPendientesFacade);
+  private reintentoAutomatico = inject(ReintentoAutomaticoService);
   private respaldo = inject(RespaldoFacade);
   private alertController = inject(AlertController);
   private oferta = inject(OfertaActualizacionService);
@@ -85,7 +85,6 @@ export class AppComponent {
   isAnalyst        = this.auth.isAnalyst;
   isOperator       = this.auth.isOperator;
   formatRutDisplay = formatRutDisplay;
-  sincronizacionAutomatica = this.ajustes.sincronizacionAutomatica;
   enviandoPendientes = this.enviarPendientes.enviando;
   generandoRespaldo = this.respaldo.generando;
   version = APP_VERSION;
@@ -113,10 +112,9 @@ export class AppComponent {
      * esté donde esté el operador, incluso a mitad de un conteo.
      */
     this.vigenciaDia.iniciar();
-  }
 
-  async toggleSincronizacionAutomatica(): Promise<void> {
-    await this.ajustes.toggleSincronizacionAutomatica();
+    // Reintenta solo los envíos que no salieron (ver ReintentoAutomaticoService).
+    this.reintentoAutomatico.iniciar();
   }
 
   goBack(): void {

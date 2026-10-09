@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ApiService } from './api.service';
 import { NetworkError } from '../../domain/shared/errors/network.error';
+import { ApiError } from '../../domain/shared/errors/api.error';
 
 /*
  * Lo que se prueba acá es que NINGÚN mensaje del navegador llegue a la pantalla
@@ -258,5 +259,207 @@ describe('ApiService — errores que ve el operador', () => {
     } catch {
       expect(console.error).toHaveBeenCalledWith('[api] fallo de red:', 'TypeError', 'Failed to fetch');
     }
+  });
+});
+
+
+/*
+ * Qué sabe la app cuando un envío falla.
+ *
+ * Un envío fallido puede significar dos cosas opuestas sobre el servidor:
+ *
+ *   - Hubo respuesta y dijo "no" (ApiError): el servidor contestó. Con su código
+ *     HTTP y su `codigo` se sabe si guardó algo (409: ya lo tiene) o no (400).
+ *   - No hubo respuesta (NetworkError): el servidor pudo haber guardado el TAG y
+ *     la PDA no se entera. Solo si el dispositivo ya estaba sin red al fallar se
+ *     puede afirmar que la solicitud no salió.
+ *
+ * Antes todo llegaba como un Error plano con el texto, y esa diferencia se
+ * perdía: de ahí un TAG recibido por el servidor que la PDA seguía mostrando
+ * como pendiente.
+ */
+describe('ApiService — qué sabe la app cuando un envío falla', () => {
+  let api: ApiService;
+  let fetchSpy: jasmine.Spy;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [ApiService] });
+    api = TestBed.inject(ApiService);
+    fetchSpy = spyOn(globalThis, 'fetch');
+    spyOn(console, 'error');
+  });
+
+  const respuesta = (status: number, cuerpo: unknown): Response => ({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(),
+    text: () => Promise.resolve(JSON.stringify(cuerpo)),
+  } as Response);
+
+  const rechazo = async (llamada: () => Promise<unknown>): Promise<unknown> => {
+    try {
+      await llamada();
+    } catch (e) {
+      return e;
+    }
+    throw new Error('Se esperaba que la llamada fallara');
+  };
+
+  describe('el servidor contestó con un error (ApiError)', () => {
+    it('conserva el código HTTP, el código estable y los datos', async () => {
+      fetchSpy.and.resolveTo(respuesta(409, {
+        status: 'ERROR',
+        msg: 'El envio ya existe pero contiene una cantidad diferente de lecturas.',
+        codigo: 'CARGA_EXISTENTE',
+        data: { lecturas_servidor: 1, estado: 'RECIBIDO' },
+      }));
+
+      const e = await rechazo(() => api.post('x', {})) as ApiError;
+
+      expect(e).toBeInstanceOf(ApiError);
+      expect(e.status).toBe(409);
+      expect(e.codigo).toBe('CARGA_EXISTENTE');
+      expect(e.datos).toEqual({ lecturas_servidor: 1, estado: 'RECIBIDO' });
+      expect(e.message).toBe('El envio ya existe pero contiene una cantidad diferente de lecturas.');
+    });
+
+    it('sin código ni datos en el cuerpo, quedan en null', async () => {
+      fetchSpy.and.resolveTo(respuesta(400, { status: 'ERROR', msg: 'Falta TAG.' }));
+
+      const e = await rechazo(() => api.post('x', {})) as ApiError;
+
+      expect(e.status).toBe(400);
+      expect(e.codigo).toBeNull();
+      expect(e.datos).toBeNull();
+    });
+
+    // Compatibilidad: todo lo que hoy lee err.message sigue funcionando.
+    it('sigue siendo un Error con el mensaje del servidor', async () => {
+      fetchSpy.and.resolveTo(respuesta(500, { status: 'ERROR', msg: 'No pudimos guardar el TAG.' }));
+
+      const e = await rechazo(() => api.post('x', {}));
+
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toBe('No pudimos guardar el TAG.');
+    });
+
+    it('también al pedir con GET', async () => {
+      fetchSpy.and.resolveTo(respuesta(404, { status: 'ERROR', msg: 'No existe.' }));
+
+      const e = await rechazo(() => api.get('x')) as ApiError;
+
+      expect(e).toBeInstanceOf(ApiError);
+      expect(e.status).toBe(404);
+    });
+
+    // El servidor SÍ contestó: su mensaje no se reinterpreta como fallo de red.
+    for (const palabra of ['timeout', 'network', 'socket', 'failed to fetch']) {
+      it(`un mensaje del servidor que contiene "${palabra}" no se convierte en NetworkError`, async () => {
+        fetchSpy.and.resolveTo(respuesta(500, { status: 'ERROR', msg: `Error de ${palabra} en la base` }));
+
+        const e = await rechazo(() => api.post('x', {}));
+
+        expect(e).toBeInstanceOf(ApiError);
+        expect(e).not.toBeInstanceOf(NetworkError);
+      });
+    }
+
+    it('un OK sin datos es una respuesta del servidor, marcada aparte', async () => {
+      fetchSpy.and.resolveTo(respuesta(200, { status: 'OK', msg: 'OK' }));
+
+      const e = await rechazo(() => api.post('x', {})) as ApiError;
+
+      expect(e).toBeInstanceOf(ApiError);
+      expect(e.status).toBe(200);
+      expect(e.codigo).toBe('SIN_DATOS');
+    });
+
+    it('una respuesta correcta sigue devolviendo sus datos', async () => {
+      fetchSpy.and.resolveTo(respuesta(200, { status: 'OK', msg: 'OK', data: { carga_id: 5 } }));
+
+      expect(await api.post('x', {})).toEqual({ carga_id: 5 });
+    });
+  });
+
+  describe('no hubo respuesta (NetworkError): ¿la solicitud pudo llegar?', () => {
+    let enLinea: jasmine.Spy;
+
+    beforeEach(() => {
+      enLinea = spyOnProperty(navigator, 'onLine', 'get').and.returnValue(true);
+    });
+
+    it('con red al fallar, se asume que pudo llegar', async () => {
+      fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e).toBeInstanceOf(NetworkError);
+      expect(e.solicitudEnviada).toBeTrue();
+    });
+
+    it('sin red al fallar, la solicitud NO salió', async () => {
+      enLinea.and.returnValue(false);
+      fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e.solicitudEnviada).toBeFalse();
+    });
+
+    it('un error no reconocido sin red tampoco salió', async () => {
+      enLinea.and.returnValue(false);
+      fetchSpy.and.rejectWith('algo raro');
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e.solicitudEnviada).toBeFalse();
+    });
+
+    // Se esperó una respuesta que no llegó: la solicitud salió, haya o no red ahora.
+    it('un timeout siempre cuenta como enviada, aunque ahora no haya red', async () => {
+      enLinea.and.returnValue(false);
+      const timeout = new Error('signal timed out');
+      timeout.name = 'TimeoutError';
+      fetchSpy.and.rejectWith(timeout);
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e.solicitudEnviada).toBeTrue();
+    });
+
+    it('una cancelación manual cuenta como enviada: pudo haber llegado', async () => {
+      const abort = new Error('aborted');
+      abort.name = 'AbortError';
+      fetchSpy.and.rejectWith(abort);
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e.solicitudEnviada).toBeTrue();
+    });
+
+    it('un cuerpo que llegó incompleto cuenta como enviado', async () => {
+      fetchSpy.and.resolveTo({
+        ok: true, status: 200, headers: new Headers(),
+        text: () => Promise.resolve('{"status":"OK","msg":"TAG rec'),
+      } as Response);
+
+      const e = await rechazo(() => api.post('x', {})) as NetworkError;
+
+      expect(e).toBeInstanceOf(NetworkError);
+      expect(e.solicitudEnviada).toBeTrue();
+    });
+
+    /*
+     * Cuidado deliberado: se mira DESPUÉS de fallar, no antes de mandar. Si el
+     * navegador dijera "sin red" y estuviera equivocado, bloquear el envío
+     * dejaría a la PDA sin poder subir nada.
+     */
+    it('estando sin red según el navegador, igual intenta mandar', async () => {
+      enLinea.and.returnValue(false);
+      fetchSpy.and.resolveTo(respuesta(200, { status: 'OK', msg: 'OK', data: { ok: true } }));
+
+      expect(await api.post('x', {})).toEqual({ ok: true });
+      expect(fetchSpy).toHaveBeenCalled();
+    });
   });
 });

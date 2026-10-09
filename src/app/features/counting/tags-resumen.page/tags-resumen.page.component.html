@@ -97,20 +97,19 @@
           Un TAG finalizado todavía no llegó al servidor: el badge nombra lo que
           falta, no lo que ya se hizo. Verde solo cuando está sincronizado.
         -->
+        <!--
+          Finalizado + envío: "Sin confirmar" cuando el servidor pudo haberlo
+          recibido (no se vuelve a contar), "Enviado" cuando ya lo tiene aunque la
+          PDA todavía no lo marcó. Sin envío, o con uno que no llegó: pendiente.
+        -->
+        @if (etiqueta(conteo); as et) {
         <span class="badge shrink-0"
-          [class.badge-warning]="conteo.estado === 'EN_CURSO' || conteo.estado === 'FINALIZADO'"
-          [class.badge-success]="conteo.estado === 'SINCRONIZADO'">
-          @if (conteo.estado === 'EN_CURSO') {
-            <ion-icon name="time-outline"></ion-icon>
-            <span>En curso</span>
-          } @else if (conteo.estado === 'FINALIZADO') {
-            <ion-icon name="cloud-upload-outline"></ion-icon>
-            <span>Pendiente de sincronizar</span>
-          } @else {
-            <ion-icon name="cloud-done-outline"></ion-icon>
-            <span>Sincronizado</span>
-          }
+          [class.badge-warning]="et.tono === 'warning'"
+          [class.badge-success]="et.tono === 'success'">
+          <ion-icon [name]="et.icono"></ion-icon>
+          <span>{{ et.texto }}</span>
         </span>
+        }
       </div>
       <p class="text-[12px] mb-4" style="color: var(--app-text-muted);">{{ conteo.zonaCodigo }}</p>
 
@@ -129,7 +128,14 @@
       <!-- Acciones según estado -->
       @if (conteo.estado === 'FINALIZADO' && !isSyncing(conteo)) {
       <div class="mt-4 pt-4 flex flex-col gap-2" style="border-top: 1px solid var(--app-border);">
-        <!-- Fila 1: Editar + Eliminar -->
+        <!--
+          Fila 1: Editar + Eliminar. Si el servidor recibió el TAG, o no se pudo
+          confirmar que no, no se ofrecen: se dice por qué. Sincronizar sigue
+          disponible, que es lo que lo resuelve.
+        -->
+        @if (bloqueoEnvio(conteo); as bloqueo) {
+        <p class="text-[12px]" style="color: var(--app-text-muted);">{{ mensajeBloqueo(bloqueo) }}</p>
+        } @else {
         <div class="flex gap-2">
           <ion-button fill="outline" size="small" style="flex: 1; justify-content: center;" (click)="editarReal(conteo)">
             <ion-icon slot="start" name="create-outline"></ion-icon>
@@ -140,6 +146,7 @@
             Eliminar
           </ion-button>
         </div>
+        }
         <!-- Fila 2: Sincronizar -->
         <ion-button fill="outline" size="small" style="justify-content: center;" (click)="sincronizarReal(conteo)">
           <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>

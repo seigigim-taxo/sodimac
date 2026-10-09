@@ -914,19 +914,11 @@ export class CountingPageComponent implements ViewWillEnter {
       await this.conteo.finalizar();
 
       /*
-       * Con la sincronización automática apagada el TAG queda en FINALIZADO, no
-       * en SINCRONIZADO: así sigue siendo editable desde el resumen. Subirlo
-       * pasa a ser una acción explícita del operador.
+       * Finalizar un TAG SIEMPRE es un intento de envío. Ya no hay un ajuste para
+       * dejarlo pendiente a propósito: que un TAG siga editable depende de que el
+       * servidor no lo tenga (ver estado-envio-tag.model.ts), no de un interruptor.
        */
-      if (!this.ajustes.sincronizacionAutomatica()) {
-        /*
-         * Esto NO es un fallo: el operador apagó la sincronización automática y
-         * el TAG quedó pendiente porque así lo pidió. Va como toast; obligarlo a
-         * tocar Aceptar en cada TAG del día sería castigarlo por su propia
-         * configuración.
-         */
-        this.mostrarToast('TAG finalizado. Queda pendiente de sincronizar.', 'warning');
-      } else if (sesion && operadorId && pdaId) {
+      if (sesion && operadorId && pdaId) {
         try {
           await this.conteoList.load(operadorId, pdaId);
           const resumen = this.conteoList.conteos().find((c) =>
@@ -947,7 +939,7 @@ export class CountingPageComponent implements ViewWillEnter {
              * y la app cambiaba de pantalla en el mismo tick, así que el aviso
              * pasaba mientras él ya estaba mirando otra cosa.
              */
-            await this.avisoSync.avisarFalloTag(tag, this.conteoList.error());
+            await this.avisoSync.avisarFalloTag(tag, this.conteoList.error(), this.conteoList.motivoFalla());
           }
         } catch (err) {
           await this.avisoSync.avisarFalloTag(

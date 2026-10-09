@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { AlertController } from '@ionic/angular/standalone';
+import { AlertController, ToastController } from '@ionic/angular/standalone';
 import { NetworkService } from './network.service';
+import { MotivoFalloEnvio } from '../../domain/sincronizacion/models/motivo-fallo-envio.model';
 
 /*
  * El aviso de que un TAG no llegó al servidor.
@@ -37,19 +38,56 @@ const SIN_CONEXION = 'La PDA está sin conexión.';
 export class AvisoSincronizacionService {
   private alertController = inject(AlertController);
   private network = inject(NetworkService);
+  private toastController = inject(ToastController);
 
-  /** Un TAG que no se pudo enviar. Resuelve al tocar Aceptar. */
-  async avisarFalloTag(tag: string | null, error?: string | null): Promise<void> {
+  /*
+   * Un TAG que no quedó confirmado. Resuelve al tocar Aceptar.
+   *
+   * El texto depende de qué se sabe, porque piden reacciones opuestas:
+   *   - NO_ENVIADO: el servidor no lo tiene; se reenvía solo.
+   *   - EN_DUDA:    pudo haberlo recibido; que NO lo vuelva a contar.
+   *   - YA_SE_ENVIA: no es un fallo, otro envío del mismo TAG está en marcha;
+   *                  va como toast y no obliga a aceptar nada.
+   */
+  async avisarFalloTag(
+    tag: string | null, error?: string | null, motivo: MotivoFalloEnvio = 'NO_ENVIADO',
+  ): Promise<void> {
+    if (motivo === 'YA_SE_ENVIA') {
+      await this.avisarYaSeEnvia();
+      return;
+    }
+
+    if (motivo === 'EN_DUDA') {
+      await this.presentar(
+        `No pudimos confirmar ${tag ? `el TAG ${tag}` : 'el TAG'}`,
+        [
+          'El conteo está guardado en la PDA — no se perdió nada.',
+          'Es posible que el servidor ya lo tenga. No lo vuelvas a contar: la PDA lo verificará sola cuando haya señal.',
+        ],
+        error,
+      );
+      return;
+    }
+
     const cual = tag ? `El TAG ${tag}` : 'El TAG';
-
     await this.presentar(
       `${cual} no se envió al servidor`,
       [
         'El conteo está guardado en la PDA — no se perdió nada.',
-        'Queda pendiente. Reintenta desde el resumen de TAGs cuando tengas señal.',
+        'Queda pendiente: se enviará solo cuando haya señal. También puedes reintentar desde el resumen de TAGs.',
       ],
       error,
     );
+  }
+
+  private async avisarYaSeEnvia(): Promise<void> {
+    const toast = await this.toastController.create({
+      message: 'Este TAG ya se está enviando. Espera unos segundos.',
+      duration: 3000,
+      color: 'warning',
+      position: 'top',
+    });
+    await toast.present();
   }
 
   /*
@@ -58,18 +96,37 @@ export class AvisoSincronizacionService {
    * uno solo, pero con los códigos, que es lo que necesita para saber cuáles
    * reintentar.
    */
-  async avisarFalloLote(tagsFallidos: readonly (string | null)[], total: number): Promise<void> {
-    const fallidos = tagsFallidos.length;
-    if (fallidos === 0) return;
+  async avisarFalloLote(
+    tagsSinEnviar: readonly (string | null)[],
+    total: number,
+    tagsSinConfirmar: readonly (string | null)[] = [],
+  ): Promise<void> {
+    const sinEnviar = tagsSinEnviar.length;
+    const sinConfirmar = tagsSinConfirmar.length;
+    if (sinEnviar + sinConfirmar === 0) return;
 
-    const codigos = tagsFallidos.filter((t): t is string => !!t);
+    const codigos = (tags: readonly (string | null)[]) => tags.filter((t): t is string => !!t);
+    const cuales = codigos(tagsSinEnviar);
+    const cualesSinConfirmar = codigos(tagsSinConfirmar);
+
+    const header =
+      sinConfirmar === 0 ? `${sinEnviar} de ${total} TAGs no se enviaron`
+      : sinEnviar === 0  ? `${sinConfirmar} de ${total} TAGs sin confirmar`
+      : `${sinEnviar + sinConfirmar} de ${total} TAGs con problemas de envío`;
+
+    // Con los dos casos juntos las etiquetas aclaran cuál es cuál; solos, basta con "TAGs".
+    const etiquetaSinEnviar = sinConfirmar === 0 ? 'TAGs' : 'No se enviaron';
 
     await this.presentar(
-      `${fallidos} de ${total} TAGs no se enviaron`,
+      header,
       [
-        codigos.length > 0 ? `TAGs: ${codigos.join(', ')}.` : '',
+        cuales.length > 0 ? `${etiquetaSinEnviar}: ${cuales.join(', ')}.` : '',
+        cualesSinConfirmar.length > 0 ? `Sin confirmar: ${cualesSinConfirmar.join(', ')}.` : '',
         'Los conteos están guardados en la PDA — no se perdió nada.',
-        'Quedan pendientes. Reintenta cuando tengas señal.',
+        sinConfirmar > 0
+          ? 'Los sin confirmar pueden estar ya en el servidor: no los vuelvas a contar, la PDA los verificará sola.'
+          : '',
+        'Se reintentará solo cuando haya señal.',
       ],
       null,
     );

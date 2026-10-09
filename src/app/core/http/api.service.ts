@@ -1,10 +1,13 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { NetworkError } from '../../domain/shared/errors/network.error';
+import { ApiError } from '../../domain/shared/errors/api.error';
 
 export interface ApiResponse<T> {
   status: 'OK' | 'ERROR';
   msg: string;
+  /* Identificador estable del error, cuando el servidor lo manda. */
+  codigo?: string;
   data?: T;
 }
 
@@ -82,7 +85,7 @@ export class ApiService {
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await this.leerCuerpo(response) as ApiResponse<T>;
-      return this.unwrap<T>(data);
+      return this.unwrap<T>(data, response.status);
     } catch (err) {
       throw this.mapError(err);
     }
@@ -97,7 +100,7 @@ export class ApiService {
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
       const data = await this.leerCuerpo(response) as ApiResponse<T>;
-      return this.unwrap<T>(data);
+      return this.unwrap<T>(data, response.status);
     } catch (err) {
       throw this.mapError(err);
     }
@@ -150,13 +153,22 @@ export class ApiService {
     }
   }
 
-  private unwrap<T>(data: ApiResponse<T>): T {
+  /*
+   * Un `status: 'ERROR'` del servidor se lanza como ApiError y NO como un Error
+   * plano: conserva el código HTTP, el `codigo` estable y el `data` del cuerpo.
+   * El mensaje sigue siendo el que escribió el backend.
+   *
+   * "Sin datos" también es una respuesta del servidor (llegó, es JSON, dice OK),
+   * solo que inútil: se marca con su propio `codigo` para que quien decide qué
+   * hacer con un envío no lo confunda con un rechazo.
+   */
+  private unwrap<T>(data: ApiResponse<T>, status: number): T {
     if (data.status === 'ERROR') {
-      throw new Error(data.msg ?? 'Error en el servicio');
+      throw new ApiError(data.msg ?? 'Error en el servicio', status, data.codigo ?? null, data.data ?? null);
     }
 
     if (data.data === undefined || data.data === null) {
-      throw new Error('Respuesta del servicio sin datos');
+      throw new ApiError('Respuesta del servicio sin datos', status, 'SIN_DATOS');
     }
 
     return data.data;
@@ -171,6 +183,23 @@ export class ApiService {
     if (err instanceof NetworkError) return err;
 
     /*
+     * Lo que contestó el servidor no se reinterpreta. Sin esto, un mensaje del
+     * backend que casualmente contuviera "timeout" o "network" terminaba
+     * convertido en un fallo de red, y la app lo trataría como "no hay
+     * respuesta" cuando en realidad la hubo.
+     */
+    if (err instanceof ApiError) return err;
+
+    /*
+     * ¿La solicitud llegó a salir? Si el dispositivo ya estaba sin red cuando
+     * falló, no: el servidor no recibió nada. En cualquier otro caso se asume
+     * que pudo haber llegado. Se mira al fallar y NO antes de mandar: bloquear
+     * el envío por un navigator.onLine equivocado dejaría a la PDA sin poder
+     * enviar.
+     */
+    const solicitudEnviada = !(typeof navigator !== 'undefined' && navigator.onLine === false);
+
+    /*
      * AbortSignal.timeout aborta con un DOMException llamado TimeoutError y el
      * mensaje "signal timed out" — que no contiene la palabra "timeout", así
      * que las comparaciones por texto de abajo no lo atrapan. Se detecta por
@@ -181,7 +210,8 @@ export class ApiService {
      * manda el mismo, así que el SGO puede descartar el duplicado.
      */
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-      return new NetworkError('El servidor no respondió a tiempo. Revisa la conexión e intenta de nuevo.');
+      // Se esperó una respuesta: la solicitud salió.
+      return new NetworkError('El servidor no respondió a tiempo. Revisa la conexión e intenta de nuevo.', true, true);
     }
 
     if (err instanceof Error) {
@@ -208,12 +238,12 @@ export class ApiService {
          * logcat del equipo — que es donde sí se puede diagnosticar.
          */
         console.error('[api] fallo de red:', err.name, err.message);
-        return new NetworkError('Sin conexión con el servidor. Revisa la red e intenta de nuevo.');
+        return new NetworkError('Sin conexión con el servidor. Revisa la red e intenta de nuevo.', true, solicitudEnviada);
       }
       return err;
     }
 
     console.error('[api] error no reconocido:', err);
-    return new NetworkError('No se pudo conectar con el servidor. Intenta de nuevo.');
+    return new NetworkError('No se pudo conectar con el servidor. Intenta de nuevo.', true, solicitudEnviada);
   }
 }

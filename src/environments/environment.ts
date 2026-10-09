@@ -8,6 +8,9 @@ export const environment = {
   authEndpoint: 'auth/login_dev.php',
   preparacionEndpoint: 'sincronizaciones/preparacion_dev.php',
   tagFinalizadoEndpoint: 'sincronizaciones/tag-finalizado_dev.php',
+  // Consulta de solo lectura: ¿el servidor ya recibió este envío? Ver
+  // EstadoCargasApiRepository.
+  estadoCargasEndpoint: 'sincronizaciones/estado-cargas_dev.php',
   /*
    * Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
    * de api/ para heredar CORS. Ver server/README.md.

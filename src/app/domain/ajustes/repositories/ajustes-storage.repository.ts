@@ -8,8 +8,12 @@ import { ModoCaptura } from '../../conteo/models/modo-captura.model';
  * su propio valor por defecto en vez de que lo imponga el almacenamiento.
  */
 export interface AjustesStorageRepository {
-  cargarSincronizacionAutomatica(): Promise<boolean | null>;
-  guardarSincronizacionAutomatica(activa: boolean): Promise<void>;
+  /*
+   * Borra el ajuste "sincronización automática" que versiones anteriores dejaron
+   * guardado. Ya no existe: finalizar un TAG siempre intenta enviarlo, y una PDA
+   * que lo había dejado apagado no tiene que seguir sin enviar.
+   */
+  eliminarSincronizacionAutomatica(): Promise<void>;
 
   /*
    * Con qué modo cae cada TAG nuevo, hasta que el operador lo cambie. Vive acá

@@ -42,7 +42,7 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
     const existingId = this.primerId(reutilizable);
     if (existingId !== undefined) {
       if (isDevMode()) console.log('[UbicacionRepo] retoma sod_ubicacion abierta', { id: existingId, zonaId, codigo: codigoNormalizado, tag: tagNormalizado });
-      return { ubicacionId: existingId, ubicacionSincronizadaId: null };
+      return { ubicacionId: existingId, ubicacionSincronizadaId: null, referenciaBloqueada: null };
     }
 
     /*
@@ -60,7 +60,18 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
     const finalizadaId = await this.buscarPorEstado(
       zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId, 'FINALIZADO'
     );
-    if (finalizadaId !== undefined) {
+    /*
+     * ...salvo que el servidor ya lo tenga o pueda tenerlo: un envío recibido, o
+     * uno cuya respuesta se perdió. Reabrirlo permitiría cambiar algo que el
+     * servidor ya guardó, y el reenvío chocaría con el mismo identificador. En
+     * ese caso se trata igual que a uno SINCRONIZADO: no se toca, se crea uno
+     * nuevo y se deja el viejo como referencia de solo lectura.
+     */
+    const bloqueo = finalizadaId === undefined
+      ? null
+      : await this.envioBloqueante(conteoId, finalizadaId);
+
+    if (finalizadaId !== undefined && bloqueo === null) {
       await db.run(
         `UPDATE sod_conteo_detalle
          SET estado = 'EN_CURSO'
@@ -69,7 +80,7 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
         [conteoId, finalizadaId, operadorId, pdaId]
       );
       if (isDevMode()) console.log('[UbicacionRepo] reabre sod_ubicacion finalizada', { id: finalizadaId, zonaId, codigo: codigoNormalizado, tag: tagNormalizado });
-      return { ubicacionId: finalizadaId, ubicacionSincronizadaId: null };
+      return { ubicacionId: finalizadaId, ubicacionSincronizadaId: null, referenciaBloqueada: null };
     }
 
     /*
@@ -83,9 +94,11 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
      * (caso raro), se toma la más reciente — es la que probablemente le
      * importa al operador.
      */
-    const ubicacionSincronizadaId = await this.buscarPorEstado(
+    const sincronizadaId = await this.buscarPorEstado(
       zonaId, codigoNormalizado, tagNormalizado, conteoId, operadorId, pdaId, 'SINCRONIZADO'
-    ) ?? null;
+    );
+    const ubicacionSincronizadaId = (bloqueo !== null ? finalizadaId : sincronizadaId) ?? null;
+    const referenciaBloqueada = bloqueo ?? (sincronizadaId !== undefined ? 'ENVIADO' as const : null);
 
     await db.run(
       `INSERT INTO sod_ubicacion (zona_id, codigo, tag) VALUES (?, ?, ?)`,
@@ -101,7 +114,28 @@ export class SqliteUbicacionRepository implements UbicacionRepository {
       const snapshot = await db.query(`SELECT * FROM sod_ubicacion ORDER BY id DESC LIMIT 10`);
       console.table(snapshot.values ?? []);
     }
-    return { ubicacionId: id, ubicacionSincronizadaId };
+    return { ubicacionId: id, ubicacionSincronizadaId, referenciaBloqueada };
+  }
+
+  /*
+   * ¿El servidor tiene o pudo haber recibido el envío de este TAG? Mismo criterio
+   * que SincronizacionRepository.estadoEnvioTag (ENVIADO → lo tiene, PENDIENTE
+   * → en duda, ERROR → no llegó, que NO bloquea). Se consulta acá con SQL y no
+   * por ese repositorio porque este vive en otra capa y comparten la misma base.
+   */
+  private async envioBloqueante(conteoId: number, ubicacionId: number): Promise<'ENVIADO' | 'EN_DUDA' | null> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const resultado = await db.query(
+      `SELECT estado
+       FROM sod_sincronizacion
+       WHERE operacion = 'TAG_FINALIZADO' AND conteo_id = ? AND ubicacion_id = ?
+         AND estado IN ('ENVIADO', 'PENDIENTE')
+       ORDER BY CASE estado WHEN 'ENVIADO' THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [conteoId, ubicacionId]
+    );
+    const estado = (resultado.values?.[0] as Record<string, unknown> | undefined)?.['estado'];
+    return estado === 'ENVIADO' ? 'ENVIADO' : estado === 'PENDIENTE' ? 'EN_DUDA' : null;
   }
 
   /*
