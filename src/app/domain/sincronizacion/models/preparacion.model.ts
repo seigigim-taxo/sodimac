@@ -140,7 +140,7 @@ export function idJornada(jornada: JornadaPreparada): string {
  * `jornadas` reemplaza a `muestra` + `evento`.
  *
  * Puede venir vacío y eso NO es un error: significa que el operador no tiene
- * trabajo asignado ni para hoy ni para mañana. Antes esa situación llegaba como
+ * trabajo asignado ni para hoy ni para la próxima jornada. Antes esa situación llegaba como
  * un 401 confundido con "credenciales inválidas".
  */
 export interface DatosPreparacion {

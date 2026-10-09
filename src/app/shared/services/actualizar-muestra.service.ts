@@ -9,7 +9,7 @@ import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { ConteoFacade } from '../../state/conteo/conteo.facade';
 import { pararseEnAsignacion, pararseEnSucursal } from '../../state/asignacion/pararse-en-asignacion.util';
 import { TiendaVigente } from '../../application/sucursal/actualizar-tienda-operador.use-case';
-import { hoySql, manianaSql } from '../utils/fecha.utils';
+import { etiquetaDia } from '../utils/fecha.utils';
 
 /*
  * "Actualizar muestra" desde el menú lateral: volver a preguntarle al SGO por
@@ -144,12 +144,12 @@ export class ActualizarMuestraService {
           return;
 
         /*
-         * Sin evento elegido: hoy y mañana se evaluaron por separado y cada
-         * una trae su propio resultado — no hay una sola asignación que
-         * "ganó", así que el aviso lista las dos.
+         * Sin evento elegido: hoy y la próxima jornada se evaluaron por
+         * separado y cada una trae su propio resultado — no hay una sola
+         * asignación que "ganó", así que el aviso lista las dos.
          *
          * Si CUALQUIERA de las dos tuvo novedad, la pantalla se para en esa
-         * asignación (hoy antes que mañana, mismo criterio que el resto de la
+         * asignación (hoy antes que la próxima, mismo criterio que el resto de la
          * app) para que Home quede mostrando la tienda y los eventos
          * correctos. Si las dos están sin novedad, no se navega a ningún lado.
          */
@@ -206,26 +206,21 @@ export class ActualizarMuestraService {
 
   /*
    * Arma el mensaje del caso VENTANA: una línea por jornada, "Hoy"/"Mañana"
+   * o el día de la semana ("Lun 12/10") cuando la próxima no es contigua,
    * antes de la fecha por el mismo motivo que la tarjeta de Home —comparar dos
    * fechas casi idénticas en la pantalla chica de una PDA es donde se lee mal.
-   * Fuera de esa ventana (no debería pasar, pero por las dudas) se muestra la
-   * fecha cruda en vez de inventar una etiqueta.
+   * Un día fuera de la ventana se nombra por su fecha (etiquetaDia no inventa
+   * "Ayer" ni "Pasado mañana").
    */
   private describirVentana(resultados: ResultadoJornada[]): string {
     if (resultados.length === 0) {
-      return 'No hay jornadas asignadas para hoy ni para mañana.';
+      return 'No hay jornadas asignadas para hoy ni para los próximos días.';
     }
-
-    const etiqueta = (fecha: string): string => {
-      if (fecha === hoySql()) return 'Hoy';
-      if (fecha === manianaSql()) return 'Mañana';
-      return fecha;
-    };
 
     const linea = ({ fecha, resultado }: ResultadoJornada): string =>
       resultado.tipo === 'NUEVO'
-        ? `${etiqueta(fecha)}: jornada nueva — ${resultado.asignacion.nombre}.`
-        : `${etiqueta(fecha)}: sin cambios.`;
+        ? `${etiquetaDia(fecha)}: jornada nueva — ${resultado.asignacion.nombre}.`
+        : `${etiquetaDia(fecha)}: sin cambios.`;
 
     return resultados.map(linea).join(' ');
   }

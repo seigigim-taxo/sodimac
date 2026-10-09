@@ -133,7 +133,7 @@ export class LoginPage implements OnInit {
 
   /*
    * Sin evento elegido (recién entrando, nada seleccionado todavía):
-   * ActualizarMuestraUseCase evalúa la ventana completa (hoy y mañana) y
+   * ActualizarMuestraUseCase evalúa la ventana completa (hoy y la próxima) y
    * devuelve VENTANA con un resultado por jornada. Si alguna es NUEVO, ya
    * quedó persistida — solo falta pararse ahí, igual que hace el menú.
    */

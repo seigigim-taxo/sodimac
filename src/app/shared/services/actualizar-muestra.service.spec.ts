@@ -12,6 +12,7 @@ import { ConteoFacade } from '../../state/conteo/conteo.facade';
 import { Session } from '../../domain/auth/models/session.model';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { AsignacionConteo } from '../../domain/asignacion/models/asignacion-conteo.model';
+import { etiquetaDia, hoySql, sumarDias } from '../utils/fecha.utils';
 
 /*
  * Lo que se prueba acá es QUÉ HACE la app con cada resultado posible de
@@ -465,6 +466,84 @@ describe('ActualizarMuestraService', () => {
       expect(router.navigate).toHaveBeenCalledWith(['/home']);
       const [args] = alertCreate.calls.mostRecent().args;
       expect(args.header).toBe('Tienda actualizada');
+    });
+  });
+
+  /*
+   * El aviso nombra cada jornada igual que la tarjeta de Inicio (etiquetaDia). Si
+   * una misma fecha se llamara distinto en cada lugar, el operador tendría que
+   * reconocerla dos veces. Las fechas van calculadas desde el día real, no fijas.
+   */
+  describe('cómo nombra las jornadas el aviso de la ventana', () => {
+    const HOY = hoySql();
+    const MANIANA = sumarDias(HOY, 1);
+    const PROXIMA = sumarDias(HOY, 3); // la próxima jornada de un viernes: el lunes
+    const NOMBRE_CORTO = /(Lun|Mar|Mié|Jue|Vie|Sáb|Dom) \d{2}\/\d{2}: jornada nueva/;
+
+    const sinNovedad = (fecha: string): ResultadoJornada => ({ fecha, resultado: { tipo: 'SIN_NOVEDAD' } });
+    const nueva = (fecha: string): ResultadoJornada => ({
+      fecha,
+      resultado: { tipo: 'NUEVO', asignacion: { ...asignacion, fechaProgramada: fecha } },
+    });
+
+    const mensaje = (): string => alertCreate.calls.mostRecent().args[0].message as string;
+
+    beforeEach(() => {
+      sucursalFacade.stores.and.returnValue([{ id: 5, codigoTienda: '4724', nombre: 'HC BIOBIO' } as never]);
+    });
+
+    it('hoy se llama "Hoy"', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [sinNovedad(HOY)], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      expect(mensaje()).toContain('Hoy: sin cambios.');
+    });
+
+    it('mañana se sigue llamando "Mañana"', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [sinNovedad(HOY), sinNovedad(MANIANA)], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      expect(mensaje()).toContain('Hoy: sin cambios.');
+      expect(mensaje()).toContain('Mañana: sin cambios.');
+    });
+
+    it('una próxima que no es mañana lleva el día de la semana y la fecha corta', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [sinNovedad(HOY), nueva(PROXIMA)], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      expect(mensaje()).toMatch(NOMBRE_CORTO);
+      expect(mensaje()).toContain(`${etiquetaDia(PROXIMA)}: jornada nueva — AMPOLLETAS AUTO.`);
+      expect(mensaje()).not.toContain('Mañana: jornada nueva');
+    });
+
+    it('no deja la fecha cruda en el texto', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [sinNovedad(HOY), nueva(PROXIMA)], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      expect(mensaje()).not.toContain(PROXIMA);
+    });
+
+    it('el nombre de la próxima es el mismo que le pone la tarjeta de Inicio', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [nueva(PROXIMA)], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      // La tarjeta usa etiquetaDia(evento.fechaProgramada): mismo nombre, mismo formato.
+      expect(mensaje().startsWith(etiquetaDia(PROXIMA))).toBeTrue();
+    });
+
+    it('sin ninguna jornada, el mensaje habla de hoy y de los próximos días', async () => {
+      ejecutar.and.resolveTo({ estado: 'VENTANA', resultados: [], tiendaVigente: null });
+
+      await servicio.actualizar();
+
+      const [args] = alertCreate.calls.mostRecent().args;
+      expect(args.header).toBe('Ya tienes la maestra vigente');
+      expect(args.message).toBe('No hay jornadas asignadas para hoy ni para los próximos días.');
     });
   });
 

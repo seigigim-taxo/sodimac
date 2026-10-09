@@ -14,7 +14,7 @@ import { ActualizarTiendaOperadorUseCase, TiendaVigente } from '../sucursal/actu
  * CÓMO SE AVERIGUA
  *
  * Se llama al MISMO endpoint de preparación que se usa al iniciar sesión y se
- * recorren las jornadas que devuelve —hoy y mañana— mirando si el código de
+ * recorren las jornadas que devuelve —hoy y la próxima— mirando si el código de
  * muestra de cada una ya está en la base. La primera que no esté es trabajo que
  * el SGO asignó y la PDA no tiene, y se insertan los datos; si están todas, lo
  * que hay en el servidor es lo mismo que la PDA ya tiene y no se escribe nada.
@@ -131,7 +131,7 @@ export class BuscarNuevoConteoUseCase {
            * Ya la tenemos: el SGO todavía no programó nada nuevo PARA ESTA
            * jornada. Si es la de hoy, se guarda el evento coincidente por si
            * conviene reabrirlo; de cualquier forma se sigue buscando en las
-           * jornadas siguientes (mañana podría ser nueva).
+           * jornadas siguientes (la próxima podría ser nueva).
            */
           if (jornada === datos.jornadas[0]) eventoCoincidenteHoy = existente;
           continue;
@@ -141,7 +141,7 @@ export class BuscarNuevoConteoUseCase {
       /*
        * Hay jornada nueva. Se persisten TODAS las jornadas de la respuesta —no
        * solo esta— con el mismo camino que la sincronización de inicio de
-       * sesión: si además de la de hoy vino la de mañana, queda bajada y el
+       * sesión: si además de la de hoy vino la próxima, queda bajada y el
        * operador puede cruzar la medianoche sin señal.
        */
       await this.sincronizar.persistir(session, datos);
