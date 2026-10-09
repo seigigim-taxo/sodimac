@@ -81,7 +81,7 @@ export class VigenciaDiaService {
    * Antes había una sola: cerrar la sesión. Valía porque la app bajaba un solo
    * día, así que preparación de ayer significaba que no quedaba nada válido.
    *
-   * Con la ventana de dos días eso dejó de ser cierto. El operador que preparó
+   * Con la ventana de dos jornadas eso dejó de ser cierto. El operador que preparó
    * ayer también se bajó la jornada de hoy, y mandarlo al login lo obligaría a
    * sincronizar para volver a entrar — o sea a tener señal, que es justo lo que
    * la ventana venía a evitar. Se quedaría afuera con el trabajo del día ya

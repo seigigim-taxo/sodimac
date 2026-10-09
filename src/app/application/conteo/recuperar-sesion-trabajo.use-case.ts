@@ -66,7 +66,7 @@ export class RecuperarSesionTrabajoUseCase {
      * fuentes de arriba sobreviven al cambio de día, así que el corte va acá,
      * donde ya están resueltas.
      *
-     * La ventana incluye mañana: el operador que quedó a mitad de la jornada
+     * La ventana incluye la próxima jornada: el operador que quedó a mitad de la jornada
      * adelantada tiene que poder retomarla al volver a abrir la app. Lo que el
      * corte sigue descartando es lo de ayer, que es lo que causaba el bug.
      */

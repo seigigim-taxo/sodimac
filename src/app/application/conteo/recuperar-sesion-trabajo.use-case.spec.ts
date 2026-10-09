@@ -7,7 +7,7 @@ import { ZONA_REPOSITORY_TOKEN, ZonaRepository } from '../../domain/zona/reposit
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Zona } from '../../domain/zona/models/zona.model';
 import { SesionTrabajoEnCurso } from '../../domain/conteo/models/sesion-trabajo.model';
-import { hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { HORIZONTE_VENTANA_DIAS, hoySql, manianaSql, sumarDias } from '../../shared/utils/fecha.utils';
 
 /*
  * Las fechas van calculadas y no fijas: la restauración depende de la ventana
@@ -25,15 +25,16 @@ const ayer = () => {
   return hoySql(f);
 };
 
-const pasadoManiana = () => {
-  const f = new Date();
-  f.setDate(f.getDate() + 2);
-  return hoySql(f);
-};
+// Un día más allá del horizonte de la ventana: ya no es "la próxima jornada".
+const masAllaDelHorizonte = () => sumarDias(hoySql(), HORIZONTE_VENTANA_DIAS + 1);
+
+// La próxima jornada de un viernes es el lunes: 3 días adelante, no mañana.
+const proximaDeViernes = () => sumarDias(hoySql(), 3);
 
 const EVENTO_DE_AYER: Evento = { ...EVENTO, fechaProgramada: ayer() };
 const EVENTO_DE_MANIANA: Evento = { ...EVENTO, id: 6, fechaProgramada: manianaSql() };
-const EVENTO_PASADO_MANIANA: Evento = { ...EVENTO, id: 7, fechaProgramada: pasadoManiana() };
+const EVENTO_LEJANO: Evento = { ...EVENTO, id: 7, fechaProgramada: masAllaDelHorizonte() };
+const EVENTO_PROXIMA_NO_CONTIGUA: Evento = { ...EVENTO, id: 8, fechaProgramada: proximaDeViernes() };
 
 const ZONA: Zona = {
   id: 3, sucursalId: 1, nombre: 'SALA_VENTAS',
@@ -199,14 +200,27 @@ describe('RecuperarSesionTrabajoUseCase', () => {
   });
 
   /*
-   * Pasado mañana queda afuera. Marca el borde superior de la ventana: sin
-   * esto, "no es de ayer" habría alcanzado y cualquier fecha futura entraría.
+   * La próxima jornada no siempre es mañana: un viernes es el lunes, y con
+   * feriados en medio puede estar más lejos. Se restaura igual.
    */
-  it('un evento de pasado mañana no se restaura', async () => {
+  it('la próxima jornada de un viernes (el lunes) se restaura', async () => {
+    storage.obtener.and.resolveTo(EVENTO_PROXIMA_NO_CONTIGUA.id);
+    eventoRepo.getById.and.resolveTo(EVENTO_PROXIMA_NO_CONTIGUA);
+
+    const r = await useCase.execute(7, 1);
+
+    expect(r?.evento.fechaProgramada).toBe(proximaDeViernes());
+  });
+
+  /*
+   * Más allá del horizonte queda afuera. Marca el borde superior de la ventana:
+   * sin esto, "no es de ayer" habría alcanzado y cualquier fecha futura entraría.
+   */
+  it('un evento más allá del horizonte no se restaura', async () => {
     // El id tiene que venir de algún lado, si no el null saldría de no haber
     // evento y el test pasaría sin probar la ventana.
-    storage.obtener.and.resolveTo(EVENTO_PASADO_MANIANA.id);
-    eventoRepo.getById.and.resolveTo(EVENTO_PASADO_MANIANA);
+    storage.obtener.and.resolveTo(EVENTO_LEJANO.id);
+    eventoRepo.getById.and.resolveTo(EVENTO_LEJANO);
 
     expect(await useCase.execute(7, 1)).toBeNull();
   });

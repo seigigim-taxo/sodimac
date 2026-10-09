@@ -3,12 +3,12 @@ import { SqliteSincronizacionRepository } from './sincronizacion.repository';
 import { SqliteConnectionService } from '../../core/database/sqlite-connection.service';
 import { SODIMAC_SCHEMA_SQL } from '../../core/database/sodimac.schema';
 import { ConexionFalsa, crearConexionEnMemoria } from '../../../testing/sqlite-en-memoria';
-import { hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { HORIZONTE_VENTANA_DIAS, hoySql, manianaSql, sumarDias } from '../../shared/utils/fecha.utils';
 
 /*
  * La regla que se prueba acá es de negocio, no técnica: un conteo vale para la
  * jornada a la que pertenece, y si no alcanzó a subir mientras esa jornada
- * estaba vigente —hoy o mañana— se da por perdido.
+ * estaba vigente —hoy o la próxima jornada— se da por perdido.
  *
  * Es fácil de deshacer sin querer —basta con "arreglar" la consulta para que
  * devuelva todos los pendientes— y el efecto sería mandarle al SGO conteos con
@@ -86,6 +86,29 @@ describe('SqliteSincronizacionRepository', () => {
       const pendientes = await repo.listarPendientes();
 
       expect(pendientes.map((p) => p.cargaUid).sort()).toEqual(['UID-HOY', 'UID-MANIANA']);
+    });
+
+    /*
+     * La próxima jornada no es siempre mañana: un viernes es el lunes, y con
+     * feriados en medio puede estar varios días adelante. Un TAG cerrado contra
+     * ella tiene que poder enviarse, o se pierde en silencio.
+     */
+    it('ofrece el de una próxima jornada que no es mañana (viernes → lunes)', async () => {
+      await pendienteDeEvento(2, sumarDias(hoySql(), 3), 'UID-LUNES');
+
+      expect((await repo.listarPendientes()).map((p) => p.cargaUid)).toEqual(['UID-LUNES']);
+    });
+
+    it('ofrece el del último día del horizonte', async () => {
+      await pendienteDeEvento(2, sumarDias(hoySql(), HORIZONTE_VENTANA_DIAS), 'UID-LIMITE');
+
+      expect((await repo.listarPendientes()).map((p) => p.cargaUid)).toEqual(['UID-LIMITE']);
+    });
+
+    it('NO ofrece uno más allá del horizonte', async () => {
+      await pendienteDeEvento(2, sumarDias(hoySql(), HORIZONTE_VENTANA_DIAS + 1), 'UID-LEJOS');
+
+      expect(await repo.listarPendientes()).toEqual([]);
     });
 
     /*

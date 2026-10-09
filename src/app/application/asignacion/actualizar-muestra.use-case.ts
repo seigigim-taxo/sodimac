@@ -25,7 +25,7 @@ export type ResultadoActualizarMuestra =
    */
   | { estado: 'ERROR_BUSQUEDA'; mensaje: string }
   /*
-   * SIN evento seleccionado: cada jornada de la ventana (hoy, mañana) se
+   * SIN evento seleccionado: cada jornada de la ventana (hoy y la próxima) se
    * evaluó por separado y trae su propio resultado — no hay uno solo que
    * "gane", porque no hay ninguna fecha en particular que el operador haya
    * elegido.
@@ -61,7 +61,7 @@ export type ResultadoActualizarMuestra =
  *
  * "Actualizar maestra" puede dispararse SIN ningún evento elegido —el
  * operador entra al menú desde Inicio sin haber tocado ninguna tarjeta— y ahí
- * hay hasta DOS jornadas en juego, hoy y mañana, cada una con su propio
+ * hay hasta DOS jornadas en juego, hoy y la próxima, cada una con su propio
  * estado en el SGO. Preguntar "¿hay algo nuevo?" de forma genérica y quedarse
  * con la primera respuesta escondería la otra jornada: si hoy no cambió pero
  * mañana sí, el operador se enteraría recién al día siguiente.

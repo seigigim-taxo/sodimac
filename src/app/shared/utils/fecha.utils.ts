@@ -39,12 +39,57 @@ export function manianaSql(fecha: Date = new Date()): string {
   return hoySql(siguiente);
 }
 
+/*
+ * Cuántos días hacia adelante acepta la app una jornada como "la próxima".
+ *
+ * El backend (preparacion.php) busca la primera fecha con agenda dentro de 7
+ * días: un viernes es el lunes y, con feriados en medio, puede ser el jueves.
+ * La app acepta más (14) a propósito, para que subir ese tope allá no obligue a
+ * publicar otra APK. Si el backend llegara a superar este valor, la jornada
+ * llegaría a la PDA y no se ofrecería.
+ */
+export const HORIZONTE_VENTANA_DIAS = 14;
+
+/**
+ * `YYYY-MM-DD` de una fecha YA en ese formato, más `dias` (puede ser negativo).
+ * Cadena vacía si la fecha no se puede leer.
+ *
+ * Se calcula con setDate y no sumando 86.400.000 ms por día: en un cambio de
+ * horario un día dura 23 o 25 horas, y sumar milisegundos daría la fecha
+ * equivocada justo ese día. setDate deja que el calendario resuelva además el
+ * fin de mes y el año bisiesto.
+ */
+export function sumarDias(dia: string, dias: number): string {
+  const [anio, mes, num] = dia.split('-').map(Number);
+  if (!anio || !mes || !num) return '';
+
+  const resultado = new Date(anio, mes - 1, num);
+  resultado.setDate(resultado.getDate() + dias);
+  return hoySql(resultado);
+}
+
+/**
+ * El rango de fechas con el que trabaja el operador: desde HOY hasta hoy más
+ * HORIZONTE_VENTANA_DIAS. Lo usan las consultas SQL; el resto de la app
+ * pregunta por una fecha con enVentanaOperativa().
+ *
+ * Con un `hoy` que no se puede leer la ventana queda vacía, no abierta: sin
+ * límite superior, cualquier fecha entraría por comparación de textos.
+ */
+export function ventanaOperativa(hoy: string = hoySql()): { desde: string; hasta: string } {
+  const hasta = sumarDias(hoy, HORIZONTE_VENTANA_DIAS);
+  return hasta === '' ? { desde: '', hasta: '' } : { desde: hoy, hasta };
+}
+
 /**
  * ¿Esta fecha programada entra en la ventana con la que trabaja el operador?
  *
- * La ventana es HOY y MAÑANA: se pidió que el operador pueda adelantar la
- * jornada del día siguiente. Ayer queda afuera — al cambiar el día lo anterior
- * se da por cerrado, incluso lo que no alcanzó a sincronizarse.
+ * La ventana es HOY y la PRÓXIMA jornada. La próxima ya no es "mañana" a secas:
+ * un viernes es el lunes, y con feriados en medio puede estar varios días
+ * adelante. Por eso se acepta cualquier fecha desde hoy hasta
+ * HORIZONTE_VENTANA_DIAS más adelante; cuántas se muestran en pantalla es otra
+ * decisión, de Home. Ayer queda afuera — al cambiar el día lo anterior se da por
+ * cerrado, incluso lo que no alcanzó a sincronizarse.
  *
  * Vive en UNA función y no repetida en cada pantalla a propósito. Escrita
  * cuatro veces como `=== hoySql()` —Home, el historial, la restauración de
@@ -56,22 +101,62 @@ export function manianaSql(fecha: Date = new Date()): string {
  */
 export function enVentanaOperativa(fechaProgramada: string, hoy: string = hoySql()): boolean {
   const dia = (fechaProgramada ?? '').slice(0, 10);
-  if (dia === '') return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return false;
 
-  return dia === hoy || dia === siguienteDia(hoy);
+  const { desde, hasta } = ventanaOperativa(hoy);
+  if (desde === '') return false;
+
+  return dia >= desde && dia <= hasta;
 }
 
-/*
- * El día siguiente a una fecha YA en formato `YYYY-MM-DD`.
+/**
+ * De los días (`YYYY-MM-DD`) de las jornadas que caben en la ventana, cuáles se
+ * ofrecen en pantalla: HOY, si hay, y la PRÓXIMA —la primera fecha posterior—.
  *
- * Se deriva del `hoy` recibido y no del reloj: así quien pasa un `hoy`
- * explícito —los tests, o una pantalla que ya lo calculó— obtiene una ventana
- * coherente con ESE día y no con la fecha real de la máquina.
+ * La ventana (enVentanaOperativa) es ancha a propósito, para no perder trabajo
+ * si el backend sube su tope. Mostrar todo lo que cabe en ella no sirve: con una
+ * jornada vieja que quedó guardada, el operador vería una tarjeta de una fecha
+ * lejana y podría elegirla por error. Hoy y la próxima son las dos que existen
+ * de verdad para él.
+ *
+ * Sin jornada hoy, se ofrece solo la próxima. Devuelve los días ordenados y sin
+ * repetir.
  */
-function siguienteDia(dia: string): string {
+export function diasOfrecidos(dias: string[], hoy: string = hoySql()): string[] {
+  const unicos = [...new Set(dias.map((d) => (d ?? '').slice(0, 10)))].filter((d) => d !== '').sort();
+  const deHoy = unicos.filter((d) => d === hoy);
+  const proxima = unicos.find((d) => d > hoy);
+  return proxima ? [...deHoy, proxima] : deHoy;
+}
+
+/* Indexado por Date.getDay(): 0 = domingo. Escritos acá y no con Intl: el
+ * WebView de la PDA puede no traer el locale. */
+const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+/**
+ * Cómo se nombra una jornada en pantalla: "Hoy", "Mañana" o, para cualquier
+ * otro día, el día de la semana con su fecha corta (`Lun 12/10`).
+ *
+ * "Hoy" y "Mañana" bastan mientras la jornada sea contigua; un lunes visto
+ * desde el viernes necesita el día de la semana, o el operador tiene que
+ * calcular qué fecha es en la pantalla chica de una PDA, muchas veces con
+ * guantes y apurado. Un día pasado no recibe "Ayer": se nombra por su fecha,
+ * que es un hecho y no una etiqueta que le dé aire de normalidad.
+ *
+ * Una fecha que no se puede leer se devuelve tal cual.
+ */
+export function etiquetaDia(fechaProgramada: string, hoy: string = hoySql()): string {
+  const dia = (fechaProgramada ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return fechaProgramada ?? '';
+
   const [anio, mes, num] = dia.split('-').map(Number);
-  if (!anio || !mes || !num) return '';
-  return manianaSql(new Date(anio, mes - 1, num));
+  if (!anio || !mes || !num) return fechaProgramada;
+
+  if (dia === hoy) return 'Hoy';
+  if (dia === sumarDias(hoy, 1)) return 'Mañana';
+
+  const nombre = DIAS_SEMANA[new Date(anio, mes - 1, num).getDay()];
+  return `${nombre} ${pad(num)}/${pad(mes)}`;
 }
 
 /** `YYYY-MM-DD HH:MM:SS` local. Reemplaza a `CURRENT_TIMESTAMP` de SQLite. */

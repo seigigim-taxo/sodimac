@@ -3,7 +3,7 @@ import { SqliteConnectionService } from '../../core/database/sqlite-connection.s
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { SincronizacionRepository } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { GuardarSyncTagInput, GuardarSyncValidacionInput, GuardarSyncVersionReportInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
-import { ahoraSql, hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { ahoraSql, ventanaOperativa } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteSincronizacionRepository implements SincronizacionRepository {
@@ -56,10 +56,11 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
    * después: llegar al SGO con fecha corrida ensucia el análisis de diferencias
    * más de lo que aporta recuperar el dato.
    *
-   * Mañana entra en el corte porque el operador puede adelantar esa jornada.
-   * Cuando el filtro era solo el día en curso, un TAG cerrado contra el evento
-   * de mañana no aparecía nunca acá: se cerraba bien, quedaba PENDIENTE y no se
-   * ofrecía para envío jamás. Se perdía en silencio.
+   * La próxima jornada entra en el corte porque el operador puede adelantarla
+   * (un viernes, la del lunes). Cuando el filtro era solo el día en curso, un
+   * TAG cerrado contra el evento de esa jornada no aparecía nunca acá: se
+   * cerraba bien, quedaba PENDIENTE y no se ofrecía para envío jamás. Se
+   * perdía en silencio. El corte es el mismo de enVentanaOperativa().
    *
    * Las filas no se borran ni se marcan — quedan en la tabla como registro de
    * lo que no llegó. Simplemente dejan de ofrecerse para envío.
@@ -69,18 +70,19 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
    */
   async listarPendientes(): Promise<SincronizacionSync[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const { desde, hasta } = ventanaOperativa();
     const result = await db.query(
       `SELECT s.* FROM sod_sincronizacion s
        LEFT JOIN sod_evento_inventario e ON e.id = s.evento_id
        WHERE s.estado IN ('PENDIENTE', 'ERROR')
          AND s.tipo = 'CARGA_DESDE_PDA'
          AND (
-           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) IN (?, ?))
+           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) BETWEEN ? AND ?)
            OR s.operacion = 'VALIDACION_OPERACIONAL'
            OR s.operacion = 'VERSION_REPORTE'
          )
        ORDER BY s.fecha_hora ASC`,
-      [hoySql(), manianaSql()]
+      [desde, hasta]
     );
     return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
   }

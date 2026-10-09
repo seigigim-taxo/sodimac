@@ -45,7 +45,7 @@ export interface ResultadoEvaluarJornadas {
  * base, es SIN_NOVEDAD y punto.
  *
  * Persiste la respuesta COMPLETA si CUALQUIER jornada resultó nueva: así, si
- * hoy no tenía nada pero mañana sí, mañana queda descargada aunque el
+ * hoy no tenía nada pero la próxima sí, queda descargada aunque el
  * resultado de hoy sea SIN_NOVEDAD.
  */
 @Injectable({ providedIn: 'root' })
