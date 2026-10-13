@@ -306,7 +306,7 @@ describe('EnviarPendientesUseCase', () => {
 
     it('se manda al servicio de versiones, no como un TAG', async () => {
       repo.listarPendientes.and.resolveTo([version()]);
-      api.post.and.resolveTo({ data: { id: 55 } } as never);
+      api.post.and.resolveTo({ id: 55 } as never);
 
       const r = await useCase.execute();
 

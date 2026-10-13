@@ -12,7 +12,8 @@ export class AuthService implements AuthApiRepository {
 
   async login(request: LoginRequest): Promise<LoginResponse> {
     const endpoint = environment.authEndpoint ?? 'auth/login.php';
-    const data = await this.api.post<ApiLoginData>(endpoint, request);
+    // sinReporte: credencial inválida es error del usuario, no del sistema.
+    const data = await this.api.post<ApiLoginData>(endpoint, request, { sinReporte: true });
     return {
       user: {
         rut: data.user.rut,

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from './auth.service';
+import { AutoReportService } from '../../core/error-report/auto-report.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -11,13 +12,19 @@ describe('AuthService', () => {
     fetchMock = jasmine.createSpy('fetch').and.returnValue(
       Promise.resolve({
         ok: true,
+        status: 200,
         text: () => Promise.resolve('{}'),
       } as Response)
     );
     window.fetch = fetchMock;
 
     TestBed.configureTestingModule({
-      providers: [AuthService],
+      providers: [
+        AuthService,
+        // ApiService depende de AutoReportService; fuera de la app real sus
+        // dependencias (SQLite, facades) no existen en el test.
+        { provide: AutoReportService, useValue: { reportar: () => Promise.resolve() } },
+      ],
     });
 
     service = TestBed.inject(AuthService);
@@ -44,6 +51,7 @@ describe('AuthService', () => {
     fetchMock.and.returnValue(
       Promise.resolve({
         ok: true,
+        status: 200,
         text: () => Promise.resolve(JSON.stringify(mockResponse)),
       } as Response)
     );
@@ -73,6 +81,7 @@ describe('AuthService', () => {
     fetchMock.and.returnValue(
       Promise.resolve({
         ok: true,
+        status: 200,
         text: () => Promise.resolve(JSON.stringify(mockResponse)),
       } as Response)
     );

@@ -236,8 +236,15 @@ export class EnviarPendientesUseCase {
 
     try {
       const payload: VersionReportPayload = JSON.parse(item.payloadJson as string);
-      const response = await this.api.post<VersionReportResponse>('sincronizaciones/reporte-version.php', payload);
-      await this.sincronizacionRepo.marcarEnviado(cargaUid, response.data.id);
+      /*
+       * api.post<T> ya devuelve el contenido de `data`, no el envoltorio
+       * {status,msg,data}. Tipar con VersionReportResponse (el envoltorio)
+       * hacía que response.data fuera undefined y marcarEnviado tirara
+       * "Cannot read properties of undefined (reading 'id')" — el server
+       * respondía 200 y la app lo contaba igual como error.
+       */
+      const response = await this.api.post<VersionReportResponse['data']>('sincronizaciones/reporte-version.php', payload);
+      await this.sincronizacionRepo.marcarEnviado(cargaUid, response.id);
       return { salio: true, conflicto: false, porRed: false };
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : 'Error al enviar';
