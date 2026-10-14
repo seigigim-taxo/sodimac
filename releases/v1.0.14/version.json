@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "data": {
+    "version_code": 19,
+    "version_name": "1.0.14",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.14-vc19-lineage.apk",
+    "sha256": "4c514a752b72556dd005e82777f752dfeffa38fe1d23140704e6daea288e8697",
+    "obligatoria": false,
+    "notas": "Mejora el rendimiento con muestras grandes: el resumen de avance se calcula al instante y la pantalla de conteo abre en unos 2 segundos en vez de 5, sin dejar el escáner bloqueado. Agrega un indicador de carga al preparar y abrir el conteo. Firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido."
+  }
+}
