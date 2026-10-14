@@ -1,11 +1,11 @@
 {
   "status": "OK",
   "data": {
-    "version_code": 18,
-    "version_name": "1.0.13",
-    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.13-vc18-lineage.apk",
-    "sha256": "33cd99a7f175cffe37ed90cace628b0464597b7888247a09961691a21689099d",
+    "version_code": 20,
+    "version_name": "1.0.15",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.15-vc20-lineage.apk",
+    "sha256": "1f3f6d0c19e46cbb289d53b2eee6b868a550f1c263864794397bdaa993b6f39d",
     "obligatoria": false,
-    "notas": "Manifiesto de PRUEBA. Solo lo leen las builds de desarrollo. Misma APK que version.json: fix de tienda del operador independiente de la jornada, reporte de detección/instalación de versión. Firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido."
+    "notas": "Manifiesto de PRUEBA. Solo lo leen las builds de desarrollo. Misma APK que version.json (1.0.15 vc20)."
   }
 }

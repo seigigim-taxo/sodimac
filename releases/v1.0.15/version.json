@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "data": {
+    "version_code": 20,
+    "version_name": "1.0.15",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.15-vc20-lineage.apk",
+    "sha256": "1f3f6d0c19e46cbb289d53b2eee6b868a550f1c263864794397bdaa993b6f39d",
+    "obligatoria": false,
+    "notas": "Ventana de dos días hábiles y día en el historial; la PDA se entera de un TAG que el servidor guardó aunque la respuesta se pierda; reintento automático desde Inicio; reportes de error. Firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido."
+  }
+}
