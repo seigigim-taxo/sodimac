@@ -4,7 +4,7 @@ import { EVENTO_REPOSITORY_TOKEN, EventoRepository } from '../../domain/evento/r
 import { SUCURSAL_REPOSITORY_TOKEN, SucursalRepository } from '../../domain/sucursal/repositories/sucursal.repository';
 import { Evento } from '../../domain/evento/models/evento.model';
 import { Sucursal } from '../../domain/sucursal/models/sucursal.model';
-import { hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { HORIZONTE_VENTANA_DIAS, hoySql, manianaSql, sumarDias } from '../../shared/utils/fecha.utils';
 
 /*
  * De esto depende que al cambiar el día se cierre la sesión o no. Equivocarse
@@ -61,6 +61,19 @@ describe('HayTrabajoEnVentanaUseCase', () => {
     eventoRepo.getBySucursal.and.resolveTo([evento(manianaSql())]);
 
     expect(await useCase.execute(7)).toBeTrue();
+  });
+
+  // Un viernes la próxima jornada es el lunes: hay que seguir trabajando con ella.
+  it('hay trabajo con la próxima jornada de un viernes (el lunes)', async () => {
+    eventoRepo.getBySucursal.and.resolveTo([evento(sumarDias(hoySql(), 3))]);
+
+    expect(await useCase.execute(7)).toBeTrue();
+  });
+
+  it('no hay trabajo si lo único bajado está más allá del horizonte', async () => {
+    eventoRepo.getBySucursal.and.resolveTo([evento(sumarDias(hoySql(), HORIZONTE_VENTANA_DIAS + 1))]);
+
+    expect(await useCase.execute(7)).toBeFalse();
   });
 
   /*

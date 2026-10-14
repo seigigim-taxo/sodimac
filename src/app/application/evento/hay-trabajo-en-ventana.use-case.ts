@@ -10,7 +10,7 @@ import { enVentanaOperativa } from '../../shared/utils/fecha.utils';
  * significaba una sola cosa —datos viejos, se cierra la sesión— porque la app
  * bajaba un solo día y al cambiar la fecha no quedaba nada válido.
  *
- * Con la ventana de dos días eso dejó de ser cierto: el operador que preparó
+ * Con la ventana de dos jornadas eso dejó de ser cierto: el operador que preparó
  * ayer se bajó también la jornada de hoy. Cerrarle la sesión lo mandaría al
  * login, y volver a entrar exige sincronizar, o sea señal — que es justo lo que
  * la ventana venía a evitar. Se quedaría afuera con el trabajo del día en el

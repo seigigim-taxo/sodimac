@@ -288,12 +288,12 @@ function tiendaDeJornada(eventoRaw: Json, tiendas: TiendaPreparada[]): TiendaPre
 }
 
 /*
- * Las jornadas: hoy y mañana.
+ * Las jornadas: hoy y la próxima.
  *
  * Tres cosas que pasan acá y conviene tener a la vista:
  *
  * - Una jornada sin evento utilizable se descarta, pero las demás siguen. Que
- *   el día de mañana venga mal no es motivo para dejar al operador sin el de
+ *   la próxima jornada venga mal no es motivo para dejar al operador sin el de
  *   hoy.
  * - Se queda una sola por fecha. El backend ya lo garantiza; se repite acá
  *   porque `idJornada()` ES la fecha, y dos jornadas con el mismo día harían

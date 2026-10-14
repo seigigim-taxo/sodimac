@@ -1,10 +1,14 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { NetworkError } from '../../domain/shared/errors/network.error';
+import { ApiError } from '../../domain/shared/errors/api.error';
+import { AutoReportService } from '../error-report/auto-report.service';
 
 export interface ApiResponse<T> {
   status: 'OK' | 'ERROR';
   msg: string;
+  /* Identificador estable del error, cuando el servidor lo manda. */
+  codigo?: string;
   data?: T;
 }
 
@@ -19,6 +23,12 @@ const TIMEOUT_MS = 30_000;
 
 export interface ApiRequestOptions {
   timeoutMs?: number;
+  /**
+   * No generar reporte automático para esta llamada. Obligatorio en el propio
+   * endpoint de reportes (bucle: reporte fallido → nuevo reporte) y en login
+   * (credencial mala es error del usuario, no del sistema).
+   */
+  sinReporte?: boolean;
 }
 
 /*
@@ -66,6 +76,7 @@ function esTruncado(response: Response, texto: string): boolean {
 })
 export class ApiService {
   private readonly baseUrl = environment.apiUrl;
+  private readonly autoReport = inject(AutoReportService);
 
   async get<T>(path: string, params?: Record<string, string | number | boolean>, options?: ApiRequestOptions): Promise<T> {
     const url = new URL(`${this.baseUrl}/${path}`);
@@ -81,8 +92,7 @@ export class ApiService {
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
-      const data = await this.leerCuerpo(response) as ApiResponse<T>;
-      return this.unwrap<T>(data);
+      return await this.procesarRespuesta<T>(response, `GET ${path}`, options);
     } catch (err) {
       throw this.mapError(err);
     }
@@ -96,8 +106,7 @@ export class ApiService {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(options?.timeoutMs ?? TIMEOUT_MS),
       });
-      const data = await this.leerCuerpo(response) as ApiResponse<T>;
-      return this.unwrap<T>(data);
+      return await this.procesarRespuesta<T>(response, `POST ${path}`, options);
     } catch (err) {
       throw this.mapError(err);
     }
@@ -150,16 +159,108 @@ export class ApiService {
     }
   }
 
-  private unwrap<T>(data: ApiResponse<T>): T {
+  /*
+   * Todo request HTTP pasa por acá, así que es el lugar único para detectar
+   * respuestas que la app no esperaba: status ≠ 200, cuerpo que no es JSON,
+   * envelope status ERROR y data vacía. Cada caso deja un reporte automático
+   * (con dedupe) y sigue lanzando el mismo error que antes hacia el llamador —
+   * la pantalla del operador no cambia.
+   *
+   * Los fallos de RED (NetworkError/timeout) NO reportan: sin conexión es
+   * condición esperada en tienda y la app ya tiene login offline. La excepción
+   * es la descarga inicial, que reporta desde sync-loading.
+   */
+  private async procesarRespuesta<T>(response: Response, contexto: string, options?: ApiRequestOptions): Promise<T> {
+    let data: unknown;
+    try {
+      data = await this.leerCuerpo(response);
+    } catch (err) {
+      /*
+       * leerCuerpo solo tira NetworkError: truncado (conexión cortada) o no
+       * truncado (HTML de proxy, bug del backend). El mensaje específico que ya
+       * preparó se conserva tal cual. El reporte depende del caso: un cuerpo
+       * ilegible con status de error sí es contrato roto; con status 200, solo
+       * se reporta si NO es un corte de conectividad —sin conexión es
+       * condición esperada en tienda y no es falla del sistema.
+       */
+      if (!response.ok) {
+        this.reportar(contexto, `HTTP ${response.status} sin cuerpo JSON`, options);
+      } else if (err instanceof NetworkError && !err.esDeConectividad) {
+        this.reportar(contexto, 'La respuesta no es JSON válido', options);
+      }
+      throw err;
+    }
+
+    /*
+     * El reporte se hace acá —es el caso que la app no esperaba— pero el error
+     * que sube es ApiError y NO un Error plano: conserva status, `codigo` y
+     * `data` del cuerpo, y quien resuelve un envío los necesita para saber si
+     * el servidor guardó algo (409 = ya lo tiene, 400 = no guardó nada).
+     *
+     * Se lee el cuerpo ANTES de mirar el código HTTP: errorResponse() del
+     * backend manda status de negocio (401, 405, 409, 500) con
+     * {status:'ERROR', msg} y el mensaje real sigue siendo el del backend.
+     */
+    if (!response.ok) {
+      const env = data as ApiResponse<unknown> | null;
+      const msg = env?.msg;
+      this.reportar(contexto, `HTTP ${response.status}${msg ? `: ${msg}` : ''}`, options);
+      throw new ApiError(
+        msg || `El servidor respondió con error (${response.status}). Intenta de nuevo.`,
+        response.status,
+        env?.codigo ?? null,
+        env?.data ?? null,
+      );
+    }
+
+    /*
+     * JSON válido pero no-objeto (null, un string): antes estallaba como
+     * TypeError crudo ("Cannot read properties of null") en la pantalla del
+     * operador. Se trata como respuesta inválida y queda reportado.
+     */
+    if (data === null || typeof data !== 'object') {
+      const forma = data === null ? 'null' : Array.isArray(data) ? 'array' : typeof data;
+      this.reportar(contexto, `Respuesta con forma inesperada: ${forma}`, options);
+      throw new Error('Respuesta inválida del servidor. Intenta de nuevo.');
+    }
+
+    return this.unwrap<T>(data as ApiResponse<T>, response.status, contexto, options);
+  }
+
+  /*
+   * Un `status: 'ERROR'` del servidor se lanza como ApiError y NO como un Error
+   * plano: conserva el código HTTP, el `codigo` estable y el `data` del cuerpo.
+   * El mensaje sigue siendo el que escribió el backend.
+   *
+   * "Sin datos" también es una respuesta del servidor (llegó, es JSON, dice OK),
+   * solo que inútil: se marca con su propio `codigo` para que quien decide qué
+   * hacer con un envío no lo confunda con un rechazo. Cada caso deja además su
+   * reporte automático, salvo cuando el llamador lo pidió con `sinReporte`.
+   */
+  private unwrap<T>(data: ApiResponse<T>, status: number, contexto: string, options?: ApiRequestOptions): T {
     if (data.status === 'ERROR') {
-      throw new Error(data.msg ?? 'Error en el servicio');
+      this.reportar(contexto, data.msg || 'Error en el servicio', options);
+      throw new ApiError(data.msg ?? 'Error en el servicio', status, data.codigo ?? null, data.data ?? null);
     }
 
     if (data.data === undefined || data.data === null) {
-      throw new Error('Respuesta del servicio sin datos');
+      this.reportar(contexto, 'Respuesta sin data', options);
+      throw new ApiError('Respuesta del servicio sin datos', status, 'SIN_DATOS');
     }
 
     return data.data;
+  }
+
+  /*
+   * Fire-and-forget: el reporte se guarda en SQLite en segundo plano. Nunca se
+   * await-eca desde acá — ni se retrasa la respuesta que el operador está
+   * viendo ni un fallo del guardado puede enmascarar el error original.
+   */
+  private reportar(contexto: string, detalle: string, options?: ApiRequestOptions): void {
+    if (options?.sinReporte) return;
+    void this.autoReport.reportar(contexto, detalle).catch((e) => {
+      console.error('[api] no se pudo guardar el reporte automático:', e);
+    });
   }
 
   /*
@@ -169,6 +270,23 @@ export class ApiService {
    */
   private mapError(err: unknown): Error {
     if (err instanceof NetworkError) return err;
+
+    /*
+     * Lo que contestó el servidor no se reinterpreta. Sin esto, un mensaje del
+     * backend que casualmente contuviera "timeout" o "network" terminaba
+     * convertido en un fallo de red, y la app lo trataría como "no hay
+     * respuesta" cuando en realidad la hubo.
+     */
+    if (err instanceof ApiError) return err;
+
+    /*
+     * ¿La solicitud llegó a salir? Si el dispositivo ya estaba sin red cuando
+     * falló, no: el servidor no recibió nada. En cualquier otro caso se asume
+     * que pudo haber llegado. Se mira al fallar y NO antes de mandar: bloquear
+     * el envío por un navigator.onLine equivocado dejaría a la PDA sin poder
+     * enviar.
+     */
+    const solicitudEnviada = !(typeof navigator !== 'undefined' && navigator.onLine === false);
 
     /*
      * AbortSignal.timeout aborta con un DOMException llamado TimeoutError y el
@@ -181,7 +299,8 @@ export class ApiService {
      * manda el mismo, así que el SGO puede descartar el duplicado.
      */
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-      return new NetworkError('El servidor no respondió a tiempo. Revisa la conexión e intenta de nuevo.');
+      // Se esperó una respuesta: la solicitud salió.
+      return new NetworkError('El servidor no respondió a tiempo. Revisa la conexión e intenta de nuevo.', true, true);
     }
 
     if (err instanceof Error) {
@@ -208,12 +327,12 @@ export class ApiService {
          * logcat del equipo — que es donde sí se puede diagnosticar.
          */
         console.error('[api] fallo de red:', err.name, err.message);
-        return new NetworkError('Sin conexión con el servidor. Revisa la red e intenta de nuevo.');
+        return new NetworkError('Sin conexión con el servidor. Revisa la red e intenta de nuevo.', true, solicitudEnviada);
       }
       return err;
     }
 
     console.error('[api] error no reconocido:', err);
-    return new NetworkError('No se pudo conectar con el servidor. Intenta de nuevo.');
+    return new NetworkError('No se pudo conectar con el servidor. Intenta de nuevo.', true, solicitudEnviada);
   }
 }

@@ -5,7 +5,12 @@ import { DeleteConteoSesionUseCase } from '../../application/conteo/delete-conte
 import { SincronizarConteoUseCase } from '../../application/sincronizacion/sincronizar-conteo.use-case';
 import { GetTagsReconteoUseCase } from '../../application/conteo/get-tags-reconteo.use-case';
 import { ReabrirTagUseCase } from '../../application/conteo/reabrir-tag.use-case';
+import { ConsultarEnviosTagUseCase, clavePorTag } from '../../application/conteo/consultar-envios-tag.use-case';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { ConteoResumen } from '../../domain/conteo/models/conteo-resumen.model';
+import { EnvioFallidoError } from '../../domain/shared/errors/envio-fallido.error';
+import { EstadoEnvioTag } from '../../domain/sincronizacion/models/estado-envio-tag.model';
+import { MotivoFalloEnvio } from '../../domain/sincronizacion/models/motivo-fallo-envio.model';
 export type { ConteoResumen };
 
 // Identidad de un ConteoResumen: sod_ubicacion se reutiliza entre eventos,
@@ -23,12 +28,18 @@ export class ConteoListFacade {
   private sincronizarUC = inject(SincronizarConteoUseCase);
   private getTagsUC     = inject(GetTagsReconteoUseCase);
   private reabrirTagUC  = inject(ReabrirTagUseCase);
+  private consultarEnvios = inject(ConsultarEnviosTagUseCase);
+  private reintento = inject(ReintentoAutomaticoService);
 
   private conteosSignal      = signal<ConteoResumen[]>([]);
   private seleccionadoSignal = signal<ConteoResumen | null>(null);
   private loadingSignal      = signal(false);
   private errorSignal        = signal<string | null>(null);
+  private fallaEnDudaSignal  = signal(false);
+  private fallaYaSeEnviaSignal = signal(false);
   private syncingKeysSignal  = signal<ReadonlySet<string>>(new Set());
+  // TAGs FINALIZADOS que el servidor recibió o pudo recibir: no se editan ni se borran.
+  private bloqueosSignal     = signal<ReadonlyMap<string, EstadoEnvioTag>>(new Map());
 
   // TAGs sugeridos para reconteo: los que ya se contaron en iteraciones anteriores.
   /*
@@ -44,6 +55,19 @@ export class ConteoListFacade {
   readonly seleccionado  = this.seleccionadoSignal.asReadonly();
   readonly loading       = this.loadingSignal.asReadonly();
   readonly error         = this.errorSignal.asReadonly();
+  /*
+   * La última sincronización falló y NO se pudo averiguar si el servidor recibió
+   * el TAG. Distinta de un error común: ahí el servidor no lo tiene y se puede
+   * reintentar sin riesgo; acá pudo haberlo guardado, y el operador no debe
+   * darlo por perdido ni volver a contarlo.
+   */
+  readonly fallaEnDuda   = this.fallaEnDudaSignal.asReadonly();
+  /*
+   * Lo que la pantalla le explica al operador tras un envío que no quedó
+   * confirmado. Se lee justo después de sincronizar(), igual que error().
+   */
+  readonly motivoFalla = computed<MotivoFalloEnvio>(() =>
+    this.fallaYaSeEnviaSignal() ? 'YA_SE_ENVIA' : this.fallaEnDudaSignal() ? 'EN_DUDA' : 'NO_ENVIADO');
   readonly enCurso       = computed(() => this.conteosSignal().filter((c) => c.estado === 'EN_CURSO'));
   readonly finalizados   = computed(() => this.conteosSignal().filter((c) => c.estado === 'FINALIZADO'));
   readonly sincronizados = computed(() => this.conteosSignal().filter((c) => c.estado === 'SINCRONIZADO'));
@@ -58,6 +82,19 @@ export class ConteoListFacade {
   }
 
   /*
+   * Por qué este TAG no se puede editar ni borrar ('ENVIADO' o 'EN_DUDA'), o null
+   * si se puede. Es para la pantalla: la regla de verdad la hacen los casos de
+   * uso, que vuelven a consultar.
+   */
+  bloqueo(conteo: ConteoResumen): EstadoEnvioTag | null {
+    return this.bloqueosSignal().get(clavePorTag(conteo)) ?? null;
+  }
+
+  private async refrescarBloqueos(): Promise<void> {
+    this.bloqueosSignal.set(await this.consultarEnvios.execute(this.conteosSignal()));
+  }
+
+  /*
    * Suelta la lista y todo lo derivado. Los conteos son de un operador
    * concreto; al cambiar de turno en la misma PDA no le corresponden al que
    * entra, y estos signals no se van solos con la sesión.
@@ -68,6 +105,7 @@ export class ConteoListFacade {
     this.errorSignal.set(null);
     this.loadingSignal.set(false);
     this.syncingKeysSignal.set(new Set());
+    this.bloqueosSignal.set(new Map());
     this.iteracionActivaSignal.set(1);
     this.tagsReconteoSignal.set([]);
     this.tagsReconteoLoadingSignal.set(false);
@@ -78,6 +116,7 @@ export class ConteoListFacade {
     this.errorSignal.set(null);
     try {
       this.conteosSignal.set(await this.getConteos.execute(operadorId, pdaId));
+      await this.refrescarBloqueos();
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al cargar conteos');
     } finally {
@@ -146,6 +185,8 @@ export class ConteoListFacade {
   async sincronizar(conteo: ConteoResumen): Promise<boolean> {
     const key = keyOf(conteo);
     this.errorSignal.set(null);
+    this.fallaEnDudaSignal.set(false);
+    this.fallaYaSeEnviaSignal.set(false);
     this.syncingKeysSignal.update((prev) => new Set(prev).add(key));
     try {
       await this.sincronizarUC.execute(conteo);
@@ -156,6 +197,16 @@ export class ConteoListFacade {
       return true;
     } catch (err) {
       this.errorSignal.set(err instanceof Error ? err.message : 'Error al sincronizar conteo');
+      this.fallaEnDudaSignal.set(err instanceof EnvioFallidoError && err.enDuda);
+      this.fallaYaSeEnviaSignal.set(err instanceof EnvioFallidoError && err.yaSeEnvia);
+
+      /*
+       * Un envío que falló se reintenta solo, pero solo si hay algo que reintentar:
+       * un identificador ajeno, un TAG que cambió tras enviarse, o uno que otro envío
+       * ya está resolviendo, no se arreglan reenviando.
+       */
+      const sinRemedio = err instanceof EnvioFallidoError && (err.conflicto || err.cambioTrasEnvio || err.yaSeEnvia);
+      if (!sinRemedio) this.reintento.programarTrasFallo();
       return false;
     } finally {
       this.syncingKeysSignal.update((prev) => {
@@ -163,6 +214,8 @@ export class ConteoListFacade {
         next.delete(key);
         return next;
       });
+      // Un envío en duda deja el TAG bloqueado; uno que llegó, ya no está en FINALIZADOS.
+      await this.refrescarBloqueos();
     }
   }
 

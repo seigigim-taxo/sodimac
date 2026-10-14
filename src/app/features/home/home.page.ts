@@ -18,7 +18,7 @@ import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
 import { EventoFacade, Evento } from '../../state/evento/evento.facade';
-import { enVentanaOperativa, hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { diasOfrecidos, enVentanaOperativa, etiquetaDia, hoySql } from '../../shared/utils/fecha.utils';
 import { ConteoListFacade } from '../../state/conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../../state/conteo/resumen-evento.facade';
 import { NuevoConteoFacade } from '../../state/asignacion/nuevo-conteo.facade';
@@ -27,6 +27,7 @@ import { BuscadorService } from '../../shared/services/buscador.service';
 import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
 
@@ -50,6 +51,7 @@ import { HeaderStatusComponent } from '../../shared/components/header-status/hea
 export class HomePage implements ViewWillEnter {
   private router          = inject(Router);
   private auth             = inject(AuthFacade);
+  private reintentoAutomatico = inject(ReintentoAutomaticoService);
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);
@@ -125,8 +127,8 @@ export class HomePage implements ViewWillEnter {
    * fin y mezclaba jornadas.
    *
    * Tiene que ser la MISMA regla que eventosVisibles, no una parecida: si el
-   * historial cortara en hoy, el operador que sigue trabajando la jornada de
-   * mañana vería desaparecer lo que ya finalizó.
+   * historial cortara en hoy, el operador que sigue trabajando la próxima
+   * jornada vería desaparecer lo que ya finalizó.
    */
   eventosFinalizados = computed(() =>
     this.resumenFacade.conAvance()
@@ -169,15 +171,21 @@ export class HomePage implements ViewWillEnter {
   selectedEvent = this.eventoFacade.selectedEvent;
 
   /*
-   * Los eventos que el operador puede elegir: hoy y mañana.
+   * Los eventos que el operador puede elegir: hoy y la próxima jornada.
    *
    * Solo los ABIERTOS. Es sobre los únicos que puede actuar — los terminados
    * quedan EN_ANALISIS y los vencidos no son seleccionables— así que mostrarlos
    * agrega ruido y tarjetas atenuadas que no responden.
    *
    * Antes era uno solo, el del día. Ahora son hasta dos tarjetas porque se pidió
-   * que se pueda adelantar la jornada del día siguiente. Lo de ayer sigue sin
-   * ofrecerse: cada jornada la app arranca como si fuera la primera.
+   * que se pueda adelantar la jornada siguiente (el lunes, si hoy es viernes).
+   * Lo de ayer sigue sin ofrecerse: cada jornada la app arranca como si fuera
+   * la primera.
+   *
+   * La ventana (enVentanaOperativa) es más ancha que eso a propósito, para no
+   * perder trabajo; acá se corta a HOY y la PRÓXIMA (diasOfrecidos). Una
+   * jornada vieja que quedó guardada más lejos no se muestra: el operador
+   * podría elegirla por error.
    *
    * Se muestra UNA por día, la más nueva. Si el SGO dejó dos eventos abiertos
    * para la misma fecha, dos tarjetas idénticas no le dicen nada al operador y
@@ -201,9 +209,12 @@ export class HomePage implements ViewWillEnter {
       if (!previo || evento.id > previo.id) masNuevoPorDia.set(dia, evento);
     }
 
-    return [...masNuevoPorDia.values()].sort((a, b) =>
-      a.fechaProgramada.localeCompare(b.fechaProgramada)
-    );
+    const ofrecidos = new Set(diasOfrecidos([...masNuevoPorDia.keys()]));
+
+    return [...masNuevoPorDia.entries()]
+      .filter(([dia]) => ofrecidos.has(dia))
+      .map(([, evento]) => evento)
+      .sort((a, b) => a.fechaProgramada.localeCompare(b.fechaProgramada));
   });
   eventsLoading = this.eventoFacade.loading;
   eventsError   = this.eventoFacade.error;
@@ -270,6 +281,9 @@ export class HomePage implements ViewWillEnter {
   }
 
   ionViewWillEnter(): void {
+    // Entrar al Inicio es un buen momento para reintentar lo que no salió (sin costo si no hay nada).
+    this.reintentoAutomatico.disparar();
+
     const session = this.auth.session();
 
     /*
@@ -314,22 +328,25 @@ export class HomePage implements ViewWillEnter {
    * operador todavía estaba contando.
    */
   /*
-   * "Hoy" o "Mañana" para la tarjeta.
+   * "Hoy", "Mañana" o el día de la semana ("Lun 12/10") para la tarjeta.
    *
    * Con dos jornadas en pantalla, la fecha sola no alcanza: obliga al operador
    * a saber qué día es y a comparar dos strings casi idénticos —2026-08-28 y
    * 2026-08-29— en la pantalla chica de una PDA, muchas veces con guantes y
-   * apurado. Elegir mal manda el conteo a la jornada equivocada.
-   *
-   * Devuelve null fuera de la ventana en vez de inventar "Pasado mañana" o
-   * "Ayer": esas tarjetas no deberían llegar acá, y si llegan es mejor que se
-   * vea solo la fecha cruda a que una etiqueta les dé un aire de normalidad.
+   * apurado. Elegir mal manda el conteo a la jornada equivocada. Un viernes la
+   * próxima es el lunes: "Mañana" sería mentira, así que se dice el día.
    */
-  diaRelativo(evento: Evento): 'Hoy' | 'Mañana' | null {
-    const dia = evento.fechaProgramada.slice(0, 10);
-    if (dia === hoySql()) return 'Hoy';
-    if (dia === manianaSql()) return 'Mañana';
-    return null;
+  diaRelativo(evento: Evento): string {
+    return etiquetaDia(evento.fechaProgramada);
+  }
+
+  /*
+   * El mismo nombre de día que usan las tarjetas, para el aviso de la jornada
+   * cerrada: que la jornada de un viernes se llame "Vie 09/10" en un lugar y
+   * "2026-10-09" en otro obliga al operador a reconocerla dos veces.
+   */
+  nombreDia(dia: string): string {
+    return etiquetaDia(dia);
   }
 
   esVencido(evento: Evento): boolean {

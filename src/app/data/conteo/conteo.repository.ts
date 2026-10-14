@@ -186,29 +186,42 @@ export class SqliteConteoRepository implements ConteoRepository {
     }
 
     /*
-     * El movimiento que este scan produce sobre el total. No es siempre
-     * `cantidad`:
-     *
      * Cero no es "sumar nada" (un no-op silencioso), es la declaración de que
      * del SKU no hay unidades — típicamente corrigiendo un conteo previo. Por
-     * eso REEMPLAZA el total, y el movimiento que lo logra es el negativo de lo
-     * que había.
+     * eso REEMPLAZA el total: se descartan las lecturas anteriores de la línea y
+     * queda una sola, de 0.
      *
-     * Calcularlo acá es lo que sostiene el invariante de sod_conteo_lectura:
-     * la suma de los movimientos siempre da cantidad_fisica.
+     * Antes se agregaba una lectura NEGATIVA por lo que había (+5 y luego -5).
+     * El servidor no acepta cantidades negativas, y un TAG con una sola no se
+     * podía enviar. Reemplazar es válido porque la línea sigue EN_CURSO o
+     * FINALIZADA: si el servidor ya tuviera el TAG, no se podría editar (ver
+     * ReabrirTagUseCase), así que nada de lo que se descarta llegó a viajar.
+     *
+     * Mantiene el invariante de sod_conteo_lectura: la suma de las lecturas
+     * siempre da cantidad_fisica.
      */
     const filaPrevia = existing.values?.[0] as Record<string, unknown> | undefined;
-    const totalPrevio = (filaPrevia?.['cantidad_fisica'] as number | undefined) ?? 0;
-    const movimiento = cantidad === 0 ? -totalPrevio : cantidad;
+    const movimiento = cantidad;
 
     if (filaPrevia) {
-      // Opción B: se actualiza codigo_lectura al último código escaneado exitoso.
       const id = filaPrevia['id'] as number;
+
+      if (cantidad === 0) {
+        await db.run(`DELETE FROM sod_conteo_lectura WHERE detalle_id = ?`, [id], false);
+      }
+
+      // Opción B: se actualiza codigo_lectura al último código escaneado exitoso.
       await db.run(
-        `UPDATE sod_conteo_detalle
-         SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = ?
-         WHERE id = ?`,
-        [movimiento, codigoLectura, ahoraSql(), id],
+        cantidad === 0
+          ? `UPDATE sod_conteo_detalle
+             SET cantidad_fisica = 0, codigo_lectura = ?, fecha_hora = ?
+             WHERE id = ?`
+          : `UPDATE sod_conteo_detalle
+             SET cantidad_fisica = cantidad_fisica + ?, codigo_lectura = ?, fecha_hora = ?
+             WHERE id = ?`,
+        cantidad === 0
+          ? [codigoLectura, ahoraSql(), id]
+          : [movimiento, codigoLectura, ahoraSql(), id],
         false
       );
     } else {
@@ -398,71 +411,6 @@ export class SqliteConteoRepository implements ConteoRepository {
       }
 
       if (isDevMode()) console.log('[ConteoRepo] deleteLectura', { lecturaId, detalleId, restantes });
-    });
-  }
-
-  async adjust(
-    conteoId: number, ubicacionId: number,
-    productoId: number, operadorId: number, pdaId: number,
-    delta: number, estado: EstadoConteo
-  ): Promise<ConteoItem> {
-    /*
-     * Los botones +/- también son una captura: declaran unidades. Lo que NO
-     * hacen es leer un código, y por eso la lectura queda con codigo_lectura
-     * nulo. Atribuirle el código que ya tenía la línea diría que ese código se
-     * tipeó a mano — y si venía de la pistola, el reporte concluiría que el EAN
-     * no se escaneó. Es la afirmación falsa que todo esto existe para evitar.
-     *
-     * Se AGREGA un movimiento; no se tocan las lecturas anteriores. Bajar de 5
-     * a 3 deja constancia de que hubo un escaneo de 5 y una baja manual de 2,
-     * que es lo que realmente pasó.
-     */
-    return this.connection.enTransaccion(SODIMAC_DB_NAME, async (db) => {
-
-    const detalleRow = await db.query(
-      `SELECT id, cantidad_fisica
-       FROM sod_conteo_detalle
-       WHERE conteo_id = ? AND ubicacion_id = ? AND producto_id = ?
-         AND operador_id = ? AND pda_id = ? AND estado = ?`,
-      [conteoId, ubicacionId, productoId, operadorId, pdaId, estado]
-    );
-    const detalle = detalleRow.values?.[0] as Record<string, unknown> | undefined;
-    if (!detalle) {
-      throw new Error('No se encontró el detalle para ajustar');
-    }
-
-    const detalleId  = detalle['id'] as number;
-    const totalPrevio = detalle['cantidad_fisica'] as number;
-
-    /*
-     * El movimiento REAL, no el pedido: MAX(0, …) impide dejar la línea en
-     * negativo, así que pedir -5 sobre un total de 3 mueve -3. Registrar el
-     * pedido en vez de lo aplicado rompería el invariante de la tabla.
-     */
-    const totalNuevo = Math.max(0, totalPrevio + delta);
-    const movimiento = totalNuevo - totalPrevio;
-
-    // Sin movimiento no hay nada que escribir ni que registrar.
-    if (movimiento === 0) {
-      return this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);
-    }
-
-    await db.run(
-      `UPDATE sod_conteo_detalle
-       SET cantidad_fisica = ?, fecha_hora = ?
-       WHERE id = ?`,
-      [totalNuevo, ahoraSql(), detalleId],
-      false
-    );
-
-    await db.run(
-      `INSERT INTO sod_conteo_lectura (detalle_id, codigo_lectura, medio_captura, cantidad, fecha_hora)
-       VALUES (?, NULL, 'MANUAL', ?, ?)`,
-      [detalleId, movimiento, ahoraSqlMs()],
-      false
-    );
-
-    return this.fetchOne(conteoId, ubicacionId, productoId, operadorId, pdaId, estado);
     });
   }
 

@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { RegistrarUbicacionUseCase } from './registrar-ubicacion.use-case';
 import { ResultadoUbicacion, UBICACION_REPOSITORY_TOKEN, UbicacionRepository } from '../../domain/ubicacion/repositories/ubicacion.repository';
 
-const RESULTADO: ResultadoUbicacion = { ubicacionId: 5, ubicacionSincronizadaId: null };
+const RESULTADO: ResultadoUbicacion = { ubicacionId: 5, ubicacionSincronizadaId: null, referenciaBloqueada: null };
 
 describe('RegistrarUbicacionUseCase', () => {
   let uc: RegistrarUbicacionUseCase;

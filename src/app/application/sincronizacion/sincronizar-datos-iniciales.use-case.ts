@@ -156,7 +156,7 @@ export class SincronizarDatosInicialesUseCase {
    * Se guardan TODAS las jornadas que llegaron, no solo la del día.
    *
    * La preparación es lo único que baja datos, y corre una vez al entrar. Si
-   * dejáramos la de mañana sin escribir, el operador que sigue trabajando
+   * dejáramos la próxima sin escribir, el operador que sigue trabajando
    * después de medianoche se quedaría sin muestra y sin nada que contar hasta
    * volver a tener señal. Guardar las dos es lo que hace que la app siga siendo
    * offline al cruzar el día.
@@ -217,7 +217,7 @@ export class SincronizarDatosInicialesUseCase {
   private async guardarFlujoAnalista(datos: DatosPreparacion, operadorId: number): Promise<void> {
     /*
      * El analista revisa UNA jornada, la que el backend seleccionó: su
-     * preparación es liviana y trae una sola. La ventana de dos días es del
+     * preparación es liviana y trae una sola. La ventana de dos jornadas es del
      * operador, que es quien cuenta.
      */
     const jornada = datos.jornadas[0];

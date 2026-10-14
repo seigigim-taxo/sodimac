@@ -142,7 +142,7 @@
       estorbar el escaneo normal.
     -->
     @if (hayReferenciaSincronizada()) {
-    <app-card-colapsable icon="time-outline" label="Ver conteo sincronizado anterior de este TAG"
+    <app-card-colapsable icon="time-outline" label="Ver conteo anterior de este TAG"
       [visible]="referenciaSincronizadaVisible()" (alternar)="toggleReferenciaSincronizada()">
       @if (fechaReferenciaSincronizada(); as fecha) {
       <p class="text-xs mb-3" style="color: var(--app-text-muted);">

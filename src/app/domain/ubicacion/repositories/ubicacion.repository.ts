@@ -18,6 +18,14 @@ export interface ResultadoUbicacion {
    * la pantalla de conteo del TAG NUEVO que se acaba de crear.
    */
   ubicacionSincronizadaId: number | null;
+  /*
+   * Si la referencia de arriba es un TAG que el servidor ya tiene o pudo
+   * haber recibido, por qué no se pudo reabrir: 'ENVIADO' (lo tiene) o
+   * 'EN_DUDA' (no se pudo confirmar). La pantalla lo usa para avisarle al
+   * operador por qué ve un TAG nuevo en vez de seguir el anterior. null si no
+   * hay referencia.
+   */
+  referenciaBloqueada: 'ENVIADO' | 'EN_DUDA' | null;
 }
 
 export interface UbicacionRepository {

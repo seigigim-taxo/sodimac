@@ -11,13 +11,11 @@ describe('AjustesFacade', () => {
 
   beforeEach(() => {
     storage = jasmine.createSpyObj('AjustesStorageRepository', [
-      'cargarSincronizacionAutomatica',
-      'guardarSincronizacionAutomatica',
+      'eliminarSincronizacionAutomatica',
       'cargarModoCapturaPreferido',
       'guardarModoCapturaPreferido',
     ]);
-    storage.cargarSincronizacionAutomatica.and.resolveTo(null);
-    storage.guardarSincronizacionAutomatica.and.resolveTo();
+    storage.eliminarSincronizacionAutomatica.and.resolveTo();
     storage.cargarModoCapturaPreferido.and.resolveTo(null);
     storage.guardarModoCapturaPreferido.and.resolveTo();
 
@@ -30,38 +28,31 @@ describe('AjustesFacade', () => {
     facade = TestBed.inject(AjustesFacade);
   });
 
-  /* Sin ajuste guardado, la app se comporta como siempre lo hizo. */
-  it('arranca con la sincronización automática encendida', async () => {
-    await facade.init();
+  /*
+   * La sincronización automática dejó de ser un ajuste: finalizar un TAG siempre
+   * intenta enviarlo. Una PDA que la había apagado no debe seguir sin enviar.
+   */
+  describe('el ajuste de sincronización automática que quedó de versiones anteriores', () => {
+    it('lo borra al arrancar', async () => {
+      await facade.init();
 
-    expect(facade.sincronizacionAutomatica()).toBeTrue();
-  });
+      expect(storage.eliminarSincronizacionAutomatica).toHaveBeenCalledOnceWith();
+    });
 
-  it('respeta el ajuste guardado al arrancar', async () => {
-    storage.cargarSincronizacionAutomatica.and.resolveTo(false);
+    it('ya no es un ajuste de la fachada', () => {
+      expect('sincronizacionAutomatica' in facade).toBeFalse();
+      expect('toggleSincronizacionAutomatica' in facade).toBeFalse();
+    });
 
-    await facade.init();
+    it('si no se puede borrar, el arranque sigue y el modo de captura se carga igual', async () => {
+      spyOn(console, 'error');
+      storage.eliminarSincronizacionAutomatica.and.rejectWith(new Error('sin disco'));
+      storage.cargarModoCapturaPreferido.and.resolveTo('uno');
 
-    expect(facade.sincronizacionAutomatica()).toBeFalse();
-  });
+      await expectAsync(facade.init()).toBeResolved();
 
-  it('persiste el cambio al apagarlo', async () => {
-    await facade.init();
-
-    await facade.toggleSincronizacionAutomatica();
-
-    expect(storage.guardarSincronizacionAutomatica).toHaveBeenCalledWith(false);
-    expect(facade.sincronizacionAutomatica()).toBeFalse();
-  });
-
-  it('vuelve a encenderlo', async () => {
-    storage.cargarSincronizacionAutomatica.and.resolveTo(false);
-    await facade.init();
-
-    await facade.toggleSincronizacionAutomatica();
-
-    expect(storage.guardarSincronizacionAutomatica).toHaveBeenCalledWith(true);
-    expect(facade.sincronizacionAutomatica()).toBeTrue();
+      expect(facade.modoCapturaPreferido()).toBe('uno');
+    });
   });
 
   describe('modoCapturaPreferido', () => {

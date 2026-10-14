@@ -1,4 +1,4 @@
-import { APP_INITIALIZER } from '@angular/core';
+import { APP_INITIALIZER, ErrorHandler } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { RouteReuseStrategy, provideRouter, withPreloading, PreloadAllModules } from '@angular/router';
@@ -6,6 +6,8 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
+import { GlobalErrorHandler } from './app/core/error-report/global-error.handler';
+import { ReportSyncService } from './app/core/error-report/report-sync.service';
 import { AuthFacade } from './app/state/auth/auth.facade';
 import { ThemeFacade } from './app/state/theme/theme.facade';
 import { AjustesFacade } from './app/state/ajustes/ajustes.facade';
@@ -34,6 +36,7 @@ import { DETECCION_CAPTURA_TOKEN } from './app/domain/conteo/services/deteccion-
 import { DeteccionCapturaTecladoService } from './app/data/conteo/deteccion-captura-teclado.service';
 import { SINCRONIZACION_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/sincronizacion.repository';
 import { PREPARACION_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/preparacion-api.repository';
+import { ESTADO_CARGAS_API_REPOSITORY_TOKEN } from './app/domain/sincronizacion/repositories/estado-cargas-api.repository';
 import { RESPALDO_REPOSITORY_TOKEN } from './app/domain/respaldo/repositories/respaldo.repository';
 import {
   ACTUALIZACION_API_REPOSITORY_TOKEN,
@@ -44,6 +47,7 @@ import { ActualizacionApiService } from './app/data/actualizacion/actualizacion-
 import { CapacitorDescargaService } from './app/data/actualizacion/descarga.service';
 import { CapacitorInstaladorService } from './app/data/actualizacion/instalador.service';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
+import { EstadoCargasApiService } from './app/data/sincronizacion/estado-cargas-api.service';
 import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
@@ -163,6 +167,7 @@ bootstrapApplication(AppComponent, {
     { provide: DETECCION_CAPTURA_TOKEN,          useClass: DeteccionCapturaTecladoService },
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
+    { provide: ESTADO_CARGAS_API_REPOSITORY_TOKEN, useClass: EstadoCargasApiService },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
 
     /*
@@ -177,5 +182,9 @@ bootstrapApplication(AppComponent, {
     { provide: VALIDACION_REPOSITORY_TOKEN,     useClass: SqliteValidacionRepository },
     { provide: PRE_VARIANCE_REPOSITORY_TOKEN,  useClass: SqlitePreVarianceRepository },
     { provide: RECUENTO_REPOSITORY_TOKEN,      useClass: SqliteRecuentoRepository },
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
   ],
+}).then((ref) => {
+  const sync = ref.injector.get(ReportSyncService);
+  sync.init();
 });

@@ -8,15 +8,8 @@ const MODO_CAPTURA_PREFERIDO_KEY = 'sodimac_modo_captura_preferido';
 
 @Injectable({ providedIn: 'root' })
 export class CapacitorAjustesStorageRepository implements AjustesStorageRepository {
-  async cargarSincronizacionAutomatica(): Promise<boolean | null> {
-    const stored = await Preferences.get({ key: SINCRONIZACION_AUTOMATICA_KEY });
-    if (stored.value === 'true')  return true;
-    if (stored.value === 'false') return false;
-    return null;
-  }
-
-  async guardarSincronizacionAutomatica(activa: boolean): Promise<void> {
-    await Preferences.set({ key: SINCRONIZACION_AUTOMATICA_KEY, value: String(activa) });
+  async eliminarSincronizacionAutomatica(): Promise<void> {
+    await Preferences.remove({ key: SINCRONIZACION_AUTOMATICA_KEY });
   }
 
   async cargarModoCapturaPreferido(): Promise<ModoCaptura | null> {

@@ -1,0 +1,49 @@
+// LABORATORIO. Igual que environment.ts, pero la app habla con el proxy local
+// (tools/lab/proxy-lab.mjs) en vez del servidor real: el APK de prueba llega por
+// `adb reverse tcp:8081 tcp:8081`, así que "localhost" es la PC.
+//
+// Con esto un envío de prueba NUNCA llega a producción. No usar para otra cosa.
+
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:8081/api',
+  authEndpoint: 'auth/login_dev.php',
+  preparacionEndpoint: 'sincronizaciones/preparacion_dev.php',
+  tagFinalizadoEndpoint: 'sincronizaciones/tag-finalizado_dev.php',
+  // Consulta de solo lectura: ¿el servidor ya recibió este envío? Ver
+  // EstadoCargasApiRepository.
+  estadoCargasEndpoint: 'sincronizaciones/estado-cargas_dev.php',
+  /*
+   * Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
+   * de api/ para heredar CORS. Ver server/README.md.
+   *
+   * Desarrollo apunta a un manifiesto APARTE del de produccion. Los dos
+   * environments comparten apiUrl, asi que mientras los dos leyeran
+   * version.json no habia forma de probar la oferta de actualizacion sin
+   * ofrecersela tambien a las PDAs en terreno: se toca version_test.json, se
+   * prueba, y lo que ven los operadores no se movio nunca.
+   *
+   * Si version_test.json no existe en el servidor, la consulta falla y
+   * simplemente no se ofrece nada — la app sigue funcionando igual.
+   */
+  actualizacionEndpoint: 'actualizaciones/version_test.json',
+  alwaysSyncAfterLogin: false,
+  /*
+   * Solo desarrollo: la app manda su propia fecha calculada (fecha_local) en
+   * la preparación, y preparacion_dev.php la usa en vez de su reloj para
+   * decidir la ventana hoy/mañana. Sirve para alinear la ventana con agendas
+   * de prueba ya sembradas en fechas fijas, sin esperar al día real ni tocar
+   * la hora del dispositivo. En producción va en false y ni se manda el campo
+   * — preparacion.php tampoco lo lee.
+   */
+  enviarVentanaLocal: true
+};
+
+/*
+ * For easier debugging in development mode, you can import the following file
+ * to ignore zone related error stack frames such as `zone.run`, `zoneDelegate.invokeTask`.
+ *
+ * This import should be commented out in production mode because it will have a negative impact
+ * on performance if an error is thrown.
+ */
+// import 'zone.js/plugins/zone-error';  // Included with Angular CLI.

@@ -122,6 +122,116 @@ describe('SqliteUbicacionRepository', () => {
   });
 
   /*
+   * LA REGLA NUEVA: un TAG FINALIZADO solo se reabre si el servidor NO lo tiene.
+   * Si lo recibió, o no se pudo confirmar que no (la respuesta se perdió), se
+   * trata como uno sincronizado: no se toca, se crea uno nuevo y el viejo queda
+   * de referencia. Es el caso del TAG 7001.
+   */
+  describe('coincide con una FINALIZADA cuyo envío el servidor tiene o pudo recibir', () => {
+    let n = 0;
+    async function conEnvio(ubicacionId: number, estado: 'PENDIENTE' | 'ENVIADO' | 'ERROR', conteoId = CONTEO_ID) {
+      await db.run(
+        `INSERT INTO sod_sincronizacion
+           (evento_id, pda_id, tipo, operacion, perfil, iteracion, conteo_id, ubicacion_id, operador_id, carga_uid, payload_json, estado)
+         VALUES (1, ?, 'CARGA_DESDE_PDA', 'TAG_FINALIZADO', 'OPERADOR', 1, ?, ?, ?, ?, '{}', ?)`,
+        [PDA_ID, conteoId, ubicacionId, OPERADOR_ID, `UID-${++n}`, estado]
+      );
+    }
+    const estadoDe = async (id: number) =>
+      ((await db.query(`SELECT estado FROM sod_conteo_detalle WHERE ubicacion_id = ?`, [id])).values?.[0] as Record<string, unknown>)['estado'];
+
+    for (const [envio, razon] of [['ENVIADO', 'ENVIADO'], ['PENDIENTE', 'EN_DUDA']] as const) {
+      describe(`envío ${envio}`, () => {
+        it('NO la reabre: crea una fila nueva', async () => {
+          const idVieja = await ubicacionCon('FINALIZADO');
+          await conEnvio(idVieja, envio);
+
+          const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+          expect(resultado.ubicacionId).not.toBe(idVieja);
+        });
+
+        it('deja la vieja FINALIZADA, intacta', async () => {
+          const idVieja = await ubicacionCon('FINALIZADO');
+          await conEnvio(idVieja, envio);
+
+          await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+          expect(await estadoDe(idVieja)).toBe('FINALIZADO');
+        });
+
+        it('la ofrece de referencia y dice por qué', async () => {
+          const idVieja = await ubicacionCon('FINALIZADO');
+          await conEnvio(idVieja, envio);
+
+          const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+          expect(resultado.ubicacionSincronizadaId).toBe(idVieja);
+          expect(resultado.referenciaBloqueada).toBe(razon);
+        });
+      });
+    }
+
+    it('un envío que NO llegó (ERROR) sí se reabre, como siempre', async () => {
+      const id = await ubicacionCon('FINALIZADO');
+      await conEnvio(id, 'ERROR');
+
+      const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(resultado.ubicacionId).toBe(id);
+      expect(resultado.referenciaBloqueada).toBeNull();
+      expect(await estadoDe(id)).toBe('EN_CURSO');
+    });
+
+    it('un envío recibido pesa más que un error anterior del mismo TAG', async () => {
+      const idVieja = await ubicacionCon('FINALIZADO');
+      await conEnvio(idVieja, 'ERROR');
+      await conEnvio(idVieja, 'ENVIADO');
+
+      const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(resultado.ubicacionId).not.toBe(idVieja);
+      expect(resultado.referenciaBloqueada).toBe('ENVIADO');
+    });
+
+    it('el envío de OTRO TAG no bloquea a este', async () => {
+      const id = await ubicacionCon('FINALIZADO');
+      const otro = await ubicacionCon('FINALIZADO', { codigo: 'TAG-002', tag: 'TAG-002' });
+      await conEnvio(otro, 'ENVIADO');
+
+      const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(resultado.ubicacionId).toBe(id);
+    });
+
+    it('el envío de otra ronda con la misma ubicación no bloquea a este', async () => {
+      await db.run(`INSERT INTO sod_conteo (id, evento_id, iteracion, estado) VALUES (99, 1, 2, 'ABIERTO')`);
+      const id = await ubicacionCon('FINALIZADO');
+      await conEnvio(id, 'ENVIADO', 99);
+
+      const resultado = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(resultado.ubicacionId).toBe(id);
+    });
+  });
+
+  describe('referenciaBloqueada en los demás casos', () => {
+    it('es null sin ninguna coincidencia', async () => {
+      const r = await repo.insert(ZONA_ID, 'TAG-NUEVO', 'TAG-NUEVO', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(r.referenciaBloqueada).toBeNull();
+    });
+
+    it('una SINCRONIZADA es una referencia ya enviada', async () => {
+      await ubicacionCon('SINCRONIZADO');
+
+      const r = await repo.insert(ZONA_ID, 'TAG-001', 'TAG-001', CONTEO_ID, OPERADOR_ID, PDA_ID);
+
+      expect(r.referenciaBloqueada).toBe('ENVIADO');
+    });
+  });
+
+  /*
    * EL SEGUNDO CASO PEDIDO: un TAG ya SINCRONIZADO es inmutable — no se
    * reabre — pero la fila nueva que se crea en su lugar viene con la
    * referencia de la vieja, para mostrarla de solo lectura.

@@ -34,10 +34,22 @@ export class ObtenerReferenciaSincronizadaUseCase {
   async execute(
     conteoId: number, ubicacionSincronizadaId: number, operadorId: number, pdaId: number
   ): Promise<ReferenciaSincronizada> {
-    const [items, lecturas] = await Promise.all([
-      this.conteoRepo.getBySesion(conteoId, ubicacionSincronizadaId, operadorId, pdaId, 'SINCRONIZADO'),
-      this.conteoRepo.getLecturasSesion(conteoId, ubicacionSincronizadaId, operadorId, pdaId, 'SINCRONIZADO'),
-    ]);
-    return { items, lecturas };
+    const delEstado = async (estado: 'SINCRONIZADO' | 'FINALIZADO'): Promise<ReferenciaSincronizada> => {
+      const [items, lecturas] = await Promise.all([
+        this.conteoRepo.getBySesion(conteoId, ubicacionSincronizadaId, operadorId, pdaId, estado),
+        this.conteoRepo.getLecturasSesion(conteoId, ubicacionSincronizadaId, operadorId, pdaId, estado),
+      ]);
+      return { items, lecturas };
+    };
+
+    const sincronizado = await delEstado('SINCRONIZADO');
+    if (sincronizado.items.length > 0 || sincronizado.lecturas.length > 0) return sincronizado;
+
+    /*
+     * Un TAG que el servidor recibió, o pudo haber recibido, también queda de
+     * referencia aunque sus líneas sigan FINALIZADAS (la respuesta del envío se
+     * perdió y todavía no se marcó como sincronizado). Es la misma pantalla.
+     */
+    return delEstado('FINALIZADO');
   }
 }

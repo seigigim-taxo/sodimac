@@ -3,7 +3,8 @@ import { SqliteConnectionService } from '../../core/database/sqlite-connection.s
 import { SODIMAC_DB_NAME } from '../../core/database/sodimac.schema';
 import { SincronizacionRepository } from '../../domain/sincronizacion/repositories/sincronizacion.repository';
 import { GuardarSyncTagInput, GuardarSyncValidacionInput, GuardarSyncVersionReportInput, SincronizacionSync } from '../../domain/sincronizacion/models/sincronizacion-sync.model';
-import { ahoraSql, hoySql, manianaSql } from '../../shared/utils/fecha.utils';
+import { EnvioTag, EstadoEnvioTag } from '../../domain/sincronizacion/models/estado-envio-tag.model';
+import { ahoraSql, ventanaOperativa } from '../../shared/utils/fecha.utils';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteSincronizacionRepository implements SincronizacionRepository {
@@ -21,6 +22,15 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
     }
   }
 
+  /*
+   * Si la fila ya existe, solo se reemplaza cuando es un ERROR: ahí se sabe que
+   * el servidor no tiene el TAG y el payload puede haber cambiado.
+   *
+   * Una fila ENVIADO o PENDIENTE (en duda) no se toca. Reiniciarla a PENDIENTE
+   * con intentos en 0 borraba la prueba de que el servidor ya lo tenía, y
+   * reescribir su payload hacía que el reenvío ya no fuera el mismo que el
+   * servidor recibió — que es justo lo que termina en un 409.
+   */
   async guardarSyncTag(input: GuardarSyncTagInput): Promise<void> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     const payloadJson = JSON.stringify(input.payload);
@@ -36,7 +46,8 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
          error = NULL,
          intentos = 0,
          fecha_ultimo_intento = NULL,
-         fecha_envio = NULL`,
+         fecha_envio = NULL
+       WHERE sod_sincronizacion.estado = 'ERROR'`,
       [
         input.eventoId, input.pdaId, input.perfil, input.iteracion,
         input.conteoId, input.ubicacionId, input.operadorId,
@@ -56,10 +67,11 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
    * después: llegar al SGO con fecha corrida ensucia el análisis de diferencias
    * más de lo que aporta recuperar el dato.
    *
-   * Mañana entra en el corte porque el operador puede adelantar esa jornada.
-   * Cuando el filtro era solo el día en curso, un TAG cerrado contra el evento
-   * de mañana no aparecía nunca acá: se cerraba bien, quedaba PENDIENTE y no se
-   * ofrecía para envío jamás. Se perdía en silencio.
+   * La próxima jornada entra en el corte porque el operador puede adelantarla
+   * (un viernes, la del lunes). Cuando el filtro era solo el día en curso, un
+   * TAG cerrado contra el evento de esa jornada no aparecía nunca acá: se
+   * cerraba bien, quedaba PENDIENTE y no se ofrecía para envío jamás. Se
+   * perdía en silencio. El corte es el mismo de enVentanaOperativa().
    *
    * Las filas no se borran ni se marcan — quedan en la tabla como registro de
    * lo que no llegó. Simplemente dejan de ofrecerse para envío.
@@ -69,18 +81,19 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
    */
   async listarPendientes(): Promise<SincronizacionSync[]> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const { desde, hasta } = ventanaOperativa();
     const result = await db.query(
       `SELECT s.* FROM sod_sincronizacion s
        LEFT JOIN sod_evento_inventario e ON e.id = s.evento_id
        WHERE s.estado IN ('PENDIENTE', 'ERROR')
          AND s.tipo = 'CARGA_DESDE_PDA'
          AND (
-           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) IN (?, ?))
+           (s.operacion = 'TAG_FINALIZADO' AND substr(e.fecha_programada, 1, 10) BETWEEN ? AND ?)
            OR s.operacion = 'VALIDACION_OPERACIONAL'
            OR s.operacion = 'VERSION_REPORTE'
          )
        ORDER BY s.fecha_hora ASC`,
-      [hoySql(), manianaSql()]
+      [desde, hasta]
     );
     return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
   }
@@ -103,6 +116,29 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
     }
   }
 
+  async marcarEnviadoConDiferencias(cargaUid: string, registrosProcesados: number, diferencias: string): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_sincronizacion
+       SET estado = 'ENVIADO',
+           error = ?,
+           fecha_envio = ?,
+           fecha_ultimo_intento = ?,
+           intentos = intentos + 1,
+           registros_procesados = ?
+       WHERE carga_uid = ?`,
+      [diferencias, ahoraSql(), ahoraSql(), registrosProcesados, cargaUid]
+    );
+    if (isDevMode()) {
+      console.log('[SincronizacionRepo] marcarEnviadoConDiferencias', { cargaUid, diferencias });
+    }
+  }
+
+  /*
+   * Un ERROR nunca baja un ENVIADO: si dos intentos se cruzan (uno automático y
+   * uno manual) y el que falla termina después del que llegó, el TAG tiene que
+   * seguir figurando como recibido.
+   */
   async marcarError(cargaUid: string, error: string): Promise<void> {
     const db = await this.connection.getConnection(SODIMAC_DB_NAME);
     await db.run(
@@ -111,12 +147,94 @@ export class SqliteSincronizacionRepository implements SincronizacionRepository 
            error = ?,
            fecha_ultimo_intento = ?,
            intentos = intentos + 1
-       WHERE carga_uid = ?`,
+       WHERE carga_uid = ? AND estado != 'ENVIADO'`,
       [error, ahoraSql(), cargaUid]
     );
     if (isDevMode()) {
       console.log('[SincronizacionRepo] marcarError', { cargaUid, error });
     }
+  }
+
+  async limpiarEnviosHuerfanos(): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `DELETE FROM sod_sincronizacion
+       WHERE operacion = 'TAG_FINALIZADO' AND estado = 'ERROR'
+         AND conteo_id IS NOT NULL AND ubicacion_id IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM sod_conteo_detalle d
+           WHERE d.conteo_id = sod_sincronizacion.conteo_id
+             AND d.ubicacion_id = sod_sincronizacion.ubicacion_id
+         )`
+    );
+  }
+
+  async listarEnviadosPorSanar(): Promise<SincronizacionSync[]> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(
+      `SELECT s.* FROM sod_sincronizacion s
+       WHERE s.operacion = 'TAG_FINALIZADO' AND s.estado = 'ENVIADO'
+         AND s.conteo_id IS NOT NULL AND s.ubicacion_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM sod_conteo_detalle d
+           WHERE d.conteo_id = s.conteo_id AND d.ubicacion_id = s.ubicacion_id
+             AND d.estado = 'FINALIZADO'
+         )
+       ORDER BY s.fecha_hora ASC`
+    );
+    return (result.values ?? []).map((row: Record<string, unknown>) => this.map(row));
+  }
+
+  async marcarSinRespuesta(cargaUid: string, error: string): Promise<void> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    await db.run(
+      `UPDATE sod_sincronizacion
+       SET estado = 'PENDIENTE',
+           error = ?,
+           fecha_ultimo_intento = ?,
+           intentos = intentos + 1
+       WHERE carga_uid = ? AND estado != 'ENVIADO'`,
+      [error, ahoraSql(), cargaUid]
+    );
+    if (isDevMode()) {
+      console.log('[SincronizacionRepo] marcarSinRespuesta', { cargaUid, error });
+    }
+  }
+
+  async obtenerEnvio(cargaUid: string): Promise<SincronizacionSync | null> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    const result = await db.query(`SELECT * FROM sod_sincronizacion WHERE carga_uid = ?`, [cargaUid]);
+    const row = result.values?.[0] as Record<string, unknown> | undefined;
+    return row ? this.map(row) : null;
+  }
+
+  async estadoEnvioTag(conteoId: number, ubicacionId: number): Promise<EnvioTag> {
+    const db = await this.connection.getConnection(SODIMAC_DB_NAME);
+    /*
+     * Si hubiera más de un envío para el mismo TAG, manda el más restrictivo:
+     * uno recibido pesa más que uno en duda, y uno en duda más que un error.
+     */
+    const result = await db.query(
+      `SELECT carga_uid, estado, error
+       FROM sod_sincronizacion
+       WHERE operacion = 'TAG_FINALIZADO' AND conteo_id = ? AND ubicacion_id = ?
+       ORDER BY CASE estado WHEN 'ENVIADO' THEN 0 WHEN 'PENDIENTE' THEN 1 ELSE 2 END, id DESC
+       LIMIT 1`,
+      [conteoId, ubicacionId]
+    );
+    const row = result.values?.[0] as Record<string, unknown> | undefined;
+    if (!row) return { estado: 'SIN_ENVIO', cargaUid: null, detalle: null };
+
+    const estado: EstadoEnvioTag =
+      row['estado'] === 'ENVIADO'   ? 'ENVIADO'
+      : row['estado'] === 'PENDIENTE' ? 'EN_DUDA'
+      : 'NO_RECIBIDO';
+
+    return {
+      estado,
+      cargaUid: row['carga_uid'] as string | null,
+      detalle: (row['error'] as string | null) ?? null,
+    };
   }
 
   async guardarSyncValidacion(input: GuardarSyncValidacionInput): Promise<void> {

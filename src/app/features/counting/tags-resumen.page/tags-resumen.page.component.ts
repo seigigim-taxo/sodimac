@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, inject, computed, signal, effect, untracked } from '@angular/core';
 import { contarTagsDistintos } from '../../../domain/conteo/utils/tag.utils';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
@@ -23,12 +23,16 @@ import {
 import { addIcons } from 'ionicons';
 import {
   alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-  createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
+  createOutline, helpCircleOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
 } from 'ionicons/icons';
 import { AuthFacade } from '../../../state/auth/auth.facade';
 import { PdaFacade } from '../../../state/pda/pda.facade';
 import { EventoFacade } from '../../../state/evento/evento.facade';
 import { ConteoListFacade, ConteoResumen } from '../../../state/conteo/conteo-list.facade';
+import { EstadoEnvioTag, mensajeBloqueo } from '../../../domain/sincronizacion/models/estado-envio-tag.model';
+import { EnviarPendientesFacade } from '../../../state/sincronizacion/enviar-pendientes.facade';
+import { cambioLoMostrado } from '../../../application/sincronizacion/enviar-pendientes.use-case';
+import { EtiquetaTag, etiquetaTag } from './etiqueta-tag';
 import { AvisoSincronizacionService } from '../../../shared/services/aviso-sincronizacion.service';
 import { ResumenEventoFacade } from '../../../state/conteo/resumen-evento.facade';
 import { SesionTrabajoFacade } from '../../../state/sesion-trabajo/sesion-trabajo.facade';
@@ -79,6 +83,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   private pda = inject(PdaFacade);
   private eventoFacade = inject(EventoFacade);
   private conteoList = inject(ConteoListFacade);
+  private enviarPendientes = inject(EnviarPendientesFacade);
   private avisoSync = inject(AvisoSincronizacionService);
   private resumenFacade = inject(ResumenEventoFacade);
   private sesionTrabajo = inject(SesionTrabajoFacade);
@@ -213,6 +218,18 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   }
 
 
+  etiqueta(c: ConteoResumen): EtiquetaTag {
+    return etiquetaTag(c.estado, this.conteoList.bloqueo(c));
+  }
+
+  bloqueoEnvio(c: ConteoResumen): EstadoEnvioTag | null {
+    return this.conteoList.bloqueo(c);
+  }
+
+  mensajeBloqueo(estado: EstadoEnvioTag): string {
+    return mensajeBloqueo(estado);
+  }
+
   isSyncing(c: ConteoResumen): boolean {
     return this.conteoList.isSyncing(c);
   }
@@ -221,8 +238,30 @@ export class TagsResumenPageComponent implements ViewWillEnter {
   constructor() {
     addIcons({
       alertCircleOutline, checkmarkDoneOutline, cloudDoneOutline, cloudUploadOutline,
-      createOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
+      createOutline, helpCircleOutline, refreshOutline, searchOutline, timeOutline, trashOutline,
     });
+
+    /*
+     * Un envío automático (o el del menú) pudo cambiar lo que esta pantalla muestra:
+     * un TAG que seguía "Pendiente", con Editar y Eliminar, ya lo tiene el servidor.
+     * La pantalla se queda viva en el stack de navegación y no se entera sola.
+     *
+     * Se ignora el resultado que ya existía al abrir la pantalla: eso lo carga
+     * ionViewWillEnter.
+     */
+    let resultadoVisto = untracked(() => this.enviarPendientes.ultimoResultado());
+    effect(() => {
+      const resultado = this.enviarPendientes.ultimoResultado();
+      if (resultado === resultadoVisto) return;
+      resultadoVisto = resultado;
+      if (resultado && cambioLoMostrado(resultado)) untracked(() => void this.refrescarTrasEnvio());
+    });
+  }
+
+  private async refrescarTrasEnvio(): Promise<void> {
+    this.cargarResumenReal();
+    await this.cargarResumenAvance();
+    await this.cargarTrazabilidad();
   }
 
   abrirBuscador(): void {
@@ -286,7 +325,7 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     const sincronizado = await this.conteoList.sincronizar(c);
 
     if (!sincronizado) {
-      await this.avisoSync.avisarFalloTag(c.tag, this.conteoList.error());
+      await this.avisoSync.avisarFalloTag(c.tag, this.conteoList.error(), this.conteoList.motivoFalla());
       return;
     }
 
@@ -319,12 +358,21 @@ export class TagsResumenPageComponent implements ViewWillEnter {
     this.sincronizandoTodos.set(true);
     let subidos = 0;
     // Los que no subieron se juntan para un único aviso al final: un diálogo por
-    // TAG fallido se convierte en cinco Aceptar seguidos que nadie lee.
-    const fallidos: (string | null)[] = [];
+    // TAG fallido se convierte en cinco Aceptar seguidos que nadie lee. Se separan
+    // los que no llegaron de los que pudieron llegar, porque piden reacciones distintas.
+    const sinEnviar: (string | null)[] = [];
+    const sinConfirmar: (string | null)[] = [];
     try {
       for (const conteo of pendientes) {
-        if (await this.conteoList.sincronizar(conteo)) subidos++;
-        else fallidos.push(conteo.tag);
+        if (await this.conteoList.sincronizar(conteo)) {
+          subidos++;
+          continue;
+        }
+
+        // Otro envío del mismo TAG en marcha no es un fallo: ya lo está resolviendo.
+        const motivo = this.conteoList.motivoFalla();
+        if (motivo === 'EN_DUDA') sinConfirmar.push(conteo.tag);
+        else if (motivo === 'NO_ENVIADO') sinEnviar.push(conteo.tag);
       }
     } finally {
       this.sincronizandoTodos.set(false);
@@ -332,12 +380,12 @@ export class TagsResumenPageComponent implements ViewWillEnter {
 
     await this.cargarTrazabilidad();
 
-    if (fallidos.length === 0) {
+    if (sinEnviar.length + sinConfirmar.length === 0) {
       await this.avisar(`${subidos} TAG(s) sincronizados.`, 'success');
       return;
     }
 
-    await this.avisoSync.avisarFalloLote(fallidos, pendientes.length);
+    await this.avisoSync.avisarFalloLote(sinEnviar, pendientes.length, sinConfirmar);
   }
 
   /*
