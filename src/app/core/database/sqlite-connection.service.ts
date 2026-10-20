@@ -9,17 +9,32 @@ import { Injectable, isDevMode } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { SODIMAC_DB_VERSION } from './sodimac.schema';
+import { ExclusionDeEscrituras } from './exclusion-de-escrituras';
+import { conexionCruda, ejecutarEnTransaccion, serializarConexion } from './conexion-serializada';
 const TAG = '[SqliteConnectionService]';
 
 @Injectable({ providedIn: 'root' })
 export class SqliteConnectionService {
   private readonly sqlite = new SQLiteConnection(CapacitorSQLite);
+  /* Las conexiones tal como las entrega el plugin. */
   private readonly connections = new Map<string, SQLiteDBConnection>();
+  /* Lo que se entrega a los repositorios: la misma conexión, con las escrituras en cola. */
+  private readonly serializadas = new Map<string, SQLiteDBConnection>();
+  /* Un turno de escritura por base: ver ExclusionDeEscrituras. */
+  private readonly exclusiones = new Map<string, ExclusionDeEscrituras>();
 
   get isSupported(): boolean {
     return Capacitor.isNativePlatform();
   }
 
+  /*
+   * La conexión que se entrega YA viene serializada: sus escrituras esperan su
+   * turno, y un `run` sin tercer argumento deja de abrir una transacción propia
+   * (ver serializarConexion). Es lo que evita que una escritura cualquiera
+   * revierta la transacción de otra operación — la carrera que hacía fallar la
+   * descarga inicial con `FOREIGN KEY constraint failed`, `no current
+   * transaction` o `No se pudo resolver producto`.
+   */
   async getConnection(dbName: string): Promise<SQLiteDBConnection> {
     if (!this.isSupported) {
       throw new Error(`${TAG} SQLite solo está disponible en plataforma nativa (Android/iOS). En web no hay base local.`);
@@ -27,7 +42,7 @@ export class SqliteConnectionService {
 
     const cached = this.connections.get(dbName);
     if (cached) {
-      return cached;
+      return this.serializada(dbName, cached);
     }
 
     const consistency = await this.sqlite.checkConnectionsConsistency();
@@ -59,7 +74,25 @@ export class SqliteConnectionService {
     }
 
     this.connections.set(dbName, db);
-    return db;
+    return this.serializada(dbName, db);
+  }
+
+  private exclusionDe(dbName: string): ExclusionDeEscrituras {
+    let exclusion = this.exclusiones.get(dbName);
+    if (!exclusion) {
+      exclusion = new ExclusionDeEscrituras();
+      this.exclusiones.set(dbName, exclusion);
+    }
+    return exclusion;
+  }
+
+  private serializada(dbName: string, cruda: SQLiteDBConnection): SQLiteDBConnection {
+    const existente = this.serializadas.get(dbName);
+    if (existente && conexionCruda(existente) === cruda) return existente;
+
+    const nueva = serializarConexion(cruda, this.exclusionDe(dbName));
+    this.serializadas.set(dbName, nueva);
+    return nueva;
   }
 
   /*
@@ -151,6 +184,7 @@ export class SqliteConnectionService {
         // ignore delete errors
       }
       this.connections.delete(dbName);
+      this.serializadas.delete(dbName);
     }
 
     await this.sqlite.closeConnection(dbName, false);
@@ -162,25 +196,19 @@ export class SqliteConnectionService {
    * dejar filas huérfanas — una sucursal sin su vínculo al operador, o una
    * muestra sin detalle.
    *
-   * IMPORTANTE: los `db.run()` de adentro deben pasar `false` como tercer
-   * argumento. Ese parámetro vale `true` por default y hace que cada statement
-   * abra y cierre su propia transacción, que es justo lo que se quiere evitar.
+   * La transacción ocupa el turno de escritura completo: ninguna otra escritura
+   * corre hasta el commit o el rollback. Quien llega en medio espera, en lugar
+   * de entrar en la transacción o —peor— revertirla.
+   *
+   * REGLA DE `fn`: usa SOLO la conexión que recibe. Va sin cola —la transacción
+   * ya tiene el turno— y con `run`/`execute`/`executeSet` sin transacción propia
+   * por default, así que no hace falta pasar `false`. Esperar una escritura por
+   * `getConnection()` desde adentro es esperar el turno que la propia
+   * transacción tiene tomado: se cuelga (y avisa a los 15 s).
    */
   async enTransaccion<T>(dbName: string, fn: (db: SQLiteDBConnection) => Promise<T>): Promise<T> {
     const db = await this.getConnection(dbName);
-    await db.beginTransaction();
-    try {
-      const resultado = await fn(db);
-      await db.commitTransaction();
-      return resultado;
-    } catch (err) {
-      try {
-        await db.rollbackTransaction();
-      } catch (errRollback) {
-        console.error(`${TAG} falló el rollback:`, errRollback);
-      }
-      throw err;
-    }
+    return ejecutarEnTransaccion(db, this.exclusionDe(dbName), fn);
   }
 }
 

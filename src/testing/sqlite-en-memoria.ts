@@ -15,11 +15,27 @@
  *
  * LO QUE IMITA DEL PLUGIN, A PROPÓSITO
  *
- * @capacitor-community/sqlite envuelve CADA db.run() en su propia transacción
- * salvo que se le pase `false` como tercer argumento. Meter un run() con el
- * default adentro de un beginTransaction() explota — ese fue exactamente el bug
- * de arriba. Este doble reproduce esa regla: si no, los tests pasarían y el
- * dispositivo seguiría fallando, que es la peor combinación posible.
+ * @capacitor-community/sqlite envuelve CADA db.run(), db.execute() y
+ * db.executeSet() en su propia transacción salvo que se le pase `false`. Meter
+ * uno con el default adentro de un beginTransaction() explota — ese fue
+ * exactamente el bug de arriba. Este doble reproduce esa regla: si no, los
+ * tests pasarían y el dispositivo seguiría fallando, que es la peor
+ * combinación posible.
+ *
+ * Y reproduce también lo que hace que esa regla sea peligrosa. En
+ * Database.java cada una de esas operaciones es:
+ *
+ *   try { beginTransaction(); …; commitTransaction(); }
+ *   finally { if (transaction && _db.inTransaction()) rollbackTransaction(); }
+ *
+ * Si el begin falla porque YA había una transacción abierta —de otra
+ * operación—, el `finally` ve esa transacción ajena y la REVIERTE. Así una
+ * escritura cualquiera deshacía la descarga inicial a medio guardar
+ * (comprobado contra el plugin real en una PDA). Un doble que solo lanzara el
+ * error y dejara la transacción en pie no podría reproducir esa carrera, y los
+ * tests que la cubren no servirían de nada.
+ *
+ * Los mensajes de error son los del plugin, para poder comprobarlos tal cual.
  */
 
 import initSqlJs, { SqlJs, SqlJsDatabase } from 'sql.js/dist/sql-wasm-browser.js';
@@ -28,7 +44,8 @@ import initSqlJs, { SqlJs, SqlJsDatabase } from 'sql.js/dist/sql-wasm-browser.js
 export interface ConexionFalsa {
   query(sql: string, valores?: unknown[]): Promise<{ values?: Record<string, unknown>[] }>;
   run(sql: string, valores?: unknown[], transaction?: boolean): Promise<{ changes: { changes: number; lastId: number } }>;
-  execute(sql: string): Promise<unknown>;
+  execute(sql: string, transaction?: boolean): Promise<unknown>;
+  executeSet(set: { statement: string; values?: unknown[] }[], transaction?: boolean): Promise<unknown>;
   beginTransaction(): Promise<unknown>;
   commitTransaction(): Promise<unknown>;
   rollbackTransaction(): Promise<unknown>;
@@ -76,6 +93,33 @@ export async function crearConexionEnMemoria(esquemaSql: string): Promise<Conexi
     return Number(res[0]?.values?.[0]?.[0] ?? 0);
   }
 
+  /*
+   * El cuerpo común de run / execute / executeSet, como lo hace Database.java:
+   * con `transaction` en true abre su propia transacción (y falla si ya había
+   * una), y el `finally` revierte cualquiera que siga abierta al terminar —
+   * incluida la AJENA cuando el begin falló. Ver el comentario de arriba.
+   */
+  async function conTransaccion<T>(transaction: boolean, cuerpo: () => T): Promise<T> {
+    try {
+      if (transaction) {
+        if (enTransaccion) throw new Error('Failed in beginTransaction: Already in transaction');
+        db.run('BEGIN TRANSACTION;');
+        enTransaccion = true;
+      }
+      const resultado = cuerpo();
+      if (transaction) {
+        db.run('COMMIT;');
+        enTransaccion = false;
+      }
+      return resultado;
+    } finally {
+      if (transaction && enTransaccion) {
+        db.run('ROLLBACK;');
+        enTransaccion = false;
+      }
+    }
+  }
+
   return {
     get transaccionAbierta() {
       return enTransaccion;
@@ -86,34 +130,24 @@ export async function crearConexionEnMemoria(esquemaSql: string): Promise<Conexi
     },
 
     async run(sql: string, valores: unknown[] = [], transaction = true) {
-      /*
-       * La regla del plugin, replicada: con `transaction` en true (el default)
-       * abre una transacción propia, y hacerlo dentro de otra falla. Es el error
-       * que rompió el conteo en el dispositivo.
-       */
-      if (transaction && enTransaccion) {
-        throw new Error('Failed in beginTransaction: Already in transaction');
-      }
-
-      if (transaction) {
-        db.run('BEGIN TRANSACTION;');
-        try {
-          db.run(sql, valores);
-          db.run('COMMIT;');
-        } catch (err) {
-          db.run('ROLLBACK;');
-          throw err;
-        }
-      } else {
+      return conTransaccion(transaction, () => {
         db.run(sql, valores);
-      }
-
-      return { changes: { changes: db.getRowsModified(), lastId: ultimoId() } };
+        return { changes: { changes: db.getRowsModified(), lastId: ultimoId() } };
+      });
     },
 
-    async execute(sql: string) {
-      db.run(sql);
-      return { changes: { changes: db.getRowsModified() } };
+    async execute(sql: string, transaction = true) {
+      return conTransaccion(transaction, () => {
+        db.run(sql);
+        return { changes: { changes: db.getRowsModified() } };
+      });
+    },
+
+    async executeSet(set: { statement: string; values?: unknown[] }[], transaction = true) {
+      return conTransaccion(transaction, () => {
+        for (const s of set) db.run(s.statement, s.values ?? []);
+        return { changes: { changes: db.getRowsModified() } };
+      });
     },
 
     async beginTransaction() {
@@ -124,12 +158,18 @@ export async function crearConexionEnMemoria(esquemaSql: string): Promise<Conexi
     },
 
     async commitTransaction() {
+      if (!enTransaccion) {
+        throw new Error('CommitTransaction: Cannot perform this operation because there is no current transaction.');
+      }
       db.run('COMMIT;');
       enTransaccion = false;
       return {};
     },
 
     async rollbackTransaction() {
+      if (!enTransaccion) {
+        throw new Error('RollbackTransaction: Cannot perform this operation because there is no current transaction.');
+      }
       db.run('ROLLBACK;');
       enTransaccion = false;
       return {};
