@@ -20,11 +20,24 @@ import { AutoReportService } from '../../core/error-report/auto-report.service';
  * respuesta incompleta) — normalizarlos acá a un solo texto genérico le
  * quitaba al operador (y a soporte) la única pista de qué pasó de verdad.
  * Cae al mismo `err.message` que cualquier otro Error.
+ *
+ * Lo que sí tiene rama propia es un fallo al GUARDAR. Ahí el mensaje es el del
+ * motor de la base —"Run: FOREIGN KEY constraint failed (code 787)"—, que no le
+ * dice nada a quien está en piso de tienda y tapa lo único que puede hacer:
+ * reintentar. El texto técnico no se pierde: va a la consola y al reporte
+ * automático, que lo toma del error y no de lo que se muestra.
  */
-function mensajeDeError(err: unknown): string {
+export const MENSAJE_FALLO_AL_GUARDAR =
+  'No se pudo guardar la información en la PDA. Intenta de nuevo; si sigue fallando, avisa a soporte.';
+
+function mensajeDeError(err: unknown, etapa: EtapaSincronizacion): string {
   if (err instanceof ContractError) {
     console.error('[sync] contrato inesperado:', err.message);
     return 'El servidor respondió con datos que la aplicación no reconoce. Avisa a soporte.';
+  }
+  if (etapa === 'GUARDANDO') {
+    console.error('[sync] falló el guardado local:', err);
+    return MENSAJE_FALLO_AL_GUARDAR;
   }
   return err instanceof Error ? err.message : 'No se pudo descargar la información.';
 }
@@ -170,7 +183,7 @@ export class SyncLoadingPageComponent implements OnInit, OnDestroy {
       this.router.navigate([destino]);
     } catch (err: unknown) {
       this.detenerAvance();
-      this.error.set(mensajeDeError(err));
+      this.error.set(mensajeDeError(err, this.etapa()));
 
       /*
        * Descarga incompleta o datos incorrectos del servidor: el operador solo
