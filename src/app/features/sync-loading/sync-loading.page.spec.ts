@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
-import { SyncLoadingPageComponent } from './sync-loading.page';
+import { MENSAJE_FALLO_AL_GUARDAR, SyncLoadingPageComponent } from './sync-loading.page';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { SincronizarDatosInicialesUseCase } from '../../application/sincronizacion/sincronizar-datos-iniciales.use-case';
 import { AnalystDashboardFacade } from '../../state/analyst/analyst-dashboard.facade';
@@ -137,6 +137,72 @@ describe('SyncLoadingPageComponent — perfil no habilitado', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(componente.error()).toBe('La respuesta del servidor llegó incompleta. Revisa la conexión e intenta de nuevo.');
+  });
+
+  /*
+   * Un fallo al GUARDAR trae el texto del motor de la base. Mostrárselo tal cual
+   * al operador no le sirve de nada, y el texto técnico tiene que seguir llegando
+   * al reporte para que soporte pueda diagnosticar.
+   */
+  describe('errores según la etapa', () => {
+    let reportar: jasmine.Spy;
+
+    function crearConFallo(etapa: 'DESCARGANDO' | 'GUARDANDO', error: Error) {
+      execute = jasmine.createSpy('execute').and.callFake(
+        async (_sesion: unknown, onEtapa?: (e: string) => void) => {
+          onEtapa?.(etapa);
+          throw error;
+        }
+      );
+      reportar = jasmine.createSpy('reportar').and.resolveTo(undefined);
+
+      TestBed.configureTestingModule({
+        imports: [SyncLoadingPageComponent],
+        providers: [
+          provideRouter([]),
+          { provide: SincronizarDatosInicialesUseCase, useValue: { execute } },
+          {
+            provide: AuthFacade,
+            useValue: {
+              session: signal(SESSION),
+              actualizarPerfilSesion: jasmine.createSpy().and.resolveTo(undefined),
+              logout: jasmine.createSpy('logout').and.resolveTo(undefined),
+            },
+          },
+          { provide: AnalystDashboardFacade, useValue: { cargarDatos: jasmine.createSpy('cargarDatos') } },
+          { provide: AutoReportService, useValue: { reportar } },
+        ],
+      });
+
+      componente = TestBed.createComponent(SyncLoadingPageComponent).componentInstance;
+    }
+
+    it('un fallo al guardar muestra un mensaje claro y no el texto del motor de la base', async () => {
+      crearConFallo('GUARDANDO', new Error('Run: FOREIGN KEY constraint failed (code 787)'));
+      await componente.ngOnInit();
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(componente.error()).toBe(MENSAJE_FALLO_AL_GUARDAR);
+    });
+
+    it('…pero el reporte automático conserva el texto técnico y la etapa', async () => {
+      crearConFallo('GUARDANDO', new Error('CommitTransaction: Cannot perform this operation because there is no current transaction.'));
+      await componente.ngOnInit();
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(reportar).toHaveBeenCalledTimes(1);
+      const [contexto, mensaje] = reportar.calls.mostRecent().args;
+      expect(contexto).toContain('GUARDANDO');
+      expect(mensaje).toContain('no current transaction');
+    });
+
+    it('un fallo al descargar sigue mostrando el mensaje del servidor', async () => {
+      crearConFallo('DESCARGANDO', new Error('Falta correo'));
+      await componente.ngOnInit();
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(componente.error()).toBe('Falta correo');
+    });
   });
 
   describe('los perfiles habilitados siguen pasando', () => {
