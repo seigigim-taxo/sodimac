@@ -34,6 +34,20 @@ import { partirRut } from '../../domain/auth/utils/rut.utils';
  * `onEtapa` deja que la UI muestre en qué va sin que este caso de uso sepa nada
  * de barras ni porcentajes.
  */
+
+/*
+ * Cuánto tiempo se reutiliza una descarga cuyo GUARDADO falló.
+ *
+ * La respuesta puede pesar 10 MB. Si guardarla falla —y reintentar es lo que
+ * hace el operador—, volver a descargarla es lo más caro y lo más frágil por
+ * 4G, y no arregla nada: el fallo fue al escribir, no al bajar. Con esto el
+ * reintento solo repite el guardado.
+ *
+ * Diez minutos y no más: es una excepción para el reintento inmediato, no una
+ * caché. Pasado ese tiempo el servidor pudo haber cambiado la muestra.
+ */
+export const VIGENCIA_DESCARGA_FALLIDA_MS = 10 * 60 * 1000;
+
 @Injectable({ providedIn: 'root' })
 export class SincronizarDatosInicialesUseCase {
   private preparacionApi = inject(PREPARACION_API_REPOSITORY_TOKEN);
@@ -48,6 +62,28 @@ export class SincronizarDatosInicialesUseCase {
   private recuentoRepo = inject(RECUENTO_REPOSITORY_TOKEN);
   private sqlite = inject(SqliteConnectionService);
   private metaRepo = inject(META_REPOSITORY_TOKEN);
+
+  /*
+   * La última descarga que NO se pudo guardar, para reintentar sin volver a
+   * bajarla. Se limpia apenas un guardado sale bien, y se suelta sola al
+   * vencer su vigencia: una muestra grande ya parseada ocupa decenas de MB, y
+   * no tiene por qué quedar en memoria si nadie reintenta. Vive solo en
+   * memoria: si la app se cierra, el próximo ingreso descarga de nuevo.
+   */
+  private descargaPendiente: { rut: string; datos: DatosPreparacion; momento: number } | null = null;
+  private temporizadorOlvido: ReturnType<typeof setTimeout> | null = null;
+
+  private recordarDescarga(rut: string, datos: DatosPreparacion): void {
+    this.olvidarDescarga();
+    this.descargaPendiente = { rut, datos, momento: Date.now() };
+    this.temporizadorOlvido = setTimeout(() => this.olvidarDescarga(), VIGENCIA_DESCARGA_FALLIDA_MS);
+  }
+
+  private olvidarDescarga(): void {
+    if (this.temporizadorOlvido !== null) clearTimeout(this.temporizadorOlvido);
+    this.temporizadorOlvido = null;
+    this.descargaPendiente = null;
+  }
 
   async execute(
     session: Session,
@@ -66,8 +102,24 @@ export class SincronizarDatosInicialesUseCase {
    * respuesta —comparar la agenda— ANTES de decidir si vale la pena escribir
    * nada. Si tuviera que llamar a execute(), la preparación se bajaría dos
    * veces sólo para averiguar que no había trabajo nuevo.
+   *
+   * La única vez que NO descarga es justo después de un guardado fallido del
+   * mismo operador (ver VIGENCIA_DESCARGA_FALLIDA_MS): devuelve lo que ya tiene.
+   * Fuera de ese caso siempre va al servidor, porque quien llama necesita datos
+   * frescos para decidir si hay trabajo nuevo.
    */
   async descargar(session: Session): Promise<DatosPreparacion> {
+    const pendiente = this.descargaPendiente;
+    if (
+      pendiente &&
+      pendiente.rut === session.rutNormalizado &&
+      Date.now() - pendiente.momento < VIGENCIA_DESCARGA_FALLIDA_MS
+    ) {
+      if (isDevMode()) console.log('[Sincronizar] se reutiliza la descarga cuyo guardado falló');
+      return pendiente.datos;
+    }
+
+    this.olvidarDescarga();
     return this.preparacionApi.preparar({
       correo: session.correo,
       rut: session.rutNormalizado,
@@ -81,6 +133,22 @@ export class SincronizarDatosInicialesUseCase {
    * valiendo: es este método el que decide que la preparación fue exitosa.
    */
   async persistir(
+    session: Session,
+    datos: DatosPreparacion,
+    onEtapa?: (etapa: EtapaSincronizacion) => void
+  ): Promise<{ usuario: UsuarioPreparado; analista: DatosAnalista | null }> {
+    try {
+      const resultado = await this.guardar(session, datos, onEtapa);
+      this.olvidarDescarga();
+      return resultado;
+    } catch (err) {
+      // Lo descargado sirve: el fallo fue al escribir. Ver VIGENCIA_DESCARGA_FALLIDA_MS.
+      this.recordarDescarga(session.rutNormalizado, datos);
+      throw err;
+    }
+  }
+
+  private async guardar(
     session: Session,
     datos: DatosPreparacion,
     onEtapa?: (etapa: EtapaSincronizacion) => void
