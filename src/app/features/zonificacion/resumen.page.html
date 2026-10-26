@@ -20,6 +20,16 @@
 <ion-content style="--background: var(--app-bg-gradient);">
   <div class="page-inner py-6">
 
+    @if (mensaje(); as m) {
+    <div class="status-banner mb-4" data-testid="mensaje"
+         [class.status-banner-success]="m.tipo === 'ok'"
+         [class.status-banner-info]="m.tipo === 'info'"
+         [class.status-banner-error]="m.tipo === 'error'">
+      <ion-icon [name]="m.tipo === 'ok' ? 'checkmark-circle-outline' : m.tipo === 'error' ? 'alert-circle-outline' : 'information-circle-outline'"></ion-icon>
+      <span>{{ m.texto }}</span>
+    </div>
+    }
+
     @if (esCopia()) {
     <div class="status-banner status-banner-warning mb-4" data-testid="aviso-copia">
       <ion-icon name="cloud-offline-outline"></ion-icon>
@@ -128,7 +138,7 @@
     }
     }
 
-    <p class="section-label mb-2">Rangos</p>
+    <p class="section-label mb-2">Rangos@if (puedeEditarRangos() && filas().length > 0) { · toca uno para editarlo }</p>
     @if (filas().length === 0) {
     <div class="status-banner status-banner-info" data-testid="sin-rangos">
       <ion-icon name="information-circle-outline"></ion-icon>
@@ -137,7 +147,9 @@
     } @else {
     <div class="card" style="padding-top: 4px; padding-bottom: 4px;">
       @for (fila of filas(); track fila.id) {
-      <div class="flex items-center justify-between gap-2 py-2" style="border-top: 0.5px solid var(--app-border);" [attr.data-testid]="'rango-' + fila.id">
+      <div class="flex items-center justify-between gap-2 py-2" style="border-top: 0.5px solid var(--app-border);" [attr.data-testid]="'rango-' + fila.id"
+           [attr.role]="puedeEditarRangos() ? 'button' : null" [attr.tabindex]="puedeEditarRangos() ? 0 : null"
+           [style.cursor]="puedeEditarRangos() ? 'pointer' : null" (click)="abrirFila(fila)" (keydown.enter)="abrirFila(fila)">
         <div class="min-w-0">
           <p class="text-[14px] font-semibold" style="color: var(--app-text);">{{ fila.zona }}</p>
           <p class="text-[12px] num" style="color: var(--app-text-muted);">
@@ -150,6 +162,7 @@
           } @else {
           <p><strong class="num" style="color: var(--app-text);">{{ fila.usados ?? 0 }} de {{ fila.cantidad }}</strong> usados</p>
           @if (fila.desbalance) { <p style="color: var(--app-error-text);">Desbalanceado</p> }
+          <p style="color: var(--app-success);">Enviado</p>
           }
         </div>
       </div>
@@ -158,6 +171,17 @@
         <span>Total@if (totales().tagsAnulados > 0) { · {{ totales().tagsAnulados }} {{ totales().tagsAnulados === 1 ? 'TAG anulado excluido' : 'TAG anulados excluidos' }} }</span>
         <span class="num">{{ totales().tagsZonificados }} TAG</span>
       </div>
+    </div>
+    }
+
+    @if (puedeModificar()) {
+    <div class="flex flex-col gap-3 mt-4" data-testid="acciones">
+      @if (puedeEditarRangos()) {
+      <ion-button expand="block" class="btn-primary" data-testid="nuevo-rango" (click)="nuevoRango()">Nuevo rango</ion-button>
+      }
+      @if (filas().length > 0) {
+      <ion-button expand="block" class="btn-outline" data-testid="anular-tag" (click)="anularTag()">Anular TAG</ion-button>
+      }
     </div>
     }
 

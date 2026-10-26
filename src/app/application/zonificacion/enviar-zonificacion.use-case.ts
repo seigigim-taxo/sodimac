@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { ApiError } from '../../domain/shared/errors/api.error';
 import { NetworkError } from '../../domain/shared/errors/network.error';
 import { esCodigoErrorZonificacion, esErrorDefinitivo } from '../../domain/zonificacion/models/error-zonificacion.model';
@@ -62,6 +62,15 @@ export class EnviarZonificacionUseCase {
   private identidadService = inject(IdentidadZonificacionService);
   private candado = inject(EnvioEnCursoService);
 
+  /*
+   * Sube cada vez que una operación sale de la cola (aplicada) o queda rechazada.
+   * Las pantallas lo miran para volver a leer lo local: el envío corre en segundo
+   * plano y, sin este aviso, lo que se ve quedaría con la marca "pendiente" hasta
+   * volver a entrar.
+   */
+  private cambiosSignal = signal(0);
+  readonly cambios = this.cambiosSignal.asReadonly();
+
   async execute(opciones: OpcionesEnvioZonificacion = {}): Promise<ResultadoEnvioZonificacion> {
     const resultado: ResultadoEnvioZonificacion = { enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false };
 
@@ -120,11 +129,13 @@ export class EnviarZonificacionUseCase {
           await this.local.guardarEstado(aplicada.estado);
           await this.local.eliminar(op.id);
           resultado.enviadas++;
+          this.cambiosSignal.update((n) => n + 1);
         } catch (err) {
           if (err instanceof ApiError && esCodigoErrorZonificacion(err.codigo) && esErrorDefinitivo(err.codigo)) {
             await this.local.marcarRechazada(op.id, { codigo: err.codigo, data: datosDe(err.datos) }, err.message);
             resultado.rechazadas++;
             huboRechazo = true;
+            this.cambiosSignal.update((n) => n + 1);
             continue;
           }
 

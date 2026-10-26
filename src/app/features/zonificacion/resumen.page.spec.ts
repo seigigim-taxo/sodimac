@@ -1,6 +1,7 @@
 import { NO_ERRORS_SCHEMA, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ActionSheetController, AlertController } from '@ionic/angular/standalone';
 import { EstadoCargado } from '../../application/zonificacion/cargar-estado-zonificacion.use-case';
 import { AgendaRef } from '../../application/zonificacion/resultado-accion';
 import { ESTADO_V1_DATA } from '../../data/zonificacion/zonificacion.fixtures';
@@ -9,7 +10,7 @@ import { EstadoAgenda } from '../../domain/zonificacion/models/estado-agenda.mod
 import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zonificacion.model';
 import { aplicarPendientes } from '../../domain/zonificacion/utils/vista-con-pendientes.utils';
 import { NetworkService } from '../../shared/services/network.service';
-import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
+import { MensajeZonificacion, ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 import { ZonificacionResumenPage, filaDeRechazo } from './resumen.page';
 
 const op = (tipo: OperacionEnCola['tipo'], datos: Record<string, unknown>, extra: Partial<OperacionEnCola> = {}): OperacionEnCola => ({
@@ -55,6 +56,9 @@ describe('ZonificacionResumenPage', () => {
   let agendaActual: ReturnType<typeof signal<AgendaRef | null>>;
   let facade: Record<string, unknown>;
   let idEnRuta: string;
+  let mensajePendiente: MensajeZonificacion | null;
+  let hoja: { create: jasmine.Spy; creada: { present: jasmine.Spy } };
+  let alerta: { create: jasmine.Spy; creada: { present: jasmine.Spy } };
 
   const base = (): EstadoAgenda => parsearRespuestaEstado(ESTADO_V1_DATA);
 
@@ -68,7 +72,18 @@ describe('ZonificacionResumenPage', () => {
     agendaActual = signal<AgendaRef | null>({ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' });
     navigate = jasmine.createSpy('navigate');
     idEnRuta = '2092';
+    mensajePendiente = null;
+    hoja = { creada: { present: jasmine.createSpy('present').and.resolveTo() }, create: jasmine.createSpy('create') };
+    hoja.create.and.callFake(async () => hoja.creada);
+    alerta = { creada: { present: jasmine.createSpy('present').and.resolveTo() }, create: jasmine.createSpy('create') };
+    alerta.create.and.callFake(async () => alerta.creada);
     facade = {
+      consumirMensaje: () => {
+        const m = mensajePendiente;
+        mensajePendiente = null;
+        return m;
+      },
+      eliminarRango: jasmine.createSpy('eliminarRango').and.resolveTo({ ok: true }),
       agendas: signal({ lista: { hoy: '2026-09-09', agendas: [{ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' }] } }),
       agenda: agendaActual,
       estado: cargado,
@@ -84,6 +99,8 @@ describe('ZonificacionResumenPage', () => {
       .overrideProvider(ActivatedRoute, { useValue: { snapshot: { paramMap: { get: () => idEnRuta } } } })
       .overrideProvider(NetworkService, { useValue: { isOnline: signal(true) } })
       .overrideProvider(ZonificacionFacade, { useValue: facade })
+      .overrideProvider(ActionSheetController, { useValue: hoja })
+      .overrideProvider(AlertController, { useValue: alerta })
       .compileComponents();
 
     fixture = TestBed.createComponent(ZonificacionResumenPage);
@@ -276,6 +293,154 @@ describe('ZonificacionResumenPage', () => {
 
       expect(dom('sin-datos', d)).toBeNull();
       expect(dom('rango-uid-GUARDAR_RANGO', d)).not.toBeNull();
+    });
+  });
+
+  describe('acciones', () => {
+    it('con la agenda editable ofrece "Nuevo rango" y "Anular TAG"', () => {
+      cargar(base());
+      const d = pintar();
+      expect(dom('nuevo-rango', d)).not.toBeNull();
+      expect(dom('anular-tag', d)).not.toBeNull();
+    });
+
+    it('"Nuevo rango" y "Anular TAG" llevan a su pantalla', () => {
+      cargar(base());
+      const d = pintar();
+
+      (dom('nuevo-rango', d) as HTMLElement).click();
+      (dom('anular-tag', d) as HTMLElement).click();
+
+      expect(navigate).toHaveBeenCalledWith(['/zonificacion', 2092, 'rango']);
+      expect(navigate).toHaveBeenCalledWith(['/zonificacion', 2092, 'anular']);
+    });
+
+    it('sin rangos no hay nada que anular: solo "Nuevo rango"', () => {
+      cargar({ ...base(), rangos: [] });
+      const d = pintar();
+      expect(dom('nuevo-rango', d)).not.toBeNull();
+      expect(dom('anular-tag', d)).toBeNull();
+    });
+
+    it('confirmada: solo se puede anular TAG (para editar rangos hay que reabrir)', () => {
+      const e = base();
+      cargar({ ...e, zonificacion: { ...e.zonificacion, estado: 'CONFIRMADA' } });
+      const d = pintar();
+      expect(dom('nuevo-rango', d)).toBeNull();
+      expect(dom('anular-tag', d)).not.toBeNull();
+    });
+
+    it('solo lectura o agenda cerrada: ninguna acción', () => {
+      const e = base();
+      cargar({ ...e, agenda: { ...e.agenda, soloLectura: true } });
+      expect(dom('acciones', pintar())).toBeNull();
+
+      cargar({ ...e, agenda: { ...e.agenda, operable: false, codigoEstado: 'CERRADA' } });
+      fixture.detectChanges();
+      expect(dom('acciones', fixture.nativeElement)).toBeNull();
+    });
+
+    it('cada rango dice que ya está enviado, y la lista invita a tocarlos', () => {
+      cargar(base());
+      const d = pintar();
+      expect(texto(dom('rango-758', d))).toContain('Enviado');
+      expect(texto(d)).toContain('toca uno para editarlo');
+    });
+  });
+
+  describe('tocar un rango', () => {
+    beforeEach(() => cargar(base()));
+
+    it('abre la hoja con la zona, el rango y el detalle', async () => {
+      const fila = fixture.componentInstance.filas()[0];
+
+      await fixture.componentInstance.abrirFila(fila);
+
+      const opciones = hoja.create.calls.mostRecent().args[0];
+      expect(opciones.header).toBe('ALTILLO · 1128–1131');
+      expect(opciones.subHeader).toBe('4 TAG · P48 · 0 usados');
+      expect(opciones.buttons.map((b: { text: string }) => b.text)).toEqual(['Editar rango', 'Eliminar rango', 'Cerrar']);
+      expect(hoja.creada.present).toHaveBeenCalled();
+    });
+
+    it('"Editar rango" abre el formulario con ese rango', async () => {
+      await fixture.componentInstance.abrirFila(fixture.componentInstance.filas()[0]);
+
+      hoja.create.calls.mostRecent().args[0].buttons[0].handler();
+
+      expect(navigate).toHaveBeenCalledWith(['/zonificacion', 2092, 'rango'], { queryParams: { rango: '758' } });
+    });
+
+    it('"Eliminar rango" pide confirmación y recién entonces elimina', async () => {
+      await fixture.componentInstance.abrirFila(fixture.componentInstance.filas()[0]);
+
+      hoja.create.calls.mostRecent().args[0].buttons[1].handler();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const confirmacion = alerta.create.calls.mostRecent().args[0];
+      expect(confirmacion.message).toBe('¿Eliminar el rango ALTILLO 1128–1131? Los TAG ya capturados no se tocan.');
+      expect(facade['eliminarRango']).not.toHaveBeenCalled();
+
+      confirmacion.buttons[1].handler();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(facade['eliminarRango']).toHaveBeenCalledOnceWith({ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' }, 758);
+    });
+
+    it('cancelar la confirmación no elimina nada', async () => {
+      await fixture.componentInstance.abrirFila(fixture.componentInstance.filas()[0]);
+      hoja.create.calls.mostRecent().args[0].buttons[1].handler();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const cancelar = alerta.create.calls.mostRecent().args[0].buttons[0];
+
+      expect(cancelar.role).toBe('cancel');
+      expect(facade['eliminarRango']).not.toHaveBeenCalled();
+    });
+
+    it('si eliminar se rechaza, lo dice en un aviso', async () => {
+      (facade['eliminarRango'] as jasmine.Spy).and.resolveTo({ ok: false, codigo: 'RANGO_EN_ENVIO', data: {} });
+      await fixture.componentInstance.abrirFila(fixture.componentInstance.filas()[0]);
+      hoja.create.calls.mostRecent().args[0].buttons[1].handler();
+      await Promise.resolve();
+      await Promise.resolve();
+      alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(texto(dom('mensaje', pintar()))).toBe('El rango se está enviando. Intenta de nuevo en un momento.');
+    });
+
+    it('en una agenda que no se puede editar, tocar un rango no hace nada', async () => {
+      const e = base();
+      cargar({ ...e, zonificacion: { ...e.zonificacion, estado: 'CONFIRMADA' } });
+
+      await fixture.componentInstance.abrirFila(fixture.componentInstance.filas()[0]);
+
+      expect(hoja.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('mensaje de lo último que se hizo', () => {
+    it('se muestra al volver de guardar, y solo una vez', async () => {
+      mensajePendiente = { tipo: 'ok', texto: 'Rango guardado.' };
+      cargar(base());
+
+      await fixture.componentInstance.ionViewWillEnter();
+
+      expect(texto(dom('mensaje', pintar()))).toBe('Rango guardado.');
+      await fixture.componentInstance.ionViewWillEnter();
+      expect(fixture.componentInstance.mensaje()).toBeNull();
+    });
+
+    it('sin mensaje pendiente no se muestra nada', async () => {
+      cargar(base());
+      await fixture.componentInstance.ionViewWillEnter();
+      expect(dom('mensaje', pintar())).toBeNull();
     });
   });
 });

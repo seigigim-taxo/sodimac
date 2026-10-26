@@ -1,15 +1,15 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { ActionSheetController, AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
 import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zonificacion.model';
 import { ETIQUETA_ESTADO_VISUAL, TONO_ESTADO_VISUAL, estadoVisualDeResumen } from '../../domain/zonificacion/utils/estado-visual.utils';
-import { filasDeRangos, totalesDeResumen } from '../../domain/zonificacion/utils/filas-resumen.utils';
+import { FilaRango, filasDeRangos, totalesDeResumen } from '../../domain/zonificacion/utils/filas-resumen.utils';
 import { mensajeZonificacion } from '../../domain/zonificacion/utils/mensajes-zonificacion.utils';
 import { NetworkService } from '../../shared/services/network.service';
-import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
+import { MensajeZonificacion, ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 
 /* Una operación que el servidor rechazó, con el motivo ya en palabras. */
 export interface FilaRechazo {
@@ -54,6 +54,8 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   private router = inject(Router);
   private facade = inject(ZonificacionFacade);
   private network = inject(NetworkService);
+  private actionSheet = inject(ActionSheetController);
+  private alertas = inject(AlertController);
 
   isOnline = this.network.isOnline;
   cargando = this.facade.cargandoEstado;
@@ -95,11 +97,21 @@ export class ZonificacionResumenPage implements ViewWillEnter {
     return agenda.soloLectura ? 'Solo lectura: no puedes modificar esta agenda.' : null;
   });
 
+  /* El resultado de lo último que hizo el operador ("Rango guardado."); se muestra una vez. */
+  mensaje = signal<MensajeZonificacion | null>(null);
+
+  /* Se puede modificar algo en esta agenda (operable, con escritura y asignada). */
+  puedeModificar = computed(() => !!this.estado() && this.restriccion() === null);
+  /* Guardar y eliminar rangos solo con la zonificación en borrador; anular TAG no depende del estado. */
+  puedeEditarRangos = computed(() => this.puedeModificar() && this.vista()?.estado !== 'CONFIRMADA');
+
   constructor() {
     addIcons({ alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, lockClosedOutline, refreshOutline, timeOutline });
   }
 
   async ionViewWillEnter(): Promise<void> {
+    // Lo que dejó la pantalla anterior (guardar, anular...) se muestra una sola vez.
+    this.mensaje.set(this.facade.consumirMensaje());
     const idAgenda = Number(this.route.snapshot.paramMap.get('idAgenda'));
     // El número de agenda sale de la lista descargada: sin ella no hay a qué agenda ir.
     const agenda = this.facade.agendas()?.lista?.agendas.find((a) => a.idAgenda === idAgenda);
@@ -118,5 +130,52 @@ export class ZonificacionResumenPage implements ViewWillEnter {
 
   descartar(fila: FilaRechazo): Promise<void> {
     return this.facade.descartarRechazada(fila.id);
+  }
+  nuevoRango(): void {
+    void this.router.navigate(['/zonificacion', this.facade.agenda()?.idAgenda, 'rango']);
+  }
+
+  anularTag(): void {
+    void this.router.navigate(['/zonificacion', this.facade.agenda()?.idAgenda, 'anular']);
+  }
+
+  /* Tocar un rango abre la hoja de acciones: editarlo o eliminarlo. */
+  async abrirFila(fila: FilaRango): Promise<void> {
+    if (!this.puedeEditarRangos()) return;
+
+    const detalle = [`${fila.cantidad} TAG`, fila.referencia, fila.usados !== null ? `${fila.usados} usados` : null].filter((x) => !!x).join(' · ');
+    const hoja = await this.actionSheet.create({
+      header: `${fila.zona} · ${fila.rango}`,
+      subHeader: detalle,
+      buttons: [
+        { text: 'Editar rango', handler: () => void this.editar(fila) },
+        { text: 'Eliminar rango', role: 'destructive', handler: () => void this.confirmarEliminar(fila) },
+        { text: 'Cerrar', role: 'cancel' },
+      ],
+    });
+    await hoja.present();
+  }
+
+  private editar(fila: FilaRango): Promise<boolean> {
+    return this.router.navigate(['/zonificacion', this.facade.agenda()?.idAgenda, 'rango'], { queryParams: { rango: String(fila.id) } });
+  }
+
+  private async confirmarEliminar(fila: FilaRango): Promise<void> {
+    const alerta = await this.alertas.create({
+      header: 'Eliminar rango',
+      message: `¿Eliminar el rango ${fila.zona} ${fila.rango}? Los TAG ya capturados no se tocan.`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Eliminar', role: 'destructive', handler: () => void this.eliminar(fila) },
+      ],
+    });
+    await alerta.present();
+  }
+
+  private async eliminar(fila: FilaRango): Promise<void> {
+    const agenda = this.facade.agenda();
+    if (!agenda) return;
+    const r = await this.facade.eliminarRango(agenda, fila.id);
+    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
   }
 }

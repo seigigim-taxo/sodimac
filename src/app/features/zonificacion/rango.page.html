@@ -1,0 +1,117 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/zonificacion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ titulo() }}</ion-title>
+    <ion-buttons slot="end">
+      @if (isOnline()) {
+        <span class="conexion-indicator" style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <!-- Avisos primero: con el teclado arriba, un error al final del formulario no se ve. -->
+    @if (sinCatalogo()) {
+    <div class="error-pill mb-4" data-testid="sin-catalogo">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>Faltan las zonas. Conéctate a la red al menos una vez para descargarlas.</span>
+    </div>
+    }
+
+    @if (errorGuardar(); as error) {
+    <div class="error-pill mb-4" data-testid="error-guardar">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ error }}</span>
+    </div>
+    }
+
+    @if (tagsUsados() > 0) {
+    <div class="status-banner status-banner-info mb-4" data-testid="aviso-usados">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <span>Esta agenda ya tiene {{ tagsUsados() }} TAG utilizados. Al confirmar se validará que todos queden cubiertos por un rango.</span>
+    </div>
+    }
+
+    @if (evaluacion(); as ev) {
+
+    <div class="mb-4">
+      <p class="field-label mb-1">Primer TAG (desde)</p>
+      <ion-input class="input-base" inputmode="numeric" placeholder="Escanea o ingresa el TAG" data-testid="desde"
+                 [value]="desde()" (ionInput)="onDesde($event)" (keyup.enter)="enterEnDesde()">
+        <ion-icon slot="end" name="barcode-outline"></ion-icon>
+      </ion-input>
+      @if (ev.errorDesde) {
+      <p class="text-[12px] mt-1" style="color: var(--app-error-text);" data-testid="error-desde">{{ ev.errorDesde }}</p>
+      }
+    </div>
+
+    <div class="mb-4">
+      <p class="field-label mb-1">Último TAG (hasta)</p>
+      <ion-input #hastaEl class="input-base" inputmode="numeric" placeholder="Escanea o ingresa el TAG" data-testid="hasta"
+                 [value]="hasta()" (ionInput)="onHasta($event)" (keyup.enter)="enterEnHasta()">
+        <ion-icon slot="end" name="barcode-outline"></ion-icon>
+      </ion-input>
+      @if (ev.errorHasta) {
+      <p class="text-[12px] mt-1" style="color: var(--app-error-text);" data-testid="error-hasta">{{ ev.errorHasta }}</p>
+      }
+    </div>
+
+    @if (ev.bloqueo) {
+    <div class="status-banner status-banner-error mb-4" data-testid="bloqueo">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ ev.bloqueo }}</span>
+    </div>
+    }
+
+    @if (ev.advertencia) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="advertencia">
+      <ion-icon name="alert-outline"></ion-icon>
+      <span>{{ ev.advertencia }}</span>
+    </div>
+    }
+
+    <div class="card mb-4" data-testid="zona">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[12px]" style="color: var(--app-text-muted);">Zona detectada</span>
+        @if (ev.zona) {
+        <span class="badge badge-success" data-testid="zona-nombre">{{ ev.zona.nombre }}</span>
+        } @else {
+        <span class="text-[12px]" style="color: var(--app-text-muted);">—</span>
+        }
+      </div>
+      @if (ev.banda) {
+      <p class="text-[11px] mt-1" style="color: var(--app-text-muted);" data-testid="banda">Rango permitido: {{ ev.banda }}</p>
+      }
+      <div class="flex items-center justify-between gap-2 mt-2">
+        <span class="text-[12px]" style="color: var(--app-text-muted);">TAG instalados</span>
+        <span class="text-[15px] font-semibold num" style="color: var(--app-text);" data-testid="cantidad">
+          @if (ev.cantidad !== null) { {{ ev.cantidad }} TAG } @else { — }
+        </span>
+      </div>
+      <p class="text-[11px] mt-1" style="color: var(--app-text-muted);">Desde y hasta son inclusivos: hasta − desde + 1.</p>
+    </div>
+
+    <div class="mb-6">
+      <p class="field-label mb-1">Referencia / sector</p>
+      <ion-input class="input-base" placeholder="Ej. A la mitad del Pasillo 4" data-testid="referencia"
+                 [maxlength]="maxReferencia()" [value]="referencia()" (ionInput)="onReferencia($event)"></ion-input>
+      <p class="text-[11px] mt-1" style="color: var(--app-text-muted);">Opcional. Identifica físicamente dónde quedó instalado este rango de TAG.</p>
+    </div>
+
+    <ion-button expand="block" class="btn-primary" data-testid="guardar" [disabled]="!puedeGuardar()" (click)="guardar()">
+      Guardar
+    </ion-button>
+    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" data-testid="cancelar" (click)="volver()">
+      Cancelar
+    </ion-button>
+    }
+
+  </div>
+</ion-content>

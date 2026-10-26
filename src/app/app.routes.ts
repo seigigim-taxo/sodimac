@@ -53,6 +53,16 @@ export const routes: Routes = [
     canActivate: [authGuard, operatorGuard],
   },
   {
+    path: 'zonificacion/:idAgenda/rango',
+    loadComponent: () => import('./features/zonificacion/rango.page').then((m) => m.ZonificacionRangoPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
+    path: 'zonificacion/:idAgenda/anular',
+    loadComponent: () => import('./features/zonificacion/anular-tag.page').then((m) => m.ZonificacionAnularTagPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
     path: 'error-reports',
     loadComponent: () => import('./features/error-reports/error-reports.page').then((m) => m.ErrorReportsPage),
     canActivate: [authGuard, operatorGuard],
