@@ -36,7 +36,13 @@ export class ZonificacionRangoPage implements ViewWillEnter {
   private facade = inject(ZonificacionFacade);
   private network = inject(NetworkService);
 
-  @ViewChild('hastaEl') hastaEl?: ElementRef<HTMLIonInputElement>;
+  /*
+   * `read: ElementRef` es necesario: sobre un componente de Ionic, la referencia de
+   * plantilla devuelve el componente y no el elemento, así que sin esto
+   * `nativeElement` queda vacío y el cursor no pasa al segundo TAG (pasó en la PDA:
+   * el segundo número se pegaba al primero).
+   */
+  @ViewChild('hastaEl', { read: ElementRef }) hastaEl?: ElementRef<HTMLIonInputElement>;
 
   isOnline = this.network.isOnline;
 

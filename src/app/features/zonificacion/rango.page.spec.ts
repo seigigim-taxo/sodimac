@@ -251,6 +251,21 @@ describe('ZonificacionRangoPage', () => {
       expect(page.errorGuardar()).toBeNull();
     });
 
+    it('Enter en el primer TAG pone el cursor en el segundo (el escáner termina cada TAG con Enter)', () => {
+      jasmine.clock().install();
+      try {
+        const setFocus = jasmine.createSpy('setFocus');
+        page.hastaEl = { nativeElement: { setFocus } } as never;
+
+        page.enterEnDesde();
+        jasmine.clock().tick(100);
+
+        expect(setFocus).toHaveBeenCalledTimes(1);
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
     it('Enter en el segundo TAG guarda si se puede', async () => {
       escribir('1135', '1140');
       page.enterEnHasta();

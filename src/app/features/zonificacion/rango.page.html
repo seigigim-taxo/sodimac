@@ -43,7 +43,7 @@
 
     <div class="mb-4">
       <p class="field-label mb-1">Primer TAG (desde)</p>
-      <ion-input class="input-base" inputmode="numeric" placeholder="Escanea o ingresa el TAG" data-testid="desde"
+      <ion-input class="input-base" inputmode="numeric" enterkeyhint="next" placeholder="Escanea o ingresa el TAG" data-testid="desde"
                  [value]="desde()" (ionInput)="onDesde($event)" (keyup.enter)="enterEnDesde()">
         <ion-icon slot="end" name="barcode-outline"></ion-icon>
       </ion-input>
@@ -54,7 +54,7 @@
 
     <div class="mb-4">
       <p class="field-label mb-1">Último TAG (hasta)</p>
-      <ion-input #hastaEl class="input-base" inputmode="numeric" placeholder="Escanea o ingresa el TAG" data-testid="hasta"
+      <ion-input #hastaEl class="input-base" inputmode="numeric" enterkeyhint="done" placeholder="Escanea o ingresa el TAG" data-testid="hasta"
                  [value]="hasta()" (ionInput)="onHasta($event)" (keyup.enter)="enterEnHasta()">
         <ion-icon slot="end" name="barcode-outline"></ion-icon>
       </ion-input>
