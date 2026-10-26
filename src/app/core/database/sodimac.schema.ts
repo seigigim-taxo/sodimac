@@ -407,6 +407,73 @@ const TABLES: readonly string[] = [
     intentos          INTEGER NOT NULL DEFAULT 0,
     estado            TEXT NOT NULL DEFAULT 'PENDIENTE',
     fecha_creacion    TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  /*
+   * ZONIFICACIÓN DESDE LA PDA. Cuatro tablas propias, sin claves foráneas a las
+   * del conteo: el módulo queda aislado y no puede romper ni depender de ellas.
+   *
+   * No hay historial local de lo enviado. Cuando el servidor aplica una
+   * operación, su fila de sod_zonificacion_envio se borra: lo ya aplicado vive
+   * en el servidor (rangos con baja lógica, anulaciones y auditoría). La PDA
+   * solo recuerda lo que NO llegó.
+   *
+   * Como el resto del esquema, se crean con IF NOT EXISTS: no requieren subir
+   * SODIMAC_DB_VERSION. Ojo que subirla recrea todas las tablas y borra la cola.
+   */
+
+  /* Una sola fila: el catálogo es el mismo para todos. */
+  `CREATE TABLE IF NOT EXISTS sod_zonificacion_catalogo (
+    id             INTEGER PRIMARY KEY CHECK (id = 1),
+    version        TEXT NOT NULL,
+    catalogo_json  TEXT NOT NULL,
+    fecha_descarga TEXT NOT NULL
+  )`,
+
+  /* Última lista de agendas de cada operador: permite verla sin red, en solo lectura. */
+  `CREATE TABLE IF NOT EXISTS sod_zonificacion_agendas (
+    operador_login TEXT PRIMARY KEY,
+    hoy            TEXT NOT NULL,
+    agendas_json   TEXT NOT NULL,
+    fecha_descarga TEXT NOT NULL
+  )`,
+
+  /* Último estado conocido de cada agenda: lo que muestra el resumen sin red. */
+  `CREATE TABLE IF NOT EXISTS sod_zonificacion_estado (
+    id_agenda      INTEGER PRIMARY KEY,
+    numero_agenda  TEXT NOT NULL,
+    estado_json    TEXT NOT NULL,
+    fecha_descarga TEXT NOT NULL
+  )`,
+
+  /*
+   * Cola de envío: una fila por acción del operador que aún no llegó al
+   * servidor. operacion_uid se genera una sola vez y no cambia en los
+   * reintentos. Un rango todavía sin enviar vive acá como GUARDAR_RANGO, con su
+   * clave_rango local (el servidor entrega el id recién en la respuesta).
+   * PENDIENTE se reintenta; RECHAZADO es definitivo y espera a que el operador
+   * lo descarte.
+   */
+  `CREATE TABLE IF NOT EXISTS sod_zonificacion_envio (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    operacion_uid        TEXT    NOT NULL UNIQUE,
+    id_agenda            INTEGER NOT NULL,
+    numero_agenda        TEXT    NOT NULL,
+    tipo                 TEXT    NOT NULL
+                         CHECK (tipo IN ('GUARDAR_RANGO', 'ELIMINAR_RANGO', 'ANULAR_TAG', 'CONFIRMAR', 'REABRIR')),
+    clave_rango          TEXT             DEFAULT NULL,
+    datos_json           TEXT    NOT NULL,
+    operador_login       TEXT    NOT NULL,
+    operador_rut         TEXT    NOT NULL,
+    fecha_hora_local     TEXT    NOT NULL,
+    estado               TEXT    NOT NULL DEFAULT 'PENDIENTE'
+                         CHECK (estado IN ('PENDIENTE', 'RECHAZADO')),
+    codigo_error         TEXT             DEFAULT NULL,
+    mensaje_error        TEXT             DEFAULT NULL,
+    error_data_json      TEXT             DEFAULT NULL,
+    intentos             INTEGER NOT NULL DEFAULT 0,
+    fecha_creacion       TEXT    NOT NULL,
+    fecha_ultimo_intento TEXT             DEFAULT NULL
   )`
 
 ];
@@ -439,6 +506,7 @@ const INDEXES: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_ru_producto ON sod_recuento_ubicacion(producto_id)`,
   `CREATE INDEX IF NOT EXISTS idx_sod_error_report_estado ON sod_error_report(estado)`,
   `CREATE INDEX IF NOT EXISTS idx_sod_error_report_rut ON sod_error_report(rut)`,
+  `CREATE INDEX IF NOT EXISTS idx_zonif_envio_agenda ON sod_zonificacion_envio(id_agenda, estado, id)`,
 ];
 
 const SEED = `
@@ -470,6 +538,10 @@ export const SODIMAC_TABLE_NAMES = [
   'sod_validacion_tag',
   'sod_validacion_producto',
   'sod_error_report',
+  'sod_zonificacion_catalogo',
+  'sod_zonificacion_agendas',
+  'sod_zonificacion_estado',
+  'sod_zonificacion_envio',
 ] as const;
 
 export type SodimacTableName = typeof SODIMAC_TABLE_NAMES[number];
