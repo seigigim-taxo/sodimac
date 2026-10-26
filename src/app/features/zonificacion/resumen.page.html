@@ -78,7 +78,7 @@
     } @else if (vista.estado === 'CONFIRMADA') {
     <div class="status-banner status-banner-success mb-4">
       <ion-icon name="checkmark-circle-outline"></ion-icon>
-      <span>La zonificación está confirmada.</span>
+      <span>Zonificación confirmada. Para editar rangos, reábrela.</span>
     </div>
     }
 
@@ -132,7 +132,7 @@
       <span>
         {{ e.tagsFuera.total }} {{ e.tagsFuera.total === 1 ? 'TAG usado quedó fuera' : 'TAG usados quedaron fuera' }} de la zonificación
         @if (e.tagsFuera.ejemplos.length > 0) { (por ejemplo, {{ e.tagsFuera.ejemplos.join(', ') }}) }.
-        Agrega rangos que los cubran.
+        @if (pedirReabrirPorTagsFuera()) { Reabre la zonificación y agrega un rango que los cubra. } @else { Agrega rangos que los cubran. }
       </span>
     </div>
     }
@@ -140,9 +140,12 @@
 
     <p class="section-label mb-2">Rangos@if (puedeEditarRangos() && filas().length > 0) { · toca uno para editarlo }</p>
     @if (filas().length === 0) {
-    <div class="status-banner status-banner-info" data-testid="sin-rangos">
-      <ion-icon name="information-circle-outline"></ion-icon>
-      <span>Esta agenda aún no tiene rangos.</span>
+    <div class="card text-center py-6" data-testid="sin-rangos">
+      <div class="icon-badge mx-auto mb-2"><ion-icon name="layers-outline"></ion-icon></div>
+      <p class="text-[15px] font-bold" style="color: var(--app-text);">Sin rangos de zonificación</p>
+      <p class="text-[13px] mt-1" style="color: var(--app-text-muted);">
+        @if (puedeEditarRangos()) { Esta agenda parte sin rangos. Usa Nuevo rango y registra el rango real instalado. } @else { Esta agenda aún no tiene rangos. }
+      </p>
     </div>
     } @else {
     <div class="card" style="padding-top: 4px; padding-bottom: 4px;">
@@ -179,9 +182,17 @@
       @if (puedeEditarRangos()) {
       <ion-button expand="block" class="btn-primary" data-testid="nuevo-rango" (click)="nuevoRango()">Nuevo rango</ion-button>
       }
-      @if (filas().length > 0) {
-      <ion-button expand="block" class="btn-outline" data-testid="anular-tag" (click)="anularTag()">Anular TAG</ion-button>
-      }
+      <div class="flex gap-2">
+        @if (filas().length > 0) {
+        <ion-button class="btn-outline flex-1" data-testid="anular-tag" (click)="anularTag()">Anular TAG</ion-button>
+        }
+        @if (puedeConfirmar()) {
+        <ion-button class="btn-outline flex-1" data-testid="confirmar" (click)="confirmar()">Confirmar</ion-button>
+        }
+        @if (puedeReabrir()) {
+        <ion-button class="btn-outline flex-1" data-testid="reabrir" (click)="reabrir()">Reabrir</ion-button>
+        }
+      </div>
     </div>
     }
 

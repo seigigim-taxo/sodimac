@@ -14,6 +14,7 @@ import { VigenciaDiaService } from './shared/services/vigencia-dia.service';
 import { ActualizacionFacade } from './state/actualizacion/actualizacion.facade';
 import { ActualizarMuestraService } from './shared/services/actualizar-muestra.service';
 import { ReporteVersionUseCase } from './application/actualizacion/reporte-version.use-case';
+import { EnviarZonificacionUseCase } from './application/zonificacion/enviar-zonificacion.use-case';
 
 describe('AppComponent', () => {
   it('should create the app', async () => {
@@ -31,6 +32,8 @@ describe('AppComponent', () => {
           },
         },
         { provide: SesionTrabajoFacade, useValue: { limpiar: jasmine.createSpy('limpiar').and.resolveTo(undefined) } },
+        // El reintento automático también saca la cola de zonificación; acá no se prueba, solo se corta su acceso al servidor.
+        { provide: EnviarZonificacionUseCase, useValue: { execute: jasmine.createSpy('execute').and.resolveTo({ enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false }) } },
         {
           // El menú ofrece enviar los TAG pendientes; sin este doble el
           // componente no se puede construir.

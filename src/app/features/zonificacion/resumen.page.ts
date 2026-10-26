@@ -3,8 +3,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import { ActionSheetController, AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
+import { alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
 import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zonificacion.model';
+import { decidirConfirmacion, textoReabrir } from '../../domain/zonificacion/utils/confirmacion-zonificacion.utils';
 import { ETIQUETA_ESTADO_VISUAL, TONO_ESTADO_VISUAL, estadoVisualDeResumen } from '../../domain/zonificacion/utils/estado-visual.utils';
 import { FilaRango, filasDeRangos, totalesDeResumen } from '../../domain/zonificacion/utils/filas-resumen.utils';
 import { mensajeZonificacion } from '../../domain/zonificacion/utils/mensajes-zonificacion.utils';
@@ -94,7 +95,7 @@ export class ZonificacionResumenPage implements ViewWillEnter {
     const agenda = this.estado()?.agenda;
     if (!agenda) return null;
     if (!agenda.operable) return agenda.codigoEstado === 'SUSPENDIDA' ? 'La agenda está suspendida.' : 'La agenda está cerrada.';
-    return agenda.soloLectura ? 'Solo lectura: no puedes modificar esta agenda.' : null;
+    return agenda.soloLectura ? 'Solo lectura. Puedes ver esta agenda, pero no modificarla.' : null;
   });
 
   /* El resultado de lo último que hizo el operador ("Rango guardado."); se muestra una vez. */
@@ -104,9 +105,14 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   puedeModificar = computed(() => !!this.estado() && this.restriccion() === null);
   /* Guardar y eliminar rangos solo con la zonificación en borrador; anular TAG no depende del estado. */
   puedeEditarRangos = computed(() => this.puedeModificar() && this.vista()?.estado !== 'CONFIRMADA');
+  /* Confirmar (borrador) y reabrir (confirmada) son las dos caras de la misma acción. */
+  puedeConfirmar = computed(() => this.puedeEditarRangos());
+  puedeReabrir = computed(() => this.puedeModificar() && this.vista()?.estado === 'CONFIRMADA');
+  /* Lo que se dice si hay TAG usados fuera de rango: en una confirmada, además, hay que reabrirla. */
+  pedirReabrirPorTagsFuera = computed(() => this.vista()?.estado === 'CONFIRMADA');
 
   constructor() {
-    addIcons({ alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, lockClosedOutline, refreshOutline, timeOutline });
+    addIcons({ alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline });
   }
 
   async ionViewWillEnter(): Promise<void> {
@@ -131,6 +137,62 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   descartar(fila: FilaRechazo): Promise<void> {
     return this.facade.descartarRechazada(fila.id);
   }
+  /*
+   * Confirmar. Primero se mira lo que ya se sabe en la PDA: si hay envíos sin
+   * salir, o TAG usados sin rango, o no hay rangos, se explica sin molestar al
+   * servidor. Solo si está todo en orden se pide la confirmación.
+   */
+  async confirmar(): Promise<void> {
+    const vista = this.vista();
+    if (!vista) return;
+    const decision = decidirConfirmacion(vista, this.estado());
+
+    if (decision.tipo === 'ERROR') {
+      this.mensaje.set({ tipo: 'error', texto: decision.texto });
+      return;
+    }
+    if (decision.tipo === 'BLOQUEO') {
+      const aviso = await this.alertas.create({ header: decision.titulo, message: decision.texto, buttons: [{ text: 'Entendido', role: 'cancel' }] });
+      await aviso.present();
+      return;
+    }
+    const dialogo = await this.alertas.create({
+      header: decision.titulo,
+      message: decision.texto,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Confirmar', handler: () => void this.ejecutarConfirmar() },
+      ],
+    });
+    await dialogo.present();
+  }
+
+  private async ejecutarConfirmar(): Promise<void> {
+    const agenda = this.facade.agenda();
+    if (!agenda) return;
+    const r = await this.facade.confirmarZonificacion(agenda);
+    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+  }
+
+  async reabrir(): Promise<void> {
+    const dialogo = await this.alertas.create({
+      header: 'Reabrir zonificación',
+      message: textoReabrir(this.estado()?.resumen.tagsUsados ?? 0),
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Reabrir', handler: () => void this.ejecutarReabrir() },
+      ],
+    });
+    await dialogo.present();
+  }
+
+  private async ejecutarReabrir(): Promise<void> {
+    const agenda = this.facade.agenda();
+    if (!agenda) return;
+    const r = await this.facade.reabrirZonificacion(agenda);
+    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+  }
+
   nuevoRango(): void {
     void this.router.navigate(['/zonificacion', this.facade.agenda()?.idAgenda, 'rango']);
   }

@@ -84,6 +84,8 @@ describe('ZonificacionResumenPage', () => {
         return m;
       },
       eliminarRango: jasmine.createSpy('eliminarRango').and.resolveTo({ ok: true }),
+      confirmarZonificacion: jasmine.createSpy('confirmarZonificacion').and.resolveTo({ ok: true }),
+      reabrirZonificacion: jasmine.createSpy('reabrirZonificacion').and.resolveTo({ ok: true }),
       agendas: signal({ lista: { hoy: '2026-09-09', agendas: [{ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' }] } }),
       agenda: agendaActual,
       estado: cargado,
@@ -441,6 +443,203 @@ describe('ZonificacionResumenPage', () => {
       cargar(base());
       await fixture.componentInstance.ionViewWillEnter();
       expect(dom('mensaje', pintar())).toBeNull();
+    });
+  });
+
+  describe('confirmar y reabrir', () => {
+    const esperar = async () => {
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+    };
+    const confirmada = (): EstadoAgenda => {
+      const e = base();
+      return { ...e, zonificacion: { ...e.zonificacion, estado: 'CONFIRMADA' } };
+    };
+
+    describe('los botones', () => {
+      it('en borrador: Nuevo rango, Anular TAG y Confirmar (sin Reabrir)', () => {
+        cargar(base());
+        const d = pintar();
+        expect(dom('nuevo-rango', d)).not.toBeNull();
+        expect(dom('anular-tag', d)).not.toBeNull();
+        expect(dom('confirmar', d)).not.toBeNull();
+        expect(dom('reabrir', d)).toBeNull();
+      });
+
+      it('confirmada: Anular TAG y Reabrir (sin Nuevo rango ni Confirmar)', () => {
+        cargar(confirmada());
+        const d = pintar();
+        expect(dom('nuevo-rango', d)).toBeNull();
+        expect(dom('confirmar', d)).toBeNull();
+        expect(dom('anular-tag', d)).not.toBeNull();
+        expect(dom('reabrir', d)).not.toBeNull();
+      });
+
+      it('una confirmación pendiente ya ofrece Reabrir, no Confirmar otra vez', () => {
+        cargar(base(), [op('CONFIRMAR', {})]);
+        const d = pintar();
+        expect(dom('confirmar', d)).toBeNull();
+        expect(dom('reabrir', d)).not.toBeNull();
+      });
+
+      it('solo lectura o agenda cerrada: ni Confirmar ni Reabrir', () => {
+        const e = confirmada();
+        cargar({ ...e, agenda: { ...e.agenda, soloLectura: true } });
+        const d = pintar();
+        expect(dom('confirmar', d)).toBeNull();
+        expect(dom('reabrir', d)).toBeNull();
+      });
+
+      it('una agenda sin rangos igual ofrece Confirmar (el error se explica al tocarlo)', () => {
+        cargar({ ...base(), rangos: [] });
+        expect(dom('confirmar', pintar())).not.toBeNull();
+      });
+    });
+
+    describe('Confirmar', () => {
+      it('con todo en orden pide confirmar con los TAG y rangos, y recién al aceptar la manda', async () => {
+        cargar(base());
+
+        await fixture.componentInstance.confirmar();
+
+        const dialogo = alerta.create.calls.mostRecent().args[0];
+        expect(dialogo.header).toBe('Confirmar zonificación');
+        expect(dialogo.message).toContain('Se validarán los TAG ya utilizados.');
+        expect(dialogo.buttons.map((b: { text: string }) => b.text)).toEqual(['Cancelar', 'Confirmar']);
+        expect(facade['confirmarZonificacion']).not.toHaveBeenCalled();
+
+        dialogo.buttons[1].handler();
+        await esperar();
+
+        expect(facade['confirmarZonificacion']).toHaveBeenCalledOnceWith({ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' });
+      });
+
+      it('cancelar no manda nada', async () => {
+        cargar(base());
+        await fixture.componentInstance.confirmar();
+
+        expect(alerta.create.calls.mostRecent().args[0].buttons[0].role).toBe('cancel');
+        expect(facade['confirmarZonificacion']).not.toHaveBeenCalled();
+      });
+
+      it('con envíos pendientes avisa que hay que esperar y no ofrece confirmar', async () => {
+        cargar(base(), [op('GUARDAR_RANGO', { id_zonificacion_det: null, codigo_zona: 'ALTILLO', tag_desde: 1135, tag_hasta: 1140 })]);
+
+        await fixture.componentInstance.confirmar();
+
+        const dialogo = alerta.create.calls.mostRecent().args[0];
+        expect(dialogo.header).toBe('Hay envíos pendientes');
+        expect(dialogo.message).toBe('Espera a que se envíen 1 cambio para poder confirmar.');
+        expect(dialogo.buttons.map((b: { text: string }) => b.text)).toEqual(['Entendido']);
+        expect(facade['confirmarZonificacion']).not.toHaveBeenCalled();
+      });
+
+      it('con TAG usados sin rango explica cuáles y no ofrece confirmar', async () => {
+        cargar({ ...base(), tagsFuera: { total: 2, ejemplos: [5000, 5001] } });
+
+        await fixture.componentInstance.confirmar();
+
+        const dialogo = alerta.create.calls.mostRecent().args[0];
+        expect(dialogo.header).toBe('No se puede confirmar');
+        expect(dialogo.message).toBe('Hay 2 TAG usados sin rango: 5000, 5001. Agrega rangos que los cubran.');
+      });
+
+      it('sin rangos no hay diálogo: el aviso sale en el resumen', async () => {
+        cargar({ ...base(), rangos: [] });
+
+        await fixture.componentInstance.confirmar();
+
+        expect(alerta.create).not.toHaveBeenCalled();
+        expect(texto(dom('mensaje', pintar()))).toBe('Debes registrar al menos un rango antes de confirmar.');
+      });
+
+      it('tras confirmar se muestra el aviso que dejó el facade', async () => {
+        cargar(base());
+        mensajePendiente = { tipo: 'ok', texto: 'Zonificación confirmada: 3 rangos, 11 TAG instalados.' };
+        await fixture.componentInstance.confirmar();
+
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        await esperar();
+
+        expect(texto(dom('mensaje', pintar()))).toBe('Zonificación confirmada: 3 rangos, 11 TAG instalados.');
+      });
+
+      it('si el caso de uso la rechaza, el motivo sale en el resumen', async () => {
+        cargar(base());
+        (facade['confirmarZonificacion'] as jasmine.Spy).and.resolveTo({ ok: false, codigo: 'AGENDA_SOLO_LECTURA', data: {} });
+        await fixture.componentInstance.confirmar();
+
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        await esperar();
+
+        expect(texto(dom('mensaje', pintar()))).toBe('No puedes modificar esta agenda.');
+      });
+    });
+
+    describe('Reabrir', () => {
+      it('pide confirmación, y avisa del conteo si ya hay TAG usados', async () => {
+        const e = confirmada();
+        cargar({ ...e, resumen: { ...e.resumen, tagsUsados: 4 } });
+
+        await fixture.componentInstance.reabrir();
+
+        const dialogo = alerta.create.calls.mostRecent().args[0];
+        expect(dialogo.header).toBe('Reabrir zonificación');
+        expect(dialogo.message).toContain('El conteo ya tiene TAG utilizados');
+        expect(dialogo.buttons.map((b: { text: string }) => b.text)).toEqual(['Cancelar', 'Reabrir']);
+        expect(facade['reabrirZonificacion']).not.toHaveBeenCalled();
+      });
+
+      it('sin TAG usados el texto es corto', async () => {
+        cargar(confirmada());
+        await fixture.componentInstance.reabrir();
+        expect(alerta.create.calls.mostRecent().args[0].message).toBe('¿Reabrir para modificar sus rangos?');
+      });
+
+      it('al aceptar la manda y muestra el aviso', async () => {
+        cargar(confirmada());
+        mensajePendiente = { tipo: 'info', texto: 'La zonificación volvió a borrador.' };
+        await fixture.componentInstance.reabrir();
+
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        await esperar();
+
+        expect(facade['reabrirZonificacion']).toHaveBeenCalledOnceWith({ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' });
+        expect(texto(dom('mensaje', pintar()))).toBe('La zonificación volvió a borrador.');
+      });
+    });
+
+    describe('textos del SGO', () => {
+      it('confirmada: "Para editar rangos, reábrela."', () => {
+        cargar(confirmada());
+        expect(texto(pintar())).toContain('Zonificación confirmada. Para editar rangos, reábrela.');
+      });
+
+      it('solo lectura: "Puedes ver esta agenda, pero no modificarla."', () => {
+        const e = base();
+        cargar({ ...e, agenda: { ...e.agenda, soloLectura: true } });
+        expect(texto(dom('restriccion', pintar()))).toContain('Puedes ver esta agenda, pero no modificarla.');
+      });
+
+      it('TAG usados fuera en una confirmada: pide reabrirla; en un borrador, solo agregar rangos', () => {
+        cargar({ ...confirmada(), tagsFuera: { total: 2, ejemplos: [5000, 5001] } });
+        expect(texto(dom('tags-fuera', pintar()))).toContain('Reabre la zonificación y agrega un rango que los cubra.');
+
+        cargar({ ...base(), tagsFuera: { total: 2, ejemplos: [5000, 5001] } });
+        fixture.detectChanges();
+        expect(texto(dom('tags-fuera', fixture.nativeElement))).toContain('Agrega rangos que los cubran.');
+        expect(texto(dom('tags-fuera', fixture.nativeElement))).not.toContain('Reabre');
+      });
+
+      it('con TAG usados fuera, aun confirmada, el estado pide ajuste', () => {
+        cargar({ ...confirmada(), tagsFuera: { total: 2, ejemplos: [5000, 5001] } });
+        expect(texto(dom('estado', pintar()))).toBe('Requiere ajuste');
+      });
+
+      it('agenda sin rangos: la tarjeta del SGO "Sin rangos de zonificación"', () => {
+        cargar({ ...base(), rangos: [] });
+        expect(texto(dom('sin-rangos', pintar()))).toContain('Sin rangos de zonificación');
+        expect(texto(dom('sin-rangos', fixture.nativeElement))).toContain('Esta agenda parte sin rangos. Usa Nuevo rango y registra el rango real instalado.');
+      });
     });
   });
 });

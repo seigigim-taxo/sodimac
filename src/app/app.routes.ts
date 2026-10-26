@@ -48,6 +48,11 @@ export const routes: Routes = [
     canActivate: [authGuard, operatorGuard],
   },
   {
+    path: 'zonificacion/rechazados',
+    loadComponent: () => import('./features/zonificacion/rechazados.page').then((m) => m.ZonificacionRechazadosPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
     path: 'zonificacion/:idAgenda',
     loadComponent: () => import('./features/zonificacion/resumen.page').then((m) => m.ZonificacionResumenPage),
     canActivate: [authGuard, operatorGuard],
