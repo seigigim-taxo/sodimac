@@ -7,6 +7,9 @@ export const environment = {
   // Consulta de solo lectura: ¿el servidor ya recibió este envío? Ver
   // EstadoCargasApiRepository.
   estadoCargasEndpoint: 'sincronizaciones/estado-cargas_dev.php',
+  // Zonificacion: carpeta de los endpoints y sufijo de la copia (_dev en desarrollo, vacio en produccion).
+  zonificacionPath: 'sincronizaciones/zonificacion',
+  zonificacionSufijo: '_dev',
   // Manifiesto de version para la autoactualizacion. Archivo estatico; cuelga
   // de api/ para heredar CORS. Ver server/README.md.
   actualizacionEndpoint: 'actualizaciones/version.json',
