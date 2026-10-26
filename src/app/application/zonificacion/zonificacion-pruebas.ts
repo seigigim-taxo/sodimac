@@ -9,6 +9,7 @@ import { EstadoAgenda } from '../../domain/zonificacion/models/estado-agenda.mod
 import { IdentidadOperador } from '../../domain/zonificacion/models/operacion-zonificacion.model';
 import { ZONIFICACION_API_REPOSITORY_TOKEN, ZonificacionApiRepository } from '../../domain/zonificacion/repositories/zonificacion-api.repository';
 import { ZONIFICACION_LOCAL_REPOSITORY_TOKEN } from '../../domain/zonificacion/repositories/zonificacion-local.repository';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { ConexionFalsa, crearConexionEnMemoria } from '../../../testing/sqlite-en-memoria';
 import { EnviarZonificacionUseCase } from './enviar-zonificacion.use-case';
 import { IdentidadZonificacionService } from './identidad-zonificacion.service';
@@ -34,6 +35,7 @@ export interface Entorno {
   api: jasmine.SpyObj<ZonificacionApiRepository>;
   enviar: jasmine.SpyObj<EnviarZonificacionUseCase>;
   identidad: jasmine.SpyObj<IdentidadZonificacionService>;
+  reintento: jasmine.SpyObj<ReintentoAutomaticoService>;
   /* Estado del servidor sembrado: agenda 2092, BORRADOR, rangos 758 (1128-1131) y 761 (1132-1134), entre otros. */
   estado: EstadoAgenda;
   catalogo: CatalogoZonificacion;
@@ -50,6 +52,7 @@ export async function crearEntorno(opciones: OpcionesEntorno = {}): Promise<Ento
   const api = jasmine.createSpyObj<ZonificacionApiRepository>('ZonificacionApi', ['obtenerCatalogo', 'listarAgendas', 'obtenerEstado', 'enviar']);
   const enviar = jasmine.createSpyObj<EnviarZonificacionUseCase>('EnviarZonificacion', ['execute']);
   enviar.execute.and.resolveTo({ enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false });
+  const reintento = jasmine.createSpyObj<ReintentoAutomaticoService>('Reintento', ['programarTrasFallo']);
   const identidad = jasmine.createSpyObj<IdentidadZonificacionService>('Identidad', ['obtener']);
   identidad.obtener.and.resolveTo(IDENTIDAD);
 
@@ -61,6 +64,7 @@ export async function crearEntorno(opciones: OpcionesEntorno = {}): Promise<Ento
       { provide: ZONIFICACION_LOCAL_REPOSITORY_TOKEN, useExisting: SqliteZonificacionRepository },
       { provide: EnviarZonificacionUseCase, useValue: enviar },
       { provide: IdentidadZonificacionService, useValue: identidad },
+      { provide: ReintentoAutomaticoService, useValue: reintento },
     ],
   });
   spyOn(TestBed.inject(SqliteConnectionService), 'getConnection').and.resolveTo(db as never);
@@ -72,7 +76,7 @@ export async function crearEntorno(opciones: OpcionesEntorno = {}): Promise<Ento
     await local.guardarCatalogo(catalogo);
     await local.guardarEstado(estado);
   }
-  return { db, local, api, enviar, identidad, estado, catalogo };
+  return { db, local, api, enviar, identidad, reintento, estado, catalogo };
 }
 
 /* Deja el último estado conocido con los cambios indicados (p. ej. confirmada, solo lectura). */

@@ -42,8 +42,13 @@ describe('estadoVisualDeResumen', () => {
     expect(estadoVisualDeResumen('BORRADOR', { tagsUsados: 4, desbalance: false }, 3, true)).toBe('REQUIERE_AJUSTE');
   });
 
-  it('confirmada manda sobre todo', () => {
-    expect(estadoVisualDeResumen('CONFIRMADA', { tagsUsados: 4, desbalance: true }, 3, true)).toBe('CONFIRMADA');
+  it('confirmada sin problemas es confirmada, aunque el conteo ya use TAG', () => {
+    expect(estadoVisualDeResumen('CONFIRMADA', { tagsUsados: 4, desbalance: false }, 0, true)).toBe('CONFIRMADA');
+  });
+
+  it('confirmada pero con TAG usados fuera de todo rango o desbalanceada: requiere ajuste (hay que reabrirla)', () => {
+    expect(estadoVisualDeResumen('CONFIRMADA', { tagsUsados: 4, desbalance: false }, 3, true)).toBe('REQUIERE_AJUSTE');
+    expect(estadoVisualDeResumen('CONFIRMADA', { tagsUsados: 4, desbalance: true }, 0, true)).toBe('REQUIERE_AJUSTE');
   });
 
   it('cada estado tiene etiqueta y tono', () => {

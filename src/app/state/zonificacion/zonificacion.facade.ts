@@ -7,8 +7,12 @@ import { DescartarRechazadaZonificacionUseCase } from '../../application/zonific
 import { AgendaRef, ResultadoAccion } from '../../application/zonificacion/resultado-accion';
 import { AnularTagUseCase } from '../../application/zonificacion/anular-tag.use-case';
 import { ContextoAgendaZonificacionService } from '../../application/zonificacion/contexto-agenda-zonificacion.service';
+import { ConfirmarZonificacionUseCase } from '../../application/zonificacion/confirmar-zonificacion.use-case';
 import { EliminarRangoUseCase } from '../../application/zonificacion/eliminar-rango.use-case';
-import { EnviarZonificacionUseCase } from '../../application/zonificacion/enviar-zonificacion.use-case';
+import { ListarRechazadasZonificacionUseCase, RechazoZonificacion } from '../../application/zonificacion/listar-rechazadas-zonificacion.use-case';
+import { ReabrirZonificacionUseCase } from '../../application/zonificacion/reabrir-zonificacion.use-case';
+import { avisoConfirmada, avisoReabierta } from '../../domain/zonificacion/utils/confirmacion-zonificacion.utils';
+import { EnviarZonificacionUseCase, ResultadoEnvioZonificacion } from '../../application/zonificacion/enviar-zonificacion.use-case';
 import { GuardarRangoEntrada, GuardarRangoUseCase } from '../../application/zonificacion/guardar-rango.use-case';
 import { IdRango } from '../../domain/zonificacion/models/rango-zonificacion.model';
 
@@ -35,6 +39,9 @@ export class ZonificacionFacade {
   private guardarRangoUC = inject(GuardarRangoUseCase);
   private eliminarRangoUC = inject(EliminarRangoUseCase);
   private anularTagUC = inject(AnularTagUseCase);
+  private confirmarUC = inject(ConfirmarZonificacionUseCase);
+  private reabrirUC = inject(ReabrirZonificacionUseCase);
+  private listarRechazadasUC = inject(ListarRechazadasZonificacionUseCase);
   private contexto = inject(ContextoAgendaZonificacionService);
   private envio = inject(EnviarZonificacionUseCase);
 
@@ -46,6 +53,7 @@ export class ZonificacionFacade {
   private cargandoEstadoSignal = signal(false);
   private conteoSignal = signal<ConteoZonificacion>({ pendientes: 0, rechazadas: 0 });
   private mensajeSignal = signal<MensajeZonificacion | null>(null);
+  private rechazosSignal = signal<RechazoZonificacion[]>([]);
 
   readonly agendas = this.agendasSignal.asReadonly();
   readonly cargandoAgendas = this.cargandoAgendasSignal.asReadonly();
@@ -55,6 +63,8 @@ export class ZonificacionFacade {
   readonly cargandoEstado = this.cargandoEstadoSignal.asReadonly();
   readonly conteo = this.conteoSignal.asReadonly();
   readonly mensaje = this.mensajeSignal.asReadonly();
+  /* Los envíos rechazados de todas las agendas, para la pantalla "Envíos rechazados". */
+  readonly rechazos = this.rechazosSignal.asReadonly();
 
   constructor() {
     // El envío corre en segundo plano: cuando algo sale o se rechaza, la vista se vuelve a leer (sin red).
@@ -76,6 +86,7 @@ export class ZonificacionFacade {
     this.cargandoEstadoSignal.set(false);
     this.conteoSignal.set({ pendientes: 0, rechazadas: 0 });
     this.mensajeSignal.set(null);
+    this.rechazosSignal.set([]);
   }
 
   /* La lista de agendas; el catálogo viaja junto para tenerlo listo al abrir una agenda. */
@@ -161,9 +172,55 @@ export class ZonificacionFacade {
     return m;
   }
 
-  private async alTerminar(texto: string): Promise<void> {
-    this.mensajeSignal.set({ tipo: 'ok', texto });
+  private async alTerminar(texto: string, tipo: MensajeZonificacion['tipo'] = 'ok'): Promise<void> {
+    this.mensajeSignal.set({ tipo, texto });
     await this.refrescarVistaLocal();
     await this.contar();
+  }
+  /*
+   * Confirmar y reabrir. El aviso depende de lo que se veía al momento de
+   * actuar: cuántos rangos y TAG se confirman, y si el conteo ya usa TAG.
+   */
+  async confirmarZonificacion(agenda: AgendaRef): Promise<ResultadoAccion> {
+    const antes = this.estadoSignal();
+    const r = await this.confirmarUC.execute(agenda);
+    if (r.ok && antes) await this.alTerminar(avisoConfirmada(antes.vista, antes.estado?.resumen.tagsUsados ?? 0));
+    return r;
+  }
+
+  async reabrirZonificacion(agenda: AgendaRef): Promise<ResultadoAccion> {
+    const antes = this.estadoSignal();
+    const r = await this.reabrirUC.execute(agenda);
+    if (r.ok) await this.alTerminar(avisoReabierta(antes?.estado?.resumen.tagsUsados ?? 0), 'info');
+    return r;
+  }
+
+  /* ------------------------- envíos rechazados ------------------------- */
+
+  async cargarRechazos(): Promise<void> {
+    this.rechazosSignal.set(await this.listarRechazadasUC.execute());
+  }
+
+  async descartarRechazo(idOperacion: number): Promise<void> {
+    await this.descartarUC.execute(idOperacion);
+    await this.despuesDeDescartar();
+  }
+
+  async descartarTodasLasRechazadas(): Promise<void> {
+    await this.descartarUC.descartarTodas();
+    await this.despuesDeDescartar();
+  }
+
+  private async despuesDeDescartar(): Promise<void> {
+    await this.cargarRechazos();
+    await this.refrescarVistaLocal();
+    await this.contar();
+  }
+
+  /* "Reintentar ahora": saca la cola de todas las agendas sin esperar al próximo disparador. */
+  async reintentarAhora(): Promise<ResultadoEnvioZonificacion> {
+    const r = await this.envio.execute();
+    await this.contar();
+    return r;
   }
 }

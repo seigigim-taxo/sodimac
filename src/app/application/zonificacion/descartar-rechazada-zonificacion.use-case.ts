@@ -23,16 +23,33 @@ export class DescartarRechazadaZonificacionUseCase {
     if (!op || op.estado !== 'RECHAZADO') return false;
 
     await this.local.eliminar(op.id);
-
-    const identidad = await this.identidadService.obtener();
-    if (identidad) {
-      try {
-        const estado = await this.api.obtenerEstado(identidad, op.idAgenda, op.numeroAgenda);
-        await this.local.guardarEstado(estado);
-      } catch (err) {
-        console.error('[Zonificacion] no se pudo refrescar el estado tras descartar:', err);
-      }
-    }
+    await this.refrescarEstado(op.idAgenda, op.numeroAgenda);
     return true;
+  }
+
+  /* Descarta todas las rechazadas de una vez. Devuelve cuántas quitó. */
+  async descartarTodas(): Promise<number> {
+    const rechazadas = await this.local.listarRechazadas();
+    const agendas = new Map<number, string>();
+    for (const op of rechazadas) {
+      await this.local.eliminar(op.id);
+      agendas.set(op.idAgenda, op.numeroAgenda);
+    }
+    // Una vez por agenda, no una por operación.
+    for (const [idAgenda, numeroAgenda] of agendas) {
+      await this.refrescarEstado(idAgenda, numeroAgenda);
+    }
+    return rechazadas.length;
+  }
+
+  private async refrescarEstado(idAgenda: number, numeroAgenda: string): Promise<void> {
+    const identidad = await this.identidadService.obtener();
+    if (!identidad) return;
+    try {
+      const estado = await this.api.obtenerEstado(identidad, idAgenda, numeroAgenda);
+      await this.local.guardarEstado(estado);
+    } catch (err) {
+      console.error('[Zonificacion] no se pudo refrescar el estado tras descartar:', err);
+    }
   }
 }

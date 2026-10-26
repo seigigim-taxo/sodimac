@@ -4,6 +4,7 @@ import { IdentidadOperador, OperacionEnCola, TipoOperacionZonificacion } from '.
 import { VistaZonificacion } from '../../domain/zonificacion/models/vista-zonificacion.model';
 import { ZONIFICACION_LOCAL_REPOSITORY_TOKEN } from '../../domain/zonificacion/repositories/zonificacion-local.repository';
 import { aplicarPendientes } from '../../domain/zonificacion/utils/vista-con-pendientes.utils';
+import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
 import { generateUuid } from '../../shared/utils/uuid.utils';
 import { ahoraSql } from '../../shared/utils/fecha.utils';
 import { EnviarZonificacionUseCase } from './enviar-zonificacion.use-case';
@@ -27,6 +28,7 @@ export class ContextoAgendaZonificacionService {
   private local = inject(ZONIFICACION_LOCAL_REPOSITORY_TOKEN);
   private identidadService = inject(IdentidadZonificacionService);
   private enviar = inject(EnviarZonificacionUseCase);
+  private reintento = inject(ReintentoAutomaticoService);
 
   async cargar(idAgenda: number): Promise<ContextoAgenda> {
     const [copia, pendientes, rechazadas] = await Promise.all([
@@ -83,6 +85,13 @@ export class ContextoAgendaZonificacionService {
    * "pendiente de envío" hasta que salga.
    */
   empujarEnvio(idAgenda: number): void {
-    this.enviar.execute({ idAgenda }).catch((err) => console.error('[Zonificacion] el envío en segundo plano falló:', err));
+    this.enviar
+      .execute({ idAgenda })
+      .then((r) => {
+        // Si algo no salió (sin señal, servidor ocupado) se arma el reintento con espera creciente:
+        // el operador sigue trabajando en la agenda y no pasa por el Inicio ni cambia de red.
+        if (r.reintentables > 0) this.reintento.programarTrasFallo();
+      })
+      .catch((err) => console.error('[Zonificacion] el envío en segundo plano falló:', err));
   }
 }

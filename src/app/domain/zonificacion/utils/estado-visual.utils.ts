@@ -10,8 +10,9 @@ import { EstadoZonificacion } from '../models/estado-zonificacion.model';
  *   PENDIENTE_EN_CONTEO  borrador, pero el conteo ya va adelante: hay TAG
  *                        capturados (el avance del conteo no se ve completo
  *                        hasta zonificar y confirmar).
- *   REQUIERE_AJUSTE      borrador con algo que corregir antes de confirmar:
- *                        rangos desbalanceados o TAG usados fuera de todo rango.
+ *   REQUIERE_AJUSTE      hay algo que corregir: rangos desbalanceados o TAG usados
+ *                        fuera de todo rango. También en una agenda ya confirmada:
+ *                        para ajustarla hay que reabrirla.
  *   CONFIRMADA           cerrada; para editar hay que reabrirla.
  *
  * Es una regla de presentación, no de negocio: no cambia lo que el servidor
@@ -47,6 +48,7 @@ export function estadoVisualDeLista(estado: EstadoZonificacion, tagsCapturados: 
 /*
  * Para el resumen de una agenda, que sabe más: cuántos TAG usa el conteo,
  * si hay rangos desbalanceados y cuántos TAG usados quedaron fuera.
+ * Prioridad: sin zonificar, requiere ajuste, confirmada, pendiente en conteo, borrador.
  */
 export function estadoVisualDeResumen(
   estado: EstadoZonificacion,
@@ -54,9 +56,11 @@ export function estadoVisualDeResumen(
   tagsFueraTotal: number,
   hayRangos: boolean,
 ): EstadoVisual {
-  if (estado === 'CONFIRMADA') return 'CONFIRMADA';
   if (estado === 'SIN_ZONIFICACION' && !hayRangos) return 'SIN_ZONIFICAR';
+  // Un problema con los TAG pesa más que estar confirmada: una zonificación confirmada a la
+  // que después se le quedaron TAG usados fuera sigue necesitando que se la reabra y ajuste.
   if (resumen?.desbalance || tagsFueraTotal > 0) return 'REQUIERE_AJUSTE';
+  if (estado === 'CONFIRMADA') return 'CONFIRMADA';
   if ((resumen?.tagsUsados ?? 0) > 0) return 'PENDIENTE_EN_CONTEO';
   return 'BORRADOR';
 }

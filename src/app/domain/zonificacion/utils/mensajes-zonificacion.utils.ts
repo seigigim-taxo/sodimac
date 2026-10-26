@@ -34,7 +34,7 @@ const FIJOS: Record<string, string> = {
   TAG_YA_ANULADO: 'Ese TAG ya está anulado.',
   OPERACION_REUTILIZADA: 'Esta acción ya se había enviado con otro contenido. Vuelve a hacerla.',
   ZONIFICACION_NO_CONFIRMADA: 'La zonificación no está confirmada, no hay nada que reabrir.',
-  ZONIFICACION_VACIA: 'No hay rangos con TAG para confirmar. Agrega al menos uno.',
+  ZONIFICACION_VACIA: 'Debes registrar al menos un rango antes de confirmar.',
   // 5xx
   ZONIFICACION_OCUPADA: 'Otra PDA está zonificando esta agenda. Se reintentará solo.',
   ERROR_INTERNO: 'El servidor tuvo un problema. Se reintentará solo.',
@@ -68,8 +68,10 @@ export function mensajeZonificacion(codigo: CodigoErrorZonificacion | MotivoLoca
       return `El TAG ${num(data['numero_tag'])} no pertenece a ningún rango de esta agenda.`;
     case 'TAG_CON_CAPTURAS':
       return `El TAG ${num(data['numero_tag'])} ya tiene capturas en el conteo, no se puede anular.`;
-    case 'TAGS_SIN_COBERTURA':
-      return `Hay ${num(data['total'])} TAG ya usados en el conteo que no están cubiertos por un rango. Agrega rangos que los cubran.`;
+    case 'TAGS_SIN_COBERTURA': {
+      const ejemplos = Array.isArray(data['ejemplos']) ? (data['ejemplos'] as unknown[]).map(num).join(', ') : '';
+      return `Hay ${num(data['total'])} TAG usados sin rango${ejemplos ? `: ${ejemplos}` : ''}. Agrega rangos que los cubran.`;
+    }
     default:
       return FIJOS[codigo] ?? 'No se pudo completar la acción.';
   }
