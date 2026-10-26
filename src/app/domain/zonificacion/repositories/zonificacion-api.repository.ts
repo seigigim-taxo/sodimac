@@ -1,3 +1,4 @@
+import { InjectionToken } from '@angular/core';
 import { CatalogoZonificacion } from '../models/catalogo-zonificacion.model';
 import { EstadoAgenda, ListaAgendas } from '../models/estado-agenda.model';
 import { IdentidadOperador, ResultadoOperacion, SolicitudOperacion } from '../models/operacion-zonificacion.model';
@@ -20,3 +21,5 @@ export interface ZonificacionApiRepository {
 
   enviar(solicitud: SolicitudOperacion): Promise<ResultadoOperacion>;
 }
+
+export const ZONIFICACION_API_REPOSITORY_TOKEN = new InjectionToken<ZonificacionApiRepository>('ZonificacionApiRepository');

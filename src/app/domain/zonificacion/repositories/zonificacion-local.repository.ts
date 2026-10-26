@@ -1,3 +1,4 @@
+import { InjectionToken } from '@angular/core';
 import { CatalogoZonificacion } from '../models/catalogo-zonificacion.model';
 import { ErrorZonificacion } from '../models/error-zonificacion.model';
 import { EstadoAgenda, ListaAgendas } from '../models/estado-agenda.model';
@@ -55,3 +56,5 @@ export interface ZonificacionLocalRepository {
   /* El servidor la aplicó, o el operador descartó un rechazo. */
   eliminar(id: number): Promise<void>;
 }
+
+export const ZONIFICACION_LOCAL_REPOSITORY_TOKEN = new InjectionToken<ZonificacionLocalRepository>('ZonificacionLocalRepository');
