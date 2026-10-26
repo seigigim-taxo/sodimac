@@ -429,4 +429,18 @@ describe('HomePage — jornadas que se ofrecen', () => {
       expect(reintento.disparar).toHaveBeenCalledTimes(1);
     });
   });
+
+  /* La entrada al módulo de zonificación vive en Inicio, bajo la tienda. */
+  describe('acceso a zonificación', () => {
+    it('hay una tarjeta "Zonificación" que lleva a la lista de agendas', () => {
+      pintar([]);
+
+      const tarjeta = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="acceso-zonificacion"]') as HTMLElement;
+      expect(texto(tarjeta)).toContain('Zonificación');
+
+      tarjeta.click();
+
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/zonificacion']);
+    });
+  });
 });

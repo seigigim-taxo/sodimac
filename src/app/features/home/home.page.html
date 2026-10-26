@@ -150,6 +150,22 @@
     </div>
     }
 
+    <!-- Zonificación: la entrada al módulo. El aviso de lo no enviado llega en una fase siguiente. -->
+    @if (currentStore()) {
+    <div class="card card-interactive mb-6" role="button" tabindex="0" data-testid="acceso-zonificacion"
+         (click)="irAZonificacion()" (keydown.enter)="irAZonificacion()">
+      <div class="flex items-center gap-3">
+        <div class="icon-badge">
+          <ion-icon name="layers-outline"></ion-icon>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[15px] font-bold" style="color: var(--app-text);">Zonificación</p>
+          <p class="text-[12px]" style="color: var(--app-text-muted);">Zonifica los TAG de tus agendas</p>
+        </div>
+      </div>
+    </div>
+    }
+
     <!-- Evento: se selecciona aquí mismo -->
     @if (currentStore()) {
     <!--
