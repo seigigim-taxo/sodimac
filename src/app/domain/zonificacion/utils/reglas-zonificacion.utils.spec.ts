@@ -223,6 +223,22 @@ describe('validarGuardarRango', () => {
     expect(r).toEqual({ ok: false, codigo: 'CANTIDAD_EXCESIVA', data: { cantidad: 6, maximo: 5 } });
   });
 
+  it('sin umbral en el catálogo avisa sobre 99 TAG (100 sí, 99 no) y deja guardar', () => {
+    const solo = ctx({ rangosActivos: [] });
+    const justo = validarGuardarRango(datos({ tagDesde: 1500, tagHasta: 1598 }), solo);
+    const pasa = validarGuardarRango(datos({ tagDesde: 1500, tagHasta: 1599 }), solo);
+
+    expect(justo.ok && justo.advertencia).toBeFalse();
+    expect(pasa.ok && pasa.advertencia).toBeTrue();
+    expect(pasa.ok && pasa.cantidad).toBe(100);
+  });
+
+  it('el máximo del catálogo sigue bloqueando aunque el umbral sea el de por defecto', () => {
+    const catalogo = { ...CATALOGO_V1, parametros: { ...CATALOGO_V1.parametros, cantidadMaxima: 150 } };
+    const r = validarGuardarRango(datos({ tagDesde: 1500, tagHasta: 1699 }), ctx({ catalogo, rangosActivos: [] }));
+    expect(r).toEqual({ ok: false, codigo: 'CANTIDAD_EXCESIVA', data: { cantidad: 200, maximo: 150 } });
+  });
+
   it('marca advertencia con el umbral del catálogo', () => {
     const catalogo = { ...CATALOGO_V1, parametros: { ...CATALOGO_V1.parametros, cantidadAdvertencia: 5 } };
     const r = validarGuardarRango(datos(), ctx({ catalogo }));

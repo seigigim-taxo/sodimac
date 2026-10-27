@@ -18,6 +18,14 @@ import { IdRango, RangoActivo } from '../models/rango-zonificacion.model';
 /* Los TAG por sobre este número no se zonifican, aunque el catálogo los cubra. */
 export const TAG_TOPE_ZONIFICACION = 8000;
 
+/*
+ * Un rango de más de 99 TAG se avisa: lo más probable es un último TAG mal
+ * escaneado. Es solo un aviso, no impide guardar. Rige mientras el catálogo no
+ * traiga su propio umbral (hoy `cantidad_advertencia` llega vacío): si el servidor
+ * manda uno, manda ese.
+ */
+export const CANTIDAD_ADVERTENCIA_POR_DEFECTO = 99;
+
 export type ResultadoRegla<T> = ({ ok: true } & T) | ({ ok: false } & ErrorZonificacion);
 
 const error = (codigo: CodigoErrorZonificacion, data: Record<string, unknown> = {}): { ok: false } & ErrorZonificacion => ({
@@ -139,7 +147,10 @@ export function validarGuardarRango(datos: DatosRango, ctx: ContextoRango): Resu
   }
 
   const cantidad = calcularCantidad(datos.tagDesde, datos.tagHasta, ctx.tagsAnulados);
-  const evaluada = evaluarCantidad(cantidad, parametros);
+  const evaluada = evaluarCantidad(cantidad, {
+    cantidadAdvertencia: parametros.cantidadAdvertencia ?? CANTIDAD_ADVERTENCIA_POR_DEFECTO,
+    cantidadMaxima: parametros.cantidadMaxima,
+  });
   if (!evaluada.ok) {
     return evaluada;
   }

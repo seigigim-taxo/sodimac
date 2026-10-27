@@ -152,10 +152,24 @@ describe('evaluarFormularioRango', () => {
       expect(e.puedeGuardar).toBeFalse();
     });
 
-    it('sin umbrales en el catálogo (hoy) nunca avisa', () => {
-      const e = evaluarFormularioRango(entrada({ desde: '1000', hasta: '2999' }), ctx({ vista: vista({ rangos: [] }) }));
+    it('sin umbral en el catálogo (hoy) avisa desde 100 TAG: 99 no avisa y 100 sí', () => {
+      const sinRangos = ctx({ vista: vista({ rangos: [] }) });
+
+      const noba = evaluarFormularioRango(entrada({ desde: '1500', hasta: '1598' }), sinRangos); // 99 TAG
+      expect(noba.cantidad).toBe(99);
+      expect(noba.advertencia).toBeNull();
+
+      const si = evaluarFormularioRango(entrada({ desde: '1500', hasta: '1599' }), sinRangos); // 100 TAG
+      expect(si.cantidad).toBe(100);
+      expect(si.advertencia).toBe('Son 100 TAG. Revisa que el último TAG sea correcto.');
+      expect(si.puedeGuardar).toBeTrue(); // es un aviso, no un bloqueo
+    });
+
+    it('si el catálogo trae su propio umbral, manda ese', () => {
+      const catalogo = { ...CATALOGO_V1, parametros: { ...CATALOGO_V1.parametros, cantidadAdvertencia: 500 } };
+      const e = evaluarFormularioRango(entrada({ desde: '1000', hasta: '1199' }), ctx({ catalogo, vista: vista({ rangos: [] }) }));
+      expect(e.cantidad).toBe(200);
       expect(e.advertencia).toBeNull();
-      expect(e.puedeGuardar).toBeTrue();
     });
   });
 });
