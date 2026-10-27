@@ -1,0 +1,217 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/zonificacion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ titulo() }}</ion-title>
+    <ion-buttons slot="end">
+      @if (isOnline()) {
+        <span class="conexion-indicator" style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+      <ion-button (click)="recargar()" [disabled]="cargando()" aria-label="Actualizar">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    @if (mensaje(); as m) {
+    <div class="status-banner mb-4" data-testid="mensaje"
+         [class.status-banner-success]="m.tipo === 'ok'"
+         [class.status-banner-info]="m.tipo === 'info'"
+         [class.status-banner-error]="m.tipo === 'error'">
+      <ion-icon [name]="m.tipo === 'ok' ? 'checkmark-circle-outline' : m.tipo === 'error' ? 'alert-circle-outline' : 'information-circle-outline'"></ion-icon>
+      <span>{{ m.texto }}</span>
+    </div>
+    }
+
+    @if (esCopia()) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="aviso-copia">
+      <ion-icon name="cloud-offline-outline"></ion-icon>
+      <span>Sin conexión: se muestra lo último descargado@if (fechaCopia(); as fecha) { ({{ fecha }})}.</span>
+    </div>
+    }
+
+    @if (cargando() && !vista()) {
+    <div class="flex justify-center py-8"><ion-spinner name="crescent"></ion-spinner></div>
+    }
+
+    @if (sinDatos()) {
+    <div class="error-pill" data-testid="sin-datos">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>Esta agenda aún no se descargó. Ábrela con conexión al menos una vez.</span>
+    </div>
+    }
+
+    @if (vista(); as vista) {
+
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="page-title">Zonificación</h2>
+      <span class="badge" data-testid="estado"
+            [class.badge-warning]="tono() === 'aviso'"
+            [class.badge-success]="tono() === 'ok'"
+            [class.badge-error]="tono() === 'error'">{{ etiquetaEstado() }}</span>
+    </div>
+
+    @if (restriccion(); as texto) {
+    <div class="status-banner status-banner-info mb-4" data-testid="restriccion">
+      <ion-icon name="lock-closed-outline"></ion-icon>
+      <span>{{ texto }}</span>
+    </div>
+    }
+
+    @if (vista.confirmacionPendiente) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="confirmacion-pendiente">
+      <ion-icon name="time-outline"></ion-icon>
+      <span>La confirmación está pendiente de envío.</span>
+    </div>
+    } @else if (vista.reaperturaPendiente) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="reapertura-pendiente">
+      <ion-icon name="time-outline"></ion-icon>
+      <span>La reapertura está pendiente de envío.</span>
+    </div>
+    } @else if (vista.estado === 'CONFIRMADA') {
+    <div class="status-banner status-banner-success mb-4">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      <span>Zonificación confirmada. Para editar rangos, reábrela.</span>
+    </div>
+    }
+
+    @for (rechazo of rechazos(); track rechazo.id) {
+    <div class="status-banner status-banner-error status-banner-acciones mb-4" [attr.data-testid]="'rechazo-' + rechazo.id">
+      <div class="banner-linea">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span><strong>{{ rechazo.accion }}:</strong> el servidor no la aceptó. {{ rechazo.motivo }}</span>
+      </div>
+      <div class="banner-acciones">
+        <ion-button fill="clear" size="small" (click)="descartar(rechazo)">Descartar</ion-button>
+      </div>
+    </div>
+    }
+
+    @if (pendientes() > 0) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="pendientes">
+      <ion-icon name="time-outline"></ion-icon>
+      <span>{{ pendientes() }} {{ pendientes() === 1 ? 'cambio sin enviar' : 'cambios sin enviar' }}. Se enviarán al volver la red.</span>
+    </div>
+    }
+
+    @if (estado(); as e) {
+    <div class="grid grid-cols-3 gap-2 mb-4">
+      <div class="card text-center" style="padding: 10px;">
+        <p class="text-[11px]" style="color: var(--app-text-muted);">Zonificados</p>
+        <p class="text-[20px] font-semibold num" data-testid="zonificados" style="color: var(--app-text);">{{ totales().tagsZonificados }}</p>
+      </div>
+      <div class="card text-center" style="padding: 10px;">
+        <p class="text-[11px]" style="color: var(--app-text-muted);">Usados</p>
+        <p class="text-[20px] font-semibold num" data-testid="usados" style="color: var(--app-text);">{{ e.resumen.tagsUsados }}</p>
+      </div>
+      <div class="card text-center" style="padding: 10px;">
+        <p class="text-[11px]" style="color: var(--app-text-muted);">Pendientes</p>
+        <p class="text-[20px] font-semibold num" data-testid="pendientes-conteo" style="color: var(--app-text);">{{ e.resumen.tagsPendientes }}</p>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="flex justify-between text-[11px] mb-1" style="color: var(--app-text-muted);">
+        <span>Avance del conteo</span><span class="num">{{ e.resumen.porcentajeTagsContados }}%</span>
+      </div>
+      <div style="height: 6px; border-radius: 3px; background: var(--app-border);">
+        <div [style.width.%]="e.resumen.porcentajeTagsContados" style="height: 100%; border-radius: 3px; background: var(--app-primary);"></div>
+      </div>
+    </div>
+
+    @if (e.tagsFuera.total > 0) {
+    <div class="status-banner status-banner-error mb-4" data-testid="tags-fuera">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>
+        {{ e.tagsFuera.total }} {{ e.tagsFuera.total === 1 ? 'TAG usado quedó fuera' : 'TAG usados quedaron fuera' }} de la zonificación
+        @if (e.tagsFuera.ejemplos.length > 0) { (por ejemplo, {{ e.tagsFuera.ejemplos.join(', ') }}) }.
+        @if (pedirReabrirPorTagsFuera()) { Reabre la zonificación y agrega un rango que los cubra. } @else { Agrega rangos que los cubran. }
+      </span>
+    </div>
+    }
+    }
+
+    <p class="section-label mb-2">Rangos@if (puedeEditarRangos() && filas().length > 0) { · toca uno para editarlo }</p>
+    @if (filas().length === 0) {
+    <div class="card text-center py-6" data-testid="sin-rangos">
+      <div class="icon-badge mx-auto mb-2"><ion-icon name="layers-outline"></ion-icon></div>
+      <p class="text-[15px] font-bold" style="color: var(--app-text);">Sin rangos de zonificación</p>
+      <p class="text-[13px] mt-1" style="color: var(--app-text-muted);">
+        @if (puedeEditarRangos()) { Esta agenda parte sin rangos. Usa Nuevo rango y registra el rango real instalado. } @else { Esta agenda aún no tiene rangos. }
+      </p>
+    </div>
+    } @else {
+    <div class="card" style="padding-top: 4px; padding-bottom: 4px;">
+      @for (fila of filas(); track fila.id) {
+      <div class="flex items-center justify-between gap-2 py-2" style="border-top: 0.5px solid var(--app-border);" [attr.data-testid]="'rango-' + fila.id"
+           [attr.role]="puedeEditarRangos() ? 'button' : null" [attr.tabindex]="puedeEditarRangos() ? 0 : null"
+           [style.cursor]="puedeEditarRangos() ? 'pointer' : null" (click)="abrirFila(fila)" (keydown.enter)="abrirFila(fila)">
+        <div class="min-w-0">
+          <p class="text-[14px] font-semibold" style="color: var(--app-text);">{{ fila.zona }}</p>
+          <p class="text-[12px] num" style="color: var(--app-text-muted);">
+            {{ fila.rango }}@if (fila.referencia) { · {{ fila.referencia }} }
+          </p>
+        </div>
+        <div class="text-right text-[12px]" style="color: var(--app-text-muted);">
+          @if (fila.pendiente) {
+          <span class="badge badge-warning">Pendiente de envío</span>
+          } @else {
+          <p><strong class="num" style="color: var(--app-text);">{{ fila.usados ?? 0 }} de {{ fila.cantidad }}</strong> usados</p>
+          @if (fila.desbalance) { <p style="color: var(--app-error-text);">Desbalanceado</p> }
+          <p style="color: var(--app-success);">Enviado</p>
+          }
+        </div>
+      </div>
+      }
+      <div class="flex items-center justify-between py-2 text-[12px]" style="border-top: 0.5px solid var(--app-border); color: var(--app-text-muted);">
+        <span>Total@if (totales().tagsAnulados > 0) { · {{ totales().tagsAnulados }} {{ totales().tagsAnulados === 1 ? 'TAG anulado excluido' : 'TAG anulados excluidos' }} }</span>
+        <span class="num">{{ totales().tagsZonificados }} TAG</span>
+      </div>
+    </div>
+    }
+
+    @if (puedeModificar()) {
+    <div class="flex flex-col gap-3 mt-4" data-testid="acciones">
+      @if (puedeEditarRangos()) {
+      <ion-button expand="block" class="btn-primary" data-testid="nuevo-rango" (click)="nuevoRango()">Nuevo rango</ion-button>
+      }
+      <div class="flex gap-2">
+        @if (filas().length > 0) {
+        <ion-button class="btn-outline flex-1" data-testid="anular-tag" (click)="anularTag()">Anular TAG</ion-button>
+        }
+        @if (puedeConfirmar()) {
+        <ion-button class="btn-outline flex-1" data-testid="confirmar" (click)="confirmar()">Confirmar</ion-button>
+        }
+        @if (puedeReabrir()) {
+        <ion-button class="btn-outline flex-1" data-testid="reabrir" (click)="reabrir()">Reabrir</ion-button>
+        }
+      </div>
+    </div>
+    }
+
+    @if (vista.tagsAnulados.length > 0) {
+    <p class="section-label mt-4 mb-2">TAG anulados</p>
+    <div class="card" style="padding-top: 4px; padding-bottom: 4px;">
+      @for (tag of vista.tagsAnulados; track tag.numeroTag) {
+      <div class="flex items-center justify-between gap-2 py-2" style="border-top: 0.5px solid var(--app-border);">
+        <div class="min-w-0">
+          <p class="text-[14px] font-semibold num" style="color: var(--app-text);">{{ tag.numeroTag }}</p>
+          <p class="text-[12px]" style="color: var(--app-text-muted);">{{ tag.motivo }}</p>
+        </div>
+        @if (tag.pendiente) { <span class="badge badge-warning">Pendiente de envío</span> }
+      </div>
+      }
+    </div>
+    }
+
+    }
+
+  </div>
+</ion-content>

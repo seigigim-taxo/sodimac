@@ -14,6 +14,7 @@ import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
+import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 import { etiquetaDia, hoySql, sumarDias } from '../../shared/utils/fecha.utils';
 
 /*
@@ -51,6 +52,7 @@ describe('HomePage — jornadas que se ofrecen', () => {
   let finalizados: ReturnType<typeof signal<EventoConResumen[]>>;
   let jornadaCerrada: ReturnType<typeof signal<string | null>>;
   let reintento: jasmine.SpyObj<ReintentoAutomaticoService>;
+  let zonificacion: { conteo: ReturnType<typeof signal<{ pendientes: number; rechazadas: number }>>; contar: jasmine.Spy; reintentarAhora: jasmine.Spy };
 
   beforeEach(async () => {
     eventos = signal<Evento[]>([]);
@@ -58,6 +60,11 @@ describe('HomePage — jornadas que se ofrecen', () => {
     jornadaCerrada = signal<string | null>(null);
 
     reintento = jasmine.createSpyObj('ReintentoAutomaticoService', ['disparar']);
+    zonificacion = {
+      conteo: signal({ pendientes: 0, rechazadas: 0 }),
+      contar: jasmine.createSpy('contar').and.resolveTo(),
+      reintentarAhora: jasmine.createSpy('reintentarAhora').and.resolveTo({ enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false }),
+    };
 
     const stub = <T>(valor: unknown): T => valor as T;
 
@@ -119,6 +126,7 @@ describe('HomePage — jornadas que se ofrecen', () => {
       })
       // El Inicio pide un reintento al entrar; sin el doble arrastraría la cadena real de envíos.
       .overrideProvider(ReintentoAutomaticoService, { useValue: reintento })
+      .overrideProvider(ZonificacionFacade, { useValue: zonificacion })
       .overrideProvider(VigenciaDiaService, {
         useValue: stub<VigenciaDiaService>({
           jornadaCerrada,
@@ -427,6 +435,119 @@ describe('HomePage — jornadas que se ofrecen', () => {
       component.ionViewWillEnter();
 
       expect(reintento.disparar).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /* La entrada al módulo de zonificación vive en Inicio, bajo la tienda. */
+  describe('acceso a zonificación', () => {
+    it('hay una tarjeta "Zonificación" que lleva a la lista de agendas', () => {
+      pintar([]);
+
+      const tarjeta = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="acceso-zonificacion"]') as HTMLElement;
+      expect(texto(tarjeta)).toContain('Zonificación');
+
+      tarjeta.click();
+
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/zonificacion']);
+    });
+
+    it('al entrar al Inicio vuelve a contar lo pendiente de zonificación', () => {
+      component.ionViewWillEnter();
+      expect(zonificacion.contar).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /*
+   * Los avisos de zonificación: lo que no salió se envía solo y esto lo cuenta
+   * (rojo); lo que el servidor rechazó necesita una decisión del operador (ámbar).
+   */
+  describe('avisos de zonificación', () => {
+    const aviso = (id: string): HTMLElement | null => (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`);
+
+    it('sin nada pendiente ni rechazado no hay avisos', () => {
+      pintar([]);
+      expect(aviso('aviso-no-enviada')).toBeNull();
+      expect(aviso('aviso-rechazados')).toBeNull();
+      expect(aviso('chip-rechazados')).toBeNull();
+    });
+
+    it('lo pendiente se cuenta en el aviso rojo', () => {
+      zonificacion.conteo.set({ pendientes: 2, rechazadas: 0 });
+      pintar([]);
+
+      expect(texto(aviso('aviso-no-enviada'))).toContain('Zonificación no enviada (2)');
+      expect(texto(aviso('aviso-no-enviada'))).toContain('Se enviará al volver la red.');
+      expect(aviso('aviso-rechazados')).toBeNull();
+    });
+
+    it('"Reintentar ahora" saca la cola sin esperar', async () => {
+      zonificacion.conteo.set({ pendientes: 2, rechazadas: 0 });
+      pintar([]);
+
+      aviso('reintentar-zonificacion')!.click();
+      await fixture.whenStable();
+
+      expect(zonificacion.reintentarAhora).toHaveBeenCalledTimes(1);
+    });
+
+    it('apretar "Reintentar ahora" dos veces seguidas manda una sola tanda', async () => {
+      zonificacion.conteo.set({ pendientes: 1, rechazadas: 0 });
+      let terminar!: () => void;
+      zonificacion.reintentarAhora.and.returnValue(new Promise<void>((ok) => (terminar = ok)));
+      pintar([]);
+
+      const primero = component.reintentarZonificacion();
+      await component.reintentarZonificacion();
+      terminar();
+      await primero;
+
+      expect(zonificacion.reintentarAhora).toHaveBeenCalledTimes(1);
+      expect(component.reintentandoZonificacion()).toBeFalse();
+    });
+
+    it('un fallo al reintentar no deja el botón bloqueado', async () => {
+      zonificacion.reintentarAhora.and.rejectWith(new Error('sin red'));
+      spyOn(console, 'error');
+
+      await component.reintentarZonificacion();
+
+      expect(component.reintentandoZonificacion()).toBeFalse();
+    });
+
+    it('lo rechazado se avisa aparte, en ámbar, con el número y un botón para revisarlo', () => {
+      zonificacion.conteo.set({ pendientes: 0, rechazadas: 2 });
+      pintar([]);
+
+      expect(texto(aviso('aviso-rechazados'))).toContain('2 envíos de zonificación rechazados');
+      expect(texto(aviso('aviso-rechazados'))).toContain('El servidor no los aceptó. Revísalos para descartarlos.');
+      expect(texto(aviso('chip-rechazados'))).toBe('2 rechazados');
+      expect(aviso('aviso-no-enviada')).toBeNull();
+    });
+
+    it('con un solo rechazado el texto va en singular', () => {
+      zonificacion.conteo.set({ pendientes: 0, rechazadas: 1 });
+      pintar([]);
+
+      expect(texto(aviso('aviso-rechazados'))).toContain('1 envío de zonificación rechazado');
+      expect(texto(aviso('aviso-rechazados'))).toContain('El servidor no lo aceptó. Revísalo para descartarlo.');
+      expect(texto(aviso('chip-rechazados'))).toBe('1 rechazado');
+    });
+
+    it('"Revisar" lleva a la pantalla de envíos rechazados', () => {
+      zonificacion.conteo.set({ pendientes: 0, rechazadas: 1 });
+      pintar([]);
+
+      aviso('revisar-rechazados')!.click();
+
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/zonificacion/rechazados']);
+    });
+
+    it('pueden verse los dos avisos a la vez', () => {
+      zonificacion.conteo.set({ pendientes: 1, rechazadas: 2 });
+      pintar([]);
+
+      expect(aviso('aviso-no-enviada')).not.toBeNull();
+      expect(aviso('aviso-rechazados')).not.toBeNull();
     });
   });
 });

@@ -6,6 +6,7 @@ import { NetworkService } from './network.service';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { EnviarPendientesFacade } from '../../state/sincronizacion/enviar-pendientes.facade';
 import { ResultadoEnviarPendientes } from '../../application/sincronizacion/enviar-pendientes.use-case';
+import { EnviarZonificacionUseCase, ResultadoEnvioZonificacion } from '../../application/zonificacion/enviar-zonificacion.use-case';
 import { ESPERAS_TRAS_FALLO_MS, MAX_FALLOS_SEGUIDOS, MIN_ENTRE_INTENTOS_MS } from '../../application/sincronizacion/politica-reintento';
 
 /*
@@ -16,10 +17,14 @@ const resultado = (extra: Partial<ResultadoEnviarPendientes> = {}): ResultadoEnv
   enviados: 0, conError: 0, total: 0, confirmadosTags: [], reintentables: 0, cortadoPorRed: false, ...extra,
 });
 const CON_PENDIENTES = resultado({ total: 1, conError: 1, reintentables: 1 });
+const zonif = (extra: Partial<ResultadoEnvioZonificacion> = {}): ResultadoEnvioZonificacion => ({
+  enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false, ...extra,
+});
 
 describe('ReintentoAutomaticoService', () => {
   let servicio: ReintentoAutomaticoService;
   let facade: jasmine.SpyObj<EnviarPendientesFacade>;
+  let zonificacion: jasmine.SpyObj<EnviarZonificacionUseCase>;
   let conectado: ReturnType<typeof signal<boolean>>;
   let sesion: ReturnType<typeof signal<boolean>>;
   let toastCrear: jasmine.Spy;
@@ -39,12 +44,15 @@ describe('ReintentoAutomaticoService', () => {
     sesion = signal(true);
     facade = jasmine.createSpyObj('EnviarPendientesFacade', ['enviarAutomatico']);
     facade.enviarAutomatico.and.resolveTo(resultado());
+    zonificacion = jasmine.createSpyObj('EnviarZonificacionUseCase', ['execute']);
+    zonificacion.execute.and.resolveTo(zonif());
 
     toastCrear = jasmine.createSpy('create').and.resolveTo({ present: () => Promise.resolve() });
     TestBed.configureTestingModule({
       providers: [
         ReintentoAutomaticoService,
         { provide: EnviarPendientesFacade, useValue: facade },
+        { provide: EnviarZonificacionUseCase, useValue: zonificacion },
         { provide: NetworkService, useValue: { isOnline: conectado } },
         { provide: AuthFacade, useValue: { isAuthenticated: sesion } },
         { provide: ToastController, useValue: { create: toastCrear } },
@@ -537,5 +545,105 @@ describe('ReintentoAutomaticoService', () => {
     servicio.iniciar();
 
     expect(escuchar).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * La zonificación tiene su propia cola de envío, pero se saca con el mismo
+   * motor: mismos disparadores, mismas reglas de ahorro y un único temporizador.
+   */
+  describe('la cola de zonificación', () => {
+    it('sale en la misma tanda que los TAG, cortando al primer fallo de red', async () => {
+      servicio.disparar();
+      await vaciarPromesas();
+
+      expect(zonificacion.execute).toHaveBeenCalledOnceWith({ cortarAlFalloDeRed: true });
+    });
+
+    it('lo pendiente de zonificación arma el temporizador aunque no haya TAG pendientes', async () => {
+      zonificacion.execute.and.resolveTo(zonif({ reintentables: 2 }));
+      servicio.disparar();
+      await vaciarPromesas();
+      zonificacion.execute.calls.reset();
+
+      await avanzar(ESPERAS_TRAS_FALLO_MS[0]);
+
+      expect(zonificacion.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('sin nada pendiente de ninguna de las dos colas, no deja temporizador', async () => {
+      servicio.disparar();
+      await vaciarPromesas();
+      zonificacion.execute.calls.reset();
+
+      await avanzar(60 * 60 * 1000);
+
+      expect(zonificacion.execute).not.toHaveBeenCalled();
+    });
+
+    it('con el operador enviando TAG desde el menú, la zonificación sale igual', async () => {
+      facade.enviarAutomatico.and.resolveTo(null);
+      zonificacion.execute.and.resolveTo(zonif({ enviadas: 1 }));
+
+      servicio.disparar();
+      await vaciarPromesas();
+
+      expect(zonificacion.execute).toHaveBeenCalledTimes(1);
+      expect(toastCrear).toHaveBeenCalledTimes(1);
+    });
+
+    it('un error en la zonificación no frena la tanda de los TAG', async () => {
+      zonificacion.execute.and.rejectWith(new Error('falló'));
+      facade.enviarAutomatico.and.resolveTo(resultado({ confirmadosTags: ['3001'] }));
+      spyOn(console, 'error');
+
+      servicio.disparar();
+      await vaciarPromesas();
+
+      expect(toastCrear.calls.mostRecent().args[0].message).toBe('TAG 3001 enviado.');
+    });
+
+    it('avisa "Zonificación enviada." cuando salió todo lo que había', async () => {
+      zonificacion.execute.and.resolveTo(zonif({ enviadas: 3 }));
+
+      servicio.disparar();
+      await vaciarPromesas();
+
+      expect(toastCrear.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({ message: 'Zonificación enviada.', color: 'success' }));
+    });
+
+    it('no avisa si todavía queda algo esperando', async () => {
+      zonificacion.execute.and.resolveTo(zonif({ enviadas: 1, reintentables: 1 }));
+
+      servicio.disparar();
+      await vaciarPromesas();
+
+      expect(toastCrear).not.toHaveBeenCalled();
+    });
+
+    it('lo rechazado no es motivo de reintento', async () => {
+      zonificacion.execute.and.resolveTo(zonif({ rechazadas: 2 }));
+      servicio.disparar();
+      await vaciarPromesas();
+      zonificacion.execute.calls.reset();
+
+      await avanzar(60 * 60 * 1000);
+
+      expect(zonificacion.execute).not.toHaveBeenCalled();
+    });
+
+    it('un fallo de zonificación y otro de TAG juntos cuentan como UN fallo seguido, no dos', async () => {
+      facade.enviarAutomatico.and.resolveTo(CON_PENDIENTES);
+      zonificacion.execute.and.resolveTo(zonif({ reintentables: 1 }));
+      servicio.disparar();
+      await vaciarPromesas();
+      zonificacion.execute.calls.reset();
+
+      await avanzar(ESPERAS_TRAS_FALLO_MS[0]);
+
+      // La segunda espera de la escala es la siguiente (1 min), no la tercera.
+      zonificacion.execute.calls.reset();
+      await avanzar(ESPERAS_TRAS_FALLO_MS[1]);
+      expect(zonificacion.execute).toHaveBeenCalledTimes(1);
+    });
   });
 });

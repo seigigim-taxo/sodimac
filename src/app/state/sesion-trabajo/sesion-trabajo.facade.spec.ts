@@ -7,6 +7,7 @@ import { ConteoFacade } from '../conteo/conteo.facade';
 import { ConteoListFacade } from '../conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../conteo/resumen-evento.facade';
 import { SucursalFacade } from '../sucursal/sucursal.facade';
+import { ZonificacionFacade } from '../zonificacion/zonificacion.facade';
 
 /*
  * limpiar() es lo único que separa el turno de un operador del siguiente en la
@@ -27,6 +28,7 @@ describe('SesionTrabajoFacade.limpiar', () => {
     lista:    jasmine.createSpyObj<ConteoListFacade>('ConteoListFacade', ['reset']),
     resumen:  jasmine.createSpyObj<ResumenEventoFacade>('ResumenEventoFacade', ['reset']),
     sucursal: jasmine.createSpyObj<SucursalFacade>('SucursalFacade', ['reset']),
+    zonificacion: jasmine.createSpyObj<ZonificacionFacade>('ZonificacionFacade', ['reset']),
     evento:   jasmine.createSpyObj<EventoFacade>('EventoFacade', ['limpiarSeleccion']),
   };
 
@@ -42,6 +44,7 @@ describe('SesionTrabajoFacade.limpiar', () => {
         { provide: ConteoListFacade,    useValue: dobles.lista },
         { provide: ResumenEventoFacade, useValue: dobles.resumen },
         { provide: SucursalFacade,      useValue: dobles.sucursal },
+        { provide: ZonificacionFacade,  useValue: dobles.zonificacion },
         { provide: EventoFacade,        useValue: dobles.evento },
       ],
     });
@@ -56,6 +59,7 @@ describe('SesionTrabajoFacade.limpiar', () => {
     expect(dobles.lista.reset).toHaveBeenCalled();
     expect(dobles.resumen.reset).toHaveBeenCalled();
     expect(dobles.sucursal.reset).toHaveBeenCalled();
+    expect(dobles.zonificacion.reset).toHaveBeenCalled();
     expect(dobles.evento.limpiarSeleccion).toHaveBeenCalled();
   });
 });

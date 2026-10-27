@@ -1,0 +1,82 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/zonificacion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Anular TAG</ion-title>
+    <ion-buttons slot="end">
+      @if (isOnline()) {
+        <span class="conexion-indicator" style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    @if (sinCatalogo()) {
+    <div class="error-pill mb-4" data-testid="sin-catalogo">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>Faltan las zonas. Conéctate a la red al menos una vez para descargarlas.</span>
+    </div>
+    }
+
+    @if (errorAnular(); as error) {
+    <div class="error-pill mb-4" data-testid="error-anular">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ error }}</span>
+    </div>
+    }
+
+    @if (evaluacion(); as ev) {
+
+    @if (ev.errorNumero) {
+    <div class="status-banner status-banner-error mb-4" data-testid="error-numero">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>{{ ev.errorNumero }}</span>
+    </div>
+    }
+
+    <div class="mb-4">
+      <p class="field-label mb-1">Número de TAG</p>
+      <ion-input class="input-base" inputmode="numeric" placeholder="Escanea o ingresa el TAG" data-testid="numero"
+                 [value]="numero()" (ionInput)="onNumero($event)">
+        <ion-icon slot="end" name="barcode-outline"></ion-icon>
+      </ion-input>
+    </div>
+
+    @if (ev.rango; as rango) {
+    <div class="card mb-4" data-testid="rango">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[12px]" style="color: var(--app-text-muted);">Está en</span>
+        <span class="badge badge-success">{{ rango.zona }}</span>
+      </div>
+      <p class="text-[12px] mt-2 num" style="color: var(--app-text-muted);">
+        Rango {{ rango.texto }} · baja de {{ rango.cantidadAntes }} a {{ rango.cantidadDespues }} TAG
+      </p>
+    </div>
+    }
+
+    <div class="mb-6">
+      <p class="field-label mb-1">Motivo</p>
+      <ion-textarea class="input-base" [rows]="3" [autoGrow]="true" placeholder="Por qué se anula este TAG" data-testid="motivo"
+                    [value]="motivo()" (ionInput)="onMotivo($event)"></ion-textarea>
+      <p class="text-[11px] mt-1" data-testid="contador" [style.color]="ev.errorMotivo ? 'var(--app-error-text)' : 'var(--app-text-muted)'">
+        {{ ev.caracteres }} caracteres · mínimo {{ minimoMotivo() }}
+      </p>
+    </div>
+
+    <ion-button expand="block" class="btn-primary" style="--background: var(--app-error);" data-testid="anular"
+                [disabled]="!puedeAnular()" (click)="anular()">
+      Anular TAG
+    </ion-button>
+    <ion-button expand="block" fill="clear" class="btn-ghost mt-2" data-testid="cancelar" (click)="volver()">
+      Cancelar
+    </ion-button>
+    }
+
+  </div>
+</ion-content>

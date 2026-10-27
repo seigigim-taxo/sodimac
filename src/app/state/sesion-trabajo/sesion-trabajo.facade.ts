@@ -6,6 +6,7 @@ import { ConteoFacade } from '../conteo/conteo.facade';
 import { ConteoListFacade } from '../conteo/conteo-list.facade';
 import { ResumenEventoFacade } from '../conteo/resumen-evento.facade';
 import { SucursalFacade } from '../sucursal/sucursal.facade';
+import { ZonificacionFacade } from '../zonificacion/zonificacion.facade';
 
 /*
  * Devuelve al operador donde estaba después de que la app dejó de correr
@@ -29,6 +30,7 @@ export class SesionTrabajoFacade {
   private conteoList    = inject(ConteoListFacade);
   private resumenFacade = inject(ResumenEventoFacade);
   private sucursalFacade = inject(SucursalFacade);
+  private zonificacionFacade = inject(ZonificacionFacade);
 
   private restaurandoSignal = signal(false);
   readonly restaurando = this.restaurandoSignal.asReadonly();
@@ -46,6 +48,7 @@ export class SesionTrabajoFacade {
     this.conteoList.reset();
     this.resumenFacade.reset();
     this.sucursalFacade.reset();
+    this.zonificacionFacade.reset();
     await this.eventoFacade.limpiarSeleccion();
   }
 

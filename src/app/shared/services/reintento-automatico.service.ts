@@ -3,6 +3,7 @@ import { App } from '@capacitor/app';
 import { ToastController } from '@ionic/angular/standalone';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { EnviarPendientesFacade } from '../../state/sincronizacion/enviar-pendientes.facade';
+import { EnviarZonificacionUseCase, ResultadoEnvioZonificacion } from '../../application/zonificacion/enviar-zonificacion.use-case';
 import { NetworkService } from './network.service';
 import { esperaTrasFallo, puedeIntentarYa } from '../../application/sincronizacion/politica-reintento';
 
@@ -32,6 +33,7 @@ export class ReintentoAutomaticoService {
   private network  = inject(NetworkService);
   private toast    = inject(ToastController);
   private injector = inject(Injector);
+  private zonificacion = inject(EnviarZonificacionUseCase);
 
   private iniciado = false;
   private enPrimerPlano = true;
@@ -106,14 +108,20 @@ export class ReintentoAutomaticoService {
 
     try {
       const resultado = await this.facade.enviarAutomatico();
-      if (resultado === null) return; // el operador ya estaba enviando desde el menú
+      // La zonificación tiene su propia cola: sale en la misma tanda, con las mismas reglas de ahorro.
+      const zonif = await this.enviarZonificacion();
 
-      if (resultado.confirmadosTags.length > 0) {
+      // El operador ya estaba enviando TAG desde el menú y no hubo nada de zonificación que hacer.
+      if (resultado === null && zonif.enviadas === 0 && zonif.rechazadas === 0 && zonif.reintentables === 0) return;
+
+      const tagsConfirmados = resultado?.confirmadosTags ?? [];
+      if (tagsConfirmados.length > 0 || zonif.enviadas > 0) {
         this.fallosSeguidos = 0; // hubo avance
-        void this.avisar(resultado.confirmadosTags);
       }
+      if (tagsConfirmados.length > 0) void this.avisar(tagsConfirmados);
+      if (zonif.enviadas > 0 && zonif.reintentables === 0) void this.avisarZonificacion();
 
-      if (resultado.reintentables > 0) {
+      if ((resultado?.reintentables ?? 0) + zonif.reintentables > 0) {
         this.fallosSeguidos++;
         this.programarSiguiente();
       } else {
@@ -125,6 +133,16 @@ export class ReintentoAutomaticoService {
       this.programarSiguiente();
     } finally {
       this.corriendo = false;
+    }
+  }
+
+  /* Nunca lanza: un problema con la zonificación no puede frenar el envío de los TAG. */
+  private async enviarZonificacion(): Promise<ResultadoEnvioZonificacion> {
+    try {
+      return await this.zonificacion.execute({ cortarAlFalloDeRed: true });
+    } catch (err) {
+      console.error('[ReintentoAutomatico] la tanda de zonificación falló:', err);
+      return { enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false };
     }
   }
 
@@ -142,6 +160,15 @@ export class ReintentoAutomaticoService {
     if (this.temporizador === undefined) return;
     clearTimeout(this.temporizador);
     this.temporizador = undefined;
+  }
+
+  private async avisarZonificacion(): Promise<void> {
+    try {
+      const toast = await this.toast.create({ message: 'Zonificación enviada.', duration: 3000, color: 'success', position: 'top' });
+      await toast.present();
+    } catch (err) {
+      console.error('[ReintentoAutomatico] no se pudo mostrar el aviso:', err);
+    }
   }
 
   private async avisar(tags: string[]): Promise<void> {

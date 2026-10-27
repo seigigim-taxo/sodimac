@@ -1,0 +1,54 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Envíos rechazados</ion-title>
+    <ion-buttons slot="end">
+      @if (isOnline()) {
+        <span class="conexion-indicator" style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <p class="text-[12px] mb-4" style="color: var(--app-text-muted);">
+      Descartarlos solo los quita de esta PDA. No cambia nada en el SGO.
+    </p>
+
+    @if (filas().length === 0) {
+    <div class="status-banner status-banner-success" data-testid="sin-rechazos">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      <span>No hay envíos rechazados.</span>
+    </div>
+    }
+
+    <div class="flex flex-col gap-3">
+      @for (fila of filas(); track fila.id) {
+      <div class="card" [attr.data-testid]="'rechazo-' + fila.id">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-[15px] font-bold" style="color: var(--app-text);">{{ fila.titulo }}</p>
+            <p class="text-[12px] mt-1" style="color: var(--app-text-muted);">{{ fila.subtitulo }}</p>
+          </div>
+          <span class="badge badge-error">{{ fila.etiqueta }}</span>
+        </div>
+        <p class="text-[14px] my-3" style="color: var(--app-text);">{{ fila.motivo }}</p>
+        <ion-button expand="block" class="btn-outline" data-testid="descartar" (click)="descartar(fila)">Descartar</ion-button>
+      </div>
+      }
+    </div>
+
+    @if (filas().length > 1) {
+    <ion-button expand="block" fill="clear" class="btn-ghost mt-4" data-testid="descartar-todas" (click)="descartarTodas()">
+      Descartar todos
+    </ion-button>
+    }
+
+  </div>
+</ion-content>
