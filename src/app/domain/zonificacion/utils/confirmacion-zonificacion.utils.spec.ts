@@ -50,6 +50,12 @@ describe('decidirConfirmacion', () => {
     expect(decidirConfirmacion(vista({ rangos: [] }), estado())).toEqual({ tipo: 'ERROR', texto: 'Debes registrar al menos un rango antes de confirmar.' });
   });
 
+  it('con rangos pero todos sus TAG anulados, el aviso es otro (como en el SGO)', () => {
+    const anulados = Array.from({ length: 3 }, (_, i) => ({ numeroTag: 1135 + i, motivo: 'rota', pendiente: false }));
+    const solo = vista({ rangos: [{ ...rango(1, 1135, 1137), cantidad: 0 }], tagsAnulados: anulados });
+    expect(decidirConfirmacion(solo, estado())).toEqual({ tipo: 'ERROR', texto: 'La zonificación no contiene TAG válidos.' });
+  });
+
   it('TAG usados sin rango bloquean y se nombran', () => {
     expect(decidirConfirmacion(vista(), estado({ total: 2, ejemplos: [5000, 5001] }))).toEqual({
       tipo: 'BLOQUEO',
@@ -70,7 +76,7 @@ describe('decidirConfirmacion', () => {
 
 describe('avisos', () => {
   it('confirmada: dice cuántos rangos y TAG, y cuántos TAG ya usados se validarán', () => {
-    expect(avisoConfirmada(vista(), 0)).toBe('Zonificación confirmada: 3 rangos, 11 TAG instalados.');
+    expect(avisoConfirmada(vista(), 0)).toBe('Zonificación confirmada: 3 rangos, 11 TAG instalados. El conteo queda habilitado.');
     expect(avisoConfirmada(vista(), 4)).toBe('Zonificación confirmada: 3 rangos, 11 TAG instalados. Se validarán los 4 TAG ya utilizados en el conteo.');
   });
 

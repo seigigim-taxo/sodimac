@@ -152,7 +152,12 @@ export class EnviarZonificacionUseCase {
     }
 
     // Tras un rechazo el estado local pudo quedar viejo (otra PDA, el SGO): se vuelve a pedir.
-    if (huboRechazo && referencia) await this.refrescarEstado(referencia, pdaCodigo, versionApp);
+    if (huboRechazo && referencia) {
+      await this.refrescarEstado(referencia, pdaCodigo, versionApp);
+      // Las pantallas se releyeron al rechazarse, antes de traer el estado nuevo: se avisa de nuevo
+      // para que muestren también lo que cambió en el servidor (pasó en la PDA: el rango de otra PDA no se veía).
+      this.cambiosSignal.update((n) => n + 1);
+    }
     return false;
   }
 

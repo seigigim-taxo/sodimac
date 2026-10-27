@@ -78,6 +78,7 @@ describe('evaluarFormularioRango', () => {
 
     expect(e.errorDesde).toContain('no pertenece a ninguna zona');
     expect(e.banda).toBeNull();
+    expect(e.cantidad).toBeNull(); // sin zona no hay cantidad que mostrar
     expect(e.puedeGuardar).toBeFalse();
   });
 

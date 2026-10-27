@@ -94,7 +94,7 @@ export function evaluarFormularioRango(entrada: EntradaFormularioRango, ctx: Con
     banda,
     errorDesde: errorDesde ?? (sinZona ? `El TAG ${desde} no pertenece a ninguna zona. Revisa el número.` : null),
     errorHasta,
-    cantidad: desde !== null && hasta !== null && hasta >= desde ? calcularCantidad(desde, hasta, ctx.vista.tagsAnulados.map((t) => t.numeroTag)) : null,
+    cantidad: desde !== null && hasta !== null && zona && hasta >= desde ? calcularCantidad(desde, hasta, ctx.vista.tagsAnulados.map((t) => t.numeroTag)) : null,
   };
 
   // Falta algo o hay un error de un campo: no hay más que validar todavía.

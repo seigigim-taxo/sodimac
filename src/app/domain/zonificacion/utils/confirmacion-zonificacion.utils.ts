@@ -30,8 +30,12 @@ export function decidirConfirmacion(vista: VistaZonificacion, estado: EstadoAgen
       texto: `Espera a que se envíen ${plural(vista.pendientes.length, 'cambio', 'cambios')} para poder confirmar.`,
     };
   }
-  if (vista.rangos.length === 0 || tags <= 0) {
+  if (vista.rangos.length === 0) {
     return { tipo: 'ERROR', texto: mensajeZonificacion('ZONIFICACION_VACIA') };
+  }
+  // Hay rangos pero todos sus TAG están anulados: el SGO lo dice aparte.
+  if (tags <= 0) {
+    return { tipo: 'ERROR', texto: 'La zonificación no contiene TAG válidos.' };
   }
   const fuera = estado?.tagsFuera;
   if (fuera && fuera.total > 0) {
@@ -48,7 +52,7 @@ export function decidirConfirmacion(vista: VistaZonificacion, estado: EstadoAgen
 export function avisoConfirmada(vista: VistaZonificacion, tagsUsados: number): string {
   const tags = vista.rangos.reduce((suma, r) => suma + r.cantidad, 0);
   const base = `Zonificación confirmada: ${plural(vista.rangos.length, 'rango', 'rangos')}, ${tags} TAG instalados.`;
-  return tagsUsados > 0 ? `${base} Se validarán los ${tagsUsados} TAG ya utilizados en el conteo.` : base;
+  return tagsUsados > 0 ? `${base} Se validarán los ${tagsUsados} TAG ya utilizados en el conteo.` : `${base} El conteo queda habilitado.`;
 }
 
 /* El diálogo de "Reabrir". */

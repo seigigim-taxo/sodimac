@@ -234,6 +234,21 @@ describe('EnviarZonificacionUseCase', () => {
       expect(await local.obtenerEstado(2092)).not.toBeNull();
     });
 
+    it('avisa del cambio otra vez cuando ya trajo el estado nuevo, para que las pantallas lo muestren', async () => {
+      await local.encolar(op('a'));
+      api.enviar.and.rejectWith(rechazo('RANGO_CRUZADO'));
+      const avisos: number[] = [];
+      api.obtenerEstado.and.callFake(async () => {
+        avisos.push(uc.cambios()); // al pedir el estado, solo se avisó del rechazo
+        return parsearRespuestaEstado(ESTADO_V1_DATA);
+      });
+
+      await uc.execute();
+
+      expect(avisos).toEqual([1]);
+      expect(uc.cambios()).toBe(2); // y después, con el estado ya guardado
+    });
+
     it('si el estado no se puede refrescar, el rechazo igual queda registrado', async () => {
       await local.encolar(op('a'));
       api.enviar.and.rejectWith(rechazo('ZONIFICACION_CONFIRMADA'));
