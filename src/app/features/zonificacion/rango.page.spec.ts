@@ -281,17 +281,37 @@ describe('ZonificacionRangoPage', () => {
       }
     });
 
-    it('Enter en el segundo TAG guarda si se puede', async () => {
+    it('Enter en el último TAG NO guarda: deja la pantalla quieta para leer la zona, la cantidad y los avisos', async () => {
       escribir('1135', '1140');
       page.enterEnHasta();
       await Promise.resolve();
-      expect(guardarRango).toHaveBeenCalledTimes(1);
+      await Promise.resolve();
+
+      expect(guardarRango).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(page.puedeGuardar()).toBeTrue(); // sigue listo: se guarda tocando "Guardar"
     });
 
-    it('Enter en el segundo TAG no guarda si falta algo', () => {
-      escribir('1135', '');
+    it('Enter en el último TAG baja el teclado (el campo pierde el foco)', async () => {
+      const blur = jasmine.createSpy('blur');
+      page.hastaEl = { nativeElement: { getInputElement: () => Promise.resolve({ blur }) } } as never;
+
       page.enterEnHasta();
-      expect(guardarRango).not.toHaveBeenCalled();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(blur).toHaveBeenCalledTimes(1);
+    });
+
+    it('Enter en el último TAG sin el campo disponible no falla', () => {
+      page.hastaEl = undefined;
+      expect(() => page.enterEnHasta()).not.toThrow();
+    });
+
+    it('guardar sigue siendo tocar "Guardar"', async () => {
+      escribir('1135', '1140');
+      await page.guardar();
+      expect(guardarRango).toHaveBeenCalledTimes(1);
     });
 
     it('Cancelar vuelve al resumen sin guardar', async () => {
