@@ -123,8 +123,14 @@ export class ZonificacionRangoPage implements ViewWillEnter {
     setTimeout(() => void this.hastaEl?.nativeElement?.setFocus?.(), 50);
   }
 
+  /*
+   * Enter en el último TAG NO guarda. Antes guardaba y salía al resumen en el mismo
+   * instante, y el operador no alcanzaba a leer la zona, la cantidad ni los avisos
+   * (por ejemplo, "Son 100 TAG...") que están debajo de los campos. Ahora solo baja el
+   * teclado y deja la pantalla quieta: se revisa y se guarda tocando "Guardar".
+   */
   enterEnHasta(): void {
-    if (this.puedeGuardar()) void this.guardar();
+    void this.hastaEl?.nativeElement?.getInputElement?.().then((campo) => campo.blur());
   }
 
   async guardar(): Promise<void> {
