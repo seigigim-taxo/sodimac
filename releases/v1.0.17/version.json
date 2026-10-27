@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "data": {
+    "version_code": 22,
+    "version_name": "1.0.17",
+    "url": "http://50.16.13.230/app/ws/sodimac/apk/sodimac-1.0.17-vc22-lineage.apk",
+    "sha256": "7d052242c09dfacb728dba7fc52c466c07051a44deb7ea037e66f0e9e8d983a2",
+    "obligatoria": false,
+    "notas": "Zonificación desde la PDA (rangos de TAG por agenda, confirmación, reapertura y envío con reintentos). Firmada con la llave de Taxo, con linaje V3 (debug -> Taxo) embebido."
+  }
+}
