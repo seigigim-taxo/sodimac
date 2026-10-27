@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTextarea, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTextarea, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, barcodeOutline } from 'ionicons/icons';
 import { evaluarAnulacion } from '../../domain/zonificacion/utils/formulario-rango.utils';
@@ -28,6 +28,7 @@ export class ZonificacionAnularTagPage implements ViewWillEnter {
   private router = inject(Router);
   private facade = inject(ZonificacionFacade);
   private network = inject(NetworkService);
+  private alertas = inject(AlertController);
 
   isOnline = this.network.isOnline;
 
@@ -73,15 +74,49 @@ export class ZonificacionAnularTagPage implements ViewWillEnter {
     this.errorAnular.set(null);
   }
 
+  /*
+   * Anular un TAG no se puede deshacer, así que antes de mandarlo se pide una
+   * confirmación en un modal: el operador escribe el número del TAG que va a
+   * anular y solo si coincide se sigue. (El SGO pide escribir `ANULAR TAG <número>`;
+   * acá basta el número, como se decidió para la PDA.)
+   */
   async anular(): Promise<void> {
     const ev = this.evaluacion();
+    if (!ev?.puedeAnular || ev.numero === null || !this.facade.agenda() || this.enviando()) return;
+
+    const esperado = String(ev.numero);
+    const alerta = await this.alertas.create({
+      header: 'Confirmar anulación',
+      message: 'Esta acción no se puede deshacer. Escribe el número del TAG que vas a anular para confirmar.',
+      inputs: [{ name: 'numero', type: 'text', placeholder: 'Número del TAG', attributes: { inputmode: 'numeric', autocomplete: 'off' } }],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Anular TAG',
+          role: 'destructive',
+          handler: (datos: { numero?: string }) => {
+            if (String(datos?.numero ?? '').trim() !== esperado) {
+              // Se queda abierto: es lo que impide anular un TAG por un toque equivocado.
+              alerta.message = 'El número no coincide con el TAG que vas a anular. Revísalo e intenta de nuevo.';
+              return false;
+            }
+            void this.ejecutarAnulacion(ev.numero as number);
+            return true;
+          },
+        },
+      ],
+    });
+    await alerta.present();
+  }
+
+  private async ejecutarAnulacion(numero: number): Promise<void> {
     const agenda = this.facade.agenda();
-    if (!ev?.puedeAnular || ev.numero === null || !agenda || this.enviando()) return;
+    if (!agenda || this.enviando()) return;
 
     this.enviando.set(true);
     this.errorAnular.set(null);
     try {
-      const r = await this.facade.anularTag(agenda, ev.numero, this.motivo());
+      const r = await this.facade.anularTag(agenda, numero, this.motivo());
       if (r.ok) {
         await this.volver();
       } else {
