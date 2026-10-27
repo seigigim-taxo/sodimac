@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
 import { ActionSheetController, AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
+import { alertCircleOutline, checkmarkCircleOutline, chevronForwardOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
 import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zonificacion.model';
 import { decidirConfirmacion, textoReabrir } from '../../domain/zonificacion/utils/confirmacion-zonificacion.utils';
 import { ETIQUETA_ESTADO_VISUAL, TONO_ESTADO_VISUAL, estadoVisualDeResumen } from '../../domain/zonificacion/utils/estado-visual.utils';
@@ -112,7 +112,7 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   pedirReabrirPorTagsFuera = computed(() => this.vista()?.estado === 'CONFIRMADA');
 
   constructor() {
-    addIcons({ alertCircleOutline, checkmarkCircleOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline });
+    addIcons({ alertCircleOutline, checkmarkCircleOutline, chevronForwardOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline });
   }
 
   async ionViewWillEnter(): Promise<void> {

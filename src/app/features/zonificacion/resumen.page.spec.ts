@@ -167,8 +167,9 @@ describe('ZonificacionResumenPage', () => {
       const fila = dom('rango-758', pintar());
 
       expect(texto(fila)).toContain('ALTILLO');
-      expect(texto(fila)).toContain('1128–1131 · P48');
-      expect(texto(fila)).toContain('0 de 4 usados');
+      expect(texto(fila)).toContain('1128–1131');
+      expect(texto(fila)).toContain('P48');
+      expect(texto(fila)).toContain('0/4');
     });
 
     it('el título lleva el número de agenda', () => {
