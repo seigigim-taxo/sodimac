@@ -35,6 +35,7 @@ describe('ZonificacionFacade', () => {
   let anularUC: jasmine.SpyObj<AnularTagUseCase>;
   let contexto: jasmine.SpyObj<ContextoAgendaZonificacionService>;
   let cambios: ReturnType<typeof signal<number>>;
+  let enviando: ReturnType<typeof signal<boolean>>;
   let confirmarUC: jasmine.SpyObj<ConfirmarZonificacionUseCase>;
   let reabrirUC: jasmine.SpyObj<ReabrirZonificacionUseCase>;
   let listarRechazadasUC: jasmine.SpyObj<ListarRechazadasZonificacionUseCase>;
@@ -44,7 +45,8 @@ describe('ZonificacionFacade', () => {
   const catalogo: CatalogoCargado = { catalogo: null, origen: 'NINGUNO', fechaDescarga: null };
 
   beforeEach(() => {
-    agendasUC = jasmine.createSpyObj('Agendas', ['execute']);
+    agendasUC = jasmine.createSpyObj('Agendas', ['execute', 'copia']);
+    agendasUC.copia.and.resolveTo(null);
     catalogoUC = jasmine.createSpyObj('Catalogo', ['execute']);
     estadoUC = jasmine.createSpyObj('Estado', ['execute']);
     descartarUC = jasmine.createSpyObj('Descartar', ['execute']);
@@ -54,6 +56,7 @@ describe('ZonificacionFacade', () => {
     anularUC = jasmine.createSpyObj('Anular', ['execute']);
     contexto = jasmine.createSpyObj('Contexto', ['cargar']);
     cambios = signal(0);
+    enviando = signal(false);
     confirmarUC = jasmine.createSpyObj('Confirmar', ['execute']);
     reabrirUC = jasmine.createSpyObj('Reabrir', ['execute']);
     listarRechazadasUC = jasmine.createSpyObj('ListarRechazadas', ['execute']);
@@ -85,7 +88,7 @@ describe('ZonificacionFacade', () => {
         { provide: EliminarRangoUseCase, useValue: eliminarUC },
         { provide: AnularTagUseCase, useValue: anularUC },
         { provide: ContextoAgendaZonificacionService, useValue: contexto },
-        { provide: EnviarZonificacionUseCase, useValue: { cambios, execute: envioExecute } },
+        { provide: EnviarZonificacionUseCase, useValue: { cambios, execute: envioExecute, enviando } },
         { provide: ConfirmarZonificacionUseCase, useValue: confirmarUC },
         { provide: ReabrirZonificacionUseCase, useValue: reabrirUC },
         { provide: ListarRechazadasZonificacionUseCase, useValue: listarRechazadasUC },
@@ -342,5 +345,144 @@ describe('ZonificacionFacade', () => {
       expect(r.enviadas).toBe(1);
       expect(contarUC.execute).toHaveBeenCalled();
     });
+  });
+  /*
+   * UX de carga: lo que ya se tiene se muestra al instante y el servidor (que tarda unos
+   * segundos) lo actualiza por encima, en vez de dejar la pantalla vacía esperándolo.
+   */
+  describe('carga sin pantalla vacía', () => {
+    const tick = async () => {
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+    };
+
+    it('la lista de agendas aparece al instante con la copia, mientras el servidor responde', async () => {
+      const copia: AgendasCargadas = { lista: { hoy: '2026-10-23', agendas: [] }, origen: 'COPIA', fechaDescarga: '2026-10-23 08:00:00', error: null };
+      agendasUC.copia.and.resolveTo(copia);
+      let responder!: (a: AgendasCargadas) => void;
+      agendasUC.execute.and.returnValue(new Promise<AgendasCargadas>((ok) => (responder = ok)));
+
+      const cargando = facade.cargarAgendas();
+      await tick();
+
+      expect(facade.agendas()).toBe(copia); // ya se ve algo
+      expect(facade.cargandoAgendas()).toBeTrue(); // y se sabe que se está actualizando
+
+      responder(agendas);
+      await cargando;
+
+      expect(facade.agendas()).toBe(agendas);
+      expect(facade.cargandoAgendas()).toBeFalse();
+    });
+
+    it('sin copia la lista queda vacía hasta que responde el servidor', async () => {
+      agendasUC.copia.and.resolveTo(null);
+      let responder!: (a: AgendasCargadas) => void;
+      agendasUC.execute.and.returnValue(new Promise<AgendasCargadas>((ok) => (responder = ok)));
+
+      const cargando = facade.cargarAgendas();
+      await tick();
+      expect(facade.agendas()).toBeNull();
+
+      responder(agendas);
+      await cargando;
+      expect(facade.agendas()).toBe(agendas);
+    });
+
+    it('no pisa con la copia una lista que ya está en pantalla', async () => {
+      await facade.cargarAgendas();
+      agendasUC.copia.calls.reset();
+
+      await facade.cargarAgendas();
+
+      expect(agendasUC.copia).not.toHaveBeenCalled();
+    });
+
+    it('una agenda se abre mostrando su último estado y lo pendiente, mientras el servidor responde', async () => {
+      const e = parsearRespuestaEstado(ESTADO_V1_DATA);
+      contexto.cargar.and.resolveTo({ estado: e, vista: aplicarPendientes(e, []) });
+      let responder!: (c: EstadoCargado) => void;
+      estadoUC.execute.and.returnValue(new Promise<EstadoCargado>((ok) => (responder = ok)));
+
+      const abriendo = facade.abrirAgenda(AGENDA_A);
+      await tick();
+
+      expect(facade.estado()?.origen).toBe('COPIA');
+      expect(facade.estado()?.estado).toBe(e);
+      expect(facade.cargandoEstado()).toBeTrue();
+
+      responder({ ...estadoCargado(), origen: 'SERVIDOR' });
+      await abriendo;
+
+      expect(facade.estado()?.origen).toBe('SERVIDOR');
+      expect(facade.cargandoEstado()).toBeFalse();
+    });
+
+    it('una agenda que nunca se descargó se abre sin contenido (esqueleto) hasta que responde el servidor', async () => {
+      contexto.cargar.and.resolveTo({ estado: null, vista: aplicarPendientes(null, []) });
+      let responder!: (c: EstadoCargado) => void;
+      estadoUC.execute.and.returnValue(new Promise<EstadoCargado>((ok) => (responder = ok)));
+
+      const abriendo = facade.abrirAgenda(AGENDA_A);
+      await tick();
+
+      expect(facade.estado()).toBeNull();
+      expect(facade.cargandoEstado()).toBeTrue();
+
+      responder(estadoCargado());
+      await abriendo;
+      expect(facade.estado()).not.toBeNull();
+    });
+
+    it('lo que solo está pendiente de envío también cuenta como "algo que mostrar"', async () => {
+      const pendiente = { id: 1, estado: 'PENDIENTE', tipo: 'CONFIRMAR', datos: {}, claveRango: null, operacionUid: 'u' } as never;
+      contexto.cargar.and.resolveTo({ estado: null, vista: aplicarPendientes(null, [pendiente]) });
+      estadoUC.execute.and.returnValue(new Promise<EstadoCargado>(() => undefined));
+
+      void facade.abrirAgenda(AGENDA_A);
+      await tick();
+
+      expect(facade.estado()).not.toBeNull();
+    });
+
+    it('si se abre otra agenda enseguida, la actualización de la primera no se aplica a la segunda', async () => {
+      let responderA!: (c: EstadoCargado) => void;
+      estadoUC.execute.and.callFake((agenda) =>
+        agenda.idAgenda === AGENDA_A.idAgenda
+          ? new Promise<EstadoCargado>((ok) => (responderA = ok))
+          : Promise.resolve({ ...estadoCargado(), origen: 'COPIA' as const }),
+      );
+
+      const abriendoA = facade.abrirAgenda(AGENDA_A);
+      await facade.abrirAgenda(AGENDA_B);
+      await tick();
+      responderA({ ...estadoCargado(), origen: 'SERVIDOR' });
+      await abriendoA;
+
+      expect(facade.agenda()).toEqual(AGENDA_B);
+      expect(facade.estado()?.origen).toBe('COPIA');
+    });
+
+    it('"cargando" sigue encendido mientras haya alguna carga en vuelo, aunque otra ya terminó', async () => {
+      let responderA!: (c: EstadoCargado) => void;
+      estadoUC.execute.and.callFake((agenda) =>
+        agenda.idAgenda === AGENDA_A.idAgenda ? new Promise<EstadoCargado>((ok) => (responderA = ok)) : Promise.resolve(estadoCargado()),
+      );
+
+      const abriendoA = facade.abrirAgenda(AGENDA_A);
+      await tick();
+      await facade.abrirAgenda(AGENDA_B); // terminó la de B, la de A sigue
+
+      expect(facade.cargandoEstado()).toBeTrue();
+
+      responderA(estadoCargado());
+      await abriendoA;
+      expect(facade.cargandoEstado()).toBeFalse();
+    });
+  });
+
+  it('expone si el envío está hablando con el servidor', () => {
+    expect(facade.enviando()).toBeFalse();
+    enviando.set(true);
+    expect(facade.enviando()).toBeTrue();
   });
 });

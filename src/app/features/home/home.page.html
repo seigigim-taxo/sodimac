@@ -136,12 +136,17 @@
     @if (conteoZonificacion().pendientes > 0) {
     <div class="status-banner status-banner-error status-banner-acciones mb-4" data-testid="aviso-no-enviada">
       <div class="banner-linea">
+        @if (enviandoZonificacion() || reintentandoZonificacion()) {
+        <ion-spinner name="crescent" style="width: 18px; height: 18px; flex-shrink: 0;"></ion-spinner>
+        <span data-testid="enviando-zonificacion"><strong>Enviando zonificación ({{ conteoZonificacion().pendientes }})…</strong></span>
+        } @else {
         <ion-icon name="alert-circle-outline"></ion-icon>
         <span><strong>Zonificación no enviada ({{ conteoZonificacion().pendientes }})</strong><br>Se enviará al volver la red.</span>
+        }
       </div>
       <div class="banner-acciones">
         <ion-button fill="clear" size="small" data-testid="reintentar-zonificacion" [disabled]="reintentandoZonificacion()" (click)="reintentarZonificacion()">
-          Reintentar ahora
+          @if (reintentandoZonificacion()) { Enviando… } @else { Reintentar ahora }
         </ion-button>
       </div>
     </div>

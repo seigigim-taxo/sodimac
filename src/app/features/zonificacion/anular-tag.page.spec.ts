@@ -221,4 +221,25 @@ describe('ZonificacionAnularTagPage', () => {
       expect(navigate).toHaveBeenCalledWith(['/zonificacion', 2092], { replaceUrl: true });
     });
   });
+  describe('mientras anula', () => {
+    it('el botón muestra un spinner y "Anulando…" hasta que termina', async () => {
+      page.onNumero(evento('1129'));
+      page.onMotivo(evento('No se encontró en la tienda'));
+      let liberar!: (r: ResultadoAccion) => void;
+      anularTag.and.returnValue(new Promise<ResultadoAccion>((ok) => (liberar = ok)));
+
+      await page.anular();
+      alerta.create.calls.mostRecent().args[0].buttons[1].handler({ numero: '1129' });
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      const d = pintar();
+
+      expect(texto(el(d, 'anular'))).toContain('Anulando…');
+      expect(d.querySelector('[data-testid="anular"] ion-spinner')).not.toBeNull();
+
+      liberar({ ok: true });
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      fixture.detectChanges();
+      expect(texto(el(fixture.nativeElement, 'anular'))).toBe('Anular TAG');
+    });
+  });
 });

@@ -71,7 +71,7 @@
 
     <ion-button expand="block" class="btn-primary" style="--background: var(--app-error);" data-testid="anular"
                 [disabled]="!puedeAnular()" (click)="anular()">
-      Anular TAG
+      @if (enviando()) { <ion-spinner name="crescent" style="width: 20px; height: 20px;"></ion-spinner>&nbsp;Anulando… } @else { Anular TAG }
     </ion-button>
     <ion-button expand="block" fill="clear" class="btn-ghost mt-2" data-testid="cancelar" (click)="volver()">
       Cancelar

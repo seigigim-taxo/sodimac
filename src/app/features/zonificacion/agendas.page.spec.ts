@@ -5,6 +5,7 @@ import { AgendasCargadas } from '../../application/zonificacion/cargar-agendas-z
 import { AgendaDeLista } from '../../domain/zonificacion/models/estado-agenda.model';
 import { NetworkService } from '../../shared/services/network.service';
 import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
+import { UMBRAL_LENTO_MS } from './lentitud';
 import { ZonificacionAgendasPage, filaDeAgenda } from './agendas.page';
 
 const HOY = '2026-10-23';
@@ -183,5 +184,81 @@ describe('ZonificacionAgendasPage', () => {
   it('una agenda de solo lectura lo indica', () => {
     cargadas.set(cargada([agenda({ soloLectura: true })]));
     expect(texto(pintar().querySelector('[data-testid="agenda-3120"]'))).toContain('Solo lectura');
+  });
+  /*
+   * UX de carga. La lista se pinta con lo que ya hay y el servidor la actualiza por debajo:
+   * esqueleto solo la primera vez, barra fina al actualizar, y un aviso si tarda demasiado.
+   */
+  describe('mientras carga', () => {
+    const hay = (id: string) => (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`);
+
+    it('la primera vez, sin nada que mostrar: esqueleto y barra de progreso', () => {
+      cargando.set(true);
+      cargadas.set(null);
+
+      pintar();
+
+      expect(hay('esqueleto')).not.toBeNull();
+      expect(hay('progreso')).not.toBeNull();
+    });
+
+    it('con la lista ya en pantalla (copia) solo se actualiza por debajo: sin esqueleto, con barra y con las agendas', () => {
+      cargadas.set(cargada([agenda()], { origen: 'COPIA', fechaDescarga: '2026-10-23 08:00:00' }));
+      cargando.set(true);
+
+      pintar();
+
+      expect(hay('esqueleto')).toBeNull();
+      expect(hay('progreso')).not.toBeNull();
+      expect(hay('agenda-3120')).not.toBeNull();
+    });
+
+    it('mientras se actualiza no dice "sin conexión" (todavía no se sabe): el aviso de copia espera', () => {
+      cargadas.set(cargada([agenda()], { origen: 'COPIA', fechaDescarga: '2026-10-23 08:00:00' }));
+      cargando.set(true);
+      expect(hay('aviso-copia')).toBeNull();
+
+      cargando.set(false);
+      fixture.detectChanges();
+      expect(hay('aviso-copia')).not.toBeNull();
+    });
+
+    it('cuando termina no queda ni esqueleto ni barra', () => {
+      cargadas.set(cargada([agenda()]));
+      cargando.set(false);
+
+      pintar();
+
+      expect(hay('esqueleto')).toBeNull();
+      expect(hay('progreso')).toBeNull();
+    });
+
+    it('si tarda más de lo normal, lo avisa', () => {
+      jasmine.clock().install();
+      try {
+        cargando.set(true);
+        cargadas.set(null);
+        pintar();
+        expect(hay('aviso-lento')).toBeNull();
+
+        jasmine.clock().tick(UMBRAL_LENTO_MS);
+        TestBed.tick();
+        fixture.detectChanges();
+
+        expect(texto(hay('aviso-lento'))).toContain('Está tardando más de lo normal');
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
+    it('el botón de actualizar muestra un spinner y no se puede apretar mientras carga', () => {
+      cargando.set(true);
+      cargadas.set(cargada([agenda()]));
+
+      const dom = pintar();
+
+      expect(dom.querySelector('ion-button ion-spinner')).not.toBeNull();
+      expect((dom.querySelector('ion-button[aria-label="Actualizar lista"]') as unknown as { disabled: boolean }).disabled).toBeTrue();
+    });
   });
 });

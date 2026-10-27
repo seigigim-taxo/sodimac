@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { ApiError } from '../../domain/shared/errors/api.error';
 import { NetworkError } from '../../domain/shared/errors/network.error';
 import { esCodigoErrorZonificacion, esErrorDefinitivo } from '../../domain/zonificacion/models/error-zonificacion.model';
@@ -71,6 +71,15 @@ export class EnviarZonificacionUseCase {
   private cambiosSignal = signal(0);
   readonly cambios = this.cambiosSignal.asReadonly();
 
+  /*
+   * true mientras una tanda está hablando con el servidor. Las pantallas lo usan para
+   * decir "Enviando…" con un spinner en vez de un aviso de "sin enviar" que, estando con
+   * señal, sería engañoso. Es un contador porque pueden solaparse dos tandas (una por
+   * agenda); se apaga cuando termina la última.
+   */
+  private enviosEnCurso = signal(0);
+  readonly enviando = computed(() => this.enviosEnCurso() > 0);
+
   async execute(opciones: OpcionesEnvioZonificacion = {}): Promise<ResultadoEnvioZonificacion> {
     const resultado: ResultadoEnvioZonificacion = { enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false };
 
@@ -85,15 +94,20 @@ export class EnviarZonificacionUseCase {
     }
 
     const agendas = [...new Set(pendientes.map((o) => o.idAgenda))];
-    for (const idAgenda of agendas) {
-      const clave = claveCandado(idAgenda);
-      if (!this.candado.tomar(clave)) continue;
-      try {
-        const corto = await this.enviarAgenda(idAgenda, actual.pdaCodigo, actual.versionApp, resultado, opciones);
-        if (corto) break;
-      } finally {
-        this.candado.soltar(clave);
+    this.enviosEnCurso.update((n) => n + 1);
+    try {
+      for (const idAgenda of agendas) {
+        const clave = claveCandado(idAgenda);
+        if (!this.candado.tomar(clave)) continue;
+        try {
+          const corto = await this.enviarAgenda(idAgenda, actual.pdaCodigo, actual.versionApp, resultado, opciones);
+          if (corto) break;
+        } finally {
+          this.candado.soltar(clave);
+        }
       }
+    } finally {
+      this.enviosEnCurso.update((n) => n - 1);
     }
     return resultado;
   }

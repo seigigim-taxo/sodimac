@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { ActionSheetController, AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { ActionSheetController, AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonProgressBar, IonSkeletonText, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, checkmarkCircleOutline, chevronForwardOutline, cloudOfflineOutline, informationCircleOutline, layersOutline, lockClosedOutline, refreshOutline, timeOutline } from 'ionicons/icons';
 import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zonificacion.model';
@@ -10,6 +10,7 @@ import { ETIQUETA_ESTADO_VISUAL, TONO_ESTADO_VISUAL, estadoVisualDeResumen } fro
 import { FilaRango, filasDeRangos, totalesDeResumen } from '../../domain/zonificacion/utils/filas-resumen.utils';
 import { mensajeZonificacion } from '../../domain/zonificacion/utils/mensajes-zonificacion.utils';
 import { NetworkService } from '../../shared/services/network.service';
+import { senalLentitud } from './lentitud';
 import { MensajeZonificacion, ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 
 /* Una operación que el servidor rechazó, con el motivo ya en palabras. */
@@ -48,7 +49,7 @@ export function filaDeRechazo(op: OperacionEnCola): FilaRechazo {
   selector: 'app-zonificacion-resumen',
   templateUrl: './resumen.page.html',
   standalone: true,
-  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar],
+  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonProgressBar, IonSkeletonText, IonSpinner, IonTitle, IonToolbar],
 })
 export class ZonificacionResumenPage implements ViewWillEnter {
   private route = inject(ActivatedRoute);
@@ -60,6 +61,12 @@ export class ZonificacionResumenPage implements ViewWillEnter {
 
   isOnline = this.network.isOnline;
   cargando = this.facade.cargandoEstado;
+  /* La cola de zonificación está hablando con el servidor: "Enviando…". */
+  enviando = this.facade.enviando;
+  /* Si la carga lleva demasiado, se avisa. */
+  lento = senalLentitud(() => this.cargando() && !this.vista());
+  /* Acción larga en curso (confirmar, reabrir, eliminar): bloquea los botones y muestra el spinner en el tocado. */
+  accion = signal<'confirmar' | 'reabrir' | 'eliminar' | null>(null);
   cargado = this.facade.estado;
 
   vista = computed(() => this.cargado()?.vista ?? null);
@@ -176,8 +183,17 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   private async ejecutarConfirmar(): Promise<void> {
     const agenda = this.facade.agenda();
     if (!agenda) return;
-    const r = await this.facade.confirmarZonificacion(agenda);
-    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    this.accion.set('confirmar');
+    try {
+      const r = await this.facade.confirmarZonificacion(agenda);
+      this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    } catch (err) {
+      // Un fallo inesperado no puede dejar al operador sin saber qué pasó ni con los botones bloqueados.
+      console.error('[Zonificacion] la acción falló:', err);
+      this.mensaje.set({ tipo: 'error', texto: 'No se pudo completar la acción. Intenta de nuevo.' });
+    } finally {
+      this.accion.set(null);
+    }
   }
 
   async reabrir(): Promise<void> {
@@ -195,8 +211,17 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   private async ejecutarReabrir(): Promise<void> {
     const agenda = this.facade.agenda();
     if (!agenda) return;
-    const r = await this.facade.reabrirZonificacion(agenda);
-    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    this.accion.set('reabrir');
+    try {
+      const r = await this.facade.reabrirZonificacion(agenda);
+      this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    } catch (err) {
+      // Un fallo inesperado no puede dejar al operador sin saber qué pasó ni con los botones bloqueados.
+      console.error('[Zonificacion] la acción falló:', err);
+      this.mensaje.set({ tipo: 'error', texto: 'No se pudo completar la acción. Intenta de nuevo.' });
+    } finally {
+      this.accion.set(null);
+    }
   }
 
   nuevoRango(): void {
@@ -243,7 +268,16 @@ export class ZonificacionResumenPage implements ViewWillEnter {
   private async eliminar(fila: FilaRango): Promise<void> {
     const agenda = this.facade.agenda();
     if (!agenda) return;
-    const r = await this.facade.eliminarRango(agenda, fila.id);
-    this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    this.accion.set('eliminar');
+    try {
+      const r = await this.facade.eliminarRango(agenda, fila.id);
+      this.mensaje.set(r.ok ? this.facade.consumirMensaje() : { tipo: 'error', texto: mensajeZonificacion(r.codigo, r.data) });
+    } catch (err) {
+      // Un fallo inesperado no puede dejar al operador sin saber qué pasó ni con los botones bloqueados.
+      console.error('[Zonificacion] la acción falló:', err);
+      this.mensaje.set({ tipo: 'error', texto: 'No se pudo completar la acción. Intenta de nuevo.' });
+    } finally {
+      this.accion.set(null);
+    }
   }
 }

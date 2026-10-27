@@ -1,7 +1,7 @@
 import { Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, alertOutline, barcodeOutline, informationCircleOutline } from 'ionicons/icons';
 import { IdRango } from '../../domain/zonificacion/models/rango-zonificacion.model';
@@ -28,7 +28,7 @@ const soloTexto = (valor: string | null | undefined): string => (valor ?? '').to
   selector: 'app-zonificacion-rango',
   templateUrl: './rango.page.html',
   standalone: true,
-  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTitle, IonToolbar],
+  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonSpinner, IonTitle, IonToolbar],
 })
 export class ZonificacionRangoPage implements ViewWillEnter {
   private route = inject(ActivatedRoute);

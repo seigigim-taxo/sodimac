@@ -1,12 +1,13 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonProgressBar, IonSkeletonText, IonSpinner, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, chevronForwardOutline, cloudOfflineOutline, informationCircleOutline, lockClosedOutline, refreshOutline } from 'ionicons/icons';
 import { AgendaDeLista } from '../../domain/zonificacion/models/estado-agenda.model';
 import { ETIQUETA_ESTADO_VISUAL, EstadoVisual, TONO_ESTADO_VISUAL, TonoEstado, estadoVisualDeLista } from '../../domain/zonificacion/utils/estado-visual.utils';
 import { NetworkService } from '../../shared/services/network.service';
+import { senalLentitud } from './lentitud';
 import { etiquetaDia } from '../../shared/utils/fecha.utils';
 import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 
@@ -56,7 +57,7 @@ export function filaDeAgenda(a: AgendaDeLista, hoy: string): FilaAgenda {
   selector: 'app-zonificacion-agendas',
   templateUrl: './agendas.page.html',
   standalone: true,
-  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar],
+  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonProgressBar, IonSkeletonText, IonSpinner, IonTitle, IonToolbar],
 })
 export class ZonificacionAgendasPage implements ViewWillEnter {
   private router = inject(Router);
@@ -71,6 +72,11 @@ export class ZonificacionAgendasPage implements ViewWillEnter {
     const lista = this.cargadas()?.lista;
     return lista ? lista.agendas.map((a) => filaDeAgenda(a, lista.hoy)) : [];
   });
+
+  /* La primera vez, sin nada que mostrar todavía: esqueleto. Con algo en pantalla solo se actualiza por debajo. */
+  primeraCarga = computed(() => this.cargando() && this.filas().length === 0);
+  /* Si lleva demasiado cargando, se lo dice. */
+  lento = senalLentitud(() => this.cargando());
 
   /* Sin red, lo que se ve es una copia: se dice de cuándo. */
   esCopia = computed(() => this.cargadas()?.origen === 'COPIA');
