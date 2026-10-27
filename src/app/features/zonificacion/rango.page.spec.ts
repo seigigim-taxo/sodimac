@@ -320,4 +320,28 @@ describe('ZonificacionRangoPage', () => {
       expect(guardarRango).not.toHaveBeenCalled();
     });
   });
+  describe('mientras guarda', () => {
+    beforeEach(() => {
+      cargar();
+      page.ionViewWillEnter();
+      escribir('1135', '1140');
+    });
+
+    it('el botón muestra un spinner y "Guardando…", y no se puede apretar de nuevo', async () => {
+      let liberar!: (r: ResultadoAccion) => void;
+      guardarRango.and.returnValue(new Promise<ResultadoAccion>((ok) => (liberar = ok)));
+
+      const enCurso = page.guardar();
+      const d = pintar();
+
+      expect(texto(el(d, 'guardar'))).toContain('Guardando…');
+      expect(d.querySelector('[data-testid="guardar"] ion-spinner')).not.toBeNull();
+      expect((el(d, 'guardar') as unknown as { disabled: boolean }).disabled).toBeTrue();
+
+      liberar({ ok: true });
+      await enCurso;
+      fixture.detectChanges();
+      expect(texto(el(fixture.nativeElement, 'guardar'))).toBe('Guardar');
+    });
+  });
 });

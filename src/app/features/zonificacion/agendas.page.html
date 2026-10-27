@@ -11,10 +11,18 @@
         <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
       }
       <ion-button (click)="recargar()" [disabled]="cargando()" aria-label="Actualizar lista">
+        @if (cargando()) {
+        <ion-spinner slot="icon-only" name="crescent" style="width: 20px; height: 20px;"></ion-spinner>
+        } @else {
         <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+        }
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
+  <!-- Barra fina mientras se actualiza: lo que ya se ve sigue ahí y el operador sabe que se está refrescando. -->
+  @if (cargando()) {
+  <ion-progress-bar type="indeterminate" data-testid="progreso"></ion-progress-bar>
+  }
 </ion-header>
 
 <ion-content style="--background: var(--app-bg-gradient);">
@@ -23,15 +31,30 @@
     <h2 class="page-title mb-2">Elige la agenda</h2>
     <p class="text-[13px] mb-4" style="color: var(--app-text-muted);">Las agendas asignadas a ti, para zonificar sus TAG.</p>
 
-    @if (esCopia()) {
+    @if (esCopia() && !cargando()) {
     <div class="status-banner status-banner-warning mb-4" data-testid="aviso-copia">
       <ion-icon name="cloud-offline-outline"></ion-icon>
       <span>Sin conexión: se muestra la última lista descargada@if (fechaCopia(); as fecha) { ({{ fecha }})}.</span>
     </div>
     }
 
-    @if (cargando() && filas().length === 0) {
-    <div class="flex justify-center py-8"><ion-spinner name="crescent"></ion-spinner></div>
+    @if (primeraCarga()) {
+    <!-- Esqueleto: se ve la forma de lo que viene, en vez de un spinner suelto sobre la pantalla vacía. -->
+    <div class="flex flex-col gap-3" data-testid="esqueleto" aria-busy="true" aria-label="Cargando agendas">
+      @for (n of [1, 2]; track n) {
+      <div class="card" style="padding: 16px;">
+        <ion-skeleton-text [animated]="true" style="width: 35%; height: 18px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 70%; height: 13px; margin-top: 10px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 50%; height: 13px; margin-top: 10px;"></ion-skeleton-text>
+      </div>
+      }
+    </div>
+    }
+
+    @if (lento()) {
+    <p class="text-[12px] mt-3" style="color: var(--app-text-muted);" data-testid="aviso-lento">
+      Está tardando más de lo normal. Revisa la señal; puedes seguir esperando.
+    </p>
     }
 
     @if (sinDatos()) {

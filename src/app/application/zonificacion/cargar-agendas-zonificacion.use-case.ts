@@ -28,6 +28,17 @@ export class CargarAgendasZonificacionUseCase {
   private local = inject(ZONIFICACION_LOCAL_REPOSITORY_TOKEN);
   private identidadService = inject(IdentidadZonificacionService);
 
+  /*
+   * La última lista descargada, sin tocar la red: para pintar la pantalla al instante mientras
+   * `execute()` pide la lista al servidor. Null si nunca se descargó una.
+   */
+  async copia(): Promise<AgendasCargadas | null> {
+    const identidad = await this.identidadService.obtener();
+    if (!identidad) return null;
+    const copia = await this.local.obtenerListaAgendas(identidad.operadorLogin);
+    return copia ? { lista: copia.valor, origen: 'COPIA', fechaDescarga: copia.fechaDescarga, error: null } : null;
+  }
+
   async execute(): Promise<AgendasCargadas> {
     const identidad = await this.identidadService.obtener();
     if (!identidad) return { lista: null, origen: 'NINGUNO', fechaDescarga: null, error: null };

@@ -58,6 +58,8 @@ export class HomePage implements ViewWillEnter {
   /* Lo que la zonificación tiene sin enviar (aviso rojo) y lo que el servidor rechazó (aviso ámbar). */
   conteoZonificacion = this.zonificacion.conteo;
   reintentandoZonificacion = signal(false);
+  /* La cola de zonificación está hablando con el servidor. */
+  enviandoZonificacion = this.zonificacion.enviando;
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);

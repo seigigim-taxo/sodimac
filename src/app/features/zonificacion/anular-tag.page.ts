@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular';
-import { AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTextarea, IonTitle, IonToolbar } from '@ionic/angular/standalone';
+import { AlertController, IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonSpinner, IonTextarea, IonTitle, IonToolbar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { alertCircleOutline, barcodeOutline } from 'ionicons/icons';
 import { evaluarAnulacion } from '../../domain/zonificacion/utils/formulario-rango.utils';
@@ -21,7 +21,7 @@ const MINIMO_MOTIVO_POR_DEFECTO = 10;
   selector: 'app-zonificacion-anular-tag',
   templateUrl: './anular-tag.page.html',
   standalone: true,
-  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonTextarea, IonTitle, IonToolbar],
+  imports: [IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonInput, IonSpinner, IonTextarea, IonTitle, IonToolbar],
 })
 export class ZonificacionAnularTagPage implements ViewWillEnter {
   private route = inject(ActivatedRoute);

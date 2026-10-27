@@ -366,4 +366,61 @@ describe('EnviarZonificacionUseCase', () => {
       expect(segundo.enviadas).toBe(0);
     });
   });
+  describe('aviso de que se está enviando (spinner "Enviando…")', () => {
+    it('sin nada pendiente nunca se enciende', async () => {
+      await uc.execute();
+      expect(uc.enviando()).toBeFalse();
+    });
+
+    it('está encendido mientras el servidor trabaja y se apaga al terminar', async () => {
+      await local.encolar(op('a'));
+      let responder!: (r: ResultadoOperacion) => void;
+      api.enviar.and.returnValue(new Promise<ResultadoOperacion>((ok) => (responder = ok)));
+
+      const enCurso = uc.execute();
+      await new Promise((r) => setTimeout(r));
+      expect(uc.enviando()).toBeTrue();
+
+      responder(aplicada());
+      await enCurso;
+      expect(uc.enviando()).toBeFalse();
+    });
+
+    it('se apaga aunque el envío falle', async () => {
+      await local.encolar(op('a'));
+      api.enviar.and.rejectWith(new NetworkError('Sin conexión', true, false));
+
+      await uc.execute();
+
+      expect(uc.enviando()).toBeFalse();
+    });
+
+    it('sin sesión no se enciende (no se habla con el servidor)', async () => {
+      identidad.obtener.and.resolveTo(null);
+      await local.encolar(op('a'));
+
+      await uc.execute();
+
+      expect(uc.enviando()).toBeFalse();
+    });
+
+    it('con dos tandas a la vez sigue encendido hasta que termina la última', async () => {
+      await local.encolar(op('a'));
+      await local.encolar(op('b', { idAgenda: 3151, numeroAgenda: 'AG-2' }));
+      const respuestas = new Map<number, (r: ResultadoOperacion) => void>();
+      api.enviar.and.callFake((s) => new Promise<ResultadoOperacion>((ok) => respuestas.set(s.idAgenda, () => ok(aplicada({ operacionUid: s.operacionUid })))));
+
+      const primera = uc.execute({ idAgenda: 3120 });
+      const segunda = uc.execute({ idAgenda: 3151 });
+      await new Promise((r) => setTimeout(r, 20));
+
+      respuestas.get(3120)!(aplicada());
+      await primera;
+      expect(uc.enviando()).toBeTrue(); // la otra sigue trabajando
+
+      respuestas.get(3151)!(aplicada());
+      await segunda;
+      expect(uc.enviando()).toBeFalse();
+    });
+  });
 });

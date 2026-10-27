@@ -52,7 +52,7 @@ describe('HomePage — jornadas que se ofrecen', () => {
   let finalizados: ReturnType<typeof signal<EventoConResumen[]>>;
   let jornadaCerrada: ReturnType<typeof signal<string | null>>;
   let reintento: jasmine.SpyObj<ReintentoAutomaticoService>;
-  let zonificacion: { conteo: ReturnType<typeof signal<{ pendientes: number; rechazadas: number }>>; contar: jasmine.Spy; reintentarAhora: jasmine.Spy };
+  let zonificacion: { conteo: ReturnType<typeof signal<{ pendientes: number; rechazadas: number }>>; enviando: ReturnType<typeof signal<boolean>>; contar: jasmine.Spy; reintentarAhora: jasmine.Spy };
 
   beforeEach(async () => {
     eventos = signal<Evento[]>([]);
@@ -62,6 +62,7 @@ describe('HomePage — jornadas que se ofrecen', () => {
     reintento = jasmine.createSpyObj('ReintentoAutomaticoService', ['disparar']);
     zonificacion = {
       conteo: signal({ pendientes: 0, rechazadas: 0 }),
+      enviando: signal(false),
       contar: jasmine.createSpy('contar').and.resolveTo(),
       reintentarAhora: jasmine.createSpy('reintentarAhora').and.resolveTo({ enviadas: 0, rechazadas: 0, reintentables: 0, cortadoPorRed: false }),
     };
@@ -548,6 +549,48 @@ describe('HomePage — jornadas que se ofrecen', () => {
 
       expect(aviso('aviso-no-enviada')).not.toBeNull();
       expect(aviso('aviso-rechazados')).not.toBeNull();
+    });
+  });
+  /* UX de envío en Inicio: "Enviando…" con spinner mientras la cola habla con el servidor. */
+  describe('envío de zonificación en curso', () => {
+    const aviso = (id: string): HTMLElement | null => (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`);
+
+    it('mientras la cola está enviando, el aviso rojo dice "Enviando…" con spinner (no "no enviada")', () => {
+      zonificacion.conteo.set({ pendientes: 2, rechazadas: 0 });
+      zonificacion.enviando.set(true);
+
+      pintar([]);
+
+      expect(texto(aviso('enviando-zonificacion'))).toContain('Enviando zonificación (2)…');
+      expect(texto(aviso('aviso-no-enviada'))).not.toContain('no enviada');
+      expect(aviso('aviso-no-enviada')?.querySelector('ion-spinner')).not.toBeNull();
+    });
+
+    it('sin envío en curso, el aviso sigue diciendo que se enviará al volver la red', () => {
+      zonificacion.conteo.set({ pendientes: 2, rechazadas: 0 });
+
+      pintar([]);
+
+      expect(aviso('enviando-zonificacion')).toBeNull();
+      expect(texto(aviso('aviso-no-enviada'))).toContain('Se enviará al volver la red.');
+    });
+
+    it('"Reintentar ahora" cambia a "Enviando…" mientras reintenta', async () => {
+      zonificacion.conteo.set({ pendientes: 1, rechazadas: 0 });
+      let terminar!: () => void;
+      zonificacion.reintentarAhora.and.returnValue(new Promise<void>((ok) => (terminar = ok)));
+      pintar([]);
+
+      const reintento = component.reintentarZonificacion();
+      fixture.detectChanges();
+
+      expect(texto(aviso('reintentar-zonificacion'))).toBe('Enviando…');
+      expect(texto(aviso('enviando-zonificacion'))).toContain('Enviando zonificación (1)…');
+
+      terminar();
+      await reintento;
+      fixture.detectChanges();
+      expect(texto(aviso('reintentar-zonificacion'))).toBe('Reintentar ahora');
     });
   });
 });

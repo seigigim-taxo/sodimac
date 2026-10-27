@@ -11,6 +11,7 @@ import { OperacionEnCola } from '../../domain/zonificacion/models/operacion-zoni
 import { aplicarPendientes } from '../../domain/zonificacion/utils/vista-con-pendientes.utils';
 import { NetworkService } from '../../shared/services/network.service';
 import { MensajeZonificacion, ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
+import { UMBRAL_LENTO_MS } from './lentitud';
 import { ZonificacionResumenPage, filaDeRechazo } from './resumen.page';
 
 const op = (tipo: OperacionEnCola['tipo'], datos: Record<string, unknown>, extra: Partial<OperacionEnCola> = {}): OperacionEnCola => ({
@@ -56,6 +57,8 @@ describe('ZonificacionResumenPage', () => {
   let agendaActual: ReturnType<typeof signal<AgendaRef | null>>;
   let facade: Record<string, unknown>;
   let idEnRuta: string;
+  let enviando: ReturnType<typeof signal<boolean>>;
+  let online: ReturnType<typeof signal<boolean>>;
   let mensajePendiente: MensajeZonificacion | null;
   let hoja: { create: jasmine.Spy; creada: { present: jasmine.Spy } };
   let alerta: { create: jasmine.Spy; creada: { present: jasmine.Spy } };
@@ -73,6 +76,8 @@ describe('ZonificacionResumenPage', () => {
     navigate = jasmine.createSpy('navigate');
     idEnRuta = '2092';
     mensajePendiente = null;
+    enviando = signal(false);
+    online = signal(true);
     hoja = { creada: { present: jasmine.createSpy('present').and.resolveTo() }, create: jasmine.createSpy('create') };
     hoja.create.and.callFake(async () => hoja.creada);
     alerta = { creada: { present: jasmine.createSpy('present').and.resolveTo() }, create: jasmine.createSpy('create') };
@@ -90,6 +95,7 @@ describe('ZonificacionResumenPage', () => {
       agenda: agendaActual,
       estado: cargado,
       cargandoEstado: cargando,
+      enviando,
       abrirAgenda: jasmine.createSpy('abrirAgenda').and.resolveTo(),
       refrescarEstado: jasmine.createSpy('refrescarEstado').and.resolveTo(),
       refrescarVistaLocal: jasmine.createSpy('refrescarVistaLocal').and.resolveTo(),
@@ -100,7 +106,7 @@ describe('ZonificacionResumenPage', () => {
       .overrideComponent(ZonificacionResumenPage, { set: { imports: [], schemas: [NO_ERRORS_SCHEMA] } })
       .overrideProvider(Router, { useValue: { navigate } })
       .overrideProvider(ActivatedRoute, { useValue: { snapshot: { paramMap: { get: () => idEnRuta } } } })
-      .overrideProvider(NetworkService, { useValue: { isOnline: signal(true) } })
+      .overrideProvider(NetworkService, { useValue: { isOnline: online } })
       .overrideProvider(ZonificacionFacade, { useValue: facade })
       .overrideProvider(ActionSheetController, { useValue: hoja })
       .overrideProvider(AlertController, { useValue: alerta })
@@ -653,6 +659,181 @@ describe('ZonificacionResumenPage', () => {
         cargar({ ...base(), rangos: [] });
         expect(texto(dom('sin-rangos', pintar()))).toContain('Sin rangos de zonificación');
         expect(texto(dom('sin-rangos', fixture.nativeElement))).toContain('Esta agenda parte sin rangos. Usa Nuevo rango y registra el rango real instalado.');
+      });
+    });
+  });
+  /*
+   * UX de carga y de envío del resumen: esqueleto la primera vez, barra fina al actualizar,
+   * "Enviando…" con spinner (no un aviso de "sin enviar" engañoso) y botones que muestran
+   * que están trabajando.
+   */
+  describe('carga y envío', () => {
+    const hay = (id: string) => dom(id, fixture.nativeElement);
+
+    it('sin nada que mostrar todavía: esqueleto y barra de progreso', () => {
+      cargando.set(true);
+      cargado.set(null);
+
+      pintar();
+
+      expect(hay('esqueleto')).not.toBeNull();
+      expect(hay('progreso')).not.toBeNull();
+    });
+
+    it('con la agenda ya pintada (copia) solo se actualiza por debajo: sin esqueleto, con barra y con los rangos', () => {
+      cargar(base(), [], { origen: 'COPIA' });
+      cargando.set(true);
+
+      pintar();
+
+      expect(hay('esqueleto')).toBeNull();
+      expect(hay('progreso')).not.toBeNull();
+      expect(hay('rango-758')).not.toBeNull();
+    });
+
+    it('mientras se actualiza no avisa de "sin conexión"', () => {
+      cargar(base(), [], { origen: 'COPIA', fechaDescarga: '2026-10-23 08:00:00' });
+      cargando.set(true);
+      expect(hay('aviso-copia')).toBeNull();
+
+      cargando.set(false);
+      fixture.detectChanges();
+      expect(hay('aviso-copia')).not.toBeNull();
+    });
+
+    it('si tarda más de lo normal, lo avisa', () => {
+      jasmine.clock().install();
+      try {
+        cargando.set(true);
+        cargado.set(null);
+        pintar();
+        expect(hay('aviso-lento')).toBeNull();
+
+        jasmine.clock().tick(UMBRAL_LENTO_MS);
+        TestBed.tick();
+        fixture.detectChanges();
+
+        expect(texto(hay('aviso-lento'))).toContain('Está tardando más de lo normal');
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
+    describe('lo pendiente de envío', () => {
+      const pendiente = () => cargar(base(), [op('GUARDAR_RANGO', { id_zonificacion_det: null, codigo_zona: 'ALTILLO', tag_desde: 1135, tag_hasta: 1140 })]);
+
+      it('enviando y con señal: "Enviando…" con spinner, y la barra de progreso', () => {
+        pendiente();
+        enviando.set(true);
+
+        const d = pintar();
+
+        expect(texto(hay('enviando'))).toBe('Enviando 1 cambio…');
+        expect(d.querySelector('[data-testid="pendientes"] ion-spinner')).not.toBeNull();
+        expect(hay('progreso')).not.toBeNull();
+      });
+
+      it('la fila del rango pendiente dice "Enviando…" mientras sale', () => {
+        pendiente();
+        enviando.set(true);
+
+        expect(texto(dom('rango-uid-GUARDAR_RANGO', pintar()))).toContain('Enviando…');
+      });
+
+      it('sin señal: dice que se enviará al volver la red (no "Enviando…")', () => {
+        pendiente();
+        online.set(false);
+
+        pintar();
+
+        expect(texto(hay('pendientes'))).toContain('Se enviarán al volver la red.');
+        expect(hay('enviando')).toBeNull();
+      });
+
+      it('con señal y sin enviar en este momento: se reintentará solo', () => {
+        pendiente();
+
+        pintar();
+
+        expect(texto(hay('pendientes'))).toContain('Se reintentará en unos segundos.');
+      });
+
+      it('varios cambios se cuentan en plural', () => {
+        cargar(base(), [
+          op('GUARDAR_RANGO', { id_zonificacion_det: null, codigo_zona: 'ALTILLO', tag_desde: 1135, tag_hasta: 1140 }),
+          op('ELIMINAR_RANGO', { id_zonificacion_det: 761 }, { operacionUid: 'uid-2', id: 2 }),
+        ]);
+        enviando.set(true);
+
+        pintar();
+
+        expect(texto(hay('enviando'))).toBe('Enviando 2 cambios…');
+      });
+
+      it('sin nada pendiente no hay barra de progreso por envío', () => {
+        cargar(base());
+        pintar();
+        expect(hay('progreso')).toBeNull();
+      });
+    });
+
+    describe('botones que trabajan', () => {
+      it('Confirmar muestra "Confirmando…" con spinner y bloquea los demás mientras se envía', async () => {
+        cargar(base());
+        let terminar!: (r: { ok: true }) => void;
+        (facade['confirmarZonificacion'] as jasmine.Spy).and.returnValue(new Promise((ok) => (terminar = ok)));
+        await fixture.componentInstance.confirmar();
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const d = pintar();
+
+        expect(texto(hay('confirmar'))).toContain('Confirmando…');
+        expect(d.querySelector('[data-testid="confirmar"] ion-spinner')).not.toBeNull();
+        expect((hay('nuevo-rango') as unknown as { disabled: boolean }).disabled).toBeTrue();
+        expect((hay('anular-tag') as unknown as { disabled: boolean }).disabled).toBeTrue();
+
+        terminar({ ok: true });
+        await Promise.resolve();
+        await Promise.resolve();
+        fixture.detectChanges();
+
+        expect(texto(hay('confirmar'))).not.toContain('Confirmando…');
+        expect((hay('nuevo-rango') as unknown as { disabled: boolean }).disabled).toBeFalse();
+      });
+
+      it('Reabrir muestra "Reabriendo…" mientras se envía', async () => {
+        const e = base();
+        cargar({ ...e, zonificacion: { ...e.zonificacion, estado: 'CONFIRMADA' } });
+        let terminar!: (r: { ok: true }) => void;
+        (facade['reabrirZonificacion'] as jasmine.Spy).and.returnValue(new Promise((ok) => (terminar = ok)));
+        await fixture.componentInstance.reabrir();
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        pintar();
+
+        expect(texto(hay('reabrir'))).toContain('Reabriendo…');
+
+        terminar({ ok: true });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(fixture.componentInstance.accion()).toBeNull();
+      });
+
+      it('si la acción falla, el botón vuelve a estar disponible y el operador lo ve', async () => {
+        cargar(base());
+        (facade['confirmarZonificacion'] as jasmine.Spy).and.rejectWith(new Error('falló'));
+        spyOn(console, 'error');
+        await fixture.componentInstance.confirmar();
+
+        alerta.create.calls.mostRecent().args[0].buttons[1].handler();
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+
+        expect(fixture.componentInstance.accion()).toBeNull();
+        expect(texto(dom('mensaje', pintar()))).toBe('No se pudo completar la acción. Intenta de nuevo.');
       });
     });
   });

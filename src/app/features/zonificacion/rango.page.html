@@ -106,7 +106,7 @@
     </div>
 
     <ion-button expand="block" class="btn-primary" data-testid="guardar" [disabled]="!puedeGuardar()" (click)="guardar()">
-      Guardar
+      @if (guardando()) { <ion-spinner name="crescent" style="width: 20px; height: 20px;"></ion-spinner>&nbsp;Guardando… } @else { Guardar }
     </ion-button>
     <ion-button expand="block" fill="clear" class="btn-ghost mt-2" data-testid="cancelar" (click)="volver()">
       Cancelar

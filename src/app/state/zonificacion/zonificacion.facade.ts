@@ -52,6 +52,7 @@ export class ZonificacionFacade {
   private estadoSignal = signal<EstadoCargado | null>(null);
   private cargandoEstadoSignal = signal(false);
   private conteoSignal = signal<ConteoZonificacion>({ pendientes: 0, rechazadas: 0 });
+  private cargasEstado = 0;
   private mensajeSignal = signal<MensajeZonificacion | null>(null);
   private rechazosSignal = signal<RechazoZonificacion[]>([]);
 
@@ -65,6 +66,8 @@ export class ZonificacionFacade {
   readonly mensaje = this.mensajeSignal.asReadonly();
   /* Los envíos rechazados de todas las agendas, para la pantalla "Envíos rechazados". */
   readonly rechazos = this.rechazosSignal.asReadonly();
+  /* true mientras la cola de zonificación está hablando con el servidor: "Enviando…" con spinner. */
+  readonly enviando = this.envio.enviando;
 
   constructor() {
     // El envío corre en segundo plano: cuando algo sale o se rechaza, la vista se vuelve a leer (sin red).
@@ -93,6 +96,11 @@ export class ZonificacionFacade {
   async cargarAgendas(): Promise<void> {
     this.cargandoAgendasSignal.set(true);
     try {
+      // Primero lo que ya se tiene: la lista aparece al instante y el servidor la actualiza por debajo.
+      if (!this.agendasSignal()) {
+        const copia = await this.cargarAgendasUC.copia();
+        if (copia && !this.agendasSignal()) this.agendasSignal.set(copia);
+      }
       const [agendas, catalogo] = await Promise.all([this.cargarAgendasUC.execute(), this.cargarCatalogoUC.execute()]);
       this.agendasSignal.set(agendas);
       this.catalogoSignal.set(catalogo);
@@ -101,23 +109,45 @@ export class ZonificacionFacade {
     }
   }
 
-  /* Abre una agenda: se vacía lo anterior para no mostrar el resumen de otra mientras carga. */
+  /*
+   * Abre una agenda. Se vacía lo de la agenda anterior (no se muestra el resumen de otra), pero
+   * enseguida se pinta lo que esta agenda ya tiene en el teléfono —su último estado y lo pendiente
+   * de envío— y recién entonces se pide el estado al servidor, que tarda unos segundos: el
+   * operador ve contenido de inmediato y el servidor lo actualiza por encima.
+   */
   async abrirAgenda(agenda: AgendaRef): Promise<void> {
     this.agendaSignal.set(agenda);
     this.estadoSignal.set(null);
-    await this.refrescarEstado();
+    this.cargandoEstadoSignal.set(true);
+    try {
+      const { estado, vista } = await this.contexto.cargar(agenda.idAgenda);
+      const hayAlgo = estado !== null || vista.pendientes.length > 0 || vista.rechazadas.length > 0;
+      if (hayAlgo && this.agendaSignal()?.idAgenda === agenda.idAgenda && this.estadoSignal() === null) {
+        this.estadoSignal.set({ estado, vista, origen: 'COPIA', fechaDescarga: null, error: null });
+      }
+    } finally {
+      this.cargandoEstadoSignal.set(false);
+    }
+    await this.refrescarEstado(agenda);
   }
 
-  async refrescarEstado(): Promise<void> {
-    const agenda = this.agendaSignal();
+  /*
+   * Pide el estado al servidor. Recibe la agenda de la que se trata (por defecto, la abierta): si
+   * fuera "la abierta de ahora", una actualización de la agenda A que arranca después de abrir la B
+   * terminaría aplicándose a la B. Con la agenda explícita, la respuesta se descarta si ya no es la
+   * abierta.
+   */
+  async refrescarEstado(agenda: AgendaRef | null = this.agendaSignal()): Promise<void> {
     if (!agenda) return;
+    this.cargasEstado++;
     this.cargandoEstadoSignal.set(true);
     try {
       const estado = await this.cargarEstadoUC.execute(agenda);
-      // Si mientras tanto se abrió otra agenda, esta respuesta ya no corresponde.
       if (this.agendaSignal()?.idAgenda === agenda.idAgenda) this.estadoSignal.set(estado);
     } finally {
-      this.cargandoEstadoSignal.set(false);
+      // Puede haber más de una carga en vuelo (se cambió de agenda): "cargando" se apaga con la última.
+      this.cargasEstado--;
+      this.cargandoEstadoSignal.set(this.cargasEstado > 0);
     }
   }
 

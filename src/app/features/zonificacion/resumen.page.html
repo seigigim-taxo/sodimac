@@ -11,10 +11,17 @@
         <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
       }
       <ion-button (click)="recargar()" [disabled]="cargando()" aria-label="Actualizar">
+        @if (cargando()) {
+        <ion-spinner slot="icon-only" name="crescent" style="width: 20px; height: 20px;"></ion-spinner>
+        } @else {
         <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+        }
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
+  @if (cargando() || enviando()) {
+  <ion-progress-bar type="indeterminate" data-testid="progreso"></ion-progress-bar>
+  }
 </ion-header>
 
 <ion-content style="--background: var(--app-bg-gradient);">
@@ -30,7 +37,7 @@
     </div>
     }
 
-    @if (esCopia()) {
+    @if (esCopia() && !cargando()) {
     <div class="status-banner status-banner-warning mb-4" data-testid="aviso-copia">
       <ion-icon name="cloud-offline-outline"></ion-icon>
       <span>Sin conexión: se muestra lo último descargado@if (fechaCopia(); as fecha) { ({{ fecha }})}.</span>
@@ -38,7 +45,31 @@
     }
 
     @if (cargando() && !vista()) {
-    <div class="flex justify-center py-8"><ion-spinner name="crescent"></ion-spinner></div>
+    <!-- Esqueleto de la pantalla: totales y filas con la forma de lo que viene. -->
+    <div data-testid="esqueleto" aria-busy="true" aria-label="Cargando la agenda">
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        @for (n of [1, 2, 3]; track n) {
+        <div class="card" style="padding: 14px;">
+          <ion-skeleton-text [animated]="true" style="width: 60%; height: 11px;"></ion-skeleton-text>
+          <ion-skeleton-text [animated]="true" style="width: 40%; height: 22px; margin-top: 10px;"></ion-skeleton-text>
+        </div>
+        }
+      </div>
+      <div class="flex flex-col gap-3">
+        @for (n of [1, 2, 3]; track n) {
+        <div class="card" style="padding: 16px; min-height: 68px;">
+          <ion-skeleton-text [animated]="true" style="width: 45%; height: 16px;"></ion-skeleton-text>
+          <ion-skeleton-text [animated]="true" style="width: 65%; height: 13px; margin-top: 10px;"></ion-skeleton-text>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+    @if (lento()) {
+    <p class="text-[12px] mb-4" style="color: var(--app-text-muted);" data-testid="aviso-lento">
+      Está tardando más de lo normal. Revisa la señal; puedes seguir esperando.
+    </p>
     }
 
     @if (sinDatos()) {
@@ -96,8 +127,16 @@
 
     @if (pendientes() > 0) {
     <div class="status-banner status-banner-warning mb-4" data-testid="pendientes">
+      @if (enviando() && isOnline()) {
+      <ion-spinner name="crescent" style="width: 18px; height: 18px; flex-shrink: 0;"></ion-spinner>
+      <span data-testid="enviando">Enviando {{ pendientes() }} {{ pendientes() === 1 ? 'cambio' : 'cambios' }}…</span>
+      } @else {
       <ion-icon name="time-outline"></ion-icon>
-      <span>{{ pendientes() }} {{ pendientes() === 1 ? 'cambio sin enviar' : 'cambios sin enviar' }}. Se enviarán al volver la red.</span>
+      <span>
+        {{ pendientes() }} {{ pendientes() === 1 ? 'cambio sin enviar' : 'cambios sin enviar' }}.
+        {{ isOnline() ? 'Se reintentará en unos segundos.' : 'Se enviarán al volver la red.' }}
+      </span>
+      }
     </div>
     }
 
@@ -162,7 +201,9 @@
         <div class="shrink-0 text-right">
           <p class="num text-[14px] font-semibold" style="color: var(--app-text);">{{ fila.usados ?? 0 }}/{{ fila.cantidad }} <span class="text-[11px] font-normal" style="color: var(--app-text-muted);">usados</span></p>
           <p class="mt-1 flex items-center justify-end gap-1 text-[12px]">
-            @if (fila.pendiente) {
+            @if (fila.pendiente && enviando() && isOnline()) {
+            <ion-spinner name="crescent" style="width: 14px; height: 14px; color: var(--app-warning);"></ion-spinner><span style="color: var(--app-warning);">Enviando…</span>
+            } @else if (fila.pendiente) {
             <ion-icon name="time-outline" style="color: var(--app-warning);"></ion-icon><span style="color: var(--app-warning);">Pendiente de envío</span>
             } @else if (fila.desbalance) {
             <ion-icon name="alert-circle-outline" style="color: var(--app-error-text);"></ion-icon><span style="color: var(--app-error-text);">Desbalanceado</span>
@@ -186,17 +227,21 @@
     @if (puedeModificar()) {
     <div class="flex flex-col gap-3 mt-4" data-testid="acciones">
       @if (puedeEditarRangos()) {
-      <ion-button expand="block" class="btn-primary" data-testid="nuevo-rango" (click)="nuevoRango()">Nuevo rango</ion-button>
+      <ion-button expand="block" class="btn-primary" data-testid="nuevo-rango" [disabled]="accion() !== null" (click)="nuevoRango()">Nuevo rango</ion-button>
       }
       <div class="flex gap-2">
         @if (filas().length > 0) {
-        <ion-button class="btn-outline flex-1" data-testid="anular-tag" (click)="anularTag()">Anular TAG</ion-button>
+        <ion-button class="btn-outline flex-1" data-testid="anular-tag" [disabled]="accion() !== null" (click)="anularTag()">Anular TAG</ion-button>
         }
         @if (puedeConfirmar()) {
-        <ion-button class="btn-outline flex-1" data-testid="confirmar" (click)="confirmar()">Confirmar</ion-button>
+        <ion-button class="btn-outline flex-1" data-testid="confirmar" [disabled]="accion() !== null" (click)="confirmar()">
+          @if (accion() === 'confirmar') { <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>&nbsp;Confirmando… } @else { Confirmar }
+        </ion-button>
         }
         @if (puedeReabrir()) {
-        <ion-button class="btn-outline flex-1" data-testid="reabrir" (click)="reabrir()">Reabrir</ion-button>
+        <ion-button class="btn-outline flex-1" data-testid="reabrir" [disabled]="accion() !== null" (click)="reabrir()">
+          @if (accion() === 'reabrir') { <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>&nbsp;Reabriendo… } @else { Reabrir }
+        </ion-button>
         }
       </div>
     </div>
