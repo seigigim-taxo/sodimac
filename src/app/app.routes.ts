@@ -43,6 +43,31 @@ export const routes: Routes = [
     canActivate: [authGuard, operatorGuard, eventoSeleccionadoGuard, tagEnSesionGuard, pdaBloqueadaGuard],
   },
   {
+    path: 'zonificacion',
+    loadComponent: () => import('./features/zonificacion/agendas.page').then((m) => m.ZonificacionAgendasPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
+    path: 'zonificacion/rechazados',
+    loadComponent: () => import('./features/zonificacion/rechazados.page').then((m) => m.ZonificacionRechazadosPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
+    path: 'zonificacion/:idAgenda',
+    loadComponent: () => import('./features/zonificacion/resumen.page').then((m) => m.ZonificacionResumenPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
+    path: 'zonificacion/:idAgenda/rango',
+    loadComponent: () => import('./features/zonificacion/rango.page').then((m) => m.ZonificacionRangoPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
+    path: 'zonificacion/:idAgenda/anular',
+    loadComponent: () => import('./features/zonificacion/anular-tag.page').then((m) => m.ZonificacionAnularTagPage),
+    canActivate: [authGuard, operatorGuard],
+  },
+  {
     path: 'error-reports',
     loadComponent: () => import('./features/error-reports/error-reports.page').then((m) => m.ErrorReportsPage),
     canActivate: [authGuard, operatorGuard],

@@ -1,0 +1,107 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Zonificación</ion-title>
+    <ion-buttons slot="end">
+      @if (isOnline()) {
+        <span class="conexion-indicator" style="color: var(--app-success);">● En línea</span>
+      } @else {
+        <span class="conexion-indicator" style="color: var(--app-danger, #ef4444);">● Sin conexión</span>
+      }
+      <ion-button (click)="recargar()" [disabled]="cargando()" aria-label="Actualizar lista">
+        @if (cargando()) {
+        <ion-spinner slot="icon-only" name="crescent" style="width: 20px; height: 20px;"></ion-spinner>
+        } @else {
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+        }
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <!-- Barra fina mientras se actualiza: lo que ya se ve sigue ahí y el operador sabe que se está refrescando. -->
+  @if (cargando()) {
+  <ion-progress-bar type="indeterminate" data-testid="progreso"></ion-progress-bar>
+  }
+</ion-header>
+
+<ion-content style="--background: var(--app-bg-gradient);">
+  <div class="page-inner py-6">
+
+    <h2 class="page-title mb-2">Elige la agenda</h2>
+    <p class="text-[13px] mb-4" style="color: var(--app-text-muted);">Las agendas asignadas a ti, para zonificar sus TAG.</p>
+
+    @if (esCopia() && !cargando()) {
+    <div class="status-banner status-banner-warning mb-4" data-testid="aviso-copia">
+      <ion-icon name="cloud-offline-outline"></ion-icon>
+      <span>Sin conexión: se muestra la última lista descargada@if (fechaCopia(); as fecha) { ({{ fecha }})}.</span>
+    </div>
+    }
+
+    @if (primeraCarga()) {
+    <!-- Esqueleto: se ve la forma de lo que viene, en vez de un spinner suelto sobre la pantalla vacía. -->
+    <div class="flex flex-col gap-3" data-testid="esqueleto" aria-busy="true" aria-label="Cargando agendas">
+      @for (n of [1, 2]; track n) {
+      <div class="card" style="padding: 16px;">
+        <ion-skeleton-text [animated]="true" style="width: 35%; height: 18px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 70%; height: 13px; margin-top: 10px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 50%; height: 13px; margin-top: 10px;"></ion-skeleton-text>
+      </div>
+      }
+    </div>
+    }
+
+    @if (lento()) {
+    <p class="text-[12px] mt-3" style="color: var(--app-text-muted);" data-testid="aviso-lento">
+      Está tardando más de lo normal. Revisa la señal; puedes seguir esperando.
+    </p>
+    }
+
+    @if (sinDatos()) {
+    <div class="error-pill" data-testid="sin-datos">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>No se pudo cargar la lista y no hay una copia guardada. Conéctate a la red e intenta de nuevo.</span>
+    </div>
+    }
+
+    @if (sinAgendas()) {
+    <div class="status-banner status-banner-info" data-testid="sin-agendas">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <span>No tienes agendas asignadas para zonificar.</span>
+    </div>
+    }
+
+    <div class="flex flex-col gap-3">
+      @for (fila of filas(); track fila.idAgenda) {
+      <div class="card card-interactive" role="button" tabindex="0" [attr.data-testid]="'agenda-' + fila.idAgenda"
+           (click)="abrir(fila)" (keydown.enter)="abrir(fila)">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[15px] font-bold" style="color: var(--app-text);">{{ fila.titulo }}</p>
+          <span class="badge"
+                [class.badge-warning]="fila.tono === 'aviso'"
+                [class.badge-success]="fila.tono === 'ok'"
+                [class.badge-error]="fila.tono === 'error'">{{ fila.etiquetaEstado }}</span>
+        </div>
+        <p class="text-[12px] mt-1" style="color: var(--app-text-muted);">{{ fila.tienda }} · {{ fila.numeroAgenda }}</p>
+        <div class="flex items-center justify-between gap-2 mt-2">
+          <p class="text-[12px]" style="color: var(--app-text-muted);">{{ fila.detalle || 'Sin rangos todavía' }}</p>
+          <span class="flex items-center gap-1 text-[12px]" style="color: var(--app-text-muted);">
+            @if (fila.restriccion; as restriccion) {
+            <ion-icon name="lock-closed-outline"></ion-icon>{{ restriccion }}
+            }
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </span>
+        </div>
+      </div>
+      }
+    </div>
+
+    @if (filas().length > 0) {
+    <div class="status-banner status-banner-info mt-4">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <span>Solo se muestran hoy y la siguiente jornada.</span>
+    </div>
+    }
+
+  </div>
+</ion-content>

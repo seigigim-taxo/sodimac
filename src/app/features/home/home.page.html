@@ -114,6 +114,44 @@
     </div>
     }
 
+    <!--
+      Zonificación. Lo que no salió se envía solo y esto lo cuenta (aviso rojo);
+      lo que el servidor rechazó necesita una decisión del operador (aviso ámbar).
+    -->
+    @if (conteoZonificacion().rechazadas > 0) {
+    <div class="status-banner status-banner-warning status-banner-acciones mb-4" data-testid="aviso-rechazados">
+      <div class="banner-linea">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span>
+          <strong>{{ conteoZonificacion().rechazadas }} {{ conteoZonificacion().rechazadas === 1 ? 'envío de zonificación rechazado' : 'envíos de zonificación rechazados' }}</strong><br>
+          El servidor no {{ conteoZonificacion().rechazadas === 1 ? 'lo aceptó' : 'los aceptó' }}. Revísa{{ conteoZonificacion().rechazadas === 1 ? 'lo' : 'los' }} para descartar{{ conteoZonificacion().rechazadas === 1 ? 'lo' : 'los' }}.
+        </span>
+      </div>
+      <div class="banner-acciones">
+        <ion-button fill="clear" size="small" data-testid="revisar-rechazados" (click)="revisarRechazadosZonificacion()">Revisar</ion-button>
+      </div>
+    </div>
+    }
+
+    @if (conteoZonificacion().pendientes > 0) {
+    <div class="status-banner status-banner-error status-banner-acciones mb-4" data-testid="aviso-no-enviada">
+      <div class="banner-linea">
+        @if (enviandoZonificacion() || reintentandoZonificacion()) {
+        <ion-spinner name="crescent" style="width: 18px; height: 18px; flex-shrink: 0;"></ion-spinner>
+        <span data-testid="enviando-zonificacion"><strong>Enviando zonificación ({{ conteoZonificacion().pendientes }})…</strong></span>
+        } @else {
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <span><strong>Zonificación no enviada ({{ conteoZonificacion().pendientes }})</strong><br>Se enviará al volver la red.</span>
+        }
+      </div>
+      <div class="banner-acciones">
+        <ion-button fill="clear" size="small" data-testid="reintentar-zonificacion" [disabled]="reintentandoZonificacion()" (click)="reintentarZonificacion()">
+          @if (reintentandoZonificacion()) { Enviando… } @else { Reintentar ahora }
+        </ion-button>
+      </div>
+    </div>
+    }
+
     <!-- Tienda: solo informativa, no se selecciona -->
     @if (storeLoading()) {
     <div class="flex justify-center py-6">
@@ -146,6 +184,25 @@
           <p class="text-[15px] font-bold truncate" style="color: var(--app-text);">{{ store.nombre }}</p>
           <p class="text-[12px] num" style="color: var(--app-text-muted);">{{ store.codigoTienda }}</p>
         </div>
+      </div>
+    </div>
+    }
+
+    <!-- Zonificación: la entrada al módulo. El aviso de lo no enviado llega en una fase siguiente. -->
+    @if (currentStore()) {
+    <div class="card card-interactive mb-6" role="button" tabindex="0" data-testid="acceso-zonificacion"
+         (click)="irAZonificacion()" (keydown.enter)="irAZonificacion()">
+      <div class="flex items-center gap-3">
+        <div class="icon-badge">
+          <ion-icon name="layers-outline"></ion-icon>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[15px] font-bold" style="color: var(--app-text);">Zonificación</p>
+          <p class="text-[12px]" style="color: var(--app-text-muted);">Zonifica los TAG de tus agendas</p>
+        </div>
+        @if (conteoZonificacion().rechazadas > 0) {
+        <span class="badge badge-warning ml-auto" data-testid="chip-rechazados">{{ conteoZonificacion().rechazadas }} {{ conteoZonificacion().rechazadas === 1 ? 'rechazado' : 'rechazados' }}</span>
+        }
       </div>
     </div>
     }

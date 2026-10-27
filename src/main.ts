@@ -48,6 +48,10 @@ import { CapacitorDescargaService } from './app/data/actualizacion/descarga.serv
 import { CapacitorInstaladorService } from './app/data/actualizacion/instalador.service';
 import { PreparacionApiService } from './app/data/sincronizacion/preparacion-api.service';
 import { EstadoCargasApiService } from './app/data/sincronizacion/estado-cargas-api.service';
+import { ZonificacionApiService } from './app/data/zonificacion/zonificacion-api.service';
+import { SqliteZonificacionRepository } from './app/data/zonificacion/zonificacion-local.repository';
+import { ZONIFICACION_API_REPOSITORY_TOKEN } from './app/domain/zonificacion/repositories/zonificacion-api.repository';
+import { ZONIFICACION_LOCAL_REPOSITORY_TOKEN } from './app/domain/zonificacion/repositories/zonificacion-local.repository';
 import { FilesystemRespaldoRepository } from './app/data/respaldo/respaldo.repository';
 import { CapacitorThemeStorageRepository } from './app/data/theme/theme-storage.repository';
 import { CapacitorAjustesStorageRepository } from './app/data/ajustes/ajustes-storage.repository';
@@ -168,6 +172,8 @@ bootstrapApplication(AppComponent, {
     { provide: SINCRONIZACION_REPOSITORY_TOKEN,  useClass: SqliteSincronizacionRepository },
     { provide: PREPARACION_API_REPOSITORY_TOKEN, useClass: PreparacionApiService },
     { provide: ESTADO_CARGAS_API_REPOSITORY_TOKEN, useClass: EstadoCargasApiService },
+    { provide: ZONIFICACION_API_REPOSITORY_TOKEN,   useClass: ZonificacionApiService },
+    { provide: ZONIFICACION_LOCAL_REPOSITORY_TOKEN, useClass: SqliteZonificacionRepository },
     { provide: RESPALDO_REPOSITORY_TOKEN,        useClass: FilesystemRespaldoRepository },
 
     /*

@@ -1,0 +1,256 @@
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { AgendasCargadas, CargarAgendasZonificacionUseCase } from '../../application/zonificacion/cargar-agendas-zonificacion.use-case';
+import { CargarCatalogoZonificacionUseCase, CatalogoCargado } from '../../application/zonificacion/cargar-catalogo-zonificacion.use-case';
+import { CargarEstadoZonificacionUseCase, EstadoCargado } from '../../application/zonificacion/cargar-estado-zonificacion.use-case';
+import { ConteoZonificacion, ContarPendientesZonificacionUseCase } from '../../application/zonificacion/contar-pendientes-zonificacion.use-case';
+import { DescartarRechazadaZonificacionUseCase } from '../../application/zonificacion/descartar-rechazada-zonificacion.use-case';
+import { AgendaRef, ResultadoAccion } from '../../application/zonificacion/resultado-accion';
+import { AnularTagUseCase } from '../../application/zonificacion/anular-tag.use-case';
+import { ContextoAgendaZonificacionService } from '../../application/zonificacion/contexto-agenda-zonificacion.service';
+import { ConfirmarZonificacionUseCase } from '../../application/zonificacion/confirmar-zonificacion.use-case';
+import { EliminarRangoUseCase } from '../../application/zonificacion/eliminar-rango.use-case';
+import { ListarRechazadasZonificacionUseCase, RechazoZonificacion } from '../../application/zonificacion/listar-rechazadas-zonificacion.use-case';
+import { ReabrirZonificacionUseCase } from '../../application/zonificacion/reabrir-zonificacion.use-case';
+import { avisoConfirmada, avisoReabierta } from '../../domain/zonificacion/utils/confirmacion-zonificacion.utils';
+import { EnviarZonificacionUseCase, ResultadoEnvioZonificacion } from '../../application/zonificacion/enviar-zonificacion.use-case';
+import { GuardarRangoEntrada, GuardarRangoUseCase } from '../../application/zonificacion/guardar-rango.use-case';
+import { IdRango } from '../../domain/zonificacion/models/rango-zonificacion.model';
+
+/* Lo que se le dice al operador al volver al resumen después de una acción. */
+export interface MensajeZonificacion {
+  tipo: 'ok' | 'info' | 'error';
+  texto: string;
+}
+
+/*
+ * Lo que las pantallas de zonificación leen y piden. Existe para que no inyecten
+ * casos de uso directo: los componentes hablan solo con facades.
+ *
+ * Los signals son de la app y sobreviven al logout: `reset()` los suelta para que
+ * quien entre después no vea las agendas del turno anterior.
+ */
+@Injectable({ providedIn: 'root' })
+export class ZonificacionFacade {
+  private cargarAgendasUC = inject(CargarAgendasZonificacionUseCase);
+  private cargarCatalogoUC = inject(CargarCatalogoZonificacionUseCase);
+  private cargarEstadoUC = inject(CargarEstadoZonificacionUseCase);
+  private descartarUC = inject(DescartarRechazadaZonificacionUseCase);
+  private contarUC = inject(ContarPendientesZonificacionUseCase);
+  private guardarRangoUC = inject(GuardarRangoUseCase);
+  private eliminarRangoUC = inject(EliminarRangoUseCase);
+  private anularTagUC = inject(AnularTagUseCase);
+  private confirmarUC = inject(ConfirmarZonificacionUseCase);
+  private reabrirUC = inject(ReabrirZonificacionUseCase);
+  private listarRechazadasUC = inject(ListarRechazadasZonificacionUseCase);
+  private contexto = inject(ContextoAgendaZonificacionService);
+  private envio = inject(EnviarZonificacionUseCase);
+
+  private agendasSignal = signal<AgendasCargadas | null>(null);
+  private cargandoAgendasSignal = signal(false);
+  private catalogoSignal = signal<CatalogoCargado | null>(null);
+  private agendaSignal = signal<AgendaRef | null>(null);
+  private estadoSignal = signal<EstadoCargado | null>(null);
+  private cargandoEstadoSignal = signal(false);
+  private conteoSignal = signal<ConteoZonificacion>({ pendientes: 0, rechazadas: 0 });
+  private cargasEstado = 0;
+  private mensajeSignal = signal<MensajeZonificacion | null>(null);
+  private rechazosSignal = signal<RechazoZonificacion[]>([]);
+
+  readonly agendas = this.agendasSignal.asReadonly();
+  readonly cargandoAgendas = this.cargandoAgendasSignal.asReadonly();
+  readonly catalogo = this.catalogoSignal.asReadonly();
+  readonly agenda = this.agendaSignal.asReadonly();
+  readonly estado = this.estadoSignal.asReadonly();
+  readonly cargandoEstado = this.cargandoEstadoSignal.asReadonly();
+  readonly conteo = this.conteoSignal.asReadonly();
+  readonly mensaje = this.mensajeSignal.asReadonly();
+  /* Los envíos rechazados de todas las agendas, para la pantalla "Envíos rechazados". */
+  readonly rechazos = this.rechazosSignal.asReadonly();
+  /* true mientras la cola de zonificación está hablando con el servidor: "Enviando…" con spinner. */
+  readonly enviando = this.envio.enviando;
+
+  constructor() {
+    // El envío corre en segundo plano: cuando algo sale o se rechaza, la vista se vuelve a leer (sin red).
+    effect(() => {
+      if (this.envio.cambios() === 0) return;
+      untracked(() => {
+        void this.refrescarVistaLocal();
+        void this.contar();
+      });
+    });
+  }
+
+  reset(): void {
+    this.agendasSignal.set(null);
+    this.cargandoAgendasSignal.set(false);
+    this.catalogoSignal.set(null);
+    this.agendaSignal.set(null);
+    this.estadoSignal.set(null);
+    this.cargandoEstadoSignal.set(false);
+    this.conteoSignal.set({ pendientes: 0, rechazadas: 0 });
+    this.mensajeSignal.set(null);
+    this.rechazosSignal.set([]);
+  }
+
+  /* La lista de agendas; el catálogo viaja junto para tenerlo listo al abrir una agenda. */
+  async cargarAgendas(): Promise<void> {
+    this.cargandoAgendasSignal.set(true);
+    try {
+      // Primero lo que ya se tiene: la lista aparece al instante y el servidor la actualiza por debajo.
+      if (!this.agendasSignal()) {
+        const copia = await this.cargarAgendasUC.copia();
+        if (copia && !this.agendasSignal()) this.agendasSignal.set(copia);
+      }
+      const [agendas, catalogo] = await Promise.all([this.cargarAgendasUC.execute(), this.cargarCatalogoUC.execute()]);
+      this.agendasSignal.set(agendas);
+      this.catalogoSignal.set(catalogo);
+    } finally {
+      this.cargandoAgendasSignal.set(false);
+    }
+  }
+
+  /*
+   * Abre una agenda. Se vacía lo de la agenda anterior (no se muestra el resumen de otra), pero
+   * enseguida se pinta lo que esta agenda ya tiene en el teléfono —su último estado y lo pendiente
+   * de envío— y recién entonces se pide el estado al servidor, que tarda unos segundos: el
+   * operador ve contenido de inmediato y el servidor lo actualiza por encima.
+   */
+  async abrirAgenda(agenda: AgendaRef): Promise<void> {
+    this.agendaSignal.set(agenda);
+    this.estadoSignal.set(null);
+    this.cargandoEstadoSignal.set(true);
+    try {
+      const { estado, vista } = await this.contexto.cargar(agenda.idAgenda);
+      const hayAlgo = estado !== null || vista.pendientes.length > 0 || vista.rechazadas.length > 0;
+      if (hayAlgo && this.agendaSignal()?.idAgenda === agenda.idAgenda && this.estadoSignal() === null) {
+        this.estadoSignal.set({ estado, vista, origen: 'COPIA', fechaDescarga: null, error: null });
+      }
+    } finally {
+      this.cargandoEstadoSignal.set(false);
+    }
+    await this.refrescarEstado(agenda);
+  }
+
+  /*
+   * Pide el estado al servidor. Recibe la agenda de la que se trata (por defecto, la abierta): si
+   * fuera "la abierta de ahora", una actualización de la agenda A que arranca después de abrir la B
+   * terminaría aplicándose a la B. Con la agenda explícita, la respuesta se descarta si ya no es la
+   * abierta.
+   */
+  async refrescarEstado(agenda: AgendaRef | null = this.agendaSignal()): Promise<void> {
+    if (!agenda) return;
+    this.cargasEstado++;
+    this.cargandoEstadoSignal.set(true);
+    try {
+      const estado = await this.cargarEstadoUC.execute(agenda);
+      if (this.agendaSignal()?.idAgenda === agenda.idAgenda) this.estadoSignal.set(estado);
+    } finally {
+      // Puede haber más de una carga en vuelo (se cambió de agenda): "cargando" se apaga con la última.
+      this.cargasEstado--;
+      this.cargandoEstadoSignal.set(this.cargasEstado > 0);
+    }
+  }
+
+  async descartarRechazada(idOperacion: number): Promise<void> {
+    await this.descartarUC.execute(idOperacion);
+    await this.refrescarEstado();
+    await this.contar();
+  }
+
+  async contar(): Promise<void> {
+    this.conteoSignal.set(await this.contarUC.execute());
+  }
+  /*
+   * Relee el estado de la agenda abierta SIN pedirle nada al servidor: lo
+   * descargado por última vez más lo que está en la cola. Es lo que se hace
+   * después de cada acción del operador, para que su cambio se vea al instante.
+   */
+  async refrescarVistaLocal(): Promise<void> {
+    const agenda = this.agendaSignal();
+    if (!agenda) return;
+    const { estado, vista } = await this.contexto.cargar(agenda.idAgenda);
+    if (this.agendaSignal()?.idAgenda !== agenda.idAgenda) return;
+    this.estadoSignal.update((previo) =>
+      previo
+        ? { ...previo, estado, vista }
+        : { estado, vista, origen: estado ? 'COPIA' : 'NINGUNO', fechaDescarga: null, error: null },
+    );
+  }
+
+  async guardarRango(entrada: GuardarRangoEntrada): Promise<ResultadoAccion> {
+    const r = await this.guardarRangoUC.execute(entrada);
+    if (r.ok) await this.alTerminar('Rango guardado.');
+    return r;
+  }
+
+  async eliminarRango(agenda: AgendaRef, idRango: IdRango): Promise<ResultadoAccion> {
+    const r = await this.eliminarRangoUC.execute(agenda, idRango);
+    if (r.ok) await this.alTerminar('Rango eliminado. Confirma de nuevo la zonificación cuando termines los ajustes.');
+    return r;
+  }
+
+  async anularTag(agenda: AgendaRef, numeroTag: number, motivo: string): Promise<ResultadoAccion> {
+    const r = await this.anularTagUC.execute(agenda, numeroTag, motivo);
+    if (r.ok) await this.alTerminar('TAG anulado.');
+    return r;
+  }
+
+  /* El aviso lo lee y lo limpia el resumen al volver a mostrarse. */
+  consumirMensaje(): MensajeZonificacion | null {
+    const m = this.mensajeSignal();
+    this.mensajeSignal.set(null);
+    return m;
+  }
+
+  private async alTerminar(texto: string, tipo: MensajeZonificacion['tipo'] = 'ok'): Promise<void> {
+    this.mensajeSignal.set({ tipo, texto });
+    await this.refrescarVistaLocal();
+    await this.contar();
+  }
+  /*
+   * Confirmar y reabrir. El aviso depende de lo que se veía al momento de
+   * actuar: cuántos rangos y TAG se confirman, y si el conteo ya usa TAG.
+   */
+  async confirmarZonificacion(agenda: AgendaRef): Promise<ResultadoAccion> {
+    const antes = this.estadoSignal();
+    const r = await this.confirmarUC.execute(agenda);
+    if (r.ok && antes) await this.alTerminar(avisoConfirmada(antes.vista, antes.estado?.resumen.tagsUsados ?? 0));
+    return r;
+  }
+
+  async reabrirZonificacion(agenda: AgendaRef): Promise<ResultadoAccion> {
+    const antes = this.estadoSignal();
+    const r = await this.reabrirUC.execute(agenda);
+    if (r.ok) await this.alTerminar(avisoReabierta(antes?.estado?.resumen.tagsUsados ?? 0), 'info');
+    return r;
+  }
+
+  /* ------------------------- envíos rechazados ------------------------- */
+
+  async cargarRechazos(): Promise<void> {
+    this.rechazosSignal.set(await this.listarRechazadasUC.execute());
+  }
+
+  async descartarRechazo(idOperacion: number): Promise<void> {
+    await this.descartarUC.execute(idOperacion);
+    await this.despuesDeDescartar();
+  }
+
+  async descartarTodasLasRechazadas(): Promise<void> {
+    await this.descartarUC.descartarTodas();
+    await this.despuesDeDescartar();
+  }
+
+  private async despuesDeDescartar(): Promise<void> {
+    await this.cargarRechazos();
+    await this.refrescarVistaLocal();
+    await this.contar();
+  }
+
+  /* "Reintentar ahora": saca la cola de todas las agendas sin esperar al próximo disparador. */
+  async reintentarAhora(): Promise<ResultadoEnvioZonificacion> {
+    const r = await this.envio.execute();
+    await this.contar();
+    return r;
+  }
+}

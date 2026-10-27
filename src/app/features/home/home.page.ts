@@ -13,7 +13,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, syncOutline, searchOutline } from 'ionicons/icons';
+import { alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, syncOutline, searchOutline, layersOutline } from 'ionicons/icons';
 import { AuthFacade } from '../../state/auth/auth.facade';
 import { PdaFacade } from '../../state/pda/pda.facade';
 import { SucursalFacade } from '../../state/sucursal/sucursal.facade';
@@ -28,6 +28,7 @@ import { NetworkService } from '../../shared/services/network.service';
 import { OfertaActualizacionService } from '../../shared/services/oferta-actualizacion.service';
 import { VigenciaDiaService } from '../../shared/services/vigencia-dia.service';
 import { ReintentoAutomaticoService } from '../../shared/services/reintento-automatico.service';
+import { ZonificacionFacade } from '../../state/zonificacion/zonificacion.facade';
 import { HeaderStatusComponent } from '../../shared/components/header-status/header-status.component';
 
 
@@ -52,6 +53,13 @@ export class HomePage implements ViewWillEnter {
   private router          = inject(Router);
   private auth             = inject(AuthFacade);
   private reintentoAutomatico = inject(ReintentoAutomaticoService);
+  private zonificacion = inject(ZonificacionFacade);
+
+  /* Lo que la zonificación tiene sin enviar (aviso rojo) y lo que el servidor rechazó (aviso ámbar). */
+  conteoZonificacion = this.zonificacion.conteo;
+  reintentandoZonificacion = signal(false);
+  /* La cola de zonificación está hablando con el servidor. */
+  enviandoZonificacion = this.zonificacion.enviando;
   private sucursalFacade  = inject(SucursalFacade);
   private eventoFacade    = inject(EventoFacade);
   private conteoList      = inject(ConteoListFacade);
@@ -247,7 +255,7 @@ export class HomePage implements ViewWillEnter {
   terminoElDeHoy = computed(() => this.eventosFinalizados().length > 0);
 
   constructor() {
-    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, syncOutline, searchOutline });
+    addIcons({ alertCircleOutline, businessOutline, chevronDownOutline, informationCircleOutline, layersOutline, syncOutline, searchOutline });
 
     // En cuanto haya tienda cargada, pide sus eventos.
     effect(() => {
@@ -283,6 +291,7 @@ export class HomePage implements ViewWillEnter {
   ionViewWillEnter(): void {
     // Entrar al Inicio es un buen momento para reintentar lo que no salió (sin costo si no hay nada).
     this.reintentoAutomatico.disparar();
+    void this.zonificacion.contar();
 
     const session = this.auth.session();
 
@@ -402,6 +411,28 @@ export class HomePage implements ViewWillEnter {
   continue(): void {
     if (!this.selectedEvent()) return;
     this.router.navigate(['/counting-tag']);
+  }
+
+  /* "Reintentar ahora": saca la cola de zonificación sin esperar al próximo disparador. */
+  async reintentarZonificacion(): Promise<void> {
+    if (this.reintentandoZonificacion()) return;
+    this.reintentandoZonificacion.set(true);
+    try {
+      await this.zonificacion.reintentarAhora();
+    } catch (err) {
+      console.error('[Home] no se pudo reintentar la zonificación:', err);
+    } finally {
+      this.reintentandoZonificacion.set(false);
+    }
+  }
+
+  revisarRechazadosZonificacion(): void {
+    void this.router.navigate(['/zonificacion/rechazados']);
+  }
+
+  /* Entrada al módulo de zonificación: la lista de agendas del operador. */
+  irAZonificacion(): void {
+    void this.router.navigate(['/zonificacion']);
   }
 
   /*
