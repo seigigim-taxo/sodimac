@@ -43,7 +43,7 @@
 
     <div class="mb-4">
       <p class="field-label mb-1">Primer TAG (desde)</p>
-      <ion-input class="input-base" inputmode="numeric" enterkeyhint="next" placeholder="Escanea o ingresa el TAG" data-testid="desde"
+      <ion-input #desdeEl class="input-base" inputmode="numeric" enterkeyhint="next" placeholder="Escanea o ingresa el TAG" data-testid="desde"
                  [value]="desde()" (ionInput)="onDesde($event)" (keyup.enter)="enterEnDesde()">
         <ion-icon slot="end" name="barcode-outline"></ion-icon>
       </ion-input>

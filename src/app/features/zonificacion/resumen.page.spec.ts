@@ -92,6 +92,7 @@ describe('ZonificacionResumenPage', () => {
       cargandoEstado: cargando,
       abrirAgenda: jasmine.createSpy('abrirAgenda').and.resolveTo(),
       refrescarEstado: jasmine.createSpy('refrescarEstado').and.resolveTo(),
+      refrescarVistaLocal: jasmine.createSpy('refrescarVistaLocal').and.resolveTo(),
       descartarRechazada: jasmine.createSpy('descartarRechazada').and.resolveTo(),
     };
 
@@ -119,6 +120,18 @@ describe('ZonificacionResumenPage', () => {
     it('abre la agenda de la ruta con el número que sale de la lista descargada', async () => {
       await fixture.componentInstance.ionViewWillEnter();
       expect(facade['abrirAgenda']).toHaveBeenCalledOnceWith({ idAgenda: 2092, numeroAgenda: 'AG-20260909-4081-01' });
+    });
+
+    it('al volver de otra pantalla con la agenda ya abierta no la vacía: relee lo local al instante y luego refresca', async () => {
+      cargar(base());
+      const orden: string[] = [];
+      (facade['refrescarVistaLocal'] as jasmine.Spy).and.callFake(async () => orden.push('local'));
+      (facade['refrescarEstado'] as jasmine.Spy).and.callFake(async () => orden.push('servidor'));
+
+      await fixture.componentInstance.ionViewWillEnter();
+
+      expect(facade['abrirAgenda']).not.toHaveBeenCalled();
+      expect(orden).toEqual(['local', 'servidor']);
     });
 
     it('una agenda que no está en la lista ni es la abierta vuelve a la lista', async () => {

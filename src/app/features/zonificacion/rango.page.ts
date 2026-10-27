@@ -42,6 +42,7 @@ export class ZonificacionRangoPage implements ViewWillEnter {
    * `nativeElement` queda vacío y el cursor no pasa al segundo TAG (pasó en la PDA:
    * el segundo número se pegaba al primero).
    */
+  @ViewChild('desdeEl', { read: ElementRef }) desdeEl?: ElementRef<HTMLIonInputElement>;
   @ViewChild('hastaEl', { read: ElementRef }) hastaEl?: ElementRef<HTMLIonInputElement>;
 
   isOnline = this.network.isOnline;
@@ -95,6 +96,11 @@ export class ZonificacionRangoPage implements ViewWillEnter {
     this.desde.set(rango ? String(rango.tagDesde) : '');
     this.hasta.set(rango ? String(rango.tagHasta) : '');
     this.referencia.set(rango?.referenciaUbicacion ?? '');
+  }
+
+  /* El operador escanea sin tocar la pantalla: el cursor entra solo al primer TAG. */
+  ionViewDidEnter(): void {
+    setTimeout(() => void this.desdeEl?.nativeElement?.setFocus?.(), 150);
   }
 
   onDesde(ev: Event): void {

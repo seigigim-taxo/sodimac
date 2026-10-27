@@ -121,7 +121,13 @@ export class ZonificacionResumenPage implements ViewWillEnter {
     const idAgenda = Number(this.route.snapshot.paramMap.get('idAgenda'));
     // El número de agenda sale de la lista descargada: sin ella no hay a qué agenda ir.
     const agenda = this.facade.agendas()?.lista?.agendas.find((a) => a.idAgenda === idAgenda);
-    if (agenda) {
+    const yaAbierta = this.facade.agenda()?.idAgenda === idAgenda && this.facade.estado() !== null;
+    if (yaAbierta) {
+      // Se vuelve de otra pantalla (guardar un rango, anular...): lo hecho se ve al instante, sin vaciar la
+      // pantalla ni esperar al servidor; lo del servidor se actualiza después, por encima.
+      await this.facade.refrescarVistaLocal();
+      await this.facade.refrescarEstado();
+    } else if (agenda) {
       await this.facade.abrirAgenda({ idAgenda: agenda.idAgenda, numeroAgenda: agenda.numeroAgenda });
     } else if (this.facade.agenda()?.idAgenda === idAgenda) {
       await this.facade.refrescarEstado();

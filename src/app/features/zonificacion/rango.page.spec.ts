@@ -251,6 +251,21 @@ describe('ZonificacionRangoPage', () => {
       expect(page.errorGuardar()).toBeNull();
     });
 
+    it('al abrir el formulario el cursor entra solo al primer TAG', () => {
+      jasmine.clock().install();
+      try {
+        const setFocus = jasmine.createSpy('setFocus');
+        page.desdeEl = { nativeElement: { setFocus } } as never;
+
+        page.ionViewDidEnter();
+        jasmine.clock().tick(300);
+
+        expect(setFocus).toHaveBeenCalledTimes(1);
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
     it('Enter en el primer TAG pone el cursor en el segundo (el escáner termina cada TAG con Enter)', () => {
       jasmine.clock().install();
       try {
